@@ -1,0 +1,163 @@
+:root {
+  --paper:   #f3f4f1;
+  --card:    #ffffff;
+  --ink:     #1c2b2b;
+  --muted:   #5f6d6b;
+  --line:    #dfe3df;
+  --accent:  #2e7d6b;
+  --accent-ink: #1d5145;
+  --gold:    #b7823f;
+  --danger:  #a4442f;
+  --radius:  10px;
+  --serif: Georgia, "Times New Roman", serif;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--sans);
+  color: var(--ink);
+  background: var(--paper);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- shared bits ---- */
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 0.4rem;
+}
+h1, h2 { font-family: var(--serif); font-weight: 600; letter-spacing: -0.01em; }
+h1 { font-size: 1.75rem; margin: 0 0 0.25rem; }
+h2 { font-size: 1.15rem; margin: 0 0 0.9rem; }
+a { color: var(--accent-ink); }
+
+button, .btn {
+  font-family: var(--sans);
+  font-size: 0.92rem;
+  font-weight: 600;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.05s ease;
+}
+button:hover, .btn:hover { background: var(--accent-ink); }
+button:active { transform: translateY(1px); }
+button.ghost {
+  background: transparent;
+  color: var(--accent-ink);
+}
+button.ghost:hover { background: rgba(46,125,107,0.08); }
+button:disabled { opacity: 0.5; cursor: default; }
+
+input, select {
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--ink);
+  width: 100%;
+}
+input:focus, select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+label { display: block; font-size: 0.82rem; color: var(--muted); margin: 0 0 0.3rem; }
+
+/* ---- login page ---- */
+.login-wrap {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+}
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 2rem 1.75rem;
+  box-shadow: 0 12px 40px -24px rgba(28,43,43,0.45);
+  animation: rise 0.4s ease;
+}
+.field { margin-bottom: 1rem; }
+.msg { font-size: 0.85rem; margin: 0.75rem 0 0; min-height: 1.1em; }
+.msg.err { color: var(--danger); }
+
+/* ---- app shell ---- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 1.25rem;
+  background: var(--ink);
+  color: #fff;
+}
+.topbar .brand { font-family: var(--serif); font-size: 1.15rem; }
+.topbar .who { font-size: 0.85rem; opacity: 0.8; margin-right: 0.9rem; }
+.topbar button.ghost { color: #fff; border-color: rgba(255,255,255,0.35); }
+.topbar button.ghost:hover { background: rgba(255,255,255,0.12); }
+
+.container { max-width: 900px; margin: 0 auto; padding: 1.75rem 1.25rem 4rem; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  margin-bottom: 1.1rem;
+}
+
+/* ---- lesson list ---- */
+.lesson {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.lesson:last-child { border-bottom: none; }
+.lesson .meta { flex: 1; min-width: 0; }
+.lesson .title { font-weight: 600; }
+.lesson .kind {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.pill.done { background: rgba(46,125,107,0.14); color: var(--accent-ink); }
+.pill.todo { background: rgba(183,130,63,0.16); color: var(--gold); }
+
+/* ---- admin table ---- */
+table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+th, td { text-align: left; padding: 0.6rem 0.5rem; border-bottom: 1px solid var(--line); }
+th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.form-row { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: flex-end; }
+.form-row .field { flex: 1; min-width: 140px; margin: 0; }
+
+.empty { color: var(--muted); font-size: 0.9rem; padding: 0.5rem 0; }
+
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; } }

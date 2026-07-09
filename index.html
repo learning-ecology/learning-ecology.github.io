@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign in — Learning Center</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="login-wrap">
+    <div class="login-card">
+      <p class="eyebrow">Learning Center</p>
+      <h1>Sign in</h1>
+      <p style="color:var(--muted); margin:0 0 1.5rem; font-size:0.9rem;">
+        Use the email and password your teacher gave you.
+      </p>
+
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" type="email" autocomplete="email" placeholder="you@example.com" />
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" />
+      </div>
+
+      <button id="signin" style="width:100%;">Sign in</button>
+      <p id="msg" class="msg"></p>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script>
+    const msg = document.getElementById("msg");
+
+    // If already logged in, skip straight to the dashboard.
+    sb.auth.getSession().then(({ data }) => {
+      if (data.session) window.location.href = "dashboard.html";
+    });
+
+    async function signIn() {
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+      msg.textContent = "";
+      msg.className = "msg";
+
+      if (!email || !password) {
+        msg.textContent = "Enter your email and password.";
+        msg.className = "msg err";
+        return;
+      }
+
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) {
+        msg.textContent = "Those details didn't work. Check them and try again.";
+        msg.className = "msg err";
+        return;
+      }
+      window.location.href = "dashboard.html";
+    }
+
+    document.getElementById("signin").addEventListener("click", signIn);
+    document.getElementById("password").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") signIn();
+    });
+  </script>
+</body>
+</html>

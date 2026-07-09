@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — Learning Center</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">Learning Center</span>
+    <div style="display:flex; align-items:center;">
+      <span class="who" id="who"></span>
+      <button class="ghost" id="signout">Sign out</button>
+    </div>
+  </header>
+
+  <main class="container" id="app">
+    <p class="empty">Loading…</p>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script>
+    const app = document.getElementById("app");
+    const who = document.getElementById("who");
+    let user = null;
+
+    document.getElementById("signout").addEventListener("click", async () => {
+      await sb.auth.signOut();
+      window.location.href = "index.html";
+    });
+
+    function esc(s) {
+      return String(s ?? "").replace(/[&<>"']/g, c =>
+        ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+    }
+
+    async function start() {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) { window.location.href = "index.html"; return; }
+      user = session.user;
+
+      const { data: profile } = await sb
+        .from("profiles").select("full_name, role").eq("id", user.id).single();
+
+      const name = profile?.full_name || user.email;
+      who.textContent = name;
+
+      if (profile?.role === "admin") renderAdmin();
+      else renderStudent();
+    }
+
+    // ---------- STUDENT VIEW ----------
+    async function renderStudent() {
+      const { data: lessons } = await sb
+        .from("lessons").select("*").order("sort_order");
+      const { data: mine } = await sb
+        .from("progress").select("lesson_id, status").eq("student_id", user.id);
+
+      const done = new Set((mine || []).filter(p => p.status === "completed").map(p => p.lesson_id));
+
+      let rows = (lessons || []).map(l => `
+        <div class="lesson">
+          <div class="meta">
+            <div class="title">${esc(l.title)}</div>
+            <span class="kind">${esc(l.kind)}</span>
+          </div>
+          <a class="btn ghost" href="${esc(l.url)}" target="_blank" rel="noopener">Open</a>
+          ${done.has(l.id)
+            ? `<span class="pill done">✓ Completed</span>`
+            : `<button data-lesson="${l.id}" class="mark">Mark done</button>`}
+        </div>`).join("");
+
+      app.innerHTML = `
+        <p class="eyebrow">My lessons</p>
+        <h1>Welcome back</h1>
+        <div class="card">${rows || `<p class="empty">No lessons yet. Check back soon.</p>`}</div>`;
+
+      app.querySelectorAll(".mark").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          btn.disabled = true;
+          const lesson_id = btn.getAttribute("data-lesson");
+          const { error } = await sb.from("progress").upsert(
+            { student_id: user.id, lesson_id, status: "completed", updated_at: new Date().toISOString() },
+            { onConflict: "student_id,lesson_id" }
+          );
+          if (error) { btn.disabled = false; alert("Could not save. Try again."); return; }
+          renderStudent();
+        });
+      });
+    }
+
+    // ---------- ADMIN VIEW ----------
+    async function renderAdmin() {
+      const { data: lessons } = await sb
+        .from("lessons").select("*").order("sort_order");
+
+      // Every student's progress, joined with names + lesson titles.
+      const { data: prog } = await sb
+        .from("progress")
+        .select("status, updated_at, profiles(full_name), lessons(title)")
+        .order("updated_at", { ascending: false });
+
+      const progressRows = (prog || []).map(p => `
+        <tr>
+          <td>${esc(p.profiles?.full_name || "—")}</td>
+          <td>${esc(p.lessons?.title || "—")}</td>
+          <td>${p.status === "completed"
+                ? `<span class="pill done">completed</span>`
+                : `<span class="pill todo">in progress</span>`}</td>
+          <td>${new Date(p.updated_at).toLocaleDateString()}</td>
+        </tr>`).join("");
+
+      const lessonList = (lessons || []).map(l =>
+        `<div class="lesson"><div class="meta"><div class="title">${esc(l.title)}</div>
+         <span class="kind">${esc(l.kind)} · ${esc(l.url)}</span></div></div>`).join("");
+
+      app.innerHTML = `
+        <p class="eyebrow">Admin</p>
+        <h1>Center overview</h1>
+
+        <div class="card">
+          <h2>Add a lesson</h2>
+          <div class="form-row">
+            <div class="field"><label>Title</label><input id="l-title" placeholder="Lesson 1: Introduction" /></div>
+            <div class="field" style="max-width:120px;"><label>Type</label>
+              <select id="l-kind"><option value="html">html</option><option value="pdf">pdf</option></select></div>
+            <div class="field"><label>Link (URL)</label><input id="l-url" placeholder="https://your-site.github.io/lesson1.html" /></div>
+            <button id="l-add">Add</button>
+          </div>
+          <p id="l-msg" class="msg"></p>
+        </div>
+
+        <div class="card">
+          <h2>Lessons (${(lessons || []).length})</h2>
+          ${lessonList || `<p class="empty">No lessons yet — add your first one above.</p>`}
+        </div>
+
+        <div class="card">
+          <h2>Student progress</h2>
+          ${progressRows
+            ? `<table><thead><tr><th>Student</th><th>Lesson</th><th>Status</th><th>Updated</th></tr></thead>
+               <tbody>${progressRows}</tbody></table>`
+            : `<p class="empty">No activity yet. Once students open and complete lessons, it shows here.</p>`}
+        </div>`;
+
+      document.getElementById("l-add").addEventListener("click", async () => {
+        const title = document.getElementById("l-title").value.trim();
+        const kind = document.getElementById("l-kind").value;
+        const url = document.getElementById("l-url").value.trim();
+        const m = document.getElementById("l-msg");
+        if (!title || !url) { m.textContent = "Add a title and a link."; m.className = "msg err"; return; }
+        const { error } = await sb.from("lessons").insert({ title, kind, url });
+        if (error) { m.textContent = "Could not add: " + error.message; m.className = "msg err"; return; }
+        renderAdmin();
+      });
+    }
+
+    start();
+  </script>
+</body>
+</html>
