@@ -3,38 +3,47 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sign in — Thong's Learning Hub</title>
+  <title>Thong's Learning Hub</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <main class="login-wrap">
     <div class="login-card">
       <p class="eyebrow">Thong's Learning Hub</p>
-      <h1>Sign in</h1>
-      <p style="color:var(--muted); margin:0 0 1.5rem; font-size:0.9rem;">
+      <h1 data-i18n="signin_title">Sign in</h1>
+      <p data-i18n="signin_sub" style="color:var(--muted); margin:0 0 1.5rem; font-size:0.9rem;">
         Use the email and password your teacher gave you.
       </p>
 
       <div class="field">
-        <label for="email">Email</label>
+        <label for="email" data-i18n="email">Email</label>
         <input id="email" type="email" autocomplete="email" placeholder="you@example.com" />
       </div>
       <div class="field">
-        <label for="password">Password</label>
+        <label for="password" data-i18n="password">Password</label>
         <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" />
       </div>
 
-      <button id="signin" style="width:100%;">Sign in</button>
+      <button id="signin" data-i18n="signin_btn" style="width:100%;">Sign in</button>
       <p style="text-align:center; margin:0.9rem 0 0;">
-        <a href="#" id="forgot" style="font-size:0.85rem;">Forgot password?</a>
+        <a href="#" id="forgot" data-i18n="forgot" style="font-size:0.85rem;">Forgot password?</a>
       </p>
       <p id="msg" class="msg"></p>
+      <p style="text-align:center; margin:1.1rem 0 0; border-top:1px solid var(--line); padding-top:0.9rem;">
+        <a href="#" id="lang-toggle" style="font-size:0.85rem; color:var(--muted);"></a>
+      </p>
     </div>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="lang.js"></script>
   <script src="config.js"></script>
   <script>
+    applyI18n();
+    const langLink = document.getElementById("lang-toggle");
+    langLink.textContent = t("lang_name");
+    langLink.addEventListener("click", (e) => { e.preventDefault(); setLang(otherLang()); });
+
     const msg = document.getElementById("msg");
 
     // If already logged in, skip straight to the dashboard.
@@ -49,14 +58,14 @@
       msg.className = "msg";
 
       if (!email || !password) {
-        msg.textContent = "Enter your email and password.";
+        msg.textContent = t("msg_enter_both");
         msg.className = "msg err";
         return;
       }
 
       const { error } = await sb.auth.signInWithPassword({ email, password });
       if (error) {
-        msg.textContent = "Those details didn't work. Check them and try again.";
+        msg.textContent = t("msg_bad_login");
         msg.className = "msg err";
         return;
       }
@@ -70,18 +79,17 @@
       const email = document.getElementById("email").value.trim();
       msg.className = "msg";
       if (!email) {
-        msg.textContent = "Type your email above first, then click 'Forgot password?'.";
+        msg.textContent = t("msg_type_email_first");
         msg.className = "msg err";
         return;
       }
       // Send a reset link that lands on reset.html of THIS site.
       const redirectTo = new URL("reset.html", window.location.href).href;
       const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
-      msg.textContent = error
-        ? "Could not send the email. Try again in a minute."
-        : "Check your inbox — we sent you a password reset link.";
+      msg.textContent = error ? t("msg_reset_fail") : t("msg_reset_sent");
       if (error) msg.className = "msg err";
     });
+
     document.getElementById("password").addEventListener("keydown", (e) => {
       if (e.key === "Enter") signIn();
     });
