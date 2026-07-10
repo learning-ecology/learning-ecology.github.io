@@ -36,6 +36,31 @@
         ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
     }
 
+    // Label a file/link by its extension.
+    function kindOf(name) {
+      const e = (String(name || "").split("?")[0].split(".").pop() || "").toLowerCase();
+      return ({ pdf:"pdf", doc:"word", docx:"word", ppt:"powerpoint", pptx:"powerpoint",
+                xls:"excel", xlsx:"excel", csv:"excel", html:"html", htm:"html",
+                mp3:"audio", wav:"audio", m4a:"audio", mp4:"video",
+                png:"image", jpg:"image", jpeg:"image", webp:"image", gif:"image",
+                txt:"text" })[e] || null;
+    }
+
+    // Open an uploaded material via a short-lived signed link.
+    // Supabase only grants the link if this user may access the file.
+    function wireFileButtons(scope) {
+      scope.querySelectorAll(".open-file").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          btn.disabled = true;
+          const { data, error } = await sb.storage
+            .from("materials").createSignedUrl(btn.getAttribute("data-path"), 3600);
+          btn.disabled = false;
+          if (error) { alert("Could not open the file: " + error.message); return; }
+          window.open(data.signedUrl, "_blank", "noopener");
+        });
+      });
+    }
+
     async function start() {
       const { data: { session } } = await sb.auth.getSession();
       if (!session) { window.location.href = "index.html"; return; }
@@ -70,7 +95,9 @@
             <div class="title">${esc(l.title)}</div>
             <span class="kind">${esc(l.kind)}</span>
           </div>
-          <a class="btn ghost" href="${esc(l.url)}" target="_blank" rel="noopener">Open</a>
+          ${l.storage_path
+            ? `<button class="ghost open-file" data-path="${esc(l.storage_path)}">Open</button>`
+            : `<a class="btn ghost" href="${esc(l.url)}" target="_blank" rel="noopener">Open</a>`}
           ${done.has(l.id)
             ? `<span class="pill done">✓ Completed</span>`
             : `<button data-lesson="${l.id}" class="mark">Mark done</button>`}
@@ -159,6 +186,8 @@
         renderStudent();
       });
 
+      wireFileButtons(app);
+
       app.querySelectorAll(".mark").forEach(btn => {
         btn.addEventListener("click", async () => {
           btn.disabled = true;
@@ -215,8 +244,9 @@
         <div class="lesson">
           <div class="meta">
             <div class="title">${esc(l.title)}</div>
-            <span class="kind">#${l.sort_order ?? 0} · ${esc(l.kind)} · ${esc(l.url)}</span>
+            <span class="kind">#${l.sort_order ?? 0} · ${esc(l.kind)} · ${l.storage_path ? "uploaded file" : esc(l.url || "")}</span>
           </div>
+          ${l.storage_path ? `<button class="ghost open-file" data-path="${esc(l.storage_path)}">Open</button>` : ""}
           <select class="l-move" data-id="${l.id}" style="max-width:150px;">
             <option value="">— no course —</option>
             ${(courses || []).map(c =>
@@ -296,12 +326,15 @@
             <div class="field"><label>Title</label><input id="l-title" placeholder="Lesson 1: Introduction" /></div>
             <div class="field" style="max-width:140px;"><label>Course</label>
               <select id="l-course"><option value="">— none —</option>${courseOptions}</select></div>
-            <div class="field" style="max-width:120px;"><label>Type</label>
-              <select id="l-kind"><option value="html">html</option><option value="pdf">pdf</option></select></div>
             <div class="field" style="max-width:90px;"><label>Order</label>
               <input id="l-order" type="number" value="${(lessons?.length || 0) + 1}" min="0" /></div>
             <div class="field"><label>Link (URL)</label><input id="l-url" placeholder="https://your-site.github.io/lesson1.html" /></div>
             <button id="l-add">Add</button>
+          </div>
+          <div id="l-drop" class="dropzone">
+            <input id="l-file" type="file" style="display:none;"
+              accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg,.webp,.gif,.mp3,.wav,.m4a,.mp4,.html" />
+            <span id="l-drop-text">📎 Drag &amp; drop a file here, or click to browse — PDF, Word, PowerPoint, Excel, audio… (max 50 MB)</span>
           </div>
           <p id="l-msg" class="msg"></p>
         </div>
@@ -328,15 +361,87 @@
             : `<p class="empty">No activity yet. Once students open and complete lessons, it shows here.</p>`}
         </div>`;
 
+      // --- drag & drop upload zone ---
+      const drop = document.getElementById("l-drop");
+      const fileInput = document.getElementById("l-file");
+      const dropText = document.getElementById("l-drop-text");
+      const dropDefault = dropText.innerHTML;
+      const allowedExt = ["pdf","doc","docx","ppt","pptx","xls","xlsx","csv","txt",
+                          "png","jpg","jpeg","webp","gif","mp3","wav","m4a","mp4","html"];
+
+      function refreshDrop() {
+        const f = fileInput.files[0];
+        if (!f) { dropText.innerHTML = dropDefault; return; }
+        dropText.innerHTML =
+          `📄 <span class="file-picked">${esc(f.name)}</span>` +
+          ` <span class="kind">(${(f.size / 1024 / 1024).toFixed(1)} MB)</span>` +
+          `<span class="file-remove" id="l-file-remove">remove</span>`;
+        // Autofill the title from the file name if it's still empty.
+        const titleBox = document.getElementById("l-title");
+        if (!titleBox.value.trim()) {
+          titleBox.value = f.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
+        }
+      }
+
+      drop.addEventListener("click", (e) => {
+        if (e.target.id === "l-file-remove") {
+          fileInput.value = ""; refreshDrop(); return;
+        }
+        fileInput.click();
+      });
+      fileInput.addEventListener("change", refreshDrop);
+
+      ["dragover", "dragenter"].forEach(ev =>
+        drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("dragover"); }));
+      ["dragleave", "dragend"].forEach(ev =>
+        drop.addEventListener(ev, () => drop.classList.remove("dragover")));
+      drop.addEventListener("drop", (e) => {
+        e.preventDefault();
+        drop.classList.remove("dragover");
+        const f = e.dataTransfer.files[0];
+        if (!f) return;
+        const ext = (f.name.split(".").pop() || "").toLowerCase();
+        const m = document.getElementById("l-msg");
+        if (!allowedExt.includes(ext)) {
+          m.textContent = "That file type isn't supported. Use PDF, Word, PowerPoint, Excel, image, audio, video, text, or HTML.";
+          m.className = "msg err"; return;
+        }
+        m.textContent = ""; m.className = "msg";
+        fileInput.files = e.dataTransfer.files;
+        refreshDrop();
+      });
+
       document.getElementById("l-add").addEventListener("click", async () => {
         const title = document.getElementById("l-title").value.trim();
-        const kind = document.getElementById("l-kind").value;
         const url = document.getElementById("l-url").value.trim();
+        const file = document.getElementById("l-file").files[0] || null;
         const sort_order = parseInt(document.getElementById("l-order").value, 10) || 0;
         const course_id = document.getElementById("l-course").value || null;
         const m = document.getElementById("l-msg");
-        if (!title || !url) { m.textContent = "Add a title and a link."; m.className = "msg err"; return; }
-        const { error } = await sb.from("lessons").insert({ title, kind, url, sort_order, course_id });
+        m.className = "msg";
+
+        if (!title || (!url && !file)) {
+          m.textContent = "Add a title, plus either a link or a file."; m.className = "msg err"; return;
+        }
+        if (file && file.size > 50 * 1024 * 1024) {
+          m.textContent = "Files must be under 50 MB."; m.className = "msg err"; return;
+        }
+
+        let storage_path = null;
+        let kind = kindOf(file ? file.name : url) || (file ? "file" : "link");
+
+        if (file) {
+          m.textContent = "Uploading…";
+          const folder = course_id || "shared";
+          const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+          storage_path = folder + "/" + Date.now() + "-" + safe;
+          const { error: upErr } = await sb.storage.from("materials")
+            .upload(storage_path, file, { contentType: file.type || undefined });
+          if (upErr) { m.textContent = "Upload failed: " + upErr.message; m.className = "msg err"; return; }
+        }
+
+        const { error } = await sb.from("lessons")
+          .insert({ title, kind, url: url || null, sort_order, course_id, storage_path });
         if (error) { m.textContent = "Could not add: " + error.message; m.className = "msg err"; return; }
         renderAdmin();
       });
@@ -381,9 +486,26 @@
         btn.addEventListener("click", async () => {
           const id = btn.getAttribute("data-id");
           const sel = app.querySelector(`.l-move[data-id="${id}"]`);
+          const lesson = (lessons || []).find(x => x.id === id);
           btn.disabled = true;
+
+          let newPath = lesson?.storage_path || null;
+          // If this lesson is an uploaded file, move it to the new
+          // course's folder so student access follows the course.
+          if (lesson?.storage_path) {
+            const folder = sel.value || "shared";
+            const fname = lesson.storage_path.split("/").pop();
+            const target = folder + "/" + fname;
+            if (target !== lesson.storage_path) {
+              const { error: mvErr } = await sb.storage.from("materials")
+                .move(lesson.storage_path, target);
+              if (mvErr) { btn.disabled = false; alert("Could not move the file: " + mvErr.message); return; }
+              newPath = target;
+            }
+          }
+
           const { error } = await sb.from("lessons")
-            .update({ course_id: sel.value || null }).eq("id", id);
+            .update({ course_id: sel.value || null, storage_path: newPath }).eq("id", id);
           btn.disabled = false;
           if (error) { alert("Could not move the lesson: " + error.message); return; }
           btn.textContent = "Saved ✓";
@@ -393,13 +515,20 @@
 
       app.querySelectorAll(".l-del").forEach(btn => {
         btn.addEventListener("click", async () => {
-          if (!confirm("Delete this lesson? Student progress records for it will also be removed. This cannot be undone.")) return;
+          if (!confirm("Delete this lesson? Its uploaded file (if any) and student progress records will also be removed. This cannot be undone.")) return;
+          const id = btn.getAttribute("data-id");
+          const lesson = (lessons || []).find(x => x.id === id);
           btn.disabled = true;
-          const { error } = await sb.from("lessons").delete().eq("id", btn.getAttribute("data-id"));
+          const { error } = await sb.from("lessons").delete().eq("id", id);
           if (error) { btn.disabled = false; alert("Could not delete: " + error.message); return; }
+          if (lesson?.storage_path) {
+            await sb.storage.from("materials").remove([lesson.storage_path]);
+          }
           renderAdmin();
         });
       });
+
+      wireFileButtons(app);
 
       app.querySelectorAll(".s-save").forEach(btn => {
         btn.addEventListener("click", async () => {

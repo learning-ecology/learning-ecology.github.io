@@ -159,5 +159,31 @@ th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-t
 
 .empty { color: var(--muted); font-size: 0.9rem; padding: 0.5rem 0; }
 
+/* ---- drag & drop upload ---- */
+.dropzone {
+  margin-top: 0.85rem;
+  border: 1.5px dashed var(--line);
+  border-radius: var(--radius);
+  padding: 1.15rem 1rem;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.dropzone.dragover {
+  border-color: var(--accent);
+  background: rgba(46,125,107,0.07);
+  color: var(--accent-ink);
+}
+.dropzone .file-picked { color: var(--ink); font-weight: 600; }
+.dropzone .file-remove {
+  margin-left: 0.6rem;
+  color: var(--danger);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
