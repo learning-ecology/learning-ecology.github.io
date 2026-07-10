@@ -56,6 +56,30 @@
   }
   sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+  // ---- OPTIONAL ACCESS GATE ----
+  // Add data-lms-require="login" (any signed-in student) or
+  // data-lms-require="enrolled" (must be enrolled in this lesson's
+  // course) to the <html> tag of a lesson to protect it.
+  const requireMode =
+    document.documentElement.getAttribute("data-lms-require") ||
+    (document.body && document.body.getAttribute("data-lms-require"));
+  if (requireMode) document.documentElement.style.visibility = "hidden";
+
+  function lockPage(msgEn, msgVi) {
+    document.documentElement.style.visibility = "";
+    document.body.innerHTML =
+      '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;' +
+      'font-family:sans-serif;background:#f4f6fa;color:#17263e;padding:1.5rem;text-align:center;">' +
+      '<div style="max-width:420px;background:#fff;border:1px solid #dde3ec;border-radius:14px;padding:2rem;">' +
+      '<div style="font-size:2.2rem;">🔒</div>' +
+      '<h2 style="margin:0.6rem 0 0.4rem;">' + msgEn + '</h2>' +
+      '<p style="color:#5a6577;margin:0 0 1.2rem;">' + msgVi + '</p>' +
+      '<a href="https://lqthongforwork.github.io/learninghub/" ' +
+      'style="display:inline-block;background:#1e4f8f;color:#fff;text-decoration:none;' +
+      'padding:0.7rem 1.4rem;border-radius:10px;font-weight:600;">Thong\u2019s Learning Hub \u2192</a>' +
+      '</div></div>';
+  }
+
   // Which lesson is this? The hub appends ?lms=<id> when a student
   // clicks Open; we remember it in case the lesson navigates.
   const fromUrl = new URLSearchParams(location.search).get("lms");
@@ -91,7 +115,34 @@
 
   async function init() {
     const { data: { session } } = await sb.auth.getSession();
-    if (!session || !lessonId) return;   // not a hub student → do nothing
+
+    // ---- access gate enforcement ----
+    if (requireMode) {
+      if (!session) {
+        lockPage("This lesson is for enrolled students",
+                 "Bài học này dành cho học viên. Hãy đăng nhập tại Learning Hub.");
+        return;
+      }
+      if (requireMode === "enrolled") {
+        if (!lessonId) {
+          lockPage("Please open this lesson from the Hub",
+                   "Hãy mở bài học này từ trang Learning Hub của bạn.");
+          return;
+        }
+        // RLS only returns the lesson row if this student may see it
+        // (enrolled in its course, it has no course, or they're admin).
+        const { data: allowed } = await sb.from("lessons")
+          .select("id").eq("id", lessonId).maybeSingle();
+        if (!allowed) {
+          lockPage("You are not enrolled in this course",
+                   "Bạn chưa được ghi danh vào khóa học này. Hãy liên hệ giáo viên.");
+          return;
+        }
+      }
+      document.documentElement.style.visibility = "";
+    }
+
+    if (!session || !lessonId) return;   // not a hub student → no tracking
     uid = session.user.id;
 
     // Continue from previously recorded time.
