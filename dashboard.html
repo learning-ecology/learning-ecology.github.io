@@ -3,13 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard — Learning Center</title>
+  <title>Dashboard — Thong's Learning Hub</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header class="topbar">
-    <span class="brand">Learning Center</span>
+    <span class="brand">Thong's Learning Hub</span>
     <div style="display:flex; align-items:center;">
+      <span class="badge" id="who-badge" style="display:none;"></span>
       <span class="who" id="who"></span>
       <button class="ghost" id="signout">Sign out</button>
     </div>
@@ -25,6 +26,7 @@
     const app = document.getElementById("app");
     const who = document.getElementById("who");
     let user = null;
+    let adminTab = "lessons";
 
     document.getElementById("signout").addEventListener("click", async () => {
       await sb.auth.signOut();
@@ -44,6 +46,11 @@
                 mp3:"audio", wav:"audio", m4a:"audio", mp4:"video",
                 png:"image", jpg:"image", jpeg:"image", webp:"image", gif:"image",
                 txt:"text" })[e] || null;
+    }
+
+    function iconFor(kind) {
+      return ({ pdf:"📄", word:"📝", powerpoint:"📊", excel:"📈", html:"🌐",
+                audio:"🎧", video:"🎬", image:"🖼️", text:"📃", link:"🔗" })[kind] || "📄";
     }
 
     // Open an uploaded material via a short-lived signed link.
@@ -67,10 +74,15 @@
       user = session.user;
 
       const { data: profile } = await sb
-        .from("profiles").select("full_name, role").eq("id", user.id).single();
+        .from("profiles").select("full_name, role, avatar_url").eq("id", user.id).single();
 
       const name = profile?.full_name || user.email;
       who.textContent = name;
+      const badge = document.getElementById("who-badge");
+      badge.style.display = "inline-flex";
+      badge.innerHTML = profile?.avatar_url
+        ? `<img src="${esc(profile.avatar_url)}" alt="" />`
+        : esc(String(name).charAt(0).toUpperCase());
 
       if (profile?.role === "admin") renderAdmin();
       else renderStudent();
@@ -91,6 +103,7 @@
 
       const lessonRow = l => `
         <div class="lesson">
+          <span class="icon">${iconFor(l.kind)}</span>
           <div class="meta">
             <div class="title">${esc(l.title)}</div>
             <span class="kind">${esc(l.kind)}</span>
@@ -108,12 +121,16 @@
       for (const c of (courses || [])) {
         const ls = (lessons || []).filter(l => l.course_id === c.id);
         const doneCount = ls.filter(l => done.has(l.id)).length;
+        const pct = ls.length ? Math.round(doneCount / ls.length * 100) : 0;
+        const complete = ls.length > 0 && doneCount === ls.length;
         cards.push(`
           <div class="card">
             <h2>${esc(c.title)}
-              <span class="kind" style="float:right;">${doneCount}/${ls.length} done</span></h2>
+              <span class="kind" style="float:right;">${doneCount} of ${ls.length} done</span></h2>
+            <div class="progress"><span style="width:${pct}%;"></span></div>
             ${c.description ? `<p style="color:var(--muted); font-size:0.88rem; margin:0 0 0.5rem;">${esc(c.description)}</p>` : ""}
             ${ls.map(lessonRow).join("") || `<p class="empty">No lessons in this course yet.</p>`}
+            ${complete ? `<div class="congrats">🎉 <span>${esc(c.title)} — completed. Great work!</span></div>` : ""}
           </div>`);
       }
       const loose = (lessons || []).filter(l => !l.course_id);
@@ -150,7 +167,7 @@
 
       app.innerHTML = `
         <p class="eyebrow">My lessons</p>
-        <h1>Welcome back</h1>
+        <h1>Welcome back${me?.full_name ? ", " + esc(me.full_name) : ""}</h1>
         ${cards.join("") || `<div class="card"><p class="empty">You're not enrolled in any course yet. Your teacher will add you soon.</p></div>`}
         ${profileCard}`;
 
@@ -242,6 +259,7 @@
 
       const lessonList = (lessons || []).map(l => `
         <div class="lesson">
+          <span class="icon">${iconFor(l.kind)}</span>
           <div class="meta">
             <div class="title">${esc(l.title)}</div>
             <span class="kind">#${l.sort_order ?? 0} · ${esc(l.kind)} · ${l.storage_path ? "uploaded file" : esc(l.url || "")}</span>
@@ -293,6 +311,14 @@
         <p class="eyebrow">Admin</p>
         <h1>Center overview</h1>
 
+        <div class="tabs">
+          <button data-tab="lessons">Lessons (${(lessons || []).length})</button>
+          <button data-tab="courses">Courses (${(courses || []).length})</button>
+          <button data-tab="students">Students (${onlyStudents.length})</button>
+          <button data-tab="progress">Progress</button>
+        </div>
+
+        <div class="tabpane" data-tab="courses">
         <div class="card">
           <h2>Courses</h2>
           <div class="form-row">
@@ -319,7 +345,9 @@
                <tbody>${enrollmentRows}</tbody></table>`
             : `<p class="empty" style="margin-top:0.75rem;">No enrollments yet.</p>`}
         </div>
+        </div>
 
+        <div class="tabpane" data-tab="lessons">
         <div class="card">
           <h2>Add a lesson</h2>
           <div class="form-row">
@@ -343,7 +371,9 @@
           <h2>Lessons (${(lessons || []).length})</h2>
           ${lessonList || `<p class="empty">No lessons yet — add your first one above.</p>`}
         </div>
+        </div>
 
+        <div class="tabpane" data-tab="students">
         <div class="card">
           <h2>Students</h2>
           ${studentRows
@@ -352,14 +382,28 @@
                <p class="empty" style="margin-top:0.5rem;">Type a name and click Save — it then appears in the progress table below.</p>`
             : `<p class="empty">No accounts yet.</p>`}
         </div>
+        </div>
 
+        <div class="tabpane" data-tab="progress">
         <div class="card">
           <h2>Student progress</h2>
           ${progressRows
             ? `<table><thead><tr><th>Student</th><th>Lesson</th><th>Status</th><th>Updated</th></tr></thead>
                <tbody>${progressRows}</tbody></table>`
             : `<p class="empty">No activity yet. Once students open and complete lessons, it shows here.</p>`}
+        </div>
         </div>`;
+
+      function showTab(t) {
+        adminTab = t;
+        app.querySelectorAll(".tabpane").forEach(p =>
+          p.classList.toggle("show", p.getAttribute("data-tab") === t));
+        app.querySelectorAll(".tabs button").forEach(b =>
+          b.classList.toggle("active", b.getAttribute("data-tab") === t));
+      }
+      app.querySelectorAll(".tabs button").forEach(b =>
+        b.addEventListener("click", () => showTab(b.getAttribute("data-tab"))));
+      showTab(adminTab);
 
       // --- drag & drop upload zone ---
       const drop = document.getElementById("l-drop");
