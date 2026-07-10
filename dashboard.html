@@ -348,7 +348,9 @@
         else if (a.kind === "activity") {
           e.acts.push(a.max_value && Number(a.max_value) > 1
             ? `${esc(a.key)}: ${a.value}/${a.max_value}`
-            : `${esc(a.key)} ✓`);
+            : (Number(a.value) > 1
+                ? `${esc(a.key)}: ${a.value}`
+                : `${esc(a.key)} ✓`));
         }
         if (a.updated_at > e.last) e.last = a.updated_at;
       });
