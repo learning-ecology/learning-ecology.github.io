@@ -12,17 +12,25 @@
     <div style="display:flex; align-items:center;">
       <span class="badge" id="who-badge" style="display:none;"></span>
       <span class="who" id="who"></span>
-      <button class="ghost" id="signout">Sign out</button>
+      <button class="ghost" id="lang-btn" style="margin-right:0.5rem;"></button>
+      <button class="ghost" id="signout" data-i18n="sign_out">Sign out</button>
     </div>
   </header>
 
   <main class="container" id="app">
-    <p class="empty">Loading…</p>
+    <p class="empty" data-i18n="loading">Loading…</p>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="lang.js"></script>
   <script src="config.js"></script>
   <script>
+    applyI18n();
+    const langBtn = document.getElementById("lang-btn");
+    langBtn.textContent = LANG === "en" ? "VI" : "EN";
+    langBtn.title = t("lang_name");
+    langBtn.addEventListener("click", () => setLang(otherLang()));
+
     const app = document.getElementById("app");
     const who = document.getElementById("who");
     let user = null;
@@ -62,7 +70,7 @@
           const { data, error } = await sb.storage
             .from("materials").createSignedUrl(btn.getAttribute("data-path"), 3600);
           btn.disabled = false;
-          if (error) { alert("Could not open the file: " + error.message); return; }
+          if (error) { alert(t("file_open_fail") + error.message); return; }
           window.open(data.signedUrl, "_blank", "noopener");
         });
       });
@@ -101,6 +109,8 @@
 
       const done = new Set((mine || []).filter(p => p.status === "completed").map(p => p.lesson_id));
 
+      const withLms = l => l.url + (l.url.includes("?") ? "&" : "?") + "lms=" + l.id;
+
       const lessonRow = l => `
         <div class="lesson">
           <span class="icon">${iconFor(l.kind)}</span>
@@ -109,11 +119,11 @@
             <span class="kind">${esc(l.kind)}</span>
           </div>
           ${l.storage_path
-            ? `<button class="ghost open-file" data-path="${esc(l.storage_path)}">Open</button>`
-            : `<a class="btn ghost" href="${esc(l.url)}" target="_blank" rel="noopener">Open</a>`}
+            ? `<button class="ghost open-file" data-lesson="${l.id}" data-path="${esc(l.storage_path)}">${t("open")}</button>`
+            : `<a class="btn ghost open-link" data-lesson="${l.id}" href="${esc(withLms(l))}" target="_blank" rel="noopener">${t("open")}</a>`}
           ${done.has(l.id)
-            ? `<span class="pill done">✓ Completed</span>`
-            : `<button data-lesson="${l.id}" class="mark">Mark done</button>`}
+            ? `<span class="pill done">${t("completed_pill")}</span>`
+            : `<button data-lesson="${l.id}" class="mark">${t("mark_done")}</button>`}
         </div>`;
 
       // One card per enrolled course, plus one for uncategorized lessons.
@@ -126,16 +136,16 @@
         cards.push(`
           <div class="card">
             <h2>${esc(c.title)}
-              <span class="kind" style="float:right;">${doneCount} of ${ls.length} done</span></h2>
+              <span class="kind" style="float:right;">${tf("done_count", { d: doneCount, t: ls.length })}</span></h2>
             <div class="progress"><span style="width:${pct}%;"></span></div>
             ${c.description ? `<p style="color:var(--muted); font-size:0.88rem; margin:0 0 0.5rem;">${esc(c.description)}</p>` : ""}
-            ${ls.map(lessonRow).join("") || `<p class="empty">No lessons in this course yet.</p>`}
-            ${complete ? `<div class="congrats">🎉 <span>${esc(c.title)} — completed. Great work!</span></div>` : ""}
+            ${ls.map(lessonRow).join("") || `<p class="empty">${t("no_lessons_course")}</p>`}
+            ${complete ? `<div class="congrats">🎉 <span>${esc(c.title)}${t("congrats")}</span></div>` : ""}
           </div>`);
       }
       const loose = (lessons || []).filter(l => !l.course_id);
       if (loose.length) {
-        cards.push(`<div class="card"><h2>Other lessons</h2>${loose.map(lessonRow).join("")}</div>`);
+        cards.push(`<div class="card"><h2>${t("other_lessons")}</h2>${loose.map(lessonRow).join("")}</div>`);
       }
 
       const { data: me } = await sb
@@ -147,28 +157,28 @@
 
       const profileCard = `
         <div class="card">
-          <h2>My profile</h2>
+          <h2>${t("my_profile")}</h2>
           <div style="display:flex; gap:1.25rem; align-items:flex-start; flex-wrap:wrap;">
             <div style="text-align:center;">
               ${avatar}
               <input type="file" id="p-file" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none;" />
-              <button class="ghost" id="p-pick" style="margin-top:0.6rem;">Change photo</button>
+              <button class="ghost" id="p-pick" style="margin-top:0.6rem;">${t("change_photo")}</button>
             </div>
             <div style="flex:1; min-width:230px;">
-              <div class="field"><label>My name</label>
-                <input id="p-name" value="${esc(me?.full_name || "")}" placeholder="How your teacher sees you" /></div>
-              <div class="field"><label>About me</label>
-                <input id="p-bio" value="${esc(me?.bio || "")}" placeholder="A sentence about yourself (optional)" /></div>
-              <button id="p-save">Save profile</button>
+              <div class="field"><label>${t("my_name")}</label>
+                <input id="p-name" value="${esc(me?.full_name || "")}" placeholder="${esc(t("ph_name"))}" /></div>
+              <div class="field"><label>${t("about_me")}</label>
+                <input id="p-bio" value="${esc(me?.bio || "")}" placeholder="${esc(t("ph_bio"))}" /></div>
+              <button id="p-save">${t("save_profile")}</button>
               <p id="p-msg" class="msg"></p>
             </div>
           </div>
         </div>`;
 
       app.innerHTML = `
-        <p class="eyebrow">My lessons</p>
-        <h1>Welcome back${me?.full_name ? ", " + esc(me.full_name) : ""}</h1>
-        ${cards.join("") || `<div class="card"><p class="empty">You're not enrolled in any course yet. Your teacher will add you soon.</p></div>`}
+        <p class="eyebrow">${t("my_lessons")}</p>
+        <h1>${t("welcome")}${me?.full_name ? ", " + esc(me.full_name) : ""}</h1>
+        ${cards.join("") || `<div class="card"><p class="empty">${t("not_enrolled")}</p></div>`}
         ${profileCard}`;
 
       document.getElementById("p-save").addEventListener("click", async () => {
@@ -177,7 +187,7 @@
         const bio = document.getElementById("p-bio").value.trim() || null;
         const { error } = await sb.from("profiles").update({ full_name, bio }).eq("id", user.id);
         m.className = "msg" + (error ? " err" : "");
-        m.textContent = error ? "Could not save: " + error.message : "Saved ✓";
+        m.textContent = error ? t("err_save") + error.message : t("saved");
         if (!error) who.textContent = full_name || user.email;
       });
 
@@ -189,21 +199,34 @@
         const m = document.getElementById("p-msg");
         if (!file) return;
         if (file.size > 2 * 1024 * 1024) {
-          m.textContent = "Please choose an image under 2 MB."; m.className = "msg err"; return;
+          m.textContent = t("img_too_big"); m.className = "msg err"; return;
         }
-        m.textContent = "Uploading…"; m.className = "msg";
+        m.textContent = t("uploading"); m.className = "msg";
         const path = user.id + "/avatar";
         const { error: upErr } = await sb.storage.from("avatars")
           .upload(path, file, { upsert: true, contentType: file.type });
-        if (upErr) { m.textContent = "Upload failed: " + upErr.message; m.className = "msg err"; return; }
+        if (upErr) { m.textContent = t("upload_failed") + upErr.message; m.className = "msg err"; return; }
         const { data } = sb.storage.from("avatars").getPublicUrl(path);
         const avatar_url = data.publicUrl + "?v=" + Date.now();
         const { error } = await sb.from("profiles").update({ avatar_url }).eq("id", user.id);
-        if (error) { m.textContent = "Could not save: " + error.message; m.className = "msg err"; return; }
+        if (error) { m.textContent = t("err_save") + error.message; m.className = "msg err"; return; }
         renderStudent();
       });
 
       wireFileButtons(app);
+
+      // Record that the student opened a lesson (any type).
+      app.querySelectorAll(".open-link, .open-file").forEach(el => {
+        el.addEventListener("click", () => {
+          const lid = el.getAttribute("data-lesson");
+          if (!lid) return;
+          sb.from("lesson_activity").upsert({
+            student_id: user.id, lesson_id: lid, kind: "activity",
+            key: "opened", value: 1, max_value: 1,
+            updated_at: new Date().toISOString()
+          }, { onConflict: "student_id,lesson_id,kind,key" }).then(() => {});
+        });
+      });
 
       app.querySelectorAll(".mark").forEach(btn => {
         btn.addEventListener("click", async () => {
@@ -213,7 +236,7 @@
             { student_id: user.id, lesson_id, status: "completed", updated_at: new Date().toISOString() },
             { onConflict: "student_id,lesson_id" }
           );
-          if (error) { btn.disabled = false; alert("Could not save. Try again."); return; }
+          if (error) { btn.disabled = false; alert(t("save_retry")); return; }
           renderStudent();
         });
       });
@@ -242,6 +265,11 @@
         .from("enrollments")
         .select("id, profiles(full_name, email), courses(title)")
         .order("created_at");
+
+      const { data: activity } = await sb
+        .from("lesson_activity")
+        .select("kind, key, value, max_value, updated_at, profiles(full_name, email), lessons(title)")
+        .order("updated_at", { ascending: false });
 
       const courseName = id => (courses || []).find(c => c.id === id)?.title || null;
       const studentName = s => s.full_name || s.email || "—";
@@ -305,6 +333,34 @@
           <td>${esc(e.profiles?.full_name || e.profiles?.email || "—")}</td>
           <td>${esc(e.courses?.title || "—")}</td>
           <td><button class="ghost e-remove" data-id="${e.id}">Remove</button></td>
+        </tr>`).join("");
+
+      // Roll raw engagement events into one row per student × lesson.
+      const engMap = {};
+      (activity || []).forEach(a => {
+        const who = a.profiles?.full_name || a.profiles?.email || "—";
+        const les = a.lessons?.title || "—";
+        const k = who + "|" + les;
+        const e = engMap[k] || (engMap[k] = { who, les, time: 0, sections: 0, acts: [], opened: false, last: a.updated_at });
+        if (a.kind === "time") e.time = Number(a.value) || 0;
+        else if (a.kind === "section") e.sections++;
+        else if (a.kind === "activity" && a.key === "opened") e.opened = true;
+        else if (a.kind === "activity") {
+          e.acts.push(a.max_value && Number(a.max_value) > 1
+            ? `${esc(a.key)}: ${a.value}/${a.max_value}`
+            : `${esc(a.key)} ✓`);
+        }
+        if (a.updated_at > e.last) e.last = a.updated_at;
+      });
+      const fmtTime = s => !s ? "—" : (s < 60 ? "<1 min" : Math.round(s / 60) + " min");
+      const engRows = Object.values(engMap).map(e => `
+        <tr>
+          <td>${esc(e.who)}</td>
+          <td>${esc(e.les)}</td>
+          <td>${fmtTime(e.time)}</td>
+          <td>${e.sections || "—"}</td>
+          <td>${e.acts.join(", ") || (e.opened ? "opened" : "—")}</td>
+          <td>${new Date(e.last).toLocaleDateString()}</td>
         </tr>`).join("");
 
       app.innerHTML = `
@@ -391,6 +447,15 @@
             ? `<table><thead><tr><th>Student</th><th>Lesson</th><th>Status</th><th>Updated</th></tr></thead>
                <tbody>${progressRows}</tbody></table>`
             : `<p class="empty">No activity yet. Once students open and complete lessons, it shows here.</p>`}
+        </div>
+
+        <div class="card">
+          <h2>Lesson engagement</h2>
+          ${engRows
+            ? `<table><thead><tr><th>Student</th><th>Lesson</th><th>Time</th><th>Sections</th><th>Activities & scores</th><th>Last active</th></tr></thead>
+               <tbody>${engRows}</tbody></table>
+               <p class="empty" style="margin-top:0.5rem;">Time counts only while the lesson tab is visible. Sections and scores appear for lessons that include the tracker script.</p>`
+            : `<p class="empty">No engagement data yet. It appears once students open lessons that include the tracker script.</p>`}
         </div>
         </div>`;
 
