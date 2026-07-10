@@ -94,10 +94,70 @@
         cards.push(`<div class="card"><h2>Other lessons</h2>${loose.map(lessonRow).join("")}</div>`);
       }
 
+      const { data: me } = await sb
+        .from("profiles").select("full_name, bio, avatar_url").eq("id", user.id).single();
+
+      const avatar = me?.avatar_url
+        ? `<img src="${esc(me.avatar_url)}" alt="" style="width:84px;height:84px;border-radius:50%;object-fit:cover;border:1px solid var(--line);" />`
+        : `<div style="width:84px;height:84px;border-radius:50%;background:var(--line);display:grid;place-items:center;font-family:var(--serif);font-size:2rem;color:var(--muted);">${esc((me?.full_name || user.email || "?").charAt(0).toUpperCase())}</div>`;
+
+      const profileCard = `
+        <div class="card">
+          <h2>My profile</h2>
+          <div style="display:flex; gap:1.25rem; align-items:flex-start; flex-wrap:wrap;">
+            <div style="text-align:center;">
+              ${avatar}
+              <input type="file" id="p-file" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none;" />
+              <button class="ghost" id="p-pick" style="margin-top:0.6rem;">Change photo</button>
+            </div>
+            <div style="flex:1; min-width:230px;">
+              <div class="field"><label>My name</label>
+                <input id="p-name" value="${esc(me?.full_name || "")}" placeholder="How your teacher sees you" /></div>
+              <div class="field"><label>About me</label>
+                <input id="p-bio" value="${esc(me?.bio || "")}" placeholder="A sentence about yourself (optional)" /></div>
+              <button id="p-save">Save profile</button>
+              <p id="p-msg" class="msg"></p>
+            </div>
+          </div>
+        </div>`;
+
       app.innerHTML = `
         <p class="eyebrow">My lessons</p>
         <h1>Welcome back</h1>
-        ${cards.join("") || `<div class="card"><p class="empty">You're not enrolled in any course yet. Your teacher will add you soon.</p></div>`}`;
+        ${cards.join("") || `<div class="card"><p class="empty">You're not enrolled in any course yet. Your teacher will add you soon.</p></div>`}
+        ${profileCard}`;
+
+      document.getElementById("p-save").addEventListener("click", async () => {
+        const m = document.getElementById("p-msg");
+        const full_name = document.getElementById("p-name").value.trim() || null;
+        const bio = document.getElementById("p-bio").value.trim() || null;
+        const { error } = await sb.from("profiles").update({ full_name, bio }).eq("id", user.id);
+        m.className = "msg" + (error ? " err" : "");
+        m.textContent = error ? "Could not save: " + error.message : "Saved ✓";
+        if (!error) who.textContent = full_name || user.email;
+      });
+
+      document.getElementById("p-pick").addEventListener("click", () =>
+        document.getElementById("p-file").click());
+
+      document.getElementById("p-file").addEventListener("change", async (e) => {
+        const file = e.target.files[0];
+        const m = document.getElementById("p-msg");
+        if (!file) return;
+        if (file.size > 2 * 1024 * 1024) {
+          m.textContent = "Please choose an image under 2 MB."; m.className = "msg err"; return;
+        }
+        m.textContent = "Uploading…"; m.className = "msg";
+        const path = user.id + "/avatar";
+        const { error: upErr } = await sb.storage.from("avatars")
+          .upload(path, file, { upsert: true, contentType: file.type });
+        if (upErr) { m.textContent = "Upload failed: " + upErr.message; m.className = "msg err"; return; }
+        const { data } = sb.storage.from("avatars").getPublicUrl(path);
+        const avatar_url = data.publicUrl + "?v=" + Date.now();
+        const { error } = await sb.from("profiles").update({ avatar_url }).eq("id", user.id);
+        if (error) { m.textContent = "Could not save: " + error.message; m.className = "msg err"; return; }
+        renderStudent();
+      });
 
       app.querySelectorAll(".mark").forEach(btn => {
         btn.addEventListener("click", async () => {
@@ -126,7 +186,7 @@
 
       const { data: students } = await sb
         .from("profiles")
-        .select("id, full_name, email, role")
+        .select("id, full_name, email, role, avatar_url, bio")
         .order("created_at");
 
       const { data: courses } = await sb
@@ -151,16 +211,34 @@
           <td>${new Date(p.updated_at).toLocaleDateString()}</td>
         </tr>`).join("");
 
-      const lessonList = (lessons || []).map(l =>
-        `<div class="lesson"><div class="meta"><div class="title">${esc(l.title)}
-           ${l.course_id ? `<span class="pill done" style="margin-left:0.4rem;">${esc(courseName(l.course_id) || "?")}</span>` : ""}</div>
-         <span class="kind">#${l.sort_order ?? 0} · ${esc(l.kind)} · ${esc(l.url)}</span></div></div>`).join("");
+      const lessonList = (lessons || []).map(l => `
+        <div class="lesson">
+          <div class="meta">
+            <div class="title">${esc(l.title)}</div>
+            <span class="kind">#${l.sort_order ?? 0} · ${esc(l.kind)} · ${esc(l.url)}</span>
+          </div>
+          <select class="l-move" data-id="${l.id}" style="max-width:150px;">
+            <option value="">— no course —</option>
+            ${(courses || []).map(c =>
+              `<option value="${c.id}" ${l.course_id === c.id ? "selected" : ""}>${esc(c.title)}</option>`).join("")}
+          </select>
+          <button class="ghost l-save" data-id="${l.id}">Save</button>
+          <button class="ghost l-del" data-id="${l.id}"
+                  style="color:var(--danger); border-color:var(--danger);">Delete</button>
+        </div>`).join("");
 
       const studentRows = (students || []).map(s => `
         <tr>
-          <td style="width:40%;"><input class="s-name" data-id="${s.id}"
-                value="${esc(s.full_name || "")}" placeholder="Type a name…" /></td>
-          <td>${esc(s.email || "—")}</td>
+          <td style="width:40%;">
+            <div style="display:flex; gap:0.5rem; align-items:center;">
+              ${s.avatar_url
+                ? `<img src="${esc(s.avatar_url)}" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex:none;" />`
+                : ""}
+              <input class="s-name" data-id="${s.id}"
+                value="${esc(s.full_name || "")}" placeholder="Type a name…" />
+            </div>
+          </td>
+          <td>${esc(s.email || "—")}${s.bio ? `<div class="kind" style="margin-top:0.15rem;">${esc(s.bio)}</div>` : ""}</td>
           <td>${s.role === "admin" ? `<span class="pill done">admin</span>` : "student"}</td>
           <td><button class="ghost s-save" data-id="${s.id}">Save</button></td>
         </tr>`).join("");
@@ -295,6 +373,30 @@
           btn.disabled = true;
           const { error } = await sb.from("enrollments").delete().eq("id", btn.getAttribute("data-id"));
           if (error) { btn.disabled = false; alert("Could not remove: " + error.message); return; }
+          renderAdmin();
+        });
+      });
+
+      app.querySelectorAll(".l-save").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const id = btn.getAttribute("data-id");
+          const sel = app.querySelector(`.l-move[data-id="${id}"]`);
+          btn.disabled = true;
+          const { error } = await sb.from("lessons")
+            .update({ course_id: sel.value || null }).eq("id", id);
+          btn.disabled = false;
+          if (error) { alert("Could not move the lesson: " + error.message); return; }
+          btn.textContent = "Saved ✓";
+          setTimeout(() => renderAdmin(), 600);
+        });
+      });
+
+      app.querySelectorAll(".l-del").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("Delete this lesson? Student progress records for it will also be removed. This cannot be undone.")) return;
+          btn.disabled = true;
+          const { error } = await sb.from("lessons").delete().eq("id", btn.getAttribute("data-id"));
+          if (error) { btn.disabled = false; alert("Could not delete: " + error.message); return; }
           renderAdmin();
         });
       });
