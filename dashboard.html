@@ -53,6 +53,10 @@
 
     // ---------- STUDENT VIEW ----------
     async function renderStudent() {
+      // RLS already filters these to: my courses, their lessons,
+      // plus any lesson that has no course.
+      const { data: courses } = await sb
+        .from("courses").select("*").order("sort_order").order("created_at");
       const { data: lessons } = await sb
         .from("lessons").select("*").order("sort_order").order("created_at");
       const { data: mine } = await sb
@@ -60,7 +64,7 @@
 
       const done = new Set((mine || []).filter(p => p.status === "completed").map(p => p.lesson_id));
 
-      let rows = (lessons || []).map(l => `
+      const lessonRow = l => `
         <div class="lesson">
           <div class="meta">
             <div class="title">${esc(l.title)}</div>
@@ -70,12 +74,30 @@
           ${done.has(l.id)
             ? `<span class="pill done">✓ Completed</span>`
             : `<button data-lesson="${l.id}" class="mark">Mark done</button>`}
-        </div>`).join("");
+        </div>`;
+
+      // One card per enrolled course, plus one for uncategorized lessons.
+      const cards = [];
+      for (const c of (courses || [])) {
+        const ls = (lessons || []).filter(l => l.course_id === c.id);
+        const doneCount = ls.filter(l => done.has(l.id)).length;
+        cards.push(`
+          <div class="card">
+            <h2>${esc(c.title)}
+              <span class="kind" style="float:right;">${doneCount}/${ls.length} done</span></h2>
+            ${c.description ? `<p style="color:var(--muted); font-size:0.88rem; margin:0 0 0.5rem;">${esc(c.description)}</p>` : ""}
+            ${ls.map(lessonRow).join("") || `<p class="empty">No lessons in this course yet.</p>`}
+          </div>`);
+      }
+      const loose = (lessons || []).filter(l => !l.course_id);
+      if (loose.length) {
+        cards.push(`<div class="card"><h2>Other lessons</h2>${loose.map(lessonRow).join("")}</div>`);
+      }
 
       app.innerHTML = `
         <p class="eyebrow">My lessons</p>
         <h1>Welcome back</h1>
-        <div class="card">${rows || `<p class="empty">No lessons yet. Check back soon.</p>`}</div>`;
+        ${cards.join("") || `<div class="card"><p class="empty">You're not enrolled in any course yet. Your teacher will add you soon.</p></div>`}`;
 
       app.querySelectorAll(".mark").forEach(btn => {
         btn.addEventListener("click", async () => {
@@ -107,6 +129,18 @@
         .select("id, full_name, email, role")
         .order("created_at");
 
+      const { data: courses } = await sb
+        .from("courses").select("*").order("sort_order").order("created_at");
+
+      const { data: enrollments } = await sb
+        .from("enrollments")
+        .select("id, profiles(full_name, email), courses(title)")
+        .order("created_at");
+
+      const courseName = id => (courses || []).find(c => c.id === id)?.title || null;
+      const studentName = s => s.full_name || s.email || "—";
+      const onlyStudents = (students || []).filter(s => s.role !== "admin");
+
       const progressRows = (prog || []).map(p => `
         <tr>
           <td>${esc(p.profiles?.full_name || p.profiles?.email || "—")}</td>
@@ -118,7 +152,8 @@
         </tr>`).join("");
 
       const lessonList = (lessons || []).map(l =>
-        `<div class="lesson"><div class="meta"><div class="title">${esc(l.title)}</div>
+        `<div class="lesson"><div class="meta"><div class="title">${esc(l.title)}
+           ${l.course_id ? `<span class="pill done" style="margin-left:0.4rem;">${esc(courseName(l.course_id) || "?")}</span>` : ""}</div>
          <span class="kind">#${l.sort_order ?? 0} · ${esc(l.kind)} · ${esc(l.url)}</span></div></div>`).join("");
 
       const studentRows = (students || []).map(s => `
@@ -130,14 +165,59 @@
           <td><button class="ghost s-save" data-id="${s.id}">Save</button></td>
         </tr>`).join("");
 
+      const courseOptions = (courses || []).map(c =>
+        `<option value="${c.id}">${esc(c.title)}</option>`).join("");
+      const studentOptions = onlyStudents.map(s =>
+        `<option value="${s.id}">${esc(studentName(s))}</option>`).join("");
+
+      const courseList = (courses || []).map(c =>
+        `<div class="lesson"><div class="meta"><div class="title">${esc(c.title)}</div>
+         <span class="kind">${(lessons || []).filter(l => l.course_id === c.id).length} lessons</span></div></div>`).join("");
+
+      const enrollmentRows = (enrollments || []).map(e => `
+        <tr>
+          <td>${esc(e.profiles?.full_name || e.profiles?.email || "—")}</td>
+          <td>${esc(e.courses?.title || "—")}</td>
+          <td><button class="ghost e-remove" data-id="${e.id}">Remove</button></td>
+        </tr>`).join("");
+
       app.innerHTML = `
         <p class="eyebrow">Admin</p>
         <h1>Center overview</h1>
 
         <div class="card">
+          <h2>Courses</h2>
+          <div class="form-row">
+            <div class="field"><label>Course title</label><input id="c-title" placeholder="HSK 1" /></div>
+            <div class="field"><label>Description (optional)</label><input id="c-desc" placeholder="Beginner Chinese" /></div>
+            <button id="c-add">Add course</button>
+          </div>
+          <p id="c-msg" class="msg"></p>
+          <div style="margin-top:0.75rem;">${courseList || `<p class="empty">No courses yet. Lessons without a course are visible to all students.</p>`}</div>
+        </div>
+
+        <div class="card">
+          <h2>Enroll a student</h2>
+          <div class="form-row">
+            <div class="field"><label>Student</label>
+              <select id="e-student">${studentOptions || `<option value="">No students yet</option>`}</select></div>
+            <div class="field"><label>Course</label>
+              <select id="e-course">${courseOptions || `<option value="">No courses yet</option>`}</select></div>
+            <button id="e-add">Enroll</button>
+          </div>
+          <p id="e-msg" class="msg"></p>
+          ${enrollmentRows
+            ? `<table style="margin-top:0.75rem;"><thead><tr><th>Student</th><th>Course</th><th></th></tr></thead>
+               <tbody>${enrollmentRows}</tbody></table>`
+            : `<p class="empty" style="margin-top:0.75rem;">No enrollments yet.</p>`}
+        </div>
+
+        <div class="card">
           <h2>Add a lesson</h2>
           <div class="form-row">
             <div class="field"><label>Title</label><input id="l-title" placeholder="Lesson 1: Introduction" /></div>
+            <div class="field" style="max-width:140px;"><label>Course</label>
+              <select id="l-course"><option value="">— none —</option>${courseOptions}</select></div>
             <div class="field" style="max-width:120px;"><label>Type</label>
               <select id="l-kind"><option value="html">html</option><option value="pdf">pdf</option></select></div>
             <div class="field" style="max-width:90px;"><label>Order</label>
@@ -175,11 +255,48 @@
         const kind = document.getElementById("l-kind").value;
         const url = document.getElementById("l-url").value.trim();
         const sort_order = parseInt(document.getElementById("l-order").value, 10) || 0;
+        const course_id = document.getElementById("l-course").value || null;
         const m = document.getElementById("l-msg");
         if (!title || !url) { m.textContent = "Add a title and a link."; m.className = "msg err"; return; }
-        const { error } = await sb.from("lessons").insert({ title, kind, url, sort_order });
+        const { error } = await sb.from("lessons").insert({ title, kind, url, sort_order, course_id });
         if (error) { m.textContent = "Could not add: " + error.message; m.className = "msg err"; return; }
         renderAdmin();
+      });
+
+      document.getElementById("c-add").addEventListener("click", async () => {
+        const title = document.getElementById("c-title").value.trim();
+        const description = document.getElementById("c-desc").value.trim() || null;
+        const m = document.getElementById("c-msg");
+        if (!title) { m.textContent = "Give the course a title."; m.className = "msg err"; return; }
+        const { error } = await sb.from("courses")
+          .insert({ title, description, sort_order: (courses?.length || 0) + 1 });
+        if (error) { m.textContent = "Could not add: " + error.message; m.className = "msg err"; return; }
+        renderAdmin();
+      });
+
+      document.getElementById("e-add").addEventListener("click", async () => {
+        const student_id = document.getElementById("e-student").value;
+        const course_id = document.getElementById("e-course").value;
+        const m = document.getElementById("e-msg");
+        if (!student_id || !course_id) { m.textContent = "You need at least one student and one course."; m.className = "msg err"; return; }
+        const { error } = await sb.from("enrollments").insert({ student_id, course_id });
+        if (error) {
+          m.textContent = error.code === "23505"
+            ? "That student is already enrolled in that course."
+            : "Could not enroll: " + error.message;
+          m.className = "msg err"; return;
+        }
+        renderAdmin();
+      });
+
+      app.querySelectorAll(".e-remove").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("Remove this enrollment? The student will no longer see that course's lessons.")) return;
+          btn.disabled = true;
+          const { error } = await sb.from("enrollments").delete().eq("id", btn.getAttribute("data-id"));
+          if (error) { btn.disabled = false; alert("Could not remove: " + error.message); return; }
+          renderAdmin();
+        });
       });
 
       app.querySelectorAll(".s-save").forEach(btn => {
