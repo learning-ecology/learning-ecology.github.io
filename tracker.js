@@ -180,8 +180,8 @@
     if (deviceTok) {
       setInterval(async () => {
         const { data } = await sb.from("profiles")
-          .select("active_session, role").eq("id", uid).maybeSingle();
-        if (data && data.role !== "admin" &&
+          .select("active_session, role, multi_device").eq("id", uid).maybeSingle();
+        if (data && data.role !== "admin" && !data.multi_device &&
             data.active_session && data.active_session !== deviceTok) {
           try { await sb.auth.signOut({ scope: "local" }); } catch (e) {}
           lockPage("Signed in on another device",

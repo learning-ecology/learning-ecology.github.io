@@ -82,10 +82,11 @@
       user = session.user;
 
       const { data: profile } = await sb
-        .from("profiles").select("full_name, role, avatar_url, active_session").eq("id", user.id).single();
+        .from("profiles").select("full_name, role, avatar_url, active_session, multi_device").eq("id", user.id).single();
 
       // ---- one device per student account ----
-      if (profile?.role !== "admin") {
+      // (admins and accounts you've granted multi-device are exempt)
+      if (profile?.role !== "admin" && !profile?.multi_device) {
         let device = null;
         try { device = localStorage.getItem("hub_device"); } catch (e) {}
         if (!device) {
@@ -281,7 +282,7 @@
 
       const { data: students } = await sb
         .from("profiles")
-        .select("id, full_name, email, role, avatar_url, bio")
+        .select("id, full_name, email, role, avatar_url, bio, multi_device")
         .order("created_at");
 
       const { data: courses } = await sb
@@ -342,6 +343,13 @@
           </td>
           <td>${esc(s.email || "—")}${s.bio ? `<div class="kind" style="margin-top:0.15rem;">${esc(s.bio)}</div>` : ""}</td>
           <td>${s.role === "admin" ? `<span class="pill done">admin</span>` : "student"}</td>
+          <td style="white-space:nowrap;">
+            ${s.role === "admin"
+              ? `<span class="kind">always</span>`
+              : `<label style="font-size:0.82rem; color:var(--muted); cursor:pointer;">
+                   <input type="checkbox" class="s-multi" data-id="${s.id}" ${s.multi_device ? "checked" : ""} /> allow
+                 </label>`}
+          </td>
           <td><button class="ghost s-save" data-id="${s.id}">Save</button></td>
         </tr>`).join("");
 
@@ -461,9 +469,9 @@
         <div class="card">
           <h2>Students</h2>
           ${studentRows
-            ? `<table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th></th></tr></thead>
+            ? `<table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Multi-device</th><th></th></tr></thead>
                <tbody>${studentRows}</tbody></table>
-               <p class="empty" style="margin-top:0.5rem;">Type a name and click Save — it then appears in the progress table below.</p>`
+               <p class="empty" style="margin-top:0.5rem;">Type a name and click Save — it then appears in the progress table below. Tick "allow" to let an account stay signed in on several devices at once.</p>`
             : `<p class="empty">No accounts yet.</p>`}
         </div>
         </div>
@@ -666,6 +674,16 @@
       });
 
       wireFileButtons(app);
+
+      app.querySelectorAll(".s-multi").forEach(cb => {
+        cb.addEventListener("change", async () => {
+          cb.disabled = true;
+          const { error } = await sb.from("profiles")
+            .update({ multi_device: cb.checked }).eq("id", cb.getAttribute("data-id"));
+          cb.disabled = false;
+          if (error) { cb.checked = !cb.checked; alert("Could not save: " + error.message); }
+        });
+      });
 
       app.querySelectorAll(".s-save").forEach(btn => {
         btn.addEventListener("click", async () => {
