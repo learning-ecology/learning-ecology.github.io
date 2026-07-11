@@ -481,7 +481,7 @@
       // Every student's progress, joined with names + lesson titles.
       const { data: prog } = await sb
         .from("progress")
-        .select("status, updated_at, profiles(full_name, email), lessons(title)")
+        .select("student_id, lesson_id, status, updated_at")
         .order("updated_at", { ascending: false });
 
       const { data: students } = await sb
@@ -494,7 +494,7 @@
 
       const { data: enrollments } = await sb
         .from("enrollments")
-        .select("id, profiles(full_name, email), courses(title)")
+        .select("id, student_id, course_id, profiles(full_name, email), courses(title)")
         .order("created_at");
 
       const { data: anns } = await sb
@@ -502,22 +502,12 @@
 
       const { data: activity } = await sb
         .from("lesson_activity")
-        .select("kind, key, value, max_value, updated_at, profiles(full_name, email), lessons(title)")
+        .select("student_id, lesson_id, kind, key, value, max_value, updated_at")
         .order("updated_at", { ascending: false });
 
       const courseName = id => (courses || []).find(c => c.id === id)?.title || null;
       const studentName = s => s.full_name || s.email || "—";
       const onlyStudents = (students || []).filter(s => s.role !== "admin");
-
-      const progressRows = (prog || []).map(p => `
-        <tr>
-          <td>${esc(p.profiles?.full_name || p.profiles?.email || "—")}</td>
-          <td>${esc(p.lessons?.title || "—")}</td>
-          <td>${p.status === "completed"
-                ? `<span class="pill done">completed</span>`
-                : `<span class="pill todo">in progress</span>`}</td>
-          <td>${new Date(p.updated_at).toLocaleDateString()}</td>
-        </tr>`).join("");
 
       const lessonRowHtml = l => {
         const cc = (courses || []).find(x => x.id === l.course_id);
@@ -606,35 +596,6 @@
           <td><button class="ghost e-remove" data-id="${e.id}">Remove</button></td>
         </tr>`).join("");
 
-      // Roll raw engagement events into one row per student × lesson.
-      const engMap = {};
-      (activity || []).forEach(a => {
-        const who = a.profiles?.full_name || a.profiles?.email || "—";
-        const les = a.lessons?.title || "—";
-        const k = who + "|" + les;
-        const e = engMap[k] || (engMap[k] = { who, les, time: 0, sections: 0, acts: [], opened: false, last: a.updated_at });
-        if (a.kind === "time") e.time = Number(a.value) || 0;
-        else if (a.kind === "section") e.sections++;
-        else if (a.kind === "activity" && a.key === "opened") e.opened = true;
-        else if (a.kind === "activity") {
-          e.acts.push(a.max_value && Number(a.max_value) > 1
-            ? `${esc(a.key)}: ${a.value}/${a.max_value}`
-            : (Number(a.value) > 1
-                ? `${esc(a.key)}: ${a.value}`
-                : `${esc(a.key)} ✓`));
-        }
-        if (a.updated_at > e.last) e.last = a.updated_at;
-      });
-      const fmtTime = s => !s ? "—" : (s < 60 ? "<1 min" : Math.round(s / 60) + " min");
-      const engRows = Object.values(engMap).map(e => `
-        <tr>
-          <td>${esc(e.who)}</td>
-          <td>${esc(e.les)}</td>
-          <td>${fmtTime(e.time)}</td>
-          <td>${e.sections || "—"}</td>
-          <td>${e.acts.join(", ") || (e.opened ? "opened" : "—")}</td>
-          <td>${new Date(e.last).toLocaleDateString()}</td>
-        </tr>`).join("");
 
       app.innerHTML = `
         <p class="eyebrow">Admin</p>
@@ -738,21 +699,75 @@
         </div>
 
         <div class="tabpane" data-tab="progress">
+        <div class="stat-grid" id="p-analytics"></div>
+
         <div class="card">
-          <h2>Student progress</h2>
-          ${progressRows
-            ? `<table><thead><tr><th>Student</th><th>Lesson</th><th>Status</th><th>Updated</th></tr></thead>
-               <tbody>${progressRows}</tbody></table>`
-            : `<p class="empty">No activity yet. Once students open and complete lessons, it shows here.</p>`}
+          <h2>Search & filters</h2>
+          <div class="form-row">
+            <div class="field"><label>Search</label>
+              <input id="pf-q" placeholder="Student, email, lesson or course…" autocomplete="off" /></div>
+            <div class="field" style="max-width:170px;"><label>Student</label>
+              <select id="pf-student"><option value="all">All students</option>
+                ${onlyStudents.map(s => `<option value="${s.id}">${esc(studentName(s))}</option>`).join("")}</select></div>
+            <div class="field" style="max-width:170px;"><label>Course</label>
+              <select id="pf-course"><option value="all">All courses</option>${courseOptions}</select></div>
+            <div class="field" style="max-width:180px;"><label>Lesson</label>
+              <select id="pf-lesson"><option value="all">All lessons</option>
+                ${(lessons || []).map(l => `<option value="${l.id}">${esc(l.title)}</option>`).join("")}</select></div>
+            <div class="field" style="max-width:150px;"><label>Status</label>
+              <select id="pf-status">
+                <option value="all">All statuses</option>
+                <option value="completed">Completed</option>
+                <option value="in_progress">In progress</option>
+                <option value="opened">Opened only</option>
+                <option value="not_started">Not started</option>
+              </select></div>
+            <div class="field" style="max-width:150px;"><label>Date</label>
+              <select id="pf-date">
+                <option value="all">All time</option>
+                <option value="today">Today</option>
+                <option value="7">Last 7 days</option>
+                <option value="30">Last 30 days</option>
+                <option value="custom">Custom range…</option>
+              </select></div>
+            <div class="field" id="pf-d1w" style="max-width:150px; display:none;"><label>From</label>
+              <input type="date" id="pf-d1" /></div>
+            <div class="field" id="pf-d2w" style="max-width:150px; display:none;"><label>To</label>
+              <input type="date" id="pf-d2" /></div>
+            <button class="ghost" id="pf-reset">Reset</button>
+          </div>
         </div>
 
         <div class="card">
-          <h2>Lesson engagement</h2>
-          ${engRows
-            ? `<table><thead><tr><th>Student</th><th>Lesson</th><th>Time</th><th>Sections</th><th>Activities & scores</th><th>Last active</th></tr></thead>
-               <tbody>${engRows}</tbody></table>
-               <p class="empty" style="margin-top:0.5rem;">Time counts only while the lesson tab is visible. Sections and scores appear for lessons that include the tracker script.</p>`
-            : `<p class="empty">No engagement data yet. It appears once students open lessons that include the tracker script.</p>`}
+          <h2>Student progress <span id="p-count" class="kind"></span></h2>
+          <div class="stat-grid" id="p-summary" style="margin-bottom:0.8rem;"></div>
+          <div class="form-row" style="margin-bottom:0.4rem;">
+            <div class="field" style="max-width:190px;"><label>Sort by</label>
+              <select id="p-sort">
+                <option value="date">Last updated</option>
+                <option value="student">Student name</option>
+                <option value="lesson">Lesson name</option>
+              </select></div>
+            <button class="ghost" id="p-dir" title="Toggle order">↓ desc</button>
+          </div>
+          <div id="p-table"></div>
+        </div>
+
+        <div class="card">
+          <h2>Lesson engagement <span id="e-count" class="kind"></span></h2>
+          <div class="form-row" style="margin-bottom:0.4rem;">
+            <div class="field" style="max-width:190px;"><label>Sort by</label>
+              <select id="e-sort">
+                <option value="last">Last active</option>
+                <option value="student">Student name</option>
+                <option value="lesson">Lesson name</option>
+                <option value="time">Time spent</option>
+                <option value="score">Best score</option>
+              </select></div>
+            <button class="ghost" id="e-dir" title="Toggle order">↓ desc</button>
+          </div>
+          <div id="e-table"></div>
+          <p class="empty" style="margin-top:0.5rem;">Time counts only while the lesson tab is visible. Sections and scores appear for lessons that include the tracker script. Click ▸ on a row for full detail.</p>
         </div>
         </div>
 
@@ -1221,6 +1236,287 @@
             : "No lessons have been assigned to this course yet."}</p>`;
         wireLessonRows(box);
       }
+
+      // ================= PROGRESS ANALYTICS ENGINE =================
+      const sById = id => (students || []).find(s => s.id === id);
+      const lById = id => (lessons || []).find(l => l.id === id);
+      const cTitle = id => (courses || []).find(c => c.id === id)?.title || "";
+      const sName = id => { const s = sById(id); return s ? (s.full_name || s.email || "—") : "—"; };
+      const fmtTime = s => !s ? "—" : (s < 60 ? "<1 min" : Math.round(s / 60) + " min");
+      const K = (s, l) => s + "|" + l;
+
+      // Aggregate raw activity per student × lesson
+      const agg = {};
+      (activity || []).forEach(a => {
+        const k = K(a.student_id, a.lesson_id);
+        const e = agg[k] || (agg[k] = { sid: a.student_id, lid: a.lesson_id,
+          time: 0, sections: [], scores: [], opened: false, last: a.updated_at });
+        if (a.kind === "time") e.time = Number(a.value) || 0;
+        else if (a.kind === "section") e.sections.push(a.key);
+        else if (a.key === "opened") e.opened = true;
+        else e.scores.push({ key: a.key, v: Number(a.value), m: a.max_value ? Number(a.max_value) : null });
+        if (a.updated_at > e.last) e.last = a.updated_at;
+      });
+      const progMap = {};
+      (prog || []).forEach(p => { progMap[K(p.student_id, p.lesson_id)] = p; });
+
+      // Unified records: every enrolled student × lesson (incl. NOT STARTED),
+      // plus any stray progress/activity on course-less lessons.
+      const records = [];
+      const seenR = new Set();
+      (enrollments || []).forEach(en => {
+        (lessons || []).filter(l => l.course_id === en.course_id).forEach(l => {
+          const k = K(en.student_id, l.id);
+          seenR.add(k);
+          const p = progMap[k], a = agg[k];
+          records.push({ sid: en.student_id, lid: l.id, cid: l.course_id,
+            status: p ? p.status : ((a && (a.opened || a.time)) ? "opened" : "not_started"),
+            date: p?.updated_at || a?.last || null });
+        });
+      });
+      Object.keys(progMap).forEach(k => {
+        if (seenR.has(k)) return; seenR.add(k);
+        const p = progMap[k], l = lById(p.lesson_id);
+        records.push({ sid: p.student_id, lid: p.lesson_id, cid: l?.course_id || null,
+          status: p.status, date: p.updated_at });
+      });
+      Object.values(agg).forEach(a => {
+        const k = K(a.sid, a.lid);
+        if (seenR.has(k)) return; seenR.add(k);
+        const l = lById(a.lid);
+        records.push({ sid: a.sid, lid: a.lid, cid: l?.course_id || null,
+          status: "opened", date: a.last });
+      });
+
+      // ---- top analytics (computed on ALL data, unaffected by filters) ----
+      (function renderAnalytics() {
+        const stuIds = onlyStudents.map(s => s.id);
+        const now = Date.now(), D = 24 * 3600 * 1000;
+        const lastBy = {};
+        records.forEach(r => { if (r.date && (!lastBy[r.sid] || r.date > lastBy[r.sid])) lastBy[r.sid] = r.date; });
+        const active7 = stuIds.filter(id => lastBy[id] && now - new Date(lastBy[id]).getTime() <= 7 * D);
+        const timeBy = {};
+        Object.values(agg).forEach(a => { timeBy[a.sid] = (timeBy[a.sid] || 0) + a.time; });
+        const ranked = stuIds.slice().sort((a, b) => (timeBy[b] || 0) - (timeBy[a] || 0));
+        const atRisk = stuIds.filter(id => !lastBy[id] || now - new Date(lastBy[id]).getTime() > 14 * D);
+
+        const doneCountBy = {}, accessBy = {}, scoreBy = {}, assignedBy = {}, doneLessonBy = {};
+        records.forEach(r => {
+          accessBy[r.lid] = (accessBy[r.lid] || 0) + (r.status !== "not_started" ? 1 : 0);
+          assignedBy[r.lid] = (assignedBy[r.lid] || 0) + 1;
+          if (r.status === "completed") doneLessonBy[r.lid] = (doneLessonBy[r.lid] || 0) + 1;
+        });
+        Object.values(agg).forEach(a => a.scores.forEach(s => {
+          if (s.m > 1) (scoreBy[a.lid] = scoreBy[a.lid] || []).push(s.v / s.m);
+        }));
+        const lessonIds = (lessons || []).map(l => l.id);
+        const maxBy = (ids, f) => ids.length ? ids.reduce((a, b) => f(b) > f(a) ? b : a) : null;
+        const minBy = (ids, f) => ids.length ? ids.reduce((a, b) => f(b) < f(a) ? b : a) : null;
+        const popular = maxBy(lessonIds, id => accessBy[id] || 0);
+        const leastAcc = minBy(lessonIds.filter(id => assignedBy[id]), id => accessBy[id] || 0);
+        const scoredIds = lessonIds.filter(id => (scoreBy[id] || []).length);
+        const avgOf = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
+        const bestScore = maxBy(scoredIds, id => avgOf(scoreBy[id]));
+        const assignedIds = lessonIds.filter(id => assignedBy[id]);
+        const lowestComp = minBy(assignedIds, id => (doneLessonBy[id] || 0) / assignedBy[id]);
+
+        const totalCompleted = (prog || []).filter(p => p.status === "completed").length;
+        const totalSecs = Object.values(agg).reduce((s, a) => s + a.time, 0);
+        const engEntries = Object.values(agg).filter(a => a.time > 0);
+        const allScores = Object.values(agg).flatMap(a => a.scores.filter(s => s.m > 1).map(s => s.v / s.m));
+        const totalActs = (activity || []).filter(a => a.kind === "activity" && a.key !== "opened").length;
+
+        const stat = (k, v, sub) =>
+          `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div>${sub ? `<div class="sub">${sub}</div>` : ""}</div>`;
+        document.getElementById("p-analytics").innerHTML =
+          stat("Students", onlyStudents.length, active7.length + " active this week") +
+          stat("Most active", ranked.length ? esc(sName(ranked[0])) : "—",
+               ranked.length ? fmtTime(timeBy[ranked[0]] || 0) + " total" : "") +
+          stat("At risk", atRisk.length,
+               atRisk.length ? esc(atRisk.slice(0, 3).map(sName).join(", ")) + (atRisk.length > 3 ? "…" : "") : "quiet 14+ days") +
+          stat("Lessons completed", totalCompleted, "across all students") +
+          stat("Most popular lesson", popular && accessBy[popular] ? esc(lById(popular)?.title || "—") : "—",
+               popular && accessBy[popular] ? accessBy[popular] + " students accessed" : "") +
+          stat("Least accessed", leastAcc ? esc(lById(leastAcc)?.title || "—") : "—",
+               leastAcc ? (accessBy[leastAcc] || 0) + " of " + assignedBy[leastAcc] + " accessed" : "") +
+          stat("Best avg score", bestScore ? esc(lById(bestScore)?.title || "—") : "—",
+               bestScore ? Math.round(avgOf(scoreBy[bestScore]) * 100) + "%" : "no scored quizzes yet") +
+          stat("Lowest completion", lowestComp ? esc(lById(lowestComp)?.title || "—") : "—",
+               lowestComp ? Math.round((doneLessonBy[lowestComp] || 0) / assignedBy[lowestComp] * 100) + "% completed" : "") +
+          stat("Learning hours", (totalSecs / 3600).toFixed(1) + "h",
+               engEntries.length ? "avg " + fmtTime(totalSecs / engEntries.length) + " per lesson" : "") +
+          stat("Avg quiz score", allScores.length ? Math.round(avgOf(allScores) * 100) + "%" : "—",
+               totalActs + " activities completed");
+      })();
+
+      // ---- filters (persisted) ----
+      let pf = { q: "", student: "all", course: "all", lesson: "all",
+                 status: "all", date: "all", d1: "", d2: "",
+                 psort: "date", pdir: "desc", esort: "last", edir: "desc" };
+      try { pf = Object.assign(pf, JSON.parse(localStorage.getItem("hub_pfilter") || "{}")); } catch (e) {}
+      const $id = x => document.getElementById(x);
+      const pfEls = { q: $id("pf-q"), student: $id("pf-student"), course: $id("pf-course"),
+                      lesson: $id("pf-lesson"), status: $id("pf-status"), date: $id("pf-date"),
+                      d1: $id("pf-d1"), d2: $id("pf-d2") };
+      Object.entries(pfEls).forEach(([k, el]) => { el.value = pf[k]; if (el.value !== pf[k]) { pf[k] = el.tagName === "SELECT" ? "all" : ""; el.value = pf[k]; } });
+      $id("p-sort").value = pf.psort; $id("e-sort").value = pf.esort;
+      const savePf = () => { try { localStorage.setItem("hub_pfilter", JSON.stringify(pf)); } catch (e) {} };
+      const dirLabel = d => d === "desc" ? "↓ desc" : "↑ asc";
+      $id("p-dir").textContent = dirLabel(pf.pdir);
+      $id("e-dir").textContent = dirLabel(pf.edir);
+      const showCustom = () => {
+        const on = pf.date === "custom" ? "" : "none";
+        $id("pf-d1w").style.display = on; $id("pf-d2w").style.display = on;
+      };
+      showCustom();
+
+      const inDate = d => {
+        if (pf.date === "all") return true;
+        if (!d) return false;
+        const ts = new Date(d).getTime(), now = new Date();
+        if (pf.date === "today") { const t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime(); return ts >= t0; }
+        if (pf.date === "7") return now.getTime() - ts <= 7 * 24 * 3600 * 1000;
+        if (pf.date === "30") return now.getTime() - ts <= 30 * 24 * 3600 * 1000;
+        if (pf.date === "custom") {
+          if (pf.d1 && ts < new Date(pf.d1).getTime()) return false;
+          if (pf.d2 && ts > new Date(pf.d2).getTime() + 24 * 3600 * 1000) return false;
+          return true;
+        }
+        return true;
+      };
+      const matches = r => {
+        if (pf.student !== "all" && r.sid !== pf.student) return false;
+        if (pf.course !== "all" && r.cid !== pf.course) return false;
+        if (pf.lesson !== "all" && r.lid !== pf.lesson) return false;
+        if (!inDate(r.date)) return false;
+        const q = normA(pf.q.trim());
+        if (q) {
+          const s = sById(r.sid), l = lById(r.lid);
+          const hay = normA((s?.full_name || "") + " " + (s?.email || "") + " " +
+                            (l?.title || "") + " " + cTitle(r.cid));
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      };
+
+      const STATUS_PILL = {
+        completed: '<span class="pill done">completed</span>',
+        in_progress: '<span class="pill todo">in progress</span>',
+        opened: '<span class="pill todo">opened</span>',
+        not_started: '<span class="kind">not started</span>'
+      };
+
+      function renderProgressTables() {
+        // ----- student progress table -----
+        let list = records.filter(r => matches(r) && (pf.status === "all" || r.status === pf.status));
+        const dir = pf.pdir === "asc" ? 1 : -1;
+        list.sort((a, b) => {
+          if (pf.psort === "student") return dir * sName(a.sid).localeCompare(sName(b.sid));
+          if (pf.psort === "lesson") return dir * (lById(a.lid)?.title || "").localeCompare(lById(b.lid)?.title || "");
+          return dir * String(a.date || "").localeCompare(String(b.date || ""));
+        });
+        $id("p-count").textContent = "Showing " + list.length + " of " + records.length + " records";
+        const done = list.filter(r => r.status === "completed").length;
+        const inp = list.filter(r => r.status === "in_progress").length;
+        const ns = list.filter(r => r.status === "not_started").length;
+        const op = list.filter(r => r.status === "opened").length;
+        const stuCount = new Set(list.map(r => r.sid)).size;
+        const stat = (k, v) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`;
+        $id("p-summary").innerHTML =
+          stat("Students", stuCount) + stat("Records", list.length) +
+          stat("Completed", done) + stat("In progress", inp + op) +
+          stat("Not started", ns) +
+          stat("Completion rate", list.length ? Math.round(done / list.length * 100) + "%" : "—");
+        $id("p-table").innerHTML = list.length ? `
+          <table><thead><tr><th>Student</th><th>Lesson</th><th>Course</th><th>Status</th><th>Updated</th></tr></thead>
+          <tbody>${list.map(r => `
+            <tr>
+              <td><a class="pf-link" data-f="student" data-v="${r.sid}">${esc(sName(r.sid))}</a></td>
+              <td><a class="pf-link" data-f="lesson" data-v="${r.lid}">${esc(lById(r.lid)?.title || "—")}</a></td>
+              <td>${esc(cTitle(r.cid) || "—")}</td>
+              <td>${STATUS_PILL[r.status] || esc(r.status)}</td>
+              <td>${r.date ? new Date(r.date).toLocaleDateString() : "—"}</td>
+            </tr>`).join("")}</tbody></table>`
+          : `<p class="empty">No progress records found.</p>`;
+
+        // ----- engagement table -----
+        let eng = Object.values(agg).filter(a =>
+          matches({ sid: a.sid, lid: a.lid, cid: lById(a.lid)?.course_id || null, date: a.last }));
+        const best = a => a.scores.length ? Math.max(...a.scores.map(s => s.m > 1 ? s.v / s.m : 0)) : -1;
+        const ed = pf.edir === "asc" ? 1 : -1;
+        eng.sort((a, b) => {
+          if (pf.esort === "student") return ed * sName(a.sid).localeCompare(sName(b.sid));
+          if (pf.esort === "lesson") return ed * (lById(a.lid)?.title || "").localeCompare(lById(b.lid)?.title || "");
+          if (pf.esort === "time") return ed * (a.time - b.time);
+          if (pf.esort === "score") return ed * (best(a) - best(b));
+          return ed * String(a.last || "").localeCompare(String(b.last || ""));
+        });
+        $id("e-count").textContent = "Showing " + eng.length + " of " + Object.keys(agg).length + " records";
+        $id("e-table").innerHTML = eng.length ? `
+          <table><thead><tr><th></th><th>Student</th><th>Lesson</th><th>Time</th><th>Sections</th><th>Activities & scores</th><th>Last active</th></tr></thead>
+          <tbody>${eng.map((a, i) => {
+            const acts = a.scores.map(s => s.m > 1 ? `${esc(s.key)}: ${s.v}/${s.m}` : `${esc(s.key)} ✓`);
+            return `
+            <tr>
+              <td><button class="ghost e-exp" data-k="${i}" style="padding:0.15rem 0.5rem;">▸</button></td>
+              <td><a class="pf-link" data-f="student" data-v="${a.sid}">${esc(sName(a.sid))}</a></td>
+              <td><a class="pf-link" data-f="lesson" data-v="${a.lid}">${esc(lById(a.lid)?.title || "—")}</a></td>
+              <td>${fmtTime(a.time)}</td>
+              <td>${a.sections.length || "—"}</td>
+              <td>${acts.join(", ") || (a.opened ? "opened" : "—")}</td>
+              <td>${a.last ? new Date(a.last).toLocaleDateString() : "—"}</td>
+            </tr>
+            <tr class="e-det" data-k="${i}" style="display:none;"><td></td><td colspan="6">
+              <div class="eng-detail">
+                <b>${esc(sName(a.sid))} · ${esc(lById(a.lid)?.title || "")}</b>
+                <span class="kind">Total time: ${fmtTime(a.time)} · ${a.opened ? "opened via hub · " : ""}last active ${a.last ? new Date(a.last).toLocaleString() : "—"}</span>
+                <span class="kind">Sections viewed (${a.sections.length}): ${a.sections.map(esc).join(", ") || "—"}</span>
+                <span class="kind">Activities: ${a.scores.map(s => s.m > 1
+                  ? `${esc(s.key)} — ${s.v}/${s.m} (${Math.round(s.v / s.m * 100)}%)`
+                  : `${esc(s.key)} — completed`).join(" · ") || "—"}</span>
+              </div>
+            </td></tr>`;
+          }).join("")}</tbody></table>`
+          : `<p class="empty">No engagement records found.</p>`;
+
+        // wiring inside tables
+        document.querySelectorAll(".pf-link").forEach(el => el.addEventListener("click", e => {
+          e.preventDefault();
+          const f = el.getAttribute("data-f");
+          pf[f] = el.getAttribute("data-v");
+          pfEls[f].value = pf[f];
+          savePf(); renderProgressTables();
+        }));
+        document.querySelectorAll(".e-exp").forEach(btn => btn.addEventListener("click", () => {
+          const det = document.querySelector(`.e-det[data-k="${btn.getAttribute("data-k")}"]`);
+          const open = det.style.display !== "none";
+          det.style.display = open ? "none" : "";
+          btn.textContent = open ? "▸" : "▾";
+        }));
+      }
+
+      Object.entries(pfEls).forEach(([k, el]) =>
+        el.addEventListener(el.tagName === "SELECT" ? "change" : "input", () => {
+          pf[k] = el.value; if (k === "date") showCustom(); savePf(); renderProgressTables();
+        }));
+      $id("pf-reset").addEventListener("click", () => {
+        pf = Object.assign(pf, { q: "", student: "all", course: "all", lesson: "all",
+                                 status: "all", date: "all", d1: "", d2: "" });
+        Object.entries(pfEls).forEach(([k, el]) => { el.value = pf[k]; });
+        showCustom(); savePf(); renderProgressTables();
+      });
+      $id("p-sort").addEventListener("change", e => { pf.psort = e.target.value; savePf(); renderProgressTables(); });
+      $id("e-sort").addEventListener("change", e => { pf.esort = e.target.value; savePf(); renderProgressTables(); });
+      $id("p-dir").addEventListener("click", () => {
+        pf.pdir = pf.pdir === "desc" ? "asc" : "desc";
+        $id("p-dir").textContent = dirLabel(pf.pdir); savePf(); renderProgressTables();
+      });
+      $id("e-dir").addEventListener("click", () => {
+        pf.edir = pf.edir === "desc" ? "asc" : "desc";
+        $id("e-dir").textContent = dirLabel(pf.edir); savePf(); renderProgressTables();
+      });
+      renderProgressTables();
+      // =============== END PROGRESS ANALYTICS ENGINE ===============
 
       lfCourse.addEventListener("change", () => { lf.course = lfCourse.value; saveLf(); renderLessonList(); });
       lfSort.addEventListener("change", () => { lf.sort = lfSort.value; saveLf(); renderLessonList(); });
