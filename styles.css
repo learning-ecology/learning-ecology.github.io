@@ -222,6 +222,40 @@ th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-t
 }
 .topbar .badge img { width: 100%; height: 100%; object-fit: cover; }
 
+/* ---- learning roadmap ---- */
+.roadmap { position: relative; }
+.roadmap .lesson { position: relative; padding-left: 2.4rem; }
+.roadmap .lesson::before {
+  content: "";
+  position: absolute;
+  left: 0.85rem;
+  top: 0; bottom: 0;
+  width: 2px;
+  background: var(--line);
+}
+.roadmap .lesson:first-child::before { top: 50%; }
+.roadmap .lesson:last-child::before { bottom: 50%; }
+.roadmap .lesson:only-child::before { display: none; }
+.node {
+  position: absolute;
+  left: 0.85rem; top: 50%;
+  transform: translate(-50%, -50%);
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.72rem; font-weight: 700;
+  background: var(--card);
+  border: 2px solid var(--line);
+  color: var(--muted);
+  z-index: 1;
+}
+.node.done { color: #fff; }
+.node.current { color: var(--accent-ink); box-shadow: 0 0 0 4px rgba(30,79,143,0.14); }
+.lesson.locked { opacity: 0.55; }
+.badges { display: flex; align-items: center; gap: 0.45rem; margin: 0.1rem 0 0.7rem; font-size: 1.1rem; }
+.badges .b { opacity: 0.22; filter: grayscale(0.6); transition: opacity 0.3s ease; }
+.badges .b.earned { opacity: 1; filter: none; }
+
 /* ---- collapsible course categories ---- */
 .cat { margin-bottom: 1rem; }
 .cat-head {

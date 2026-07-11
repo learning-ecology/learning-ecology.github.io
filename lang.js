@@ -68,7 +68,10 @@ const I18N = {
     no_results: "No results found",
     cat_other: "Other courses",
     your_teacher: "Your teacher",
-    zalo_chat: "Chat on Zalo"
+    zalo_chat: "Chat on Zalo",
+    locked: "Locked",
+    locked_hint: "Finish the previous lesson to unlock",
+    time_left: "≈ {t} left"
   },
 
   vi: {
@@ -132,7 +135,10 @@ const I18N = {
     no_results: "Không tìm thấy kết quả",
     cat_other: "Khóa học khác",
     your_teacher: "Giáo viên của bạn",
-    zalo_chat: "Nhắn Zalo"
+    zalo_chat: "Nhắn Zalo",
+    locked: "Đã khóa",
+    locked_hint: "Hoàn thành bài trước để mở khóa",
+    time_left: "≈ còn {t}"
   }
 };
 

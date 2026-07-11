@@ -153,20 +153,71 @@
             : `<button data-lesson="${l.id}" class="mark">${t("mark_done")}</button>`}
         </div>`;
 
-      // One colored card per course, grouped into collapsible categories.
+      // Which lessons are locked? In a "sequential" course, everything
+      // after the first uncompleted lesson is locked.
+      const lockedSet = new Set();
+      for (const c of (courses || [])) {
+        if (!c.sequential) continue;
+        const ls = (lessons || []).filter(l => l.course_id === c.id);
+        const fi = ls.findIndex(x => !done.has(x.id));
+        if (fi === -1) continue;
+        ls.forEach((l, i) => { if (i > fi) lockedSet.add(l.id); });
+      }
+      const fmtDur = m => m >= 60
+        ? Math.floor(m / 60) + "h" + (m % 60 ? " " + (m % 60) + "m" : "")
+        : m + " min";
+
+      // One roadmap card per course, grouped into collapsible categories.
       const courseCard = c => {
         const ls = (lessons || []).filter(l => l.course_id === c.id);
         const doneCount = ls.filter(l => done.has(l.id)).length;
         const pct = ls.length ? Math.round(doneCount / ls.length * 100) : 0;
         const complete = ls.length > 0 && doneCount === ls.length;
         const color = c.color || "#1e4f8f";
+        const firstOpen = ls.findIndex(x => !done.has(x.id));
+        const minsLeft = ls.filter(l => !done.has(l.id))
+          .reduce((s, l) => s + (l.est_minutes || 0), 0);
+
+        const BADGES = [["🌱", 25], ["⭐", 50], ["🏅", 75], ["🏆", 100]];
+        const badgeRow = ls.length ? `
+          <div class="badges">
+            ${BADGES.map(([b, th]) =>
+              `<span class="b ${pct >= th ? "earned" : ""}" title="${th}%">${b}</span>`).join("")}
+            ${minsLeft ? `<span class="kind" style="margin-left:auto;">${tf("time_left", { t: fmtDur(minsLeft) })}</span>` : ""}
+          </div>` : "";
+
+        const rows = ls.map((l, i) => {
+          const isDone = done.has(l.id);
+          const isLocked = lockedSet.has(l.id);
+          const isCurrent = !isDone && !isLocked && c.sequential && i === firstOpen;
+          const nodeStyle = isDone
+            ? `style="background:${esc(color)};border-color:${esc(color)};"`
+            : (isCurrent ? `style="border-color:${esc(color)};"` : "");
+          const node = `<span class="node ${isDone ? "done" : ""} ${isCurrent ? "current" : ""}" ${nodeStyle}>${isDone ? "✓" : i + 1}</span>`;
+          const meta = `
+            <div class="meta">
+              <div class="title">${esc(l.title)}</div>
+              <span class="kind">${esc(l.kind)}${l.est_minutes ? " · ~" + l.est_minutes + " min" : ""}${isLocked ? " · " + t("locked_hint") : ""}</span>
+            </div>`;
+          const actions = isLocked
+            ? `<span class="pill todo">🔒 ${t("locked")}</span>`
+            : `${l.storage_path
+                ? `<button class="ghost open-file" data-lesson="${l.id}" data-path="${esc(l.storage_path)}">${t("open")}</button>`
+                : `<a class="btn ghost open-link" data-lesson="${l.id}" href="${esc(withLms(l))}" target="_blank" rel="noopener">${t("open")}</a>`}
+              ${isDone
+                ? `<span class="pill done">${t("completed_pill")}</span>`
+                : `<button data-lesson="${l.id}" class="mark">${t("mark_done")}</button>`}`;
+          return `<div class="lesson ${isLocked ? "locked" : ""}">${node}${meta}${actions}</div>`;
+        }).join("");
+
         return `
           <div class="card" id="course-${c.id}" style="border-top:4px solid ${esc(color)};">
             <h2>${esc(c.title)}
               <span class="kind" style="float:right;">${tf("done_count", { d: doneCount, t: ls.length })}</span></h2>
             <div class="progress"><span style="width:${pct}%; background:${esc(color)};"></span></div>
+            ${badgeRow}
             ${c.description ? `<p style="color:var(--muted); font-size:0.88rem; margin:0 0 0.5rem;">${esc(c.description)}</p>` : ""}
-            ${ls.map(lessonRow).join("") || `<p class="empty">${t("no_lessons_course")}</p>`}
+            <div class="roadmap">${rows || `<p class="empty">${t("no_lessons_course")}</p>`}</div>
             ${complete ? `<div class="congrats">🎉 <span>${esc(c.title)}${t("congrats")}</span></div>` : ""}
           </div>`;
       };
@@ -319,6 +370,7 @@
         return esc(text.slice(0, i)) + "<mark>" + esc(text.slice(i, i + q.length)) + "</mark>" + esc(text.slice(i + q.length));
       };
       const openLesson = l => {
+        if (lockedSet.has(l.id)) { alert(t("locked_hint")); return; }
         sb.from("lesson_activity").upsert({
           student_id: user.id, lesson_id: l.id, kind: "activity",
           key: "opened", value: 1, max_value: 1, updated_at: new Date().toISOString()
@@ -445,6 +497,8 @@
             <span class="kind">#${l.sort_order ?? 0} · ${esc(l.kind)} · ${l.storage_path ? "uploaded file" : esc(l.url || "")}</span>
           </div>
           ${l.storage_path ? `<button class="ghost open-file" data-path="${esc(l.storage_path)}">Open</button>` : ""}
+          <input type="number" class="l-min-edit" data-id="${l.id}" value="${l.est_minutes ?? ""}"
+                 min="0" placeholder="min" title="Estimated minutes" style="max-width:70px; flex:none;" />
           <select class="l-move" data-id="${l.id}" style="max-width:150px;">
             <option value="">— no course —</option>
             ${(courses || []).map(c =>
@@ -492,6 +546,9 @@
                  style="width:44px; height:34px; padding:2px; flex:none;" />
           <input class="c-cat" data-id="${c.id}" value="${esc(c.category || "")}" placeholder="Category"
                  style="max-width:130px;" />
+          <label style="font-size:0.8rem; color:var(--muted); white-space:nowrap; cursor:pointer;">
+            <input type="checkbox" class="c-seq" data-id="${c.id}" ${c.sequential ? "checked" : ""} /> in order
+          </label>
           <button class="ghost c-save" data-id="${c.id}">Save</button>
         </div>`).join("");
 
@@ -586,6 +643,8 @@
               <select id="l-course"><option value="">— none —</option>${courseOptions}</select></div>
             <div class="field" style="max-width:90px;"><label>Order</label>
               <input id="l-order" type="number" value="${(lessons?.length || 0) + 1}" min="0" /></div>
+            <div class="field" style="max-width:90px;"><label>Minutes</label>
+              <input id="l-min" type="number" min="0" placeholder="—" /></div>
             <div class="field"><label>Link (URL)</label><input id="l-url" placeholder="https://your-site.github.io/lesson1.html" /></div>
             <button id="l-add">Add</button>
           </div>
@@ -699,6 +758,7 @@
         const url = document.getElementById("l-url").value.trim();
         const file = document.getElementById("l-file").files[0] || null;
         const sort_order = parseInt(document.getElementById("l-order").value, 10) || 0;
+        const est_minutes = parseInt(document.getElementById("l-min").value, 10) || null;
         const course_id = document.getElementById("l-course").value || null;
         const m = document.getElementById("l-msg");
         m.className = "msg";
@@ -724,7 +784,7 @@
         }
 
         const { error } = await sb.from("lessons")
-          .insert({ title, kind, url: url || null, sort_order, course_id, storage_path });
+          .insert({ title, kind, url: url || null, sort_order, course_id, storage_path, est_minutes });
         if (error) { m.textContent = "Could not add: " + error.message; m.className = "msg err"; return; }
         renderAdmin();
       });
@@ -755,8 +815,9 @@
           const id = btn.getAttribute("data-id");
           const color = app.querySelector(`.c-color[data-id="${id}"]`).value || null;
           const category = app.querySelector(`.c-cat[data-id="${id}"]`).value.trim() || null;
+          const sequential = app.querySelector(`.c-seq[data-id="${id}"]`).checked;
           btn.disabled = true;
-          const { error } = await sb.from("courses").update({ color, category }).eq("id", id);
+          const { error } = await sb.from("courses").update({ color, category, sequential }).eq("id", id);
           btn.disabled = false;
           if (error) { alert("Could not save: " + error.message); return; }
           btn.textContent = "Saved ✓";
@@ -811,8 +872,9 @@
             }
           }
 
+          const est_minutes = parseInt(app.querySelector(`.l-min-edit[data-id="${id}"]`).value, 10) || null;
           const { error } = await sb.from("lessons")
-            .update({ course_id: sel.value || null, storage_path: newPath }).eq("id", id);
+            .update({ course_id: sel.value || null, storage_path: newPath, est_minutes }).eq("id", id);
           btn.disabled = false;
           if (error) { alert("Could not move the lesson: " + error.message); return; }
           btn.textContent = "Saved ✓";
