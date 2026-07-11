@@ -257,6 +257,66 @@ th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-t
 .badges .b { opacity: 0.22; filter: grayscale(0.6); transition: opacity 0.3s ease; }
 .badges .b.earned { opacity: 1; filter: none; }
 
+/* ---- rich text editor ---- */
+.rte-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid var(--line);
+  border-bottom: none;
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding: 0.4rem;
+  background: var(--paper);
+}
+.rte-bar button {
+  background: #fff;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  padding: 0.35rem 0.55rem;
+  font-size: 0.85rem;
+  border-radius: 6px;
+  min-width: 32px;
+  font-weight: 500;
+}
+.rte-bar button:hover { border-color: var(--accent); background: #fff; color: var(--accent-ink); }
+.rte-bar select { width: auto; padding: 0.3rem 0.35rem; font-size: 0.85rem; }
+.rte-bar input[type="color"] { width: 34px; height: 32px; padding: 2px; border: 1px solid var(--line); border-radius: 6px; background: #fff; cursor: pointer; }
+.rte-bar .sep { width: 1px; height: 22px; background: var(--line); margin: 0 0.2rem; }
+.rte-area {
+  border: 1px solid var(--line);
+  border-radius: 0 0 var(--radius) var(--radius);
+  background: #fff;
+  min-height: 170px;
+  padding: 0.85rem;
+  font-size: 0.95rem;
+  overflow: auto;
+}
+.rte-area:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.rte-area img.sel { outline: 3px solid var(--accent); }
+.img-tools { display: flex; gap: 0.3rem; flex-wrap: wrap; margin-top: 0.45rem; align-items: center; }
+
+.ann-body img, .rte-area img { max-width: 100%; height: auto; border-radius: 6px; }
+.ann-body blockquote, .rte-area blockquote {
+  border-left: 3px solid var(--accent);
+  margin: 0.5rem 0;
+  padding: 0.3rem 0.85rem;
+  color: var(--muted);
+  background: rgba(30,79,143,0.05);
+}
+.ann-body pre, .rte-area pre {
+  background: #f1f3f7;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.6rem 0.85rem;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+.ann-body a { color: var(--accent-ink); }
+.ann-body h1, .ann-body h2, .ann-body h3 { margin: 0.4rem 0 0.3rem; }
+
 /* ---- collapsible course categories ---- */
 .cat { margin-bottom: 1rem; }
 .cat-head {

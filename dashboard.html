@@ -56,6 +56,12 @@
                 txt:"text" })[e] || null;
     }
 
+    function stripHtml(s) {
+      const d = document.createElement("div");
+      d.innerHTML = String(s ?? "");
+      return d.textContent || "";
+    }
+
     function iconFor(kind) {
       return ({ pdf:"📄", word:"📝", powerpoint:"📊", excel:"📈", html:"🌐",
                 audio:"🎧", video:"🎬", image:"🖼️", text:"📃", link:"🔗" })[kind] || "📄";
@@ -248,13 +254,13 @@
         ? `<div class="card"><h2>${t("other_lessons")}</h2>${loose.map(lessonRow).join("")}</div>` : "";
 
       // Announcements card (RLS already filtered to this student's courses).
-      const annBody = s => esc(s).replace(/\n/g, "<br>");
+      const annBody = s => /<[a-z][\s\S]*>/i.test(s) ? s : esc(s).replace(/\n/g, "<br>");
       const annCard = (anns || []).length ? `
         <div class="card" id="ann-card" style="border-top:4px solid var(--gold);">
           <h2>📣 ${t("announcements")}</h2>
           ${(anns || []).map(a => `
-            <div style="padding:0.55rem 0; border-bottom:1px solid var(--line);">
-              <div style="font-size:0.92rem;">${annBody(a.body)}</div>
+            <div style="padding:0.55rem 0; border-bottom:1px solid var(--line); overflow:hidden;">
+              <div class="ann-body" style="font-size:0.92rem;">${annBody(a.body)}</div>
               <span class="kind">${a.course_id
                 ? esc((courses || []).find(c => c.id === a.course_id)?.title || "")
                 : t("ann_all")} · ${new Date(a.created_at).toLocaleDateString()}</span>
@@ -376,7 +382,7 @@
       const sBox = document.getElementById("search-results");
       const normTxt = s => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       const sIndex = [
-        ...(anns || []).map(a => ({ type: "ann", title: a.body.slice(0, 70), sub: t("announcements"), obj: a })),
+        ...(anns || []).map(a => ({ type: "ann", title: stripHtml(a.body).slice(0, 70) || "🖼", sub: t("announcements"), obj: a })),
         ...(courses || []).map(c => ({ type: "course", title: c.title, sub: c.category || "", obj: c })),
         ...(lessons || []).map(l => ({
           type: "lesson", title: l.title,
@@ -720,9 +726,66 @@
         <div class="tabpane" data-tab="announce">
         <div class="card">
           <h2>New announcement</h2>
-          <div class="field"><label>Message</label>
-            <textarea id="a-body" placeholder="No class this Friday — see you next week!"></textarea></div>
-          <div class="form-row">
+          <div class="rte-bar" id="rte-bar">
+            <button type="button" data-cmd="undo" title="Undo">↶</button>
+            <button type="button" data-cmd="redo" title="Redo">↷</button>
+            <span class="sep"></span>
+            <select id="rte-block" title="Paragraph style">
+              <option value="">Style</option>
+              <option value="P">Paragraph</option>
+              <option value="H1">Heading 1</option>
+              <option value="H2">Heading 2</option>
+              <option value="H3">Heading 3</option>
+              <option value="BLOCKQUOTE">Quote</option>
+              <option value="PRE">Code block</option>
+            </select>
+            <select id="rte-size" title="Font size">
+              <option value="">Size</option>
+              <option value="2">Small</option>
+              <option value="3">Normal</option>
+              <option value="5">Large</option>
+              <option value="7">Huge</option>
+            </select>
+            <span class="sep"></span>
+            <button type="button" data-cmd="bold" title="Bold"><b>B</b></button>
+            <button type="button" data-cmd="italic" title="Italic"><i>I</i></button>
+            <button type="button" data-cmd="underline" title="Underline"><u>U</u></button>
+            <button type="button" data-cmd="strikeThrough" title="Strikethrough"><s>S</s></button>
+            <span class="sep"></span>
+            <input type="color" id="rte-fore" title="Text color" value="#17263e" />
+            <input type="color" id="rte-back" title="Highlight color" value="#fff59d" />
+            <span class="sep"></span>
+            <button type="button" data-cmd="insertUnorderedList" title="Bullet list">• ≡</button>
+            <button type="button" data-cmd="insertOrderedList" title="Numbered list">1. ≡</button>
+            <button type="button" data-cmd="justifyLeft" title="Align left">⯇</button>
+            <button type="button" data-cmd="justifyCenter" title="Center">☰</button>
+            <button type="button" data-cmd="justifyRight" title="Align right">⯈</button>
+            <span class="sep"></span>
+            <button type="button" id="rte-link" title="Insert link">🔗</button>
+            <button type="button" id="rte-img" title="Insert image">🖼️</button>
+            <button type="button" data-cmd="removeFormat" title="Clear formatting">Tx</button>
+            <span class="sep"></span>
+            <button type="button" id="rte-preview" title="Preview">👁 Preview</button>
+          </div>
+          <div class="rte-area" id="a-body" contenteditable="true"></div>
+          <div class="img-tools" id="img-tools" style="display:none;">
+            <span class="kind">Selected image:</span>
+            <button type="button" class="ghost" data-w="25">25%</button>
+            <button type="button" class="ghost" data-w="50">50%</button>
+            <button type="button" class="ghost" data-w="75">75%</button>
+            <button type="button" class="ghost" data-w="100">100%</button>
+            <button type="button" class="ghost" data-a="left">◧ wrap left</button>
+            <button type="button" class="ghost" data-a="center">▣ center</button>
+            <button type="button" class="ghost" data-a="right">◨ wrap right</button>
+            <button type="button" class="ghost" id="img-alt">alt text</button>
+            <button type="button" class="ghost" id="img-del" style="color:var(--danger); border-color:var(--danger);">remove</button>
+          </div>
+          <input type="file" id="rte-file" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none;" />
+          <div id="rte-prevbox" style="display:none; border:1.5px dashed var(--line); border-radius:var(--radius); padding:1rem; margin-top:0.7rem;">
+            <p class="eyebrow">Preview — how students will see it</p>
+            <div class="ann-body" id="rte-prevbody" style="font-size:0.92rem;"></div>
+          </div>
+          <div class="form-row" style="margin-top:0.8rem;">
             <div class="field" style="max-width:220px;"><label>Send to</label>
               <select id="a-course"><option value="">All students</option>${courseOptions}</select></div>
             <button id="a-add">Post announcement</button>
@@ -735,7 +798,7 @@
             <div class="lesson">
               <span class="icon">📣</span>
               <div class="meta">
-                <div class="title" style="font-weight:500;">${esc(a.body)}</div>
+                <div class="title" style="font-weight:500;">${esc(stripHtml(a.body).slice(0, 140) || "🖼 (image)")}</div>
                 <span class="kind">${a.course_id
                   ? esc((courses || []).find(c => c.id === a.course_id)?.title || "?")
                   : "All students"} · ${new Date(a.created_at).toLocaleDateString()}</span>
@@ -746,11 +809,107 @@
         </div>
         </div>`;
 
+      // ---- rich text editor wiring ----
+      const rte = document.getElementById("a-body");
+      let savedRange = null;
+      const saveSel = () => {
+        const s = window.getSelection();
+        if (s.rangeCount && rte.contains(s.anchorNode)) savedRange = s.getRangeAt(0);
+      };
+      const restoreSel = () => {
+        if (!savedRange) return;
+        const s = window.getSelection();
+        s.removeAllRanges(); s.addRange(savedRange);
+      };
+      rte.addEventListener("keyup", saveSel);
+      rte.addEventListener("mouseup", saveSel);
+      try { document.execCommand("styleWithCSS", false, true); } catch (e) {}
+      const exec = (cmd, val) => {
+        rte.focus(); restoreSel();
+        document.execCommand(cmd, false, val ?? null);
+        saveSel();
+      };
+
+      document.querySelectorAll("#rte-bar button[data-cmd]").forEach(b => {
+        b.addEventListener("mousedown", e => e.preventDefault());
+        b.addEventListener("click", () => exec(b.getAttribute("data-cmd")));
+      });
+      document.getElementById("rte-block").addEventListener("change", e => {
+        if (e.target.value) { exec("formatBlock", e.target.value); e.target.value = ""; }
+      });
+      document.getElementById("rte-size").addEventListener("change", e => {
+        if (e.target.value) { exec("fontSize", e.target.value); e.target.value = ""; }
+      });
+      document.getElementById("rte-fore").addEventListener("input", e => exec("foreColor", e.target.value));
+      document.getElementById("rte-back").addEventListener("input", e => exec("hiliteColor", e.target.value));
+      document.getElementById("rte-link").addEventListener("click", () => {
+        const url = prompt("Link URL:", "https://");
+        if (url && url !== "https://") exec("createLink", url);
+      });
+
+      // image upload → announcements bucket → insert at cursor
+      const rteFile = document.getElementById("rte-file");
+      document.getElementById("rte-img").addEventListener("click", () => rteFile.click());
+      rteFile.addEventListener("change", async e => {
+        const f = e.target.files[0]; rteFile.value = "";
+        if (!f) return;
+        if (f.size > 3 * 1024 * 1024) { alert("Images must be under 3 MB."); return; }
+        const path = Date.now() + "-" + f.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const { error } = await sb.storage.from("announcements")
+          .upload(path, f, { contentType: f.type });
+        if (error) { alert("Upload failed: " + error.message); return; }
+        const { data } = sb.storage.from("announcements").getPublicUrl(path);
+        exec("insertImage", data.publicUrl);
+      });
+
+      // click an image to select it → resize / align / alt / remove
+      let selImg = null;
+      const imgTools = document.getElementById("img-tools");
+      rte.addEventListener("click", e => {
+        rte.querySelectorAll("img.sel").forEach(i => i.classList.remove("sel"));
+        if (e.target.tagName === "IMG") {
+          selImg = e.target;
+          selImg.classList.add("sel");
+          imgTools.style.display = "flex";
+        } else { selImg = null; imgTools.style.display = "none"; }
+      });
+      imgTools.querySelectorAll("[data-w]").forEach(b => b.addEventListener("click", () => {
+        if (selImg) { selImg.style.width = b.getAttribute("data-w") + "%"; selImg.style.height = "auto"; }
+      }));
+      imgTools.querySelectorAll("[data-a]").forEach(b => b.addEventListener("click", () => {
+        if (!selImg) return;
+        const a = b.getAttribute("data-a");
+        selImg.style.float = ""; selImg.style.display = ""; selImg.style.margin = "";
+        if (a === "left")   { selImg.style.float = "left";  selImg.style.margin = "0 1rem 0.5rem 0"; }
+        if (a === "right")  { selImg.style.float = "right"; selImg.style.margin = "0 0 0.5rem 1rem"; }
+        if (a === "center") { selImg.style.display = "block"; selImg.style.margin = "0.5rem auto"; }
+      }));
+      document.getElementById("img-alt").addEventListener("click", () => {
+        if (!selImg) return;
+        const alt = prompt("Describe this image (alt text):", selImg.alt || "");
+        if (alt !== null) selImg.alt = alt;
+      });
+      document.getElementById("img-del").addEventListener("click", () => {
+        if (selImg) { selImg.remove(); selImg = null; imgTools.style.display = "none"; }
+      });
+
+      // preview toggle
+      const prevBox = document.getElementById("rte-prevbox");
+      document.getElementById("rte-preview").addEventListener("click", () => {
+        if (prevBox.style.display !== "none") { prevBox.style.display = "none"; return; }
+        rte.querySelectorAll("img.sel").forEach(i => i.classList.remove("sel"));
+        document.getElementById("rte-prevbody").innerHTML = rte.innerHTML;
+        prevBox.style.display = "block";
+      });
+
       document.getElementById("a-add").addEventListener("click", async () => {
-        const body = document.getElementById("a-body").value.trim();
+        rte.querySelectorAll("img.sel").forEach(i => i.classList.remove("sel"));
+        const body = rte.innerHTML.trim();
         const course_id = document.getElementById("a-course").value || null;
         const m = document.getElementById("a-msg");
-        if (!body) { m.textContent = "Write a message first."; m.className = "msg err"; return; }
+        if (!stripHtml(body).trim() && !/<img/i.test(body)) {
+          m.textContent = "Write a message first."; m.className = "msg err"; return;
+        }
         const { error } = await sb.from("announcements").insert({ body, course_id });
         if (error) { m.textContent = "Could not post: " + error.message; m.className = "msg err"; return; }
         renderAdmin();
