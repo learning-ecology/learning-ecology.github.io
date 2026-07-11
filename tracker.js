@@ -145,6 +145,21 @@
     if (!session || !lessonId) return;   // not a hub student → no tracking
     uid = session.user.id;
 
+    // ---- access period enforcement inside lessons ----
+    try {
+      const { data: me } = await sb.from("profiles")
+        .select("role, suspended, access_expires").eq("id", uid).maybeSingle();
+      const today = new Date().getFullYear() + "-" +
+        String(new Date().getMonth() + 1).padStart(2, "0") + "-" +
+        String(new Date().getDate()).padStart(2, "0");
+      if (me && me.role !== "admin" &&
+          (me.suspended || (me.access_expires && me.access_expires < today))) {
+        lockPage("Access expired",
+                 "Gói truy cập của bạn đã hết hạn. Vui lòng liên hệ giáo viên để gia hạn.");
+        return;
+      }
+    } catch (e) {}
+
     // Continue from previously recorded time.
     try {
       const { data } = await sb.from("lesson_activity").select("value")

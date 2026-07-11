@@ -73,7 +73,11 @@ const I18N = {
     locked_hint: "Finish the previous lesson to unlock",
     time_left: "≈ {t} left",
     announcements: "Announcements",
-    ann_all: "All courses"
+    ann_all: "All courses",
+    acc_expired_t: "Access expired",
+    acc_expired_m: "Your subscription has expired. Please contact your teacher to renew your access.",
+    acc_susp_m: "This account is temporarily suspended. Please contact your teacher.",
+    contact_teacher: "Contact teacher"
   },
 
   vi: {
@@ -142,7 +146,11 @@ const I18N = {
     locked_hint: "Hoàn thành bài trước để mở khóa",
     time_left: "≈ còn {t}",
     announcements: "Thông báo",
-    ann_all: "Tất cả khóa học"
+    ann_all: "Tất cả khóa học",
+    acc_expired_t: "Hết hạn truy cập",
+    acc_expired_m: "Gói truy cập của bạn đã hết hạn. Vui lòng liên hệ giáo viên để gia hạn.",
+    acc_susp_m: "Tài khoản này đang tạm khóa. Vui lòng liên hệ giáo viên.",
+    contact_teacher: "Liên hệ giáo viên"
   }
 };
 

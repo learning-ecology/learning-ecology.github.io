@@ -150,6 +150,18 @@ label { display: block; font-size: 0.82rem; color: var(--muted); margin: 0 0 0.3
 }
 .pill.done { background: rgba(30,79,143,0.14); color: var(--accent-ink); }
 .pill.todo { background: rgba(183,130,63,0.16); color: var(--gold); }
+.pill.bad  { background: rgba(164,68,47,0.14);  color: var(--danger); }
+.pill.off  { background: rgba(90,101,119,0.14); color: var(--muted); }
+tr.row-off td { background: rgba(164,68,47,0.045); }
+.alert-bar {
+  border: 1px solid var(--gold);
+  background: rgba(183,130,63,0.09);
+  color: var(--ink);
+  border-radius: var(--radius);
+  padding: 0.7rem 0.9rem;
+  font-size: 0.88rem;
+  margin-bottom: 1rem;
+}
 
 /* ---- admin table ---- */
 table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }

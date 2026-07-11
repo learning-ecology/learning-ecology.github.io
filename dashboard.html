@@ -88,7 +88,28 @@
       user = session.user;
 
       const { data: profile } = await sb
-        .from("profiles").select("full_name, role, avatar_url, active_session, multi_device").eq("id", user.id).single();
+        .from("profiles")
+        .select("full_name, role, avatar_url, active_session, multi_device, access_expires, suspended")
+        .eq("id", user.id).single();
+
+      // ---- access period enforcement (students only) ----
+      if (profile?.role !== "admin") {
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const expired = profile?.access_expires && new Date(profile.access_expires) < today;
+        if (profile?.suspended || expired) {
+          const name = profile?.full_name || user.email;
+          who.textContent = name;
+          app.innerHTML = `
+            <div class="card" style="max-width:480px; margin:3rem auto; text-align:center; border-top:4px solid var(--danger);">
+              <div style="font-size:2.4rem;">🔒</div>
+              <h1 style="font-size:1.4rem;">${t("acc_expired_t")}</h1>
+              <p style="color:var(--muted);">${profile?.suspended ? t("acc_susp_m") : t("acc_expired_m")}</p>
+              <a class="btn" href="https://zalo.me/0961923983" target="_blank" rel="noopener"
+                 style="text-decoration:none; display:inline-block; margin-top:0.5rem;">💬 ${t("contact_teacher")}</a>
+            </div>`;
+          return;
+        }
+      }
 
       // ---- one device per student account ----
       // (admins and accounts you've granted multi-device are exempt)
@@ -486,7 +507,7 @@
 
       const { data: students } = await sb
         .from("profiles")
-        .select("id, full_name, email, role, avatar_url, bio, multi_device")
+        .select("id, full_name, email, role, avatar_url, bio, multi_device, access_start, access_expires, suspended")
         .order("created_at");
 
       const { data: courses } = await sb
@@ -506,6 +527,20 @@
         .order("updated_at", { ascending: false });
 
       const courseName = id => (courses || []).find(c => c.id === id)?.title || null;
+
+      // account status: active / expiring / expired / suspended (+unlimited)
+      const accStatus = s => {
+        if (s.role === "admin") return { key: "active", unlimited: true };
+        if (s.suspended) return { key: "suspended" };
+        if (!s.access_expires) return { key: "active", unlimited: true };
+        const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+        const days = Math.round((new Date(s.access_expires) - t0) / 86400000);
+        if (days < 0) return { key: "expired", days: 0 };
+        if (days <= 7) return { key: "expiring", days };
+        return { key: "active", days };
+      };
+      const stuWarn = (students || []).filter(s => s.role !== "admin")
+        .filter(s => ["expired", "expiring"].includes(accStatus(s).key)).length;
       const studentName = s => s.full_name || s.email || "—";
       const onlyStudents = (students || []).filter(s => s.role !== "admin");
 
@@ -536,29 +571,6 @@
                   style="color:var(--danger); border-color:var(--danger);">Delete</button>
         </div>`;
       };
-
-      const studentRows = (students || []).map(s => `
-        <tr>
-          <td style="width:40%;">
-            <div style="display:flex; gap:0.5rem; align-items:center;">
-              ${s.avatar_url
-                ? `<img src="${esc(s.avatar_url)}" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex:none;" />`
-                : ""}
-              <input class="s-name" data-id="${s.id}"
-                value="${esc(s.full_name || "")}" placeholder="Type a name…" />
-            </div>
-          </td>
-          <td>${esc(s.email || "—")}${s.bio ? `<div class="kind" style="margin-top:0.15rem;">${esc(s.bio)}</div>` : ""}</td>
-          <td>${s.role === "admin" ? `<span class="pill done">admin</span>` : "student"}</td>
-          <td style="white-space:nowrap;">
-            ${s.role === "admin"
-              ? `<span class="kind">always</span>`
-              : `<label style="font-size:0.82rem; color:var(--muted); cursor:pointer;">
-                   <input type="checkbox" class="s-multi" data-id="${s.id}" ${s.multi_device ? "checked" : ""} /> allow
-                 </label>`}
-          </td>
-          <td><button class="ghost s-save" data-id="${s.id}">Save</button></td>
-        </tr>`).join("");
 
       const courseOptions = (courses || []).map(c =>
         `<option value="${c.id}">${esc(c.title)}</option>`).join("");
@@ -604,7 +616,7 @@
         <div class="tabs">
           <button data-tab="lessons">Lessons (${(lessons || []).length})</button>
           <button data-tab="courses">Courses (${(courses || []).length})</button>
-          <button data-tab="students">Students (${onlyStudents.length})</button>
+          <button data-tab="students">Students (${onlyStudents.length})${stuWarn ? " ⚠️ " + stuWarn : ""}</button>
           <button data-tab="progress">Progress</button>
           <button data-tab="announce">Announce${(anns || []).length ? " (" + anns.length + ")" : ""}</button>
         </div>
@@ -688,13 +700,43 @@
         </div>
 
         <div class="tabpane" data-tab="students">
+        <div id="stu-alert"></div>
+        <div class="stat-grid" id="stu-summary"></div>
         <div class="card">
-          <h2>Students</h2>
-          ${studentRows
-            ? `<table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Multi-device</th><th></th></tr></thead>
-               <tbody>${studentRows}</tbody></table>
-               <p class="empty" style="margin-top:0.5rem;">Type a name and click Save — it then appears in the progress table below. Tick "allow" to let an account stay signed in on several devices at once.</p>`
-            : `<p class="empty">No accounts yet.</p>`}
+          <h2>Students <span id="stu-count" class="kind"></span></h2>
+          <div class="form-row" style="margin-bottom:0.7rem;">
+            <div class="field"><label>Search</label>
+              <input id="sf-q" placeholder="Name, email or course…" autocomplete="off" /></div>
+            <div class="field" style="max-width:150px;"><label>Status</label>
+              <select id="sf-status">
+                <option value="all">All statuses</option>
+                <option value="active">Active</option>
+                <option value="expiring">Expiring soon</option>
+                <option value="expired">Expired</option>
+                <option value="suspended">Suspended</option>
+              </select></div>
+            <div class="field" style="max-width:160px;"><label>Access</label>
+              <select id="sf-access">
+                <option value="all">All access</option>
+                <option value="unlimited">Unlimited</option>
+                <option value="limited">Limited (has expiry)</option>
+                <option value="expired">Expired</option>
+              </select></div>
+            <div class="field" style="max-width:130px;"><label>Role</label>
+              <select id="sf-role">
+                <option value="all">All users</option>
+                <option value="student">Students</option>
+                <option value="admin">Admin</option>
+              </select></div>
+            <div class="field" style="max-width:150px;"><label>Multi-device</label>
+              <select id="sf-multi">
+                <option value="all">All</option>
+                <option value="on">Enabled</option>
+                <option value="off">Disabled</option>
+              </select></div>
+          </div>
+          <div id="stu-table"></div>
+          <p class="empty" style="margin-top:0.5rem;">Click "Manage ▸" on a row to grant or extend access, suspend, or see the student's details.</p>
         </div>
         </div>
 
@@ -1518,27 +1560,154 @@
       renderProgressTables();
       // =============== END PROGRESS ANALYTICS ENGINE ===============
 
-      lfCourse.addEventListener("change", () => { lf.course = lfCourse.value; saveLf(); renderLessonList(); });
-      lfSort.addEventListener("change", () => { lf.sort = lfSort.value; saveLf(); renderLessonList(); });
-      lfQ.addEventListener("input", renderLessonList);
-      renderLessonList();
+      // ================= STUDENT MANAGEMENT ENGINE =================
+      const dstr = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+      const addDaysStr = (base, n) => { const d = base ? new Date(base) : new Date(); d.setDate(d.getDate() + n); return dstr(d); };
+      const coursesOf = sid => (enrollments || []).filter(e => e.student_id === sid)
+        .map(e => cTitle(e.course_id)).filter(Boolean);
 
-      wireFileButtons(app);
+      const STU_PILL = {
+        active:    d => `<span class="pill done">Active${d != null ? " · " + d + "d left" : ""}</span>`,
+        unlimited: () => `<span class="pill done">Active · unlimited</span>`,
+        expiring:  d => `<span class="pill todo">⚠️ Expiring · ${d === 0 ? "today" : d + "d left"}</span>`,
+        expired:   () => `<span class="pill bad">Expired</span>`,
+        suspended: () => `<span class="pill off">Suspended</span>`
+      };
+      const stuBadge = s => {
+        const st = accStatus(s);
+        if (st.key === "active" && st.unlimited) return STU_PILL.unlimited();
+        return STU_PILL[st.key](st.days);
+      };
 
-      app.querySelectorAll(".s-multi").forEach(cb => {
-        cb.addEventListener("change", async () => {
-          cb.disabled = true;
-          const { error } = await sb.from("profiles")
-            .update({ multi_device: cb.checked }).eq("id", cb.getAttribute("data-id"));
-          cb.disabled = false;
-          if (error) { cb.checked = !cb.checked; alert("Could not save: " + error.message); }
+      // expiring/expired alert banner
+      (function () {
+        const soon = onlyStudents.filter(s => accStatus(s).key === "expiring");
+        const dead = onlyStudents.filter(s => accStatus(s).key === "expired");
+        const urgent = soon.filter(s => accStatus(s).days <= 3);
+        document.getElementById("stu-alert").innerHTML = (soon.length || dead.length) ? `
+          <div class="alert-bar">⚠️ <b>Attention:</b>
+            ${dead.length ? dead.length + " expired (" + esc(dead.map(x => studentName(x)).join(", ")) + ")" : ""}
+            ${dead.length && soon.length ? " · " : ""}
+            ${soon.length ? soon.length + " expiring within 7 days (" + esc(soon.map(x => studentName(x) + (accStatus(x).days <= 3 ? " — " + accStatus(x).days + "d!" : "")).join(", ")) + ")" : ""}
+          </div>` : "";
+        void urgent;
+      })();
+
+      let sf = { q: "", status: "all", access: "all", role: "all", multi: "all" };
+      try { sf = Object.assign(sf, JSON.parse(localStorage.getItem("hub_sfilter") || "{}")); } catch (e) {}
+      const sfEls = { q: $id("sf-q"), status: $id("sf-status"), access: $id("sf-access"),
+                      role: $id("sf-role"), multi: $id("sf-multi") };
+      Object.entries(sfEls).forEach(([k, el]) => { el.value = sf[k]; });
+      const saveSf = () => { try { localStorage.setItem("hub_sfilter", JSON.stringify(sf)); } catch (e) {} };
+
+      async function updStudent(id, patch, msgEl, okText) {
+        const { error } = await sb.from("profiles").update(patch).eq("id", id);
+        if (msgEl) {
+          msgEl.className = "msg" + (error ? " err" : "");
+          msgEl.textContent = error ? "Could not save: " + error.message : okText;
+        } else if (error) alert("Could not save: " + error.message);
+        if (!error) setTimeout(() => renderAdmin(), 650);
+      }
+
+      function renderStudentTable() {
+        const q = normA(sf.q.trim());
+        let list = (students || []).filter(s => {
+          const st = accStatus(s);
+          if (sf.role !== "all" && s.role !== sf.role) return false;
+          if (sf.status !== "all" && st.key !== sf.status) return false;
+          if (sf.access === "unlimited" && (s.role !== "admin" && s.access_expires)) return false;
+          if (sf.access === "limited" && !s.access_expires) return false;
+          if (sf.access === "expired" && st.key !== "expired") return false;
+          if (sf.multi === "on" && !(s.multi_device || s.role === "admin")) return false;
+          if (sf.multi === "off" && (s.multi_device || s.role === "admin")) return false;
+          if (q) {
+            const hay = normA((s.full_name || "") + " " + (s.email || "") + " " +
+                              coursesOf(s.id).join(" ") + " " + st.key);
+            if (!hay.includes(q)) return false;
+          }
+          return true;
         });
-      });
 
-      app.querySelectorAll(".s-save").forEach(btn => {
-        btn.addEventListener("click", async () => {
+        $id("stu-count").textContent = "Showing " + list.length + " of " + (students || []).length;
+        const stOf = s => accStatus(s).key;
+        const stu = list.filter(s => s.role !== "admin");
+        const stat = (k, v) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`;
+        $id("stu-summary").innerHTML =
+          stat("Students", stu.length) +
+          stat("Active", stu.filter(s => stOf(s) === "active").length) +
+          stat("Expiring soon", stu.filter(s => stOf(s) === "expiring").length) +
+          stat("Expired", stu.filter(s => stOf(s) === "expired").length) +
+          stat("Suspended", stu.filter(s => stOf(s) === "suspended").length) +
+          stat("Unlimited", stu.filter(s => !s.access_expires && !s.suspended).length);
+
+        const box = $id("stu-table");
+        box.innerHTML = list.length ? `
+          <table><thead><tr><th>Name</th><th>Email · courses</th><th>Role</th><th>Access</th><th>Multi-device</th><th></th></tr></thead>
+          <tbody>${list.map(s => {
+            const st = accStatus(s);
+            const off = ["expired", "suspended"].includes(st.key) ? "row-off" : "";
+            const compl = (prog || []).filter(p => p.student_id === s.id && p.status === "completed").length;
+            const time = Object.values(agg).filter(a => a.sid === s.id).reduce((x, a) => x + a.time, 0);
+            const lastAct = records.filter(r => r.sid === s.id && r.date)
+              .map(r => r.date).sort().pop();
+            return `
+            <tr class="${off}">
+              <td style="min-width:170px;">
+                <div style="display:flex; gap:0.5rem; align-items:center;">
+                  ${s.avatar_url ? `<img src="${esc(s.avatar_url)}" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex:none;" />` : ""}
+                  <input class="s-name" data-id="${s.id}" value="${esc(s.full_name || "")}" placeholder="Type a name…" />
+                </div>
+              </td>
+              <td>${esc(s.email || "—")}
+                <div class="kind">${esc(coursesOf(s.id).join(", ") || "no courses")}</div>
+                ${s.bio ? `<div class="kind">${esc(s.bio)}</div>` : ""}</td>
+              <td>${s.role === "admin" ? `<span class="pill done">admin</span>` : "student"}</td>
+              <td>${stuBadge(s)}
+                ${s.access_expires ? `<div class="kind">${esc(s.access_start || "…")} → ${esc(s.access_expires)}</div>` : ""}</td>
+              <td>${s.role === "admin" ? `<span class="kind">always</span>`
+                : `<label style="font-size:0.82rem; color:var(--muted); cursor:pointer; white-space:nowrap;">
+                     <input type="checkbox" class="s-multi" data-id="${s.id}" ${s.multi_device ? "checked" : ""} /> allow</label>`}</td>
+              <td style="white-space:nowrap;">
+                <button class="ghost s-save" data-id="${s.id}">Save</button>
+                ${s.role === "admin" ? "" : `<button class="ghost st-manage" data-id="${s.id}">Manage ▸</button>`}
+              </td>
+            </tr>
+            ${s.role === "admin" ? "" : `
+            <tr class="st-panel" data-id="${s.id}" style="display:none;"><td colspan="6">
+              <div class="eng-detail">
+                <b>Access control — ${esc(studentName(s))}</b>
+                <div class="form-row" style="margin-top:0.5rem;">
+                  <span class="kind" style="align-self:center;">Extend:</span>
+                  ${[7, 30, 60, 90, 180, 365].map(d =>
+                    `<button class="ghost st-ext" data-id="${s.id}" data-d="${d}">+${d}d</button>`).join("")}
+                  <button class="ghost st-unlim" data-id="${s.id}">∞ Unlimited</button>
+                  <button class="ghost st-susp" data-id="${s.id}"
+                    style="${s.suspended ? "" : "color:var(--danger); border-color:var(--danger);"}">
+                    ${s.suspended ? "▶ Reactivate" : "⏸ Suspend"}</button>
+                </div>
+                <div class="form-row" style="margin-top:0.4rem;">
+                  <div class="field" style="max-width:160px;"><label>Start</label>
+                    <input type="date" class="st-d1" data-id="${s.id}" value="${esc(s.access_start || "")}" /></div>
+                  <div class="field" style="max-width:160px;"><label>Expires</label>
+                    <input type="date" class="st-d2" data-id="${s.id}" value="${esc(s.access_expires || "")}" /></div>
+                  <button class="ghost st-dates" data-id="${s.id}">Save dates</button>
+                  <div class="field" style="max-width:100px;"><label>Days</label>
+                    <input type="number" class="st-rdays" data-id="${s.id}" value="30" min="1" /></div>
+                  <button class="ghost st-renew" data-id="${s.id}">Renew from today</button>
+                </div>
+                <p class="msg st-msg" data-id="${s.id}"></p>
+                <span class="kind">Courses: ${esc(coursesOf(s.id).join(", ") || "—")} ·
+                  Completed: ${compl} lessons · Total learning time: ${fmtTime(time)} ·
+                  Last active: ${lastAct ? new Date(lastAct).toLocaleDateString() : "never"}</span>
+              </div>
+            </td></tr>`}`;
+          }).join("")}</tbody></table>`
+          : `<p class="empty">No students match these filters.</p>`;
+
+        // --- wiring ---
+        box.querySelectorAll(".s-save").forEach(btn => btn.addEventListener("click", async () => {
           const id = btn.getAttribute("data-id");
-          const input = app.querySelector(`.s-name[data-id="${id}"]`);
+          const input = box.querySelector(`.s-name[data-id="${id}"]`);
           btn.disabled = true;
           const { error } = await sb.from("profiles")
             .update({ full_name: input.value.trim() || null }).eq("id", id);
@@ -1546,8 +1715,75 @@
           if (error) { alert("Could not save the name: " + error.message); return; }
           btn.textContent = "Saved ✓";
           setTimeout(() => (btn.textContent = "Save"), 1500);
-        });
-      });
+        }));
+        box.querySelectorAll(".s-multi").forEach(cb => cb.addEventListener("change", async () => {
+          cb.disabled = true;
+          const { error } = await sb.from("profiles")
+            .update({ multi_device: cb.checked }).eq("id", cb.getAttribute("data-id"));
+          cb.disabled = false;
+          if (error) { cb.checked = !cb.checked; alert("Could not save: " + error.message); }
+        }));
+        box.querySelectorAll(".st-manage").forEach(btn => btn.addEventListener("click", () => {
+          const p = box.querySelector(`.st-panel[data-id="${btn.getAttribute("data-id")}"]`);
+          const open = p.style.display !== "none";
+          p.style.display = open ? "none" : "";
+          btn.textContent = open ? "Manage ▸" : "Manage ▾";
+        }));
+        const msgOf = id => box.querySelector(`.st-msg[data-id="${id}"]`);
+        box.querySelectorAll(".st-ext").forEach(btn => btn.addEventListener("click", () => {
+          const id = btn.getAttribute("data-id"), d = parseInt(btn.getAttribute("data-d"), 10);
+          const s = (students || []).find(x => x.id === id);
+          const today = dstr(new Date());
+          const base = (s.access_expires && s.access_expires >= today) ? s.access_expires : null;
+          updStudent(id, {
+            access_expires: addDaysStr(base, d),
+            access_start: s.access_start || today,
+            suspended: false
+          }, msgOf(id), "Access extended ✓");
+        }));
+        box.querySelectorAll(".st-unlim").forEach(btn => btn.addEventListener("click", () => {
+          updStudent(btn.getAttribute("data-id"),
+            { access_start: null, access_expires: null, suspended: false },
+            msgOf(btn.getAttribute("data-id")), "Unlimited access granted ✓");
+        }));
+        box.querySelectorAll(".st-susp").forEach(btn => btn.addEventListener("click", () => {
+          const id = btn.getAttribute("data-id");
+          const s = (students || []).find(x => x.id === id);
+          if (!s.suspended && !confirm("Suspend this account? The student will be blocked from all lessons until reactivated.")) return;
+          updStudent(id, { suspended: !s.suspended }, msgOf(id),
+            s.suspended ? "Account reactivated ✓" : "Account suspended ✓");
+        }));
+        box.querySelectorAll(".st-dates").forEach(btn => btn.addEventListener("click", () => {
+          const id = btn.getAttribute("data-id");
+          const d1 = box.querySelector(`.st-d1[data-id="${id}"]`).value || null;
+          const d2 = box.querySelector(`.st-d2[data-id="${id}"]`).value || null;
+          if (d1 && d2 && d2 < d1) { const m = msgOf(id); m.className = "msg err"; m.textContent = "Expiry must be after start."; return; }
+          updStudent(id, { access_start: d1, access_expires: d2 }, msgOf(id), "Dates saved ✓");
+        }));
+        box.querySelectorAll(".st-renew").forEach(btn => btn.addEventListener("click", () => {
+          const id = btn.getAttribute("data-id");
+          const days = parseInt(box.querySelector(`.st-rdays[data-id="${id}"]`).value, 10) || 30;
+          const today = dstr(new Date());
+          updStudent(id, {
+            access_start: today, access_expires: addDaysStr(today, days), suspended: false
+          }, msgOf(id), "Renewed for " + days + " days from today ✓");
+        }));
+      }
+
+      Object.entries(sfEls).forEach(([k, el]) =>
+        el.addEventListener(el.tagName === "SELECT" ? "change" : "input", () => {
+          sf[k] = el.value; saveSf(); renderStudentTable();
+        }));
+      renderStudentTable();
+      // =============== END STUDENT MANAGEMENT ENGINE ===============
+
+      lfCourse.addEventListener("change", () => { lf.course = lfCourse.value; saveLf(); renderLessonList(); });
+      lfSort.addEventListener("change", () => { lf.sort = lfSort.value; saveLf(); renderLessonList(); });
+      lfQ.addEventListener("input", renderLessonList);
+      renderLessonList();
+
+      wireFileButtons(app);
+
     }
 
     start();
