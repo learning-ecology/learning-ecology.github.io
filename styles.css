@@ -400,6 +400,17 @@ th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-t
 .card.flash { animation: flashCard 1.3s ease; }
 
 .hub-footer { text-align: center; color: var(--muted); font-size: 0.82rem; padding: 1.6rem 0 0; }
+.creds { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.45rem 0 0.75rem; }
+.cred-badge {
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.22rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(183,130,63,0.13);
+  color: #8a5f27;
+  border: 1px solid rgba(183,130,63,0.35);
+  white-space: nowrap;
+}
 
 /* ---- analytics ---- */
 .stat-grid {

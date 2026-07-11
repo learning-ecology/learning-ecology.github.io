@@ -302,7 +302,13 @@
               : ""}
             <div style="flex:1; min-width:220px;">
               <div style="font-weight:700; font-size:1.05rem;">${esc(teacher?.full_name || "Thầy Lê Quốc Thông")}</div>
-              ${teacher?.bio ? `<p style="color:var(--muted); font-size:0.88rem; margin:0.25rem 0 0.7rem;">${esc(teacher.bio)}</p>` : `<div style="height:0.5rem;"></div>`}
+              <div class="creds">
+                <span class="cred-badge">🎓 Master of TESOL</span>
+                <span class="cred-badge">VSTEP C1 (9.0)</span>
+                <span class="cred-badge">IELTS 7.5</span>
+                <span class="cred-badge">HSK 5 (276/300)</span>
+              </div>
+              ${teacher?.bio ? `<p style="color:var(--muted); font-size:0.88rem; margin:0 0 0.7rem;">${esc(teacher.bio)}</p>` : ""}
               <a class="btn" href="${zaloUrl}" target="_blank" rel="noopener"
                  style="text-decoration:none; display:inline-block;">💬 ${t("zalo_chat")}: 0961 923 983</a>
             </div>
