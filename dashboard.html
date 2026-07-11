@@ -153,27 +153,70 @@
             : `<button data-lesson="${l.id}" class="mark">${t("mark_done")}</button>`}
         </div>`;
 
-      // One card per enrolled course, plus one for uncategorized lessons.
-      const cards = [];
-      for (const c of (courses || [])) {
+      // One colored card per course, grouped into collapsible categories.
+      const courseCard = c => {
         const ls = (lessons || []).filter(l => l.course_id === c.id);
         const doneCount = ls.filter(l => done.has(l.id)).length;
         const pct = ls.length ? Math.round(doneCount / ls.length * 100) : 0;
         const complete = ls.length > 0 && doneCount === ls.length;
-        cards.push(`
-          <div class="card">
+        const color = c.color || "#1e4f8f";
+        return `
+          <div class="card" id="course-${c.id}" style="border-top:4px solid ${esc(color)};">
             <h2>${esc(c.title)}
               <span class="kind" style="float:right;">${tf("done_count", { d: doneCount, t: ls.length })}</span></h2>
-            <div class="progress"><span style="width:${pct}%;"></span></div>
+            <div class="progress"><span style="width:${pct}%; background:${esc(color)};"></span></div>
             ${c.description ? `<p style="color:var(--muted); font-size:0.88rem; margin:0 0 0.5rem;">${esc(c.description)}</p>` : ""}
             ${ls.map(lessonRow).join("") || `<p class="empty">${t("no_lessons_course")}</p>`}
             ${complete ? `<div class="congrats">🎉 <span>${esc(c.title)}${t("congrats")}</span></div>` : ""}
-          </div>`);
+          </div>`;
+      };
+
+      const byCat = {};
+      for (const c of (courses || [])) {
+        const cat = c.category || t("cat_other");
+        (byCat[cat] = byCat[cat] || []).push(c);
       }
+      let collapsedCats = {};
+      try { collapsedCats = JSON.parse(localStorage.getItem("hub_cats") || "{}"); } catch (e) {}
+
+      const catSections = Object.entries(byCat).map(([cat, cs]) => `
+        <div class="cat ${collapsedCats[cat] ? "collapsed" : ""}" data-cat="${esc(cat)}">
+          <button class="cat-head" type="button">
+            <span class="chev">▸</span>
+            <span style="flex:1;">${esc(cat)}</span>
+            <span class="kind">${cs.length} ${cs.length === 1 ? "course" : "courses"}</span>
+          </button>
+          <div class="cat-body"><div>${cs.map(courseCard).join("")}</div></div>
+        </div>`).join("");
+
       const loose = (lessons || []).filter(l => !l.course_id);
-      if (loose.length) {
-        cards.push(`<div class="card"><h2>${t("other_lessons")}</h2>${loose.map(lessonRow).join("")}</div>`);
-      }
+      const looseCard = loose.length
+        ? `<div class="card"><h2>${t("other_lessons")}</h2>${loose.map(lessonRow).join("")}</div>` : "";
+
+      // Instructor panel (teacher profile is readable thanks to migration 8).
+      const { data: teachers } = await sb
+        .from("profiles").select("full_name, avatar_url, bio").eq("role", "admin").limit(1);
+      const teacher = (teachers || [])[0];
+      const zaloUrl = "https://zalo.me/0961923983";
+      const instructorCard = `
+        <div class="card" style="border-top:4px solid var(--gold);">
+          <h2>${t("your_teacher")}</h2>
+          <div style="display:flex; gap:1.1rem; align-items:flex-start; flex-wrap:wrap;">
+            ${teacher?.avatar_url
+              ? `<img src="${esc(teacher.avatar_url)}" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:1px solid var(--line);flex:none;" />`
+              : ""}
+            <div style="flex:1; min-width:220px;">
+              <div style="font-weight:700; font-size:1.05rem;">${esc(teacher?.full_name || "Thầy Lê Quốc Thông")}</div>
+              ${teacher?.bio ? `<p style="color:var(--muted); font-size:0.88rem; margin:0.25rem 0 0.7rem;">${esc(teacher.bio)}</p>` : `<div style="height:0.5rem;"></div>`}
+              <a class="btn" href="${zaloUrl}" target="_blank" rel="noopener"
+                 style="text-decoration:none; display:inline-block;">💬 ${t("zalo_chat")}: 0961 923 983</a>
+            </div>
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${encodeURIComponent(zaloUrl)}"
+                 alt="Zalo QR" width="110" height="110"
+                 style="border:1px solid var(--line); border-radius:8px; flex:none;" />
+          </div>
+        </div>`;
+      const hubFooter = `<footer class="hub-footer">Designed by Thầy Lê Quốc Thông · 📞 Zalo: 0961 923 983</footer>`;
 
       const { data: me } = await sb
         .from("profiles").select("full_name, bio, avatar_url").eq("id", user.id).single();
@@ -205,8 +248,15 @@
       app.innerHTML = `
         <p class="eyebrow">${t("my_lessons")}</p>
         <h1>${t("welcome")}${me?.full_name ? ", " + esc(me.full_name) : ""}</h1>
-        ${cards.join("") || `<div class="card"><p class="empty">${t("not_enrolled")}</p></div>`}
-        ${profileCard}`;
+        <div class="search-wrap">
+          <input id="hub-search" placeholder="${esc(t("search_ph"))}" autocomplete="off" />
+          <div id="search-results" class="search-results" style="display:none;"></div>
+        </div>
+        ${catSections || `<div class="card"><p class="empty">${t("not_enrolled")}</p></div>`}
+        ${looseCard}
+        ${instructorCard}
+        ${profileCard}
+        ${hubFooter}`;
 
       document.getElementById("p-save").addEventListener("click", async () => {
         const m = document.getElementById("p-msg");
@@ -241,6 +291,81 @@
       });
 
       wireFileButtons(app);
+
+      // --- collapsible categories (state remembered per device) ---
+      app.querySelectorAll(".cat-head").forEach(h => {
+        h.addEventListener("click", () => {
+          const catEl = h.parentElement;
+          catEl.classList.toggle("collapsed");
+          collapsedCats[catEl.getAttribute("data-cat")] = catEl.classList.contains("collapsed");
+          try { localStorage.setItem("hub_cats", JSON.stringify(collapsedCats)); } catch (e) {}
+        });
+      });
+
+      // --- instant search across courses and lessons ---
+      const sInput = document.getElementById("hub-search");
+      const sBox = document.getElementById("search-results");
+      const normTxt = s => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const sIndex = [
+        ...(courses || []).map(c => ({ type: "course", title: c.title, sub: c.category || "", obj: c })),
+        ...(lessons || []).map(l => ({
+          type: "lesson", title: l.title,
+          sub: (courses || []).find(c => c.id === l.course_id)?.title || t("other_lessons"), obj: l
+        }))
+      ];
+      const hiLite = (text, q) => {
+        const i = text.toLowerCase().indexOf(q.toLowerCase());
+        if (i < 0) return esc(text);
+        return esc(text.slice(0, i)) + "<mark>" + esc(text.slice(i, i + q.length)) + "</mark>" + esc(text.slice(i + q.length));
+      };
+      const openLesson = l => {
+        sb.from("lesson_activity").upsert({
+          student_id: user.id, lesson_id: l.id, kind: "activity",
+          key: "opened", value: 1, max_value: 1, updated_at: new Date().toISOString()
+        }, { onConflict: "student_id,lesson_id,kind,key" }).then(() => {});
+        if (l.storage_path) {
+          sb.storage.from("materials").createSignedUrl(l.storage_path, 3600)
+            .then(({ data, error }) => {
+              if (error) alert(t("file_open_fail") + error.message);
+              else window.open(data.signedUrl, "_blank", "noopener");
+            });
+        } else window.open(withLms(l), "_blank", "noopener");
+      };
+      sInput.addEventListener("input", () => {
+        const q = sInput.value.trim();
+        if (!q) { sBox.style.display = "none"; sBox.innerHTML = ""; return; }
+        const nq = normTxt(q);
+        const hits = sIndex.filter(it => normTxt(it.title).includes(nq) || normTxt(it.sub).includes(nq)).slice(0, 8);
+        sBox.innerHTML = hits.length
+          ? hits.map(it => `
+              <button class="res" data-i="${sIndex.indexOf(it)}">
+                <span>${it.type === "course" ? "📚" : iconFor(it.obj.kind)}</span>
+                <span style="flex:1;">${hiLite(it.title, q)}<br><span class="kind">${esc(it.sub)}</span></span>
+              </button>`).join("")
+          : `<div class="res" style="cursor:default;">${t("no_results")}</div>`;
+        sBox.style.display = "block";
+        sBox.querySelectorAll("button.res").forEach(b => b.addEventListener("click", () => {
+          const it = sIndex[Number(b.getAttribute("data-i"))];
+          sBox.style.display = "none"; sInput.value = "";
+          if (it.type === "lesson") { openLesson(it.obj); return; }
+          const el = document.getElementById("course-" + it.obj.id);
+          if (el) {
+            const catEl = el.closest(".cat");
+            if (catEl) catEl.classList.remove("collapsed");
+            el.scrollIntoView({ behavior: "smooth", block: "start" });
+            el.classList.add("flash");
+            setTimeout(() => el.classList.remove("flash"), 1400);
+          }
+        }));
+      });
+      sInput.addEventListener("keydown", e => { if (e.key === "Escape") sBox.style.display = "none"; });
+      if (!window.__hubDocClick) {
+        window.__hubDocClick = true;
+        document.addEventListener("click", e => {
+          const box = document.getElementById("search-results");
+          if (box && !e.target.closest(".search-wrap")) box.style.display = "none";
+        });
+      }
 
       // Record that the student opened a lesson (any type).
       app.querySelectorAll(".open-link, .open-file").forEach(el => {
@@ -358,9 +483,17 @@
       const studentOptions = onlyStudents.map(s =>
         `<option value="${s.id}">${esc(studentName(s))}</option>`).join("");
 
-      const courseList = (courses || []).map(c =>
-        `<div class="lesson"><div class="meta"><div class="title">${esc(c.title)}</div>
-         <span class="kind">${(lessons || []).filter(l => l.course_id === c.id).length} lessons</span></div></div>`).join("");
+      const courseList = (courses || []).map(c => `
+        <div class="lesson">
+          <span style="width:14px;height:14px;border-radius:50%;background:${esc(c.color || "#1e4f8f")};flex:none;"></span>
+          <div class="meta"><div class="title">${esc(c.title)}</div>
+            <span class="kind">${(lessons || []).filter(l => l.course_id === c.id).length} lessons${c.category ? " · " + esc(c.category) : ""}</span></div>
+          <input type="color" class="c-color" data-id="${c.id}" value="${esc(c.color || "#1e4f8f")}"
+                 style="width:44px; height:34px; padding:2px; flex:none;" />
+          <input class="c-cat" data-id="${c.id}" value="${esc(c.category || "")}" placeholder="Category"
+                 style="max-width:130px;" />
+          <button class="ghost c-save" data-id="${c.id}">Save</button>
+        </div>`).join("");
 
       const enrollmentRows = (enrollments || []).map(e => `
         <tr>
@@ -416,6 +549,11 @@
           <div class="form-row">
             <div class="field"><label>Course title</label><input id="c-title" placeholder="HSK 1" /></div>
             <div class="field"><label>Description (optional)</label><input id="c-desc" placeholder="Beginner Chinese" /></div>
+            <div class="field" style="max-width:150px;"><label>Category</label><input id="c-cat" placeholder="Chinese / IELTS…" /></div>
+            <div class="field" style="max-width:120px;"><label>Color</label>
+              <input id="c-color" type="color" value="#1e4f8f" style="height:42px; padding:0.2rem;" />
+              <div class="swatches" id="c-swatches"></div>
+            </div>
             <button id="c-add">Add course</button>
           </div>
           <p id="c-msg" class="msg"></p>
@@ -591,15 +729,39 @@
         renderAdmin();
       });
 
+      // predefined swatches for quick color choice
+      const SWATCHES = ["#1e4f8f","#0e7c66","#b7823f","#a4442f","#6d28d9","#c026d3","#0891b2","#374151"];
+      const swWrap = document.getElementById("c-swatches");
+      swWrap.innerHTML = SWATCHES.map(col =>
+        `<button type="button" data-col="${col}" style="background:${col};" title="${col}"></button>`).join("");
+      swWrap.querySelectorAll("button").forEach(b =>
+        b.addEventListener("click", () => { document.getElementById("c-color").value = b.getAttribute("data-col"); }));
+
       document.getElementById("c-add").addEventListener("click", async () => {
         const title = document.getElementById("c-title").value.trim();
         const description = document.getElementById("c-desc").value.trim() || null;
+        const category = document.getElementById("c-cat").value.trim() || null;
+        const color = document.getElementById("c-color").value || null;
         const m = document.getElementById("c-msg");
         if (!title) { m.textContent = "Give the course a title."; m.className = "msg err"; return; }
         const { error } = await sb.from("courses")
-          .insert({ title, description, sort_order: (courses?.length || 0) + 1 });
+          .insert({ title, description, category, color, sort_order: (courses?.length || 0) + 1 });
         if (error) { m.textContent = "Could not add: " + error.message; m.className = "msg err"; return; }
         renderAdmin();
+      });
+
+      app.querySelectorAll(".c-save").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const id = btn.getAttribute("data-id");
+          const color = app.querySelector(`.c-color[data-id="${id}"]`).value || null;
+          const category = app.querySelector(`.c-cat[data-id="${id}"]`).value.trim() || null;
+          btn.disabled = true;
+          const { error } = await sb.from("courses").update({ color, category }).eq("id", id);
+          btn.disabled = false;
+          if (error) { alert("Could not save: " + error.message); return; }
+          btn.textContent = "Saved ✓";
+          setTimeout(() => renderAdmin(), 600);
+        });
       });
 
       document.getElementById("e-add").addEventListener("click", async () => {

@@ -63,7 +63,12 @@ const I18N = {
     img_too_big: "Please choose an image under 2 MB.",
     upload_failed: "Upload failed: ",
     file_open_fail: "Could not open the file: ",
-    save_retry: "Could not save. Try again."
+    save_retry: "Could not save. Try again.",
+    search_ph: "Search courses and lessons…",
+    no_results: "No results found",
+    cat_other: "Other courses",
+    your_teacher: "Your teacher",
+    zalo_chat: "Chat on Zalo"
   },
 
   vi: {
@@ -122,7 +127,12 @@ const I18N = {
     img_too_big: "Hãy chọn ảnh dưới 2 MB.",
     upload_failed: "Tải lên thất bại: ",
     file_open_fail: "Không mở được tệp: ",
-    save_retry: "Không lưu được. Hãy thử lại."
+    save_retry: "Không lưu được. Hãy thử lại.",
+    search_ph: "Tìm khóa học, bài học…",
+    no_results: "Không tìm thấy kết quả",
+    cat_other: "Khóa học khác",
+    your_teacher: "Giáo viên của bạn",
+    zalo_chat: "Nhắn Zalo"
   }
 };
 

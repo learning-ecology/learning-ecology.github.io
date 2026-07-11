@@ -222,6 +222,78 @@ th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-t
 }
 .topbar .badge img { width: 100%; height: 100%; object-fit: cover; }
 
+/* ---- collapsible course categories ---- */
+.cat { margin-bottom: 1rem; }
+.cat-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.8rem 1rem;
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+.cat-head:hover { border-color: var(--accent); background: var(--card); color: var(--ink); }
+.cat-head .chev { transition: transform 0.25s ease; color: var(--accent); flex: none; }
+.cat:not(.collapsed) .cat-head .chev { transform: rotate(90deg); }
+.cat-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 0.3s ease; }
+.cat.collapsed .cat-body { grid-template-rows: 0fr; }
+.cat-body > div { overflow: hidden; }
+.cat-body .card:first-child { margin-top: 0.8rem; }
+
+/* ---- global search ---- */
+.search-wrap { position: relative; margin: 0 0 1.2rem; }
+.search-results {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0; right: 0;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 14px 34px -18px rgba(23,38,62,0.45);
+  max-height: 320px;
+  overflow: auto;
+}
+.search-results .res {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  padding: 0.65rem 0.8rem;
+  cursor: pointer;
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+.search-results .res:last-child { border-bottom: none; }
+.search-results .res:hover { background: rgba(30,79,143,0.06); }
+.search-results mark { background: rgba(183,130,63,0.35); border-radius: 3px; padding: 0 1px; }
+
+/* ---- swatch picker & flash highlight ---- */
+.swatches { display: flex; gap: 0.35rem; margin-top: 0.4rem; flex-wrap: wrap; }
+.swatches button {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px var(--line);
+  padding: 0;
+}
+@keyframes flashCard { 0% { box-shadow: 0 0 0 3px var(--accent); } 100% { box-shadow: none; } }
+.card.flash { animation: flashCard 1.3s ease; }
+
+.hub-footer { text-align: center; color: var(--muted); font-size: 0.82rem; padding: 1.6rem 0 0; }
+
 /* ---- admin tabs ---- */
 .tabs {
   display: flex;

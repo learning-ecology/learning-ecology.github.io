@@ -194,4 +194,18 @@
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
   } else { init(); }
+
+  // ---- instructor credit footer on every lesson ----
+  function addCredit() {
+    if (document.getElementById("lms-credit")) return;
+    const f = document.createElement("footer");
+    f.id = "lms-credit";
+    f.style.cssText = "margin:3rem auto 1.2rem;text-align:center;font:0.8rem sans-serif;color:#5a6577;";
+    f.innerHTML = 'Designed by <b>Thầy Lê Quốc Thông</b> · 📞 Zalo: ' +
+      '<a href="https://zalo.me/0961923983" target="_blank" rel="noopener" style="color:#1e4f8f;">0961 923 983</a>';
+    document.body.appendChild(f);
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", addCredit);
+  } else { addCredit(); }
 })();
