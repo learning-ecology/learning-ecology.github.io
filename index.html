@@ -46,6 +46,12 @@
 
     const msg = document.getElementById("msg");
 
+    // Arrived here because the account was signed in on another device?
+    if (new URLSearchParams(location.search).get("kicked")) {
+      msg.textContent = t("msg_kicked");
+      msg.className = "msg err";
+    }
+
     // If already logged in, skip straight to the dashboard.
     sb.auth.getSession().then(({ data }) => {
       if (data.session) window.location.href = "dashboard.html";
@@ -69,6 +75,17 @@
         msg.className = "msg err";
         return;
       }
+
+      // One device per account: mark THIS device as the active one
+      // and revoke every other device's session.
+      try {
+        const device = crypto.randomUUID();
+        localStorage.setItem("hub_device", device);
+        const { data: { user } } = await sb.auth.getUser();
+        await sb.from("profiles").update({ active_session: device }).eq("id", user.id);
+        await sb.auth.signOut({ scope: "others" });
+      } catch (e) { /* non-fatal: login still proceeds */ }
+
       window.location.href = "dashboard.html";
     }
 

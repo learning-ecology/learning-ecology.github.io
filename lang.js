@@ -24,6 +24,7 @@ const I18N = {
     msg_type_email_first: "Type your email above first, then click 'Forgot password?'.",
     msg_reset_sent: "Check your inbox — we sent you a password reset link.",
     msg_reset_fail: "Could not send the email. Try again in a minute.",
+    msg_kicked: "This account was signed in on another device, so this session was signed out.",
 
     // --- reset password ---
     reset_title: "Set a new password",
@@ -82,6 +83,7 @@ const I18N = {
     msg_type_email_first: "Hãy nhập email ở trên trước, rồi bấm 'Quên mật khẩu?'.",
     msg_reset_sent: "Hãy kiểm tra hộp thư — liên kết đặt lại mật khẩu đã được gửi.",
     msg_reset_fail: "Không gửi được email. Hãy thử lại sau ít phút.",
+    msg_kicked: "Tài khoản vừa đăng nhập trên thiết bị khác nên phiên này đã bị đăng xuất.",
 
     // --- đặt lại mật khẩu ---
     reset_title: "Đặt mật khẩu mới",

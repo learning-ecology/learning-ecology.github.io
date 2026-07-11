@@ -82,7 +82,33 @@
       user = session.user;
 
       const { data: profile } = await sb
-        .from("profiles").select("full_name, role, avatar_url").eq("id", user.id).single();
+        .from("profiles").select("full_name, role, avatar_url, active_session").eq("id", user.id).single();
+
+      // ---- one device per student account ----
+      if (profile?.role !== "admin") {
+        let device = null;
+        try { device = localStorage.getItem("hub_device"); } catch (e) {}
+        if (!device) {
+          device = crypto.randomUUID();
+          try { localStorage.setItem("hub_device", device); } catch (e) {}
+        }
+        const kick = async () => {
+          try { await sb.auth.signOut({ scope: "local" }); } catch (e) {}
+          window.location.href = "index.html?kicked=1";
+        };
+        if (!profile?.active_session) {
+          // Legacy session from before this feature: claim this device.
+          await sb.from("profiles").update({ active_session: device }).eq("id", user.id);
+        } else if (profile.active_session !== device) {
+          kick(); return;
+        }
+        // Re-check periodically: if another device logs in, leave.
+        setInterval(async () => {
+          const { data } = await sb.from("profiles")
+            .select("active_session").eq("id", user.id).single();
+          if (data?.active_session && data.active_session !== device) kick();
+        }, 45000);
+      }
 
       const name = profile?.full_name || user.email;
       who.textContent = name;

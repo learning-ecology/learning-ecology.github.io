@@ -171,6 +171,24 @@
     document.querySelectorAll("[data-lms-done]").forEach((el) =>
       el.addEventListener("click", () =>
         record("activity", el.getAttribute("data-lms-done"), 1, 1, true)));
+
+    // ---- one device per student account ----
+    // If this account signs in on another device, this lesson tab
+    // signs itself out too (admin accounts are exempt).
+    let deviceTok = null;
+    try { deviceTok = localStorage.getItem("hub_device"); } catch (e) {}
+    if (deviceTok) {
+      setInterval(async () => {
+        const { data } = await sb.from("profiles")
+          .select("active_session, role").eq("id", uid).maybeSingle();
+        if (data && data.role !== "admin" &&
+            data.active_session && data.active_session !== deviceTok) {
+          try { await sb.auth.signOut({ scope: "local" }); } catch (e) {}
+          lockPage("Signed in on another device",
+                   "Tài khoản vừa đăng nhập trên thiết bị khác nên phiên này đã bị đăng xuất.");
+        }
+      }, 60000);
+    }
   }
 
   if (document.readyState === "loading") {
