@@ -89,14 +89,21 @@
   } catch (e) { lessonId = fromUrl; }
 
   // ---- time tracking (visible time only) ----
-  let baseSeconds = 0, accrued = 0;
+  let baseSeconds = 0, dayBase = 0, accrued = 0;
   let visibleSince = document.visibilityState === "visible" ? Date.now() : null;
-  function totalSeconds() {
-    return Math.round(baseSeconds + accrued +
-      (visibleSince ? (Date.now() - visibleSince) / 1000 : 0));
+  const todayKey = () => {
+    const d = new Date();
+    return "d:" + d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") +
+      "-" + String(d.getDate()).padStart(2, "0");
+  };
+  function sessionSeconds() {
+    return accrued + (visibleSince ? (Date.now() - visibleSince) / 1000 : 0);
   }
   function flushTime() {
-    if (ready && uid && lessonId) record("time", "total", totalSeconds(), null, false);
+    if (!(ready && uid && lessonId)) return;
+    record("time", "total", Math.round(baseSeconds + sessionSeconds()), null, false);
+    // daily bucket: powers weekly stats, streaks, and the 7-day chart
+    record("time", todayKey(), Math.round(dayBase + sessionSeconds()), null, false);
   }
 
   // ---- section tracking ----
@@ -193,10 +200,13 @@
 
     // Continue from previously recorded time.
     try {
-      const { data } = await sb.from("lesson_activity").select("value")
+      const { data } = await sb.from("lesson_activity").select("key, value")
         .eq("student_id", uid).eq("lesson_id", lessonId)
-        .eq("kind", "time").eq("key", "total").maybeSingle();
-      baseSeconds = Number(data?.value) || 0;
+        .eq("kind", "time").in("key", ["total", todayKey()]);
+      (data || []).forEach(r => {
+        if (r.key === "total") baseSeconds = Number(r.value) || 0;
+        else dayBase = Number(r.value) || 0;
+      });
     } catch (e) {}
 
     ready = true;

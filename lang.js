@@ -80,7 +80,25 @@ const I18N = {
     contact_teacher: "Contact teacher",
     acc_line: "Access valid until {d} ({n} days left)",
     acc_warn: "⚠️ Your access expires in {n} day(s) — {d}. Please contact your teacher to renew.",
-    acc_today: "⚠️ Your access expires today. Please contact your teacher to renew."
+    acc_today: "⚠️ Your access expires today. Please contact your teacher to renew.",
+    continue_learning: "Continue learning",
+    next_up: "Next up for you",
+    start_learning: "Start",
+    my_progress: "My progress",
+    streak: "day streak",
+    total_time: "Total study time",
+    this_week: "This week",
+    this_month: "this month",
+    lessons_done: "Lessons completed",
+    weekly_goal: "Weekly goal",
+    badges_earned: "Badges earned",
+    last7: "Last 7 days",
+    chip_all: "All",
+    chip_doing: "In progress",
+    chip_done2: "Completed",
+    enc_streak: "🔥 {n}-day streak — amazing consistency!",
+    enc_keep: "Nice work — keep the momentum going!",
+    enc_start: "Open a lesson today to start your streak!"
   },
 
   vi: {
@@ -156,7 +174,25 @@ const I18N = {
     contact_teacher: "Liên hệ giáo viên",
     acc_line: "Truy cập đến {d} (còn {n} ngày)",
     acc_warn: "⚠️ Tài khoản của bạn sẽ hết hạn sau {n} ngày — {d}. Hãy liên hệ giáo viên để gia hạn.",
-    acc_today: "⚠️ Tài khoản của bạn hết hạn hôm nay. Hãy liên hệ giáo viên để gia hạn."
+    acc_today: "⚠️ Tài khoản của bạn hết hạn hôm nay. Hãy liên hệ giáo viên để gia hạn.",
+    continue_learning: "Tiếp tục học",
+    next_up: "Bài tiếp theo cho bạn",
+    start_learning: "Bắt đầu",
+    my_progress: "Tiến độ của tôi",
+    streak: "ngày liên tiếp",
+    total_time: "Tổng thời gian học",
+    this_week: "Tuần này",
+    this_month: "tháng này",
+    lessons_done: "Bài đã hoàn thành",
+    weekly_goal: "Mục tiêu tuần",
+    badges_earned: "Huy hiệu đạt được",
+    last7: "7 ngày qua",
+    chip_all: "Tất cả",
+    chip_doing: "Đang học",
+    chip_done2: "Đã xong",
+    enc_streak: "🔥 Chuỗi {n} ngày liên tiếp — kiên trì tuyệt vời!",
+    enc_keep: "Làm tốt lắm — giữ vững phong độ nhé!",
+    enc_start: "Mở một bài học hôm nay để bắt đầu chuỗi ngày học nhé!"
   }
 };
 

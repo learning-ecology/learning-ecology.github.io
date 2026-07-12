@@ -159,7 +159,11 @@
       const { data: lessons } = await sb
         .from("lessons").select("*").order("sort_order").order("created_at");
       const { data: mine } = await sb
-        .from("progress").select("lesson_id, status").eq("student_id", user.id);
+        .from("progress").select("lesson_id, status, updated_at").eq("student_id", user.id);
+      const { data: myActs } = await sb
+        .from("lesson_activity")
+        .select("lesson_id, kind, key, value, updated_at")
+        .eq("student_id", user.id);
       const { data: anns } = await sb
         .from("announcements").select("*")
         .order("created_at", { ascending: false }).limit(10);
@@ -182,6 +186,12 @@
             ? `<span class="pill done">${t("completed_pill")}</span>`
             : `<button data-lesson="${l.id}" class="mark">${t("mark_done")}</button>`}
         </div>`;
+
+      // status filter chips (All / In progress / Completed)
+      let chip = "all";
+      try { chip = localStorage.getItem("hub_chip") || "all"; } catch (e) {}
+      const chipPass = l => chip === "all" ? true
+        : (chip === "done" ? done.has(l.id) : !done.has(l.id));
 
       // Which lessons are locked? In a "sequential" course, everything
       // after the first uncompleted lesson is locked.
@@ -217,6 +227,7 @@
           </div>` : "";
 
         const rows = ls.map((l, i) => {
+          if (!chipPass(l)) return "";
           const isDone = done.has(l.id);
           const isLocked = lockedSet.has(l.id);
           const isCurrent = !isDone && !isLocked && c.sequential && i === firstOpen;
@@ -251,6 +262,119 @@
             ${complete ? `<div class="congrats">🎉 <span>${esc(c.title)}${t("congrats")}</span></div>` : ""}
           </div>`;
       };
+
+      // ---- study statistics ----
+      const dloc = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+      const lastNDays = n => { const out = []; for (let i = n - 1; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); out.push(dloc(d)); } return out; };
+      const dayMin = {}, activeDates = new Set();
+      (myActs || []).forEach(r => {
+        if (r.updated_at) activeDates.add(String(r.updated_at).slice(0, 10));
+        if (r.kind === "time" && r.key && r.key.startsWith("d:")) {
+          const d = r.key.slice(2);
+          dayMin[d] = (dayMin[d] || 0) + Math.round((Number(r.value) || 0) / 60);
+          activeDates.add(d);
+        }
+      });
+      (mine || []).forEach(p => { if (p.updated_at) activeDates.add(String(p.updated_at).slice(0, 10)); });
+      const totalSecs = (myActs || []).filter(r => r.kind === "time" && r.key === "total")
+        .reduce((s, r) => s + (Number(r.value) || 0), 0);
+      const weekMin = lastNDays(7).reduce((s, d) => s + (dayMin[d] || 0), 0);
+      const monthMin = lastNDays(30).reduce((s, d) => s + (dayMin[d] || 0), 0);
+      let curStreak = 0;
+      { const d = new Date(); while (activeDates.has(dloc(d))) { curStreak++; d.setDate(d.getDate() - 1); } }
+      let longestStreak = 0;
+      { let run = 0, prev = null;
+        [...activeDates].sort().forEach(x => {
+          if (prev) { const p = new Date(prev); p.setDate(p.getDate() + 1); run = dloc(p) === x ? run + 1 : 1; }
+          else run = 1;
+          longestStreak = Math.max(longestStreak, run); prev = x;
+        }); }
+      const doneAll = (mine || []).filter(p => p.status === "completed").length;
+      const week7 = lastNDays(7);
+      const weekDone = (mine || []).filter(p => p.status === "completed" && p.updated_at &&
+        week7.includes(String(p.updated_at).slice(0, 10))).length;
+      const GOAL = 3;
+      const xp = doneAll * 50 + Math.round(totalSecs / 60);
+      const level = 1 + Math.floor(xp / 500);
+      let badgesEarned = 0;
+      (courses || []).forEach(c => {
+        const ls = (lessons || []).filter(l => l.course_id === c.id);
+        if (!ls.length) return;
+        const pct = Math.round(ls.filter(l => done.has(l.id)).length / ls.length * 100);
+        [25, 50, 75, 100].forEach(th => { if (pct >= th) badgesEarned++; });
+      });
+      const fmtHM = s => { const m = Math.round(s / 60); return m >= 60 ? Math.floor(m / 60) + "h " + (m % 60) + "m" : m + " min"; };
+      const enc = curStreak >= 3 ? tf("enc_streak", { n: curStreak })
+        : ((weekMin > 0 || weekDone > 0) ? t("enc_keep") : t("enc_start"));
+      const chartDays = lastNDays(7).map(d => ({
+        d, m: dayMin[d] || 0,
+        wd: new Date(d + "T12:00:00").toLocaleDateString(LANG === "vi" ? "vi-VN" : "en-US", { weekday: "short" })
+      }));
+      const maxM = Math.max(1, ...chartDays.map(x => x.m));
+      const chart = `<div class="mini-chart">${chartDays.map(x =>
+        `<div class="bar" title="${x.d}: ${x.m} min"><span style="height:${Math.max(4, Math.round(x.m / maxM * 100))}%; ${x.m ? "" : "background:var(--line);"}"></span><i>${esc(x.wd)}</i></div>`).join("")}</div>`;
+      const statx = (k, v, sub) =>
+        `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div>${sub ? `<div class="sub">${sub}</div>` : ""}</div>`;
+      const gPct = Math.min(100, Math.round(weekDone / GOAL * 100));
+      const statsCard = `
+        <div class="card">
+          <h2>${t("my_progress")} <span class="kind" style="float:right;">Lv ${level} · ${xp} XP</span></h2>
+          <div class="stat-grid" style="margin-bottom:0.5rem;">
+            ${statx("🔥 " + t("streak"), curStreak, longestStreak > curStreak ? "max " + longestStreak : "")}
+            ${statx(t("total_time"), fmtHM(totalSecs))}
+            ${statx(t("this_week"), weekMin + " min", monthMin + " min " + t("this_month"))}
+            ${statx(t("lessons_done"), doneAll)}
+            ${statx(t("weekly_goal"), weekDone + "/" + GOAL,
+              `<div class="progress" style="margin:0.35rem 0 0;"><span style="width:${gPct}%;"></span></div>`)}
+            ${statx("🏅 " + t("badges_earned"), badgesEarned)}
+          </div>
+          <span class="kind">${t("last7")}</span>
+          ${chart}
+          <p class="kind" style="margin:0.3rem 0 0;">${enc}</p>
+        </div>`;
+
+      // ---- continue learning / next up ----
+      const findL = id => (lessons || []).find(x => x.id === id);
+      const lastByLesson = {};
+      (myActs || []).forEach(r => {
+        if (!r.updated_at || !r.lesson_id) return;
+        if (!lastByLesson[r.lesson_id] || r.updated_at > lastByLesson[r.lesson_id])
+          lastByLesson[r.lesson_id] = r.updated_at;
+      });
+      let contLesson = null, contIsNext = false;
+      const cands = Object.entries(lastByLesson)
+        .map(([id, ts]) => ({ l: findL(id), ts }))
+        .filter(x => x.l && !done.has(x.l.id) && !lockedSet.has(x.l.id))
+        .sort((a, b) => b.ts.localeCompare(a.ts));
+      if (cands.length) contLesson = cands[0].l;
+      else {
+        for (const c of (courses || [])) {
+          const ls = (lessons || []).filter(l => l.course_id === c.id);
+          const nxt = ls.find(l => !done.has(l.id) && !lockedSet.has(l.id));
+          if (nxt) { contLesson = nxt; contIsNext = true; break; }
+        }
+      }
+      const contCourse = contLesson
+        ? ((courses || []).find(c => c.id === contLesson.course_id)?.title || t("other_lessons")) : "";
+      const heroCard = contLesson ? `
+        <div class="card" style="background:linear-gradient(135deg,#1e4f8f,#153a6b); color:#fff; border:none;">
+          <p class="eyebrow" style="color:rgba(255,255,255,0.72);">${contIsNext ? t("next_up") : t("continue_learning")}</p>
+          <div style="display:flex; gap:1rem; align-items:center; flex-wrap:wrap;">
+            <div style="flex:1; min-width:200px;">
+              <div style="font-family:var(--serif); font-size:1.3rem; font-weight:600;">${esc(contLesson.title)}</div>
+              <span style="opacity:0.78; font-size:0.85rem;">${esc(contCourse)}${contLesson.est_minutes ? " · ~" + contLesson.est_minutes + " min" : ""}</span>
+            </div>
+            <button id="cont-open" style="background:#fff; color:#153a6b; border-color:#fff;">
+              ${contIsNext ? t("start_learning") : t("continue_learning")} →</button>
+          </div>
+        </div>` : "";
+
+      const chipRow = `
+        <div class="chip-row">
+          <button class="chip ${chip === "all" ? "on" : ""}" data-chip="all">${t("chip_all")}</button>
+          <button class="chip ${chip === "todo" ? "on" : ""}" data-chip="todo">${t("chip_doing")}</button>
+          <button class="chip ${chip === "done" ? "on" : ""}" data-chip="done">${t("chip_done2")}</button>
+        </div>`;
 
       const byCat = {};
       for (const c of (courses || [])) {
@@ -368,11 +492,14 @@
         <p class="eyebrow">${t("my_lessons")}</p>
         <h1>${t("welcome")}${me?.full_name ? ", " + esc(me.full_name) : ""}</h1>
         ${accessNote}
+        ${heroCard}
+        ${statsCard}
         <div class="search-wrap">
           <input id="hub-search" placeholder="${esc(t("search_ph"))}" autocomplete="off" />
           <div id="search-results" class="search-results" style="display:none;"></div>
         </div>
         ${annCard}
+        ${chipRow}
         ${catSections || `<div class="card"><p class="empty">${t("not_enrolled")}</p></div>`}
         ${looseCard}
         ${instructorCard}
@@ -465,6 +592,14 @@
             });
         } else window.open(withLms(l), "_blank", "noopener");
       };
+      const contBtn = document.getElementById("cont-open");
+      if (contBtn && contLesson) contBtn.addEventListener("click", () => openLesson(contLesson));
+
+      app.querySelectorAll(".chip").forEach(b => b.addEventListener("click", () => {
+        try { localStorage.setItem("hub_chip", b.getAttribute("data-chip")); } catch (e) {}
+        renderStudent();
+      }));
+
       sInput.addEventListener("input", () => {
         const q = sInput.value.trim();
         if (!q) { sBox.style.display = "none"; sBox.innerHTML = ""; return; }
