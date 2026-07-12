@@ -558,6 +558,9 @@
       const { data: anns } = await sb
         .from("announcements").select("*").order("created_at", { ascending: false });
 
+      const { data: skeys } = await sb
+        .from("share_keys").select("*").order("created_at", { ascending: false });
+
       const { data: events } = await sb
         .from("access_events")
         .select("student_id, lesson_id, event, device, device_type, agent, created_at")
@@ -695,6 +698,42 @@
             ? `<table style="margin-top:0.75rem;"><thead><tr><th>Student</th><th>Course</th><th></th></tr></thead>
                <tbody>${enrollmentRows}</tbody></table>`
             : `<p class="empty" style="margin-top:0.75rem;">No enrollments yet.</p>`}
+        </div>
+
+        <div class="card">
+          <h2>🔑 Sell / share access</h2>
+          <p class="kind" style="margin:0 0 0.7rem;">One key per buying teacher. Their students open lessons through special links — no account needed. Keys can expire and can be revoked anytime; each use is counted.</p>
+          <div class="form-row">
+            <div class="field"><label>Teacher / buyer</label><input id="sk-label" placeholder="Ms Lan — ABC Center" /></div>
+            <div class="field" style="max-width:190px;"><label>Course</label>
+              <select id="sk-course">${courseOptions}</select></div>
+            <div class="field" style="max-width:160px;"><label>Expires (optional)</label>
+              <input type="date" id="sk-exp" /></div>
+            <button id="sk-add">Create key</button>
+          </div>
+          <p id="sk-msg" class="msg"></p>
+          <div style="margin-top:0.5rem;">
+            ${(skeys || []).map(k => {
+              const today = new Date().toISOString().slice(0, 10);
+              const dead = k.expires && k.expires < today;
+              return `
+              <div class="lesson">
+                <span class="icon">🔑</span>
+                <div class="meta">
+                  <div class="title">${esc(k.label)}
+                    ${!k.active ? '<span class="pill off">revoked</span>' : (dead ? '<span class="pill bad">expired</span>' : '<span class="pill done">active</span>')}</div>
+                  <span class="kind">${esc(courseName(k.course_id) || "?")} ·
+                    ${k.expires ? "expires " + esc(k.expires) : "no expiry"} ·
+                    used ${k.uses}×${k.last_used ? " · last " + new Date(k.last_used).toLocaleDateString() : ""}</span>
+                </div>
+                <button class="ghost sk-links" data-id="${k.id}">Get links</button>
+                <button class="ghost sk-toggle" data-id="${k.id}">${k.active ? "Revoke" : "Activate"}</button>
+                <button class="ghost sk-del" data-id="${k.id}"
+                        style="color:var(--danger); border-color:var(--danger);">Delete</button>
+              </div>`;
+            }).join("") || `<p class="empty">No keys yet — create one when you make a sale.</p>`}
+          </div>
+          <textarea id="sk-out" readonly style="display:none; margin-top:0.7rem; min-height:130px; font-family:var(--mono); font-size:0.78rem;"></textarea>
         </div>
         </div>
 
@@ -1057,6 +1096,50 @@
           renderAdmin();
         });
       });
+
+      // ---- share keys ----
+      document.getElementById("sk-add").addEventListener("click", async () => {
+        const label = document.getElementById("sk-label").value.trim();
+        const course_id = document.getElementById("sk-course").value;
+        const expires = document.getElementById("sk-exp").value || null;
+        const m = document.getElementById("sk-msg");
+        if (!label) { m.textContent = "Name the buyer so you can identify this key later."; m.className = "msg err"; return; }
+        if (!course_id) { m.textContent = "Pick the course this key unlocks."; m.className = "msg err"; return; }
+        const token = crypto.randomUUID().replace(/-/g, "");
+        const { error } = await sb.from("share_keys").insert({ token, label, course_id, expires });
+        if (error) { m.textContent = "Could not create: " + error.message; m.className = "msg err"; return; }
+        renderAdmin();
+      });
+
+      app.querySelectorAll(".sk-toggle").forEach(btn => btn.addEventListener("click", async () => {
+        const k = (skeys || []).find(x => x.id === btn.getAttribute("data-id"));
+        if (k.active && !confirm("Revoke this key? All links using it stop working immediately.")) return;
+        const { error } = await sb.from("share_keys").update({ active: !k.active }).eq("id", k.id);
+        if (error) { alert("Could not update: " + error.message); return; }
+        renderAdmin();
+      }));
+
+      app.querySelectorAll(".sk-del").forEach(btn => btn.addEventListener("click", async () => {
+        if (!confirm("Delete this key permanently? Its links stop working and its usage history is lost.")) return;
+        const { error } = await sb.from("share_keys").delete().eq("id", btn.getAttribute("data-id"));
+        if (error) { alert("Could not delete: " + error.message); return; }
+        renderAdmin();
+      }));
+
+      app.querySelectorAll(".sk-links").forEach(btn => btn.addEventListener("click", () => {
+        const k = (skeys || []).find(x => x.id === btn.getAttribute("data-id"));
+        const ls = (lessons || []).filter(l => l.course_id === k.course_id && l.url && !l.storage_path);
+        const out = document.getElementById("sk-out");
+        const links = ls.map(l =>
+          l.title + "\n" + l.url + (l.url.includes("?") ? "&" : "?") + "lms=" + l.id + "&key=" + k.token);
+        out.value = "Share links for: " + k.label + " (" + (courseName(k.course_id) || "") + ")\n" +
+          (k.expires ? "Valid until " + k.expires : "No expiry") + "\n" +
+          "Note: only linked HTML lessons can be shared this way (uploaded files are excluded).\n\n" +
+          (links.join("\n\n") || "This course has no linked lessons yet.");
+        out.style.display = "block";
+        out.focus(); out.select();
+        try { navigator.clipboard.writeText(out.value); } catch (e) {}
+      }));
 
       function showTab(t) {
         adminTab = t;

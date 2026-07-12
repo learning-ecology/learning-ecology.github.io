@@ -116,6 +116,22 @@
   async function init() {
     const { data: { session } } = await sb.auth.getSession();
 
+    // ---- share-key access (sold lessons) ----
+    // A link like lesson/?lms=<id>&key=<token> unlocks a gated lesson
+    // for visitors WITHOUT a hub account, if the key is valid for
+    // this lesson's course. No tracking happens for key visitors.
+    let shareKey = new URLSearchParams(location.search).get("key");
+    try {
+      if (shareKey) sessionStorage.setItem("lms_key", shareKey);
+      shareKey = shareKey || sessionStorage.getItem("lms_key");
+    } catch (e) {}
+    if (requireMode && !session && shareKey && lessonId) {
+      try {
+        const { data: ok } = await sb.rpc("check_share_key", { tok: shareKey, lesson: lessonId });
+        if (ok) { document.documentElement.style.visibility = ""; return; }
+      } catch (e) {}
+    }
+
     // ---- access gate enforcement ----
     if (requireMode) {
       if (!session) {
