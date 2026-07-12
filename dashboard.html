@@ -440,8 +440,19 @@
         if (i < 0) return esc(text);
         return esc(text.slice(0, i)) + "<mark>" + esc(text.slice(i, i + q.length)) + "</mark>" + esc(text.slice(i + q.length));
       };
+      const logOpen = lid => {
+        const ua = navigator.userAgent;
+        const dtp = /iPad|Tablet/i.test(ua) ? "tablet"
+          : (/Mobi|iPhone|Android.*Mobile/i.test(ua) ? "mobile" : "desktop");
+        let dt = null; try { dt = localStorage.getItem("hub_device"); } catch (e) {}
+        sb.from("access_events").insert({
+          student_id: user.id, lesson_id: lid, event: "lesson_open",
+          device: dt, device_type: dtp, agent: ""
+        }).then(() => {});
+      };
       const openLesson = l => {
         if (lockedSet.has(l.id)) { alert(t("locked_hint")); return; }
+        if (l.storage_path) logOpen(l.id);   // tracked pages log themselves
         sb.from("lesson_activity").upsert({
           student_id: user.id, lesson_id: l.id, kind: "activity",
           key: "opened", value: 1, max_value: 1, updated_at: new Date().toISOString()
@@ -497,6 +508,7 @@
         el.addEventListener("click", () => {
           const lid = el.getAttribute("data-lesson");
           if (!lid) return;
+          if (el.classList.contains("open-file")) logOpen(lid);  // tracked pages log themselves
           sb.from("lesson_activity").upsert({
             student_id: user.id, lesson_id: lid, kind: "activity",
             key: "opened", value: 1, max_value: 1,
@@ -545,6 +557,12 @@
 
       const { data: anns } = await sb
         .from("announcements").select("*").order("created_at", { ascending: false });
+
+      const { data: events } = await sb
+        .from("access_events")
+        .select("student_id, lesson_id, event, device, device_type, agent, created_at")
+        .order("created_at", { ascending: false })
+        .limit(2000);
 
       const { data: activity } = await sb
         .from("lesson_activity")
@@ -1327,6 +1345,15 @@
       const progMap = {};
       (prog || []).forEach(p => { progMap[K(p.student_id, p.lesson_id)] = p; });
 
+      // access-event rollups: open counts and per-pair timelines
+      const evOpens = {}, evBy = {};
+      (events || []).forEach(ev => {
+        if (ev.event !== "lesson_open" || !ev.lesson_id) return;
+        const k = K(ev.student_id, ev.lesson_id);
+        evOpens[k] = (evOpens[k] || 0) + 1;
+        (evBy[k] = evBy[k] || []).push(ev);
+      });
+
       // Unified records: every enrolled student × lesson (incl. NOT STARTED),
       // plus any stray progress/activity on course-less lessons.
       const records = [];
@@ -1520,7 +1547,7 @@
         });
         $id("e-count").textContent = "Showing " + eng.length + " of " + Object.keys(agg).length + " records";
         $id("e-table").innerHTML = eng.length ? `
-          <table><thead><tr><th></th><th>Student</th><th>Lesson</th><th>Time</th><th>Sections</th><th>Activities & scores</th><th>Last active</th></tr></thead>
+          <table><thead><tr><th></th><th>Student</th><th>Lesson</th><th>Time</th><th>Opens</th><th>Sections</th><th>Activities & scores</th><th>Last active</th></tr></thead>
           <tbody>${eng.map((a, i) => {
             const acts = a.scores.map(s => s.m > 1 ? `${esc(s.key)}: ${s.v}/${s.m}` : `${esc(s.key)} ✓`);
             return `
@@ -1529,11 +1556,12 @@
               <td><a class="pf-link" data-f="student" data-v="${a.sid}">${esc(sName(a.sid))}</a></td>
               <td><a class="pf-link" data-f="lesson" data-v="${a.lid}">${esc(lById(a.lid)?.title || "—")}</a></td>
               <td>${fmtTime(a.time)}</td>
+              <td>${evOpens[K(a.sid, a.lid)] || "—"}</td>
               <td>${a.sections.length || "—"}</td>
               <td>${acts.join(", ") || (a.opened ? "opened" : "—")}</td>
               <td>${a.last ? new Date(a.last).toLocaleDateString() : "—"}</td>
             </tr>
-            <tr class="e-det" data-k="${i}" style="display:none;"><td></td><td colspan="6">
+            <tr class="e-det" data-k="${i}" style="display:none;"><td></td><td colspan="7">
               <div class="eng-detail">
                 <b>${esc(sName(a.sid))} · ${esc(lById(a.lid)?.title || "")}</b>
                 <span class="kind">Total time: ${fmtTime(a.time)} · ${a.opened ? "opened via hub · " : ""}last active ${a.last ? new Date(a.last).toLocaleString() : "—"}</span>
@@ -1541,6 +1569,10 @@
                 <span class="kind">Activities: ${a.scores.map(s => s.m > 1
                   ? `${esc(s.key)} — ${s.v}/${s.m} (${Math.round(s.v / s.m * 100)}%)`
                   : `${esc(s.key)} — completed`).join(" · ") || "—"}</span>
+                <span class="kind">Access history (${evOpens[K(a.sid, a.lid)] || 0} opens): ${
+                  (evBy[K(a.sid, a.lid)] || []).slice(0, 8).map(ev =>
+                    new Date(ev.created_at).toLocaleString() + (ev.device_type ? " · " + ev.device_type : "") +
+                    (ev.agent ? " · " + esc(ev.agent) : "")).join("<br>") || "—"}</span>
               </div>
             </td></tr>`;
           }).join("")}</tbody></table>`
@@ -1724,6 +1756,20 @@
                 <span class="kind">Courses: ${esc(coursesOf(s.id).join(", ") || "—")} ·
                   Completed: ${compl} lessons · Total learning time: ${fmtTime(time)} ·
                   Last active: ${lastAct ? new Date(lastAct).toLocaleDateString() : "never"}</span>
+                ${(() => {
+                  const myEv = (events || []).filter(e => e.student_id === s.id);
+                  const devs = new Set(myEv.map(e => e.device).filter(Boolean));
+                  const types = [...new Set(myEv.map(e => e.device_type).filter(Boolean))];
+                  const opens = myEv.filter(e => e.event === "lesson_open").length;
+                  const logins = myEv.filter(e => e.event === "login").slice(0, 3);
+                  return `
+                <span class="kind">Devices used: ${devs.size || "—"}${types.length ? " (" + types.join(", ") + ")" : ""} ·
+                  Lesson opens: ${opens}</span>
+                <span class="kind">Recent logins: ${logins.map(l =>
+                  new Date(l.created_at).toLocaleString() +
+                  (l.device_type ? " · " + l.device_type : "") +
+                  (l.agent ? " · " + esc(l.agent) : "")).join("<br>") || "—"}</span>`;
+                })()}
               </div>
             </td></tr>`}`;
           }).join("")}</tbody></table>`

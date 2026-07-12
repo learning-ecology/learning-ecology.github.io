@@ -158,6 +158,21 @@
                  "Gói truy cập của bạn đã hết hạn. Vui lòng liên hệ giáo viên để gia hạn.");
         return;
       }
+      // access log: one "lesson opened" event per visit (students only)
+      if (!me || me.role !== "admin") {
+        const ua = navigator.userAgent;
+        const dtp = /iPad|Tablet/i.test(ua) ? "tablet"
+          : (/Mobi|iPhone|Android.*Mobile/i.test(ua) ? "mobile" : "desktop");
+        const os = /Windows/i.test(ua) ? "Windows" : /Mac OS X/i.test(ua) ? "macOS"
+          : /Android/i.test(ua) ? "Android" : /iPhone|iPad/i.test(ua) ? "iOS" : "other";
+        const br = /Edg\//.test(ua) ? "Edge" : /Chrome\//.test(ua) ? "Chrome"
+          : /Firefox\//.test(ua) ? "Firefox" : /Safari\//.test(ua) ? "Safari" : "other";
+        let dt = null; try { dt = localStorage.getItem("hub_device"); } catch (e) {}
+        sb.from("access_events").insert({
+          student_id: uid, lesson_id: lessonId, event: "lesson_open",
+          device: dt, device_type: dtp, agent: os + " · " + br
+        }).then(() => {});
+      }
     } catch (e) {}
 
     // Continue from previously recorded time.

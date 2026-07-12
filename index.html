@@ -84,6 +84,18 @@
         const { data: { user } } = await sb.auth.getUser();
         await sb.from("profiles").update({ active_session: device }).eq("id", user.id);
         await sb.auth.signOut({ scope: "others" });
+        // login history
+        const ua = navigator.userAgent;
+        const dtp = /iPad|Tablet/i.test(ua) ? "tablet"
+          : (/Mobi|iPhone|Android.*Mobile/i.test(ua) ? "mobile" : "desktop");
+        const os = /Windows/i.test(ua) ? "Windows" : /Mac OS X/i.test(ua) ? "macOS"
+          : /Android/i.test(ua) ? "Android" : /iPhone|iPad/i.test(ua) ? "iOS" : "other";
+        const br = /Edg\//.test(ua) ? "Edge" : /Chrome\//.test(ua) ? "Chrome"
+          : /Firefox\//.test(ua) ? "Firefox" : /Safari\//.test(ua) ? "Safari" : "other";
+        await sb.from("access_events").insert({
+          student_id: user.id, event: "login",
+          device, device_type: dtp, agent: os + " · " + br
+        });
       } catch (e) { /* non-fatal: login still proceeds */ }
 
       window.location.href = "dashboard.html";
