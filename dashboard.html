@@ -93,7 +93,8 @@
         .eq("id", user.id).single();
 
       // ---- access period enforcement (students only) ----
-      if (profile?.role !== "admin") {
+      const STAFF = ["owner", "admin", "teacher"];
+      if (!STAFF.includes(profile?.role)) {
         const today = new Date(); today.setHours(0, 0, 0, 0);
         const expired = profile?.access_expires && new Date(profile.access_expires) < today;
         if (profile?.suspended || expired) {
@@ -113,7 +114,7 @@
 
       // ---- one device per student account ----
       // (admins and accounts you've granted multi-device are exempt)
-      if (profile?.role !== "admin" && !profile?.multi_device) {
+      if (!STAFF.includes(profile?.role) && !profile?.multi_device) {
         let device = null;
         try { device = localStorage.getItem("hub_device"); } catch (e) {}
         if (!device) {
@@ -146,7 +147,9 @@
         ? `<img src="${esc(profile.avatar_url)}" alt="" />`
         : esc(String(name).charAt(0).toUpperCase());
 
-      if (profile?.role === "admin") renderAdmin();
+      if (profile?.role === "owner") renderAdmin();
+      else if (profile?.role === "admin") { window.location.href = "admin.html"; return; }
+      else if (profile?.role === "teacher") { window.location.href = "teacher.html"; return; }
       else renderStudent();
     }
 
@@ -414,7 +417,7 @@
 
       // Instructor panel (teacher profile is readable thanks to migration 8).
       const { data: teachers } = await sb
-        .from("profiles").select("full_name, avatar_url, bio").eq("role", "admin").limit(1);
+        .from("profiles").select("full_name, avatar_url, bio").neq("id", user.id).limit(1);
       const teacher = (teachers || [])[0];
       const zaloUrl = "https://zalo.me/0961923983";
       const instructorCard = `
@@ -679,7 +682,7 @@
 
       const { data: students } = await sb
         .from("profiles")
-        .select("id, full_name, email, role, avatar_url, bio, multi_device, access_start, access_expires, suspended")
+        .select("id, full_name, email, role, org_id, avatar_url, bio, multi_device, access_start, access_expires, suspended")
         .order("created_at");
 
       const { data: courses } = await sb
@@ -696,6 +699,9 @@
       const { data: skeys } = await sb
         .from("share_keys").select("*").order("created_at", { ascending: false });
 
+      const { data: orgs } = await sb
+        .from("organizations").select("id, name, kind").order("name");
+
       const { data: events } = await sb
         .from("access_events")
         .select("student_id, lesson_id, event, device, device_type, agent, created_at")
@@ -711,7 +717,7 @@
 
       // account status: active / expiring / expired / suspended (+unlimited)
       const accStatus = s => {
-        if (s.role === "admin") return { key: "active", unlimited: true };
+        if (s.role !== "student") return { key: "active", unlimited: true };
         if (s.suspended) return { key: "suspended" };
         if (!s.access_expires) return { key: "active", unlimited: true };
         const t0 = new Date(); t0.setHours(0, 0, 0, 0);
@@ -720,10 +726,10 @@
         if (days <= 7) return { key: "expiring", days };
         return { key: "active", days };
       };
-      const stuWarn = (students || []).filter(s => s.role !== "admin")
+      const stuWarn = (students || []).filter(s => s.role === "student")
         .filter(s => ["expired", "expiring"].includes(accStatus(s).key)).length;
       const studentName = s => s.full_name || s.email || "—";
-      const onlyStudents = (students || []).filter(s => s.role !== "admin");
+      const onlyStudents = (students || []).filter(s => s.role === "student");
 
       const lessonRowHtml = l => {
         const cc = (courses || []).find(x => x.id === l.course_id);
@@ -800,6 +806,7 @@
           <button data-tab="students">Students (${onlyStudents.length})${stuWarn ? " ⚠️ " + stuWarn : ""}</button>
           <button data-tab="progress">Progress</button>
           <button data-tab="announce">Announce${(anns || []).length ? " (" + anns.length + ")" : ""}</button>
+          <a href="organizations.html" class="btn ghost" style="text-decoration:none; margin-left:auto;">🏢 Organizations &amp; licenses →</a>
         </div>
 
         <div class="tabpane" data-tab="courses">
@@ -918,6 +925,24 @@
 
         <div class="tabpane" data-tab="students">
         <div id="stu-alert"></div>
+        <div class="card">
+          <h2>Add a user</h2>
+          <div class="form-row">
+            <div class="field"><label>Email</label><input id="nu-email" placeholder="name@example.com" /></div>
+            <div class="field" style="max-width:170px;"><label>Password</label><input id="nu-pass" placeholder="min 6 characters" /></div>
+            <div class="field"><label>Full name (optional)</label><input id="nu-name" /></div>
+            <div class="field" style="max-width:150px;"><label>Role</label>
+              <select id="nu-role">
+                <option value="student">Student</option>
+                <option value="teacher">Teacher</option>
+                <option value="admin">Org admin</option>
+              </select></div>
+            <div class="field" style="max-width:210px;"><label>Organization</label>
+              <select id="nu-org">${(orgs || []).map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join("") || `<option value="">— create an organization first —</option>`}</select></div>
+            <button id="nu-add">Create account</button>
+          </div>
+          <p id="nu-msg" class="msg"></p>
+        </div>
         <div class="stat-grid" id="stu-summary"></div>
         <div class="card">
           <h2>Students <span id="stu-count" class="kind"></span></h2>
@@ -943,7 +968,9 @@
               <select id="sf-role">
                 <option value="all">All users</option>
                 <option value="student">Students</option>
-                <option value="admin">Admin</option>
+                <option value="teacher">Teachers</option>
+                <option value="admin">Org admins</option>
+                <option value="owner">Owner</option>
               </select></div>
             <div class="field" style="max-width:150px;"><label>Multi-device</label>
               <select id="sf-multi">
@@ -1217,7 +1244,7 @@
         if (!stripHtml(body).trim() && !/<img/i.test(body)) {
           m.textContent = "Write a message first."; m.className = "msg err"; return;
         }
-        const { error } = await sb.from("announcements").insert({ body, course_id });
+        const { error } = await sb.from("announcements").insert({ body, course_id, author_id: user.id });
         if (error) { m.textContent = "Could not post: " + error.message; m.className = "msg err"; return; }
         renderAdmin();
       });
@@ -1432,12 +1459,47 @@
         });
       });
 
+      document.getElementById("nu-add").addEventListener("click", async () => {
+        const m = document.getElementById("nu-msg");
+        const email = document.getElementById("nu-email").value.trim();
+        const password = document.getElementById("nu-pass").value;
+        const full_name = document.getElementById("nu-name").value.trim() || null;
+        const role = document.getElementById("nu-role").value;
+        const org_id = document.getElementById("nu-org").value;
+        m.className = "msg";
+        if (!email || password.length < 6) {
+          m.textContent = "Enter an email and a password of at least 6 characters.";
+          m.className = "msg err"; return;
+        }
+        if (!org_id) { m.textContent = "Create an organization first (🏢 link above)."; m.className = "msg err"; return; }
+        m.textContent = "Creating account…";
+        try {
+          const { data: { session } } = await sb.auth.getSession();
+          const res = await fetch(SUPABASE_URL + "/functions/v1/manage-user", {
+            method: "POST",
+            headers: { "Content-Type": "application/json",
+                       Authorization: "Bearer " + session.access_token,
+                   apikey: SUPABASE_ANON_KEY },
+            body: JSON.stringify({ action: "create", email, password, full_name, role, org_id })
+          });
+          const out = await res.json();
+          if (!res.ok) throw new Error(out.error || "Request failed");
+          m.textContent = "Account created ✓";
+          setTimeout(() => renderAdmin(), 900);
+        } catch (err) {
+          m.textContent = "Could not create: " + err.message;
+          m.className = "msg err";
+        }
+      });
+
       document.getElementById("e-add").addEventListener("click", async () => {
         const student_id = document.getElementById("e-student").value;
         const course_id = document.getElementById("e-course").value;
         const m = document.getElementById("e-msg");
         if (!student_id || !course_id) { m.textContent = "You need at least one student and one course."; m.className = "msg err"; return; }
-        const { error } = await sb.from("enrollments").insert({ student_id, course_id });
+        const stuRec = (students || []).find(s => s.id === student_id);
+        const { error } = await sb.from("enrollments").insert({
+          student_id, course_id, teacher_id: user.id, org_id: stuRec?.org_id || null });
         if (error) {
           m.textContent = error.code === "23505"
             ? "That student is already enrolled in that course."
@@ -1890,11 +1952,11 @@
           const st = accStatus(s);
           if (sf.role !== "all" && s.role !== sf.role) return false;
           if (sf.status !== "all" && st.key !== sf.status) return false;
-          if (sf.access === "unlimited" && (s.role !== "admin" && s.access_expires)) return false;
+          if (sf.access === "unlimited" && (s.role === "student" && s.access_expires)) return false;
           if (sf.access === "limited" && !s.access_expires) return false;
           if (sf.access === "expired" && st.key !== "expired") return false;
-          if (sf.multi === "on" && !(s.multi_device || s.role === "admin")) return false;
-          if (sf.multi === "off" && (s.multi_device || s.role === "admin")) return false;
+          if (sf.multi === "on" && !(s.multi_device || s.role !== "student")) return false;
+          if (sf.multi === "off" && (s.multi_device || s.role !== "student")) return false;
           if (q) {
             const hay = normA((s.full_name || "") + " " + (s.email || "") + " " +
                               coursesOf(s.id).join(" ") + " " + st.key);
@@ -1905,7 +1967,7 @@
 
         $id("stu-count").textContent = "Showing " + list.length + " of " + (students || []).length;
         const stOf = s => accStatus(s).key;
-        const stu = list.filter(s => s.role !== "admin");
+        const stu = list.filter(s => s.role === "student");
         const stat = (k, v) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`;
         $id("stu-summary").innerHTML =
           stat("Students", stu.length) +
@@ -1936,18 +1998,18 @@
               <td>${esc(s.email || "—")}
                 <div class="kind">${esc(coursesOf(s.id).join(", ") || "no courses")}</div>
                 ${s.bio ? `<div class="kind">${esc(s.bio)}</div>` : ""}</td>
-              <td>${s.role === "admin" ? `<span class="pill done">admin</span>` : "student"}</td>
+              <td>${s.role === "student" ? "student" : `<span class="pill done">${esc(s.role)}</span>`}</td>
               <td>${stuBadge(s)}
                 ${s.access_expires ? `<div class="kind">${esc(s.access_start || "…")} → ${esc(s.access_expires)}</div>` : ""}</td>
-              <td>${s.role === "admin" ? `<span class="kind">always</span>`
+              <td>${s.role !== "student" ? `<span class="kind">always</span>`
                 : `<label style="font-size:0.82rem; color:var(--muted); cursor:pointer; white-space:nowrap;">
                      <input type="checkbox" class="s-multi" data-id="${s.id}" ${s.multi_device ? "checked" : ""} /> allow</label>`}</td>
               <td style="white-space:nowrap;">
                 <button class="ghost s-save" data-id="${s.id}">Save</button>
-                ${s.role === "admin" ? "" : `<button class="ghost st-manage" data-id="${s.id}">Manage ▸</button>`}
+                ${s.role !== "student" ? "" : `<button class="ghost st-manage" data-id="${s.id}">Manage ▸</button>`}
               </td>
             </tr>
-            ${s.role === "admin" ? "" : `
+            ${s.role !== "student" ? "" : `
             <tr class="st-panel" data-id="${s.id}" style="display:none;"><td colspan="6">
               <div class="eng-detail">
                 <b>Access control — ${esc(studentName(s))}</b>

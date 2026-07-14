@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Organizations — Thong's Learning Hub</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">Thong's Learning Hub · Organizations</span>
+    <div style="display:flex; align-items:center;">
+      <a class="btn ghost" href="dashboard.html" style="text-decoration:none; margin-right:0.5rem;">← Dashboard</a>
+      <button class="ghost" id="signout">Sign out</button>
+    </div>
+  </header>
+
+  <main class="container" id="app">
+    <p class="empty">Loading…</p>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script>
+    const app = document.getElementById("app");
+    let user = null;
+
+    document.getElementById("signout").addEventListener("click", async () => {
+      await sb.auth.signOut();
+      window.location.href = "index.html";
+    });
+
+    function esc(s) {
+      return String(s ?? "").replace(/[&<>"']/g, c =>
+        ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+    }
+    const nameOf = p => p?.full_name || p?.email || "—";
+
+    async function createUser(payload) {
+      const { data: { session } } = await sb.auth.getSession();
+      const res = await fetch(SUPABASE_URL + "/functions/v1/manage-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json",
+                   Authorization: "Bearer " + session.access_token,
+                   apikey: SUPABASE_ANON_KEY },
+        body: JSON.stringify(payload)
+      });
+      const out = await res.json();
+      if (!res.ok) throw new Error(out.error || "Request failed");
+      return out;
+    }
+
+    async function start() {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) { window.location.href = "index.html"; return; }
+      user = session.user;
+      const { data: me } = await sb.from("profiles")
+        .select("role").eq("id", user.id).single();
+      if (me?.role !== "owner") { window.location.href = "dashboard.html"; return; }
+      render();
+    }
+
+    async function render() {
+      const [{ data: orgs }, { data: people }, { data: courses },
+             { data: licenses }, { data: enrollments }, { data: tcs }] = await Promise.all([
+        sb.from("organizations").select("*").order("created_at"),
+        sb.from("profiles").select("id, full_name, email, role, org_id").order("created_at"),
+        sb.from("courses").select("id, title").order("sort_order"),
+        sb.from("course_licenses").select("*"),
+        sb.from("enrollments").select("id, org_id, course_id"),
+        sb.from("teacher_courses").select("teacher_id, course_id, org_id")
+      ]);
+
+      const cTitle = id => (courses || []).find(c => c.id === id)?.title || "—";
+      const courseOptions = (courses || []).map(c =>
+        `<option value="${c.id}">${esc(c.title)}</option>`).join("");
+      const membersOf = oid => (people || []).filter(p => p.org_id === oid);
+      const seatUse = (oid, cid) => (enrollments || [])
+        .filter(e => e.org_id === oid && e.course_id === cid).length;
+
+      const orgCard = o => {
+        const members = membersOf(o.id);
+        const admins = members.filter(p => p.role === "admin");
+        const teachers = members.filter(p => p.role === "teacher");
+        const students = members.filter(p => p.role === "student");
+        const myLics = (licenses || []).filter(l => l.org_id === o.id);
+        const myTcs = (tcs || []).filter(t => t.org_id === o.id);
+        const tOptions = teachers.map(p => `<option value="${p.id}">${esc(nameOf(p))}</option>`).join("");
+        const licOptions = myLics.map(l => `<option value="${l.course_id}">${esc(cTitle(l.course_id))}</option>`).join("");
+
+        return `
+        <div class="card" style="border-top:4px solid ${o.suspended ? "var(--danger)" : "var(--gold)"};">
+          <h2>${o.kind === "individual" ? "👤" : "🏢"} ${esc(o.name)}
+            ${o.suspended ? '<span class="pill off">suspended</span>' : ""}
+            <span class="kind" style="float:right;">${o.kind === "individual" ? "individual teacher" : "language center"}</span>
+          </h2>
+          <p class="kind" style="margin:0 0 0.6rem;">
+            ${admins.length} admin${admins.length !== 1 ? "s" : ""} ·
+            ${teachers.length} teacher${teachers.length !== 1 ? "s" : ""} ·
+            ${students.length} student${students.length !== 1 ? "s" : ""}
+            ${admins.length ? " — admin: " + esc(admins.map(nameOf).join(", ")) : ""}
+            ${o.kind === "individual" && teachers.length ? " — teacher: " + esc(teachers.map(nameOf).join(", ")) : ""}
+          </p>
+
+          <h2 style="font-size:1rem;">Licenses</h2>
+          ${myLics.map(l => `
+            <div class="lesson">
+              <span class="icon">📚</span>
+              <div class="meta">
+                <div class="title">${esc(cTitle(l.course_id))}</div>
+                <span class="kind">${seatUse(o.id, l.course_id)}${l.seats ? " / " + l.seats : " / unlimited"} seats ·
+                  ${l.expires_on ? "until " + esc(l.expires_on) : "no expiry"}</span>
+              </div>
+              <button class="ghost lic-del" data-id="${l.id}"
+                      style="color:var(--danger); border-color:var(--danger);">Revoke</button>
+            </div>`).join("") || `<p class="empty">No licenses yet.</p>`}
+
+          <div class="form-row" style="margin-top:0.6rem;">
+            <div class="field" style="max-width:220px;"><label>Grant course</label>
+              <select class="lic-course" data-org="${o.id}">${courseOptions}</select></div>
+            <div class="field" style="max-width:110px;"><label>Seats</label>
+              <input type="number" class="lic-seats" data-org="${o.id}" min="1" placeholder="∞" /></div>
+            <div class="field" style="max-width:160px;"><label>Expires (optional)</label>
+              <input type="date" class="lic-exp" data-org="${o.id}" /></div>
+            <button class="lic-add" data-org="${o.id}">Grant license</button>
+          </div>
+          <p class="msg lic-msg" data-org="${o.id}"></p>
+
+          <h2 style="font-size:1rem; margin-top:0.8rem;">Create ${o.kind === "individual" ? "the teacher" : "an admin or teacher"} account</h2>
+          <div class="form-row">
+            <div class="field"><label>Email</label><input class="na-email" data-org="${o.id}" /></div>
+            <div class="field" style="max-width:160px;"><label>Password</label><input class="na-pass" data-org="${o.id}" placeholder="min 6 chars" /></div>
+            <div class="field"><label>Full name</label><input class="na-name" data-org="${o.id}" /></div>
+            <div class="field" style="max-width:140px;"><label>Role</label>
+              <select class="na-role" data-org="${o.id}">
+                ${o.kind === "individual"
+                  ? `<option value="teacher">Teacher</option>`
+                  : `<option value="admin">Org admin</option><option value="teacher">Teacher</option>`}
+              </select></div>
+            <button class="na-add" data-org="${o.id}">Create account</button>
+          </div>
+          <p class="msg na-msg" data-org="${o.id}"></p>
+
+          ${teachers.length ? `
+          <h2 style="font-size:1rem; margin-top:0.8rem;">Teacher course assignments</h2>
+          ${myTcs.map(t => `
+            <div class="lesson">
+              <span class="icon">🧑‍🏫</span>
+              <div class="meta"><div class="title">${esc(nameOf(teachers.find(p => p.id === t.teacher_id) || membersOf(o.id).find(p => p.id === t.teacher_id)))}</div>
+                <span class="kind">${esc(cTitle(t.course_id))}</span></div>
+              <button class="ghost tc-del" data-t="${t.teacher_id}" data-c="${t.course_id}">Remove</button>
+            </div>`).join("") || `<p class="empty">No assignments yet.</p>`}
+          <div class="form-row" style="margin-top:0.4rem;">
+            <div class="field" style="max-width:220px;"><label>Teacher</label>
+              <select class="tc-teacher" data-org="${o.id}">${tOptions}</select></div>
+            <div class="field" style="max-width:220px;"><label>Licensed course</label>
+              <select class="tc-course" data-org="${o.id}">${licOptions || `<option value="">Grant a license first</option>`}</select></div>
+            <button class="tc-add" data-org="${o.id}">Assign</button>
+          </div>
+          <p class="msg tc-msg" data-org="${o.id}"></p>` : ""}
+
+          <div style="margin-top:0.8rem; border-top:1px solid var(--line); padding-top:0.6rem;">
+            <button class="ghost org-susp" data-id="${o.id}"
+              ${o.suspended ? "" : 'style="color:var(--danger); border-color:var(--danger);"'}>
+              ${o.suspended ? "▶ Reactivate organization" : "⏸ Suspend organization"}</button>
+          </div>
+        </div>`;
+      };
+
+      app.innerHTML = `
+        <p class="eyebrow">Platform owner</p>
+        <h1>Organizations &amp; licenses</h1>
+        <p class="kind" style="margin:-0.4rem 0 1rem;">
+          Every customer is an organization: a <b>language center</b> (with its own admin who manages
+          teachers &amp; students) or an <b>individual teacher</b> (a one-person organization).
+          Grant a license to give an organization access to one of your courses.</p>
+
+        <div class="card">
+          <h2>New organization</h2>
+          <div class="form-row">
+            <div class="field"><label>Name</label><input id="o-name" placeholder="ABC Language Center / Ms Lan" /></div>
+            <div class="field" style="max-width:220px;"><label>Type</label>
+              <select id="o-kind">
+                <option value="center">Language center</option>
+                <option value="individual">Individual teacher</option>
+              </select></div>
+            <button id="o-add">Create organization</button>
+          </div>
+          <p id="o-msg" class="msg"></p>
+        </div>
+
+        ${(orgs || []).map(orgCard).join("") || `<p class="empty">No organizations yet.</p>`}
+        <footer class="hub-footer">Thong's Learning Hub</footer>`;
+
+      // ---- wiring ----
+      document.getElementById("o-add").addEventListener("click", async () => {
+        const m = document.getElementById("o-msg");
+        const name = document.getElementById("o-name").value.trim();
+        const kind = document.getElementById("o-kind").value;
+        if (!name) { m.textContent = "Give the organization a name."; m.className = "msg err"; return; }
+        const { error } = await sb.from("organizations").insert({ name, kind });
+        if (error) { m.textContent = "Could not create: " + error.message; m.className = "msg err"; return; }
+        render();
+      });
+
+      const msgIn = (cls, org) => app.querySelector(`.${cls}[data-org="${org}"]`);
+
+      app.querySelectorAll(".lic-add").forEach(btn => btn.addEventListener("click", async () => {
+        const org = btn.getAttribute("data-org");
+        const m = msgIn("lic-msg", org);
+        const course_id = msgIn("lic-course", org).value;
+        const seats = parseInt(msgIn("lic-seats", org).value, 10) || null;
+        const expires_on = msgIn("lic-exp", org).value || null;
+        const { error } = await sb.from("course_licenses")
+          .insert({ org_id: org, course_id, seats, expires_on });
+        if (error) {
+          m.textContent = error.code === "23505"
+            ? "This organization already has a license for that course."
+            : "Could not grant: " + error.message;
+          m.className = "msg err"; return;
+        }
+        render();
+      }));
+
+      app.querySelectorAll(".lic-del").forEach(btn => btn.addEventListener("click", async () => {
+        if (!confirm("Revoke this license? The organization immediately loses access to the course.")) return;
+        const { error } = await sb.from("course_licenses").delete().eq("id", btn.getAttribute("data-id"));
+        if (error) { alert("Could not revoke: " + error.message); return; }
+        render();
+      }));
+
+      app.querySelectorAll(".na-add").forEach(btn => btn.addEventListener("click", async () => {
+        const org = btn.getAttribute("data-org");
+        const m = msgIn("na-msg", org);
+        const email = msgIn("na-email", org).value.trim();
+        const password = msgIn("na-pass", org).value;
+        const full_name = msgIn("na-name", org).value.trim() || null;
+        const role = msgIn("na-role", org).value;
+        m.className = "msg";
+        if (!email || password.length < 6) {
+          m.textContent = "Enter an email and a password of at least 6 characters.";
+          m.className = "msg err"; return;
+        }
+        m.textContent = "Creating account…";
+        try {
+          await createUser({ action: "create", email, password, full_name, role, org_id: org });
+          m.textContent = "Account created ✓ — send them the login details.";
+          setTimeout(render, 1000);
+        } catch (err) { m.textContent = "Could not create: " + err.message; m.className = "msg err"; }
+      }));
+
+      app.querySelectorAll(".tc-add").forEach(btn => btn.addEventListener("click", async () => {
+        const org = btn.getAttribute("data-org");
+        const m = msgIn("tc-msg", org);
+        const teacher_id = msgIn("tc-teacher", org).value;
+        const course_id = msgIn("tc-course", org).value;
+        if (!teacher_id || !course_id) { m.textContent = "Pick a teacher and a licensed course."; m.className = "msg err"; return; }
+        const { error } = await sb.from("teacher_courses").insert({ teacher_id, course_id, org_id: org });
+        if (error) {
+          m.textContent = error.code === "23505"
+            ? "Already assigned." : "Could not assign: " + error.message;
+          m.className = "msg err"; return;
+        }
+        render();
+      }));
+
+      app.querySelectorAll(".tc-del").forEach(btn => btn.addEventListener("click", async () => {
+        if (!confirm("Remove this assignment?")) return;
+        const { error } = await sb.from("teacher_courses").delete()
+          .eq("teacher_id", btn.getAttribute("data-t"))
+          .eq("course_id", btn.getAttribute("data-c"));
+        if (error) { alert("Could not remove: " + error.message); return; }
+        render();
+      }));
+
+      app.querySelectorAll(".org-susp").forEach(btn => btn.addEventListener("click", async () => {
+        const o = (orgs || []).find(x => x.id === btn.getAttribute("data-id"));
+        if (!o.suspended && !confirm("Suspend this organization? All its members keep their accounts but you should also suspend/expire them individually if needed.")) return;
+        const { error } = await sb.from("organizations")
+          .update({ suspended: !o.suspended }).eq("id", o.id);
+        if (error) { alert("Could not update: " + error.message); return; }
+        render();
+      }));
+    }
+
+    start();
+  </script>
+</body>
+</html>
