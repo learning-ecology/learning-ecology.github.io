@@ -519,3 +519,191 @@ a.pf-link:hover { border-bottom-style: solid; }
 
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+
+/* ============================================================
+   PHASE 1 ADDITIONS — design tokens, toasts, modals, skeletons,
+   sticky header, seat bars, mobile stacked tables
+   ============================================================ */
+
+:root {
+  --success:      #1e7f4f;
+  --success-bg:   rgba(30,127,79,0.12);
+  --warning:      #b45309;
+  --warning-bg:   rgba(180,83,9,0.10);
+  --info-bg:      rgba(30,79,143,0.08);
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px;
+  --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
+  --shadow-pop: 0 18px 50px -20px rgba(23,38,62,0.45);
+}
+
+/* semantic pills: green = done, amber = warning */
+.pill.done { background: var(--success-bg); color: var(--success); }
+.pill.todo { background: var(--warning-bg); color: var(--warning); }
+
+/* sticky header */
+.topbar { position: sticky; top: 0; z-index: 40; }
+
+/* icons align with text */
+i[data-lucide], svg.lucide { vertical-align: -3px; flex: none; }
+button i[data-lucide] { margin-right: 4px; }
+
+/* ---- toasts ---- */
+#toast-box {
+  position: fixed; right: 16px; bottom: 16px; z-index: 200;
+  display: flex; flex-direction: column; gap: 8px; max-width: min(92vw, 380px);
+}
+.toast {
+  background: var(--ink); color: #fff;
+  border-radius: var(--radius); padding: 0.7rem 1rem;
+  font-size: 0.9rem; box-shadow: var(--shadow-pop);
+  opacity: 0; transform: translateY(8px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  border-left: 4px solid var(--success);
+}
+.toast.err  { border-left-color: #e06c4f; }
+.toast.info { border-left-color: var(--accent); }
+.toast.show { opacity: 1; transform: none; }
+
+/* ---- modal dialogs ---- */
+.modal-wrap {
+  position: fixed; inset: 0; z-index: 150;
+  background: rgba(23,38,62,0.42);
+  display: grid; place-items: center; padding: 1rem;
+  opacity: 0; transition: opacity 0.2s ease;
+}
+.modal-wrap.show { opacity: 1; }
+.modal {
+  background: var(--card); border-radius: 14px;
+  padding: 1.4rem 1.5rem; width: 100%; max-width: 440px;
+  box-shadow: var(--shadow-pop);
+  transform: translateY(10px); transition: transform 0.2s ease;
+}
+.modal-wrap.show .modal { transform: none; }
+.modal h3 { font-family: var(--serif); margin: 0 0 0.5rem; font-size: 1.2rem; }
+.modal p { color: var(--muted); font-size: 0.92rem; margin: 0 0 1rem; }
+.modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.1rem; }
+button.danger-btn { background: var(--danger); border-color: var(--danger); }
+button.danger-btn:hover { background: #8a3a28; }
+
+/* ---- skeleton loading ---- */
+.sk {
+  background: linear-gradient(90deg, var(--line) 25%, #edf1f7 50%, var(--line) 75%);
+  background-size: 200% 100%;
+  animation: skshine 1.2s linear infinite;
+  border-radius: 6px;
+}
+.sk-title { height: 20px; width: 40%; margin-bottom: 0.8rem; }
+.sk-line  { height: 12px; width: 90%; margin-bottom: 0.55rem; }
+@keyframes skshine { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* ---- seat usage bars ---- */
+.seatbar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 5px; max-width: 260px; }
+.seatbar > span { display: block; height: 100%; border-radius: 3px; background: var(--success); }
+.seatbar.warn > span { background: var(--warning); }
+.seatbar.full > span { background: var(--danger); }
+
+/* ---- attention banner ---- */
+.attention {
+  border: 1px solid var(--warning); background: var(--warning-bg);
+  border-radius: var(--radius); padding: 0.75rem 1rem;
+  font-size: 0.9rem; margin-bottom: 1rem;
+}
+.attention b { color: var(--warning); }
+.attention ul { margin: 0.35rem 0 0 1.1rem; padding: 0; }
+
+/* ---- card section headers with actions ---- */
+.card-head { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.9rem; }
+.card-head h2 { margin: 0; flex: 1; }
+
+/* ---- staff shell nav ---- */
+.topnav { display: flex; gap: 0.25rem; margin-left: 1rem; flex: 1; min-width: 0; overflow-x: auto; }
+.topnav a {
+  color: rgba(255,255,255,0.75); text-decoration: none;
+  font-size: 0.88rem; font-weight: 600; padding: 0.35rem 0.7rem;
+  border-radius: 8px; white-space: nowrap;
+}
+.topnav a:hover { background: rgba(255,255,255,0.1); color: #fff; }
+.topnav a.on { background: rgba(255,255,255,0.16); color: #fff; }
+
+/* ---- mobile: tables become stacked cards ---- */
+@media (max-width: 640px) {
+  .topbar { flex-wrap: wrap; row-gap: 0.4rem; }
+  table.stackable thead { display: none; }
+  table.stackable tr { display: block; border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 0.7rem; padding: 0.4rem 0.7rem; }
+  table.stackable td { display: flex; justify-content: space-between; gap: 0.8rem; border-bottom: none; padding: 0.35rem 0; font-size: 0.9rem; }
+  table.stackable td::before {
+    content: attr(data-th);
+    font-family: var(--mono); font-size: 0.68rem; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--muted); align-self: center; flex: none;
+  }
+  button, .btn { min-height: 44px; }
+  .tabs button { min-height: 40px; }
+}
+
+/* ---- Phase 2b: discussions + printable report card ---- */
+.post {
+  border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 0.6rem 0.85rem; margin-bottom: 0.55rem; background: #fff;
+}
+.post .kind { display: block; margin-bottom: 0.25rem; }
+.post p { margin: 0; font-size: 0.92rem; white-space: pre-wrap; }
+.thread-row { cursor: pointer; }
+.thread-row:hover .title { color: var(--accent-ink); text-decoration: underline; }
+
+@media print {
+  body.print-report .topbar, body.print-report .tabs,
+  body.print-report .no-print, body.print-report #toast-box { display: none !important; }
+  body.print-report .tabpane { display: none !important; }
+  body.print-report .tabpane.show { display: block !important; }
+  body.print-report .tabpane.show > :not(#report-pane) { display: none !important; }
+  body.print-report #report-pane { border: none; }
+}
+
+/* ---- Phase 2c: notification bell + certificates + detail print ---- */
+.bell-wrap { position: relative; display: inline-block; }
+#bell-btn { position: relative; }
+.bell-badge {
+  position: absolute; top: -6px; right: -7px;
+  background: var(--danger); color: #fff; border-radius: 999px;
+  font-size: 0.65rem; font-weight: 700; padding: 1px 5px; line-height: 1.3;
+}
+.bell-panel {
+  position: absolute; right: 0; top: calc(100% + 6px);
+  width: min(88vw, 330px); background: var(--card); color: var(--ink);
+  border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow-pop); z-index: 120;
+  max-height: 360px; overflow: auto; text-align: left;
+}
+.bell-head { font-weight: 700; padding: 0.6rem 0.85rem; border-bottom: 1px solid var(--line); font-size: 0.9rem; }
+.bell-item { padding: 0.55rem 0.85rem; border-bottom: 1px solid var(--line); font-size: 0.87rem; }
+.bell-item:last-child { border-bottom: none; }
+.bell-item.unread { background: var(--info-bg); }
+.bell-item .kind { display: block; margin-top: 2px; }
+
+.cert-overlay {
+  position: fixed; inset: 0; z-index: 180;
+  background: rgba(23,38,62,0.55);
+  display: grid; place-items: center; padding: 1rem; overflow: auto;
+}
+.cert {
+  background: #fffdf7; border: 3px double var(--gold);
+  outline: 6px solid var(--accent-ink); outline-offset: -14px;
+  padding: 2.6rem 2.2rem; width: 100%; text-align: center;
+  font-family: var(--serif); color: var(--ink);
+}
+.cert .c-eyebrow { font-family: var(--mono); letter-spacing: 0.2em; text-transform: uppercase; font-size: 0.7rem; color: var(--gold); }
+.cert h1 { font-size: 1.9rem; margin: 0.4rem 0 1rem; }
+.cert .c-name { font-size: 1.6rem; font-weight: 700; border-bottom: 2px solid var(--gold); display: inline-block; padding: 0 1.2rem 0.2rem; margin: 0.5rem 0; }
+.cert .c-course { font-size: 1.15rem; font-weight: 600; margin: 0.5rem 0 1.2rem; }
+.cert .c-foot { display: flex; justify-content: space-between; margin-top: 2rem; font-size: 0.85rem; color: var(--muted); }
+
+@media print {
+  body.print-cert > :not(.cert-overlay) { display: none !important; }
+  body.print-cert .cert-overlay { position: static; background: none; padding: 0; display: block; }
+  body.print-cert .cert-overlay .no-print { display: none !important; }
+  /* nested-element printing (teacher student detail) */
+  body.print-report2 * { visibility: hidden; }
+  body.print-report2 .print-target, body.print-report2 .print-target * { visibility: visible; }
+  body.print-report2 .print-target { position: absolute; left: 0; top: 0; width: 100%; }
+  body.print-report2 .print-target button { display: none !important; }
+}

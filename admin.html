@@ -8,28 +8,35 @@
 </head>
 <body>
   <header class="topbar">
-    <span class="brand">Thong's Learning Hub · Administrator</span>
-    <div style="display:flex; align-items:center;">
+    <span class="brand">Thong's Learning Hub</span>
+    <div style="display:flex; align-items:center; gap:0.4rem;">
+      <span id="bell-slot"></span>
+      <button class="ghost" id="lang-btn"></button>
       <span class="who" id="who"></span>
-      <button class="ghost" id="signout">Sign out</button>
+      <button class="ghost" id="signout"></button>
     </div>
   </header>
 
-  <main class="container" id="app">
-    <p class="empty">Loading…</p>
-  </main>
+  <main class="container" id="app"></main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="config.js"></script>
+  <script src="ui.js"></script>
   <script>
+    const { t2, toast, confirmDialog, promptDialog, skeleton, csv, icon,
+            refreshIcons, wireLangButton, rerender } = window.UI;
     const app = document.getElementById("app");
     const who = document.getElementById("who");
     let user = null, myOrg = null;
+    let tab = localStorage.getItem("hub_admin_tab") || "overview";
 
+    document.getElementById("signout").textContent = t2("sign_out");
     document.getElementById("signout").addEventListener("click", async () => {
       await sb.auth.signOut();
       window.location.href = "index.html";
     });
+    wireLangButton(document.getElementById("lang-btn"));
 
     function esc(s) {
       return String(s ?? "").replace(/[&<>"']/g, c =>
@@ -40,7 +47,7 @@
     const dstr = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
     const addDaysStr = (base, n) => { const d = base ? new Date(base) : new Date(); d.setDate(d.getDate() + n); return dstr(d); };
 
-    async function createUser(payload) {
+    async function callFn(payload) {
       const { data: { session } } = await sb.auth.getSession();
       const res = await fetch(SUPABASE_URL + "/functions/v1/manage-user", {
         method: "POST",
@@ -50,11 +57,12 @@
         body: JSON.stringify(payload)
       });
       const out = await res.json();
-      if (!res.ok) throw new Error(out.error || "Request failed");
+      if (!res.ok || out.error) throw new Error(out.error || "Request failed");
       return out;
     }
 
     async function start() {
+      app.innerHTML = skeleton(3);
       const { data: { session } } = await sb.auth.getSession();
       if (!session) { window.location.href = "index.html"; return; }
       user = session.user;
@@ -63,28 +71,30 @@
       if (me?.role !== "admin") { window.location.href = "dashboard.html"; return; }
       myOrg = me.org_id;
       who.textContent = me.full_name || user.email;
+      window.UI.initBell(document.getElementById("bell-slot"));
       render();
     }
 
     async function render() {
-      // The database (RLS) limits every query below to this admin's
-      // own organization — other centers' data is invisible.
+      // RLS limits every query to this admin's own organization.
       const [{ data: orgRows }, { data: licenses }, { data: courses },
              { data: lessons }, { data: people }, { data: tcs },
              { data: enrollments }, { data: prog }, { data: activity },
-             { data: anns }] = await Promise.all([
+             { data: anns }, { data: asgns }, { data: subs }] = await Promise.all([
         sb.from("organizations").select("*"),
         sb.from("course_licenses").select("*"),
         sb.from("courses").select("id, title, color").order("sort_order"),
         sb.from("lessons").select("id, title, course_id"),
         sb.from("profiles")
-          .select("id, full_name, email, role, access_start, access_expires, suspended, multi_device")
+          .select("id, full_name, email, role, access_start, access_expires, suspended")
           .order("created_at"),
         sb.from("teacher_courses").select("teacher_id, course_id"),
         sb.from("enrollments").select("id, student_id, course_id, teacher_id, created_at"),
         sb.from("progress").select("student_id, lesson_id, status, updated_at"),
-        sb.from("lesson_activity").select("student_id, kind, key, value, updated_at"),
-        sb.from("announcements").select("*").order("created_at", { ascending: false })
+        sb.from("lesson_activity").select("student_id, lesson_id, kind, key, value, max_value, updated_at"),
+        sb.from("announcements").select("*").order("created_at", { ascending: false }),
+        sb.from("assignments").select("*"),
+        sb.from("submissions").select("*")
       ]);
 
       const org = (orgRows || [])[0];
@@ -114,264 +124,516 @@
       const licCourseOptions = (licenses || []).map(l =>
         `<option value="${l.course_id}">${esc(cTitle(l.course_id))}</option>`).join("");
 
+      // ---- attention banner ----
+      const today = new Date(); today.setHours(0,0,0,0);
+      const expSoon = (licenses || []).filter(l => {
+        if (!l.expires_on) return false;
+        const d = Math.round((new Date(l.expires_on) - today) / 86400000);
+        return d >= 0 && d <= 30;
+      });
+      const seatWarn = (licenses || []).filter(l =>
+        l.seats && seatUse(l.course_id) >= l.seats * 0.8);
+      const attention = (expSoon.length || seatWarn.length) ? `
+        <div class="attention">${icon("alert-triangle")} <b>${t2("needs_attention")}</b>
+          <ul>
+            ${expSoon.map(l => `<li>${esc(cTitle(l.course_id))} — ${t2("valid_until")} ${esc(l.expires_on)} (${t2("expiring_soon")})</li>`).join("")}
+            ${seatWarn.map(l => `<li>${esc(cTitle(l.course_id))} — ${seatUse(l.course_id)}/${l.seats} ${t2("seats_used")}</li>`).join("")}
+          </ul>
+        </div>` : "";
+
+      const seatBar = l => {
+        if (!l.seats) return "";
+        const pct = Math.min(100, Math.round(seatUse(l.course_id) / l.seats * 100));
+        const cls = pct >= 100 ? "full" : (pct >= 80 ? "warn" : "");
+        return `<div class="seatbar ${cls}"><span style="width:${pct}%;"></span></div>`;
+      };
+
+      const accPill = s => {
+        const expired = s.access_expires && s.access_expires < dstr(new Date());
+        return s.suspended ? `<span class="pill off">${t2("suspended")}</span>`
+          : expired ? `<span class="pill bad">${t2("expired")}</span>`
+          : !s.access_expires ? `<span class="pill done">${t2("unlimited")}</span>`
+          : `<span class="pill done">${t2("until")} ${esc(s.access_expires)}</span>`;
+      };
+
+      // ---- report computations ----
+      const bestScoresIn = (ls, sid) => {
+        const rows = (activity || []).filter(a =>
+          a.kind === "activity" && a.key !== "opened" && Number(a.max_value) > 1
+          && ls.some(x => x.id === a.lesson_id)
+          && (sid == null || a.student_id === sid));
+        return rows.length
+          ? Math.round(rows.reduce((s, a) => s + (Number(a.value) || 0) / Number(a.max_value), 0) / rows.length * 100) + "%"
+          : "—";
+      };
+      const courseRows = (licenses || []).map(l => {
+        const ls = (lessons || []).filter(x => x.course_id === l.course_id);
+        const enr = (enrollments || []).filter(e => e.course_id === l.course_id);
+        const compl = enr.length && ls.length
+          ? Math.round(enr.reduce((s, e) => s + (prog || []).filter(p =>
+              p.student_id === e.student_id && p.status === "completed"
+              && ls.some(x => x.id === p.lesson_id)).length / ls.length, 0) / enr.length * 100)
+          : 0;
+        const time = (activity || []).filter(a => a.kind === "time" && a.key === "total"
+          && ls.some(x => x.id === a.lesson_id)).reduce((s, a) => s + (Number(a.value) || 0), 0);
+        return { title: cTitle(l.course_id), enrolled: enr.length, compl,
+                 score: bestScoresIn(ls, null), time };
+      });
+      const teacherRows = teachers.map(tc => {
+        const stuIds = new Set((enrollments || []).filter(e => e.teacher_id === tc.id).map(e => e.student_id));
+        return { name: nameOf(tc), students: stuIds.size,
+                 compl: (prog || []).filter(p => stuIds.has(p.student_id) && p.status === "completed").length,
+                 time: [...stuIds].reduce((s, id) => s + (timeBy[id] || 0), 0) };
+      });
+
+      const tabs = [["overview", t2("overview")], ["people", t2("people")],
+                    ["enroll", t2("enrollments")], ["reports", t2("reports")],
+                    ["announce", t2("announcements")]];
+
       app.innerHTML = `
-        <p class="eyebrow">Administrator</p>
-        <h1>${esc(org?.name || "My organization")}</h1>
+        <p class="eyebrow">${t2("org_admin")}</p>
+        <h1>${esc(org?.name || "—")}</h1>
 
-        <div class="stat-grid" style="margin-bottom:1rem;">
-          ${stat("Teachers", teachers.length)}
-          ${stat("Students", students.length)}
-          ${stat("Licensed courses", (licenses || []).length)}
-          ${stat("Lessons completed", (prog || []).filter(p => p.status === "completed").length)}
+        <div class="tabs">
+          ${tabs.map(([k, label]) =>
+            `<button data-tab="${k}" class="${tab === k ? "active" : ""}">${label}</button>`).join("")}
         </div>
 
-        <div class="card">
-          <h2>Our course licenses</h2>
-          ${(licenses || []).map(l => `
-            <div class="lesson">
-              <span class="icon">📚</span>
-              <div class="meta">
-                <div class="title">${esc(cTitle(l.course_id))}</div>
-                <span class="kind">${seatUse(l.course_id)}${l.seats ? " / " + l.seats : ""} seats used ·
-                  ${l.expires_on ? "valid until " + esc(l.expires_on) : "no expiry"}</span>
-              </div>
-            </div>`).join("") || `<p class="empty">No course licenses yet — contact the platform owner to purchase courses.</p>`}
-        </div>
-
-        <div class="card">
-          <h2>Create an account</h2>
-          <div class="form-row">
-            <div class="field"><label>Email</label><input id="nu-email" placeholder="name@example.com" /></div>
-            <div class="field" style="max-width:170px;"><label>Password</label><input id="nu-pass" placeholder="min 6 characters" /></div>
-            <div class="field"><label>Full name (optional)</label><input id="nu-name" /></div>
-            <div class="field" style="max-width:140px;"><label>Role</label>
-              <select id="nu-role">
-                <option value="teacher">Teacher</option>
-                <option value="student">Student</option>
-              </select></div>
-            <button id="nu-add">Create</button>
+        <div class="tabpane" data-tab="overview">
+          ${attention}
+          <div class="stat-grid">
+            ${stat(t2("teachers"), teachers.length)}
+            ${stat(t2("students"), students.length)}
+            ${stat(t2("licensed_courses"), (licenses || []).length)}
+            ${stat(t2("lessons_completed"), (prog || []).filter(p => p.status === "completed").length)}
           </div>
-          <p id="nu-msg" class="msg"></p>
-        </div>
-
-        <div class="card">
-          <h2>Assign a teacher to a course</h2>
-          <div class="form-row">
-            <div class="field"><label>Teacher</label>
-              <select id="tc-teacher">${teacherOptions || `<option value="">No teachers yet</option>`}</select></div>
-            <div class="field"><label>Course</label>
-              <select id="tc-course">${licCourseOptions || `<option value="">No licensed courses</option>`}</select></div>
-            <button id="tc-add">Assign</button>
+          <div class="card">
+            <div class="card-head"><h2>${icon("book-open", 18)} ${t2("our_licenses")}</h2></div>
+            ${(licenses || []).map(l => `
+              <div class="lesson">
+                <span class="icon">${icon("book-open")}</span>
+                <div class="meta">
+                  <div class="title">${esc(cTitle(l.course_id))}</div>
+                  <span class="kind">${seatUse(l.course_id)}${l.seats ? " / " + l.seats : ""} ${t2("seats_used")} ·
+                    ${l.expires_on ? t2("valid_until") + " " + esc(l.expires_on) : t2("no_expiry")}</span>
+                  ${seatBar(l)}
+                </div>
+              </div>`).join("") || `<p class="empty">${t2("no_licenses")}</p>`}
           </div>
-          <p id="tc-msg" class="msg"></p>
-          ${(tcs || []).length ? `
-          <table style="margin-top:0.75rem;">
-            <thead><tr><th>Teacher</th><th>Course</th><th></th></tr></thead>
-            <tbody>${(tcs || []).map(t => `
-              <tr>
-                <td>${esc(nameOf(pById(t.teacher_id)))}</td>
-                <td>${esc(cTitle(t.course_id))}</td>
-                <td><button class="ghost tc-remove" data-t="${t.teacher_id}" data-c="${t.course_id}">Remove</button></td>
-              </tr>`).join("")}</tbody>
-          </table>` : `<p class="empty" style="margin-top:0.75rem;">No assignments yet.</p>`}
         </div>
 
-        <div class="card">
-          <h2>Enroll a student</h2>
-          <div class="form-row">
-            <div class="field"><label>Student</label>
-              <select id="en-student">${studentOptions || `<option value="">No students yet</option>`}</select></div>
-            <div class="field"><label>Course</label>
-              <select id="en-course">${licCourseOptions || `<option value="">No licensed courses</option>`}</select></div>
-            <div class="field"><label>Their teacher</label>
-              <select id="en-teacher">${teacherOptions || `<option value="">No teachers yet</option>`}</select></div>
-            <button id="en-add">Enroll</button>
+        <div class="tabpane" data-tab="people">
+          <div class="card">
+            <div class="card-head"><h2>${icon("user-plus", 18)} ${t2("create_account")}</h2></div>
+            <div class="form-row">
+              <div class="field"><label>${t2("email")}</label><input id="nu-email" placeholder="name@example.com" /></div>
+              <div class="field" style="max-width:170px;"><label>${t2("password")}</label><input id="nu-pass" placeholder="${t2("pw_min6")}" /></div>
+              <div class="field"><label>${t2("full_name_opt")}</label><input id="nu-name" /></div>
+              <div class="field" style="max-width:150px;"><label>${t2("role")}</label>
+                <select id="nu-role">
+                  <option value="teacher">${t2("teacher")}</option>
+                  <option value="student">${t2("student")}</option>
+                </select></div>
+              <button id="nu-add">${t2("create")}</button>
+            </div>
+            <label style="font-size:0.85rem; color:var(--muted); cursor:pointer; display:block; margin-top:0.5rem;">
+              <input type="checkbox" id="nu-invite" /> ${t2("invite_instead")}
+            </label>
+            <p class="kind" id="nu-invite-note" style="display:none; margin:0.3rem 0 0;">${t2("invite_note")}</p>
           </div>
-          <p id="en-msg" class="msg"></p>
-          ${(enrollments || []).length ? `
-          <table style="margin-top:0.75rem;">
-            <thead><tr><th>Student</th><th>Course</th><th>Teacher</th><th></th></tr></thead>
-            <tbody>${(enrollments || []).map(e => `
-              <tr>
-                <td>${esc(nameOf(pById(e.student_id)))}</td>
-                <td>${esc(cTitle(e.course_id))}</td>
-                <td>${esc(nameOf(pById(e.teacher_id)))}</td>
-                <td><button class="ghost en-remove" data-id="${e.id}">Remove</button></td>
-              </tr>`).join("")}</tbody>
-          </table>` : `<p class="empty" style="margin-top:0.75rem;">No enrollments yet.</p>`}
-        </div>
 
-        <div class="card">
-          <h2>Students — access &amp; activity</h2>
-          ${students.length ? `
-          <table>
-            <thead><tr><th>Student</th><th>Access</th><th>Completed</th><th>Time</th><th>Last active</th><th></th></tr></thead>
-            <tbody>${students.map(s => {
-              const expired = s.access_expires && s.access_expires < dstr(new Date());
-              const pill = s.suspended ? '<span class="pill off">Suspended</span>'
-                : expired ? '<span class="pill bad">Expired</span>'
-                : !s.access_expires ? '<span class="pill done">Unlimited</span>'
-                : `<span class="pill done">until ${esc(s.access_expires)}</span>`;
-              return `
-              <tr>
-                <td>${esc(nameOf(s))}<div class="kind">${esc(s.email || "")}</div></td>
-                <td>${pill}</td>
-                <td>${doneBy[s.id] || 0}</td>
-                <td>${fmtTime(timeBy[s.id] || 0)}</td>
-                <td>${lastBy[s.id] ? new Date(lastBy[s.id]).toLocaleDateString() : "never"}</td>
-                <td style="white-space:nowrap;">
-                  <button class="ghost st-ext" data-id="${s.id}" data-d="30">+30d</button>
-                  <button class="ghost st-ext" data-id="${s.id}" data-d="90">+90d</button>
-                  <button class="ghost st-unlim" data-id="${s.id}">∞</button>
-                  <button class="ghost st-susp" data-id="${s.id}"
-                    ${s.suspended ? "" : 'style="color:var(--danger); border-color:var(--danger);"'}>
-                    ${s.suspended ? "▶ Reactivate" : "⏸ Suspend"}</button>
-                </td>
-              </tr>`;
-            }).join("")}</tbody>
-          </table>
-          <p id="st-msg" class="msg"></p>` : `<p class="empty">No students yet.</p>`}
-        </div>
+          <div class="card">
+            <div class="card-head"><h2>${icon("graduation-cap", 18)} ${t2("teachers")}</h2></div>
+            ${teachers.length ? `
+            <table class="stackable">
+              <thead><tr><th>${t2("teacher")}</th><th>${t2("email")}</th><th>${t2("students")}</th><th>${t2("actions")}</th></tr></thead>
+              <tbody>${teachers.map(p => `
+                <tr>
+                  <td data-th="${t2("teacher")}">${esc(nameOf(p))}</td>
+                  <td data-th="${t2("email")}">${esc(p.email || "—")}</td>
+                  <td data-th="${t2("students")}">${new Set((enrollments || []).filter(e => e.teacher_id === p.id).map(e => e.student_id)).size}</td>
+                  <td style="white-space:nowrap;">
+                    <button class="ghost u-reset" data-id="${p.id}" data-name="${esc(nameOf(p))}">${icon("key-round")} ${t2("reset_pw")}</button>
+                    <button class="ghost u-del" data-id="${p.id}" data-name="${esc(nameOf(p))}"
+                            style="color:var(--danger); border-color:var(--danger);">${icon("trash-2")} ${t2("delete_")}</button>
+                  </td>
+                </tr>`).join("")}</tbody>
+            </table>` : `<p class="empty">${t2("no_teachers")}</p>`}
 
-        <div class="card">
-          <h2>Announcements</h2>
-          <div class="form-row">
-            <div class="field"><label>Message</label><input id="an-body" placeholder="e.g. Holiday schedule…" /></div>
-            <div class="field" style="max-width:220px;"><label>Send to</label>
-              <select id="an-course"><option value="">Whole organization</option>${licCourseOptions}</select></div>
-            <button id="an-add">Post</button>
+            <div class="form-row" style="margin-top:1rem;">
+              <div class="field"><label>${t2("assign_title")}</label>
+                <select id="tc-teacher">${teacherOptions || `<option value="">${t2("no_teachers")}</option>`}</select></div>
+              <div class="field"><label>${t2("course")}</label>
+                <select id="tc-course">${licCourseOptions || `<option value="">${t2("no_courses")}</option>`}</select></div>
+              <button id="tc-add">${t2("assign")}</button>
+            </div>
+            ${(tcs || []).length ? `
+            <table class="stackable" style="margin-top:0.75rem;">
+              <thead><tr><th>${t2("teacher")}</th><th>${t2("course")}</th><th></th></tr></thead>
+              <tbody>${(tcs || []).map(t => `
+                <tr>
+                  <td data-th="${t2("teacher")}">${esc(nameOf(pById(t.teacher_id)))}</td>
+                  <td data-th="${t2("course")}">${esc(cTitle(t.course_id))}</td>
+                  <td><button class="ghost tc-remove" data-t="${t.teacher_id}" data-c="${t.course_id}">${t2("remove")}</button></td>
+                </tr>`).join("")}</tbody>
+            </table>` : `<p class="empty" style="margin-top:0.75rem;">${t2("no_assignments")}</p>`}
           </div>
-          <p id="an-msg" class="msg"></p>
-          ${(anns || []).map(a => `
-            <div class="lesson">
-              <span class="icon">📣</span>
-              <div class="meta">
-                <div class="title" style="font-weight:500;">${esc(String(a.body).replace(/<[^>]*>/g, "").slice(0, 140))}</div>
-                <span class="kind">${a.course_id ? esc(cTitle(a.course_id)) : "Whole organization"} ·
-                  ${new Date(a.created_at).toLocaleDateString()}</span>
-              </div>
-              <button class="ghost an-del" data-id="${a.id}"
-                      style="color:var(--danger); border-color:var(--danger);">Delete</button>
-            </div>`).join("")}
+
+          <div class="card">
+            <div class="card-head">
+              <h2>${icon("users", 18)} ${t2("students_access")}</h2>
+              <button class="ghost" id="stu-csv">${icon("download")} ${t2("export_csv")}</button>
+            </div>
+            ${students.length ? `
+            <table class="stackable">
+              <thead><tr><th>${t2("student")}</th><th>${t2("access")}</th><th>${t2("completed")}</th>
+                <th>${t2("study_time")}</th><th>${t2("last_active")}</th><th>${t2("actions")}</th></tr></thead>
+              <tbody>${students.map(s => `
+                <tr>
+                  <td data-th="${t2("student")}">${esc(nameOf(s))}<div class="kind">${esc(s.email || "")}</div></td>
+                  <td data-th="${t2("access")}">${accPill(s)}</td>
+                  <td data-th="${t2("completed")}">${doneBy[s.id] || 0}</td>
+                  <td data-th="${t2("study_time")}">${fmtTime(timeBy[s.id] || 0)}</td>
+                  <td data-th="${t2("last_active")}">${lastBy[s.id] ? new Date(lastBy[s.id]).toLocaleDateString() : t2("never")}</td>
+                  <td style="white-space:nowrap;">
+                    <button class="ghost st-ext" data-id="${s.id}" data-d="30">+30d</button>
+                    <button class="ghost st-ext" data-id="${s.id}" data-d="90">+90d</button>
+                    <button class="ghost st-unlim" data-id="${s.id}">∞</button>
+                    <button class="ghost st-susp" data-id="${s.id}"
+                      ${s.suspended ? "" : 'style="color:var(--danger); border-color:var(--danger);"'}>
+                      ${s.suspended ? t2("reactivate") : t2("suspend")}</button>
+                    <button class="ghost u-reset" data-id="${s.id}" data-name="${esc(nameOf(s))}">${icon("key-round")}</button>
+                    <button class="ghost u-del" data-id="${s.id}" data-name="${esc(nameOf(s))}"
+                            style="color:var(--danger); border-color:var(--danger);">${icon("trash-2")}</button>
+                  </td>
+                </tr>`).join("")}</tbody>
+            </table>` : `<p class="empty">${t2("no_students")}</p>`}
+          </div>
+        </div>
+
+        <div class="tabpane" data-tab="enroll">
+          <div class="card">
+            <div class="card-head">
+              <h2>${icon("book-plus", 18)} ${t2("enroll_title")}</h2>
+              <button class="ghost" id="enr-csv">${icon("download")} ${t2("export_csv")}</button>
+            </div>
+            <div class="form-row">
+              <div class="field"><label>${t2("student")}</label>
+                <select id="en-student">${studentOptions || `<option value="">${t2("no_students")}</option>`}</select></div>
+              <div class="field"><label>${t2("course")}</label>
+                <select id="en-course">${licCourseOptions || `<option value="">${t2("no_courses")}</option>`}</select></div>
+              <div class="field"><label>${t2("their_teacher")}</label>
+                <select id="en-teacher">${teacherOptions || `<option value="">${t2("no_teachers")}</option>`}</select></div>
+              <button id="en-add">${t2("enroll")}</button>
+            </div>
+            ${(enrollments || []).length ? `
+            <table class="stackable" style="margin-top:0.75rem;">
+              <thead><tr><th>${t2("student")}</th><th>${t2("course")}</th><th>${t2("teacher")}</th><th></th></tr></thead>
+              <tbody>${(enrollments || []).map(e => `
+                <tr>
+                  <td data-th="${t2("student")}">${esc(nameOf(pById(e.student_id)))}</td>
+                  <td data-th="${t2("course")}">${esc(cTitle(e.course_id))}</td>
+                  <td data-th="${t2("teacher")}">${esc(nameOf(pById(e.teacher_id)))}</td>
+                  <td><button class="ghost en-remove" data-id="${e.id}">${t2("remove")}</button></td>
+                </tr>`).join("")}</tbody>
+            </table>` : `<p class="empty" style="margin-top:0.75rem;">${t2("no_enrollments")}</p>`}
+          </div>
+        </div>
+
+        <div class="tabpane" data-tab="reports">
+          <div class="card">
+            <div class="card-head"><h2>${icon("bar-chart-3", 18)} ${t2("per_course")}</h2></div>
+            ${courseRows.length ? `
+            <table class="stackable">
+              <thead><tr><th>${t2("course")}</th><th>${t2("students")}</th>
+                <th>${t2("avg_completion")}</th><th>${t2("avg_score")}</th><th>${t2("total_time")}</th></tr></thead>
+              <tbody>${courseRows.map(r => `
+                <tr>
+                  <td data-th="${t2("course")}">${esc(r.title)}</td>
+                  <td data-th="${t2("students")}">${r.enrolled}</td>
+                  <td data-th="${t2("avg_completion")}">
+                    <div class="progress" style="margin:0 0 2px; max-width:140px;"><span style="width:${r.compl}%;"></span></div>${r.compl}%</td>
+                  <td data-th="${t2("avg_score")}">${r.score}</td>
+                  <td data-th="${t2("total_time")}">${fmtTime(r.time)}</td>
+                </tr>`).join("")}</tbody>
+            </table>` : `<p class="empty">${t2("no_data")}</p>`}
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h2>${icon("graduation-cap", 18)} ${t2("per_teacher")}</h2></div>
+            ${teacherRows.length ? `
+            <table class="stackable">
+              <thead><tr><th>${t2("teacher")}</th><th>${t2("students")}</th>
+                <th>${t2("lessons_completed")}</th><th>${t2("total_time")}</th></tr></thead>
+              <tbody>${teacherRows.map(r => `
+                <tr>
+                  <td data-th="${t2("teacher")}">${esc(r.name)}</td>
+                  <td data-th="${t2("students")}">${r.students}</td>
+                  <td data-th="${t2("lessons_completed")}">${r.compl}</td>
+                  <td data-th="${t2("total_time")}">${fmtTime(r.time)}</td>
+                </tr>`).join("")}</tbody>
+            </table>` : `<p class="empty">${t2("no_teachers")}</p>`}
+          </div>
+
+          <div class="card" id="report-pane">
+            <div class="card-head no-print">
+              <h2>${icon("file-text", 18)} ${t2("report_card")}</h2>
+              <select id="rc-student" style="max-width:240px;">
+                <option value="">${t2("select_student")}</option>${studentOptions}</select>
+              <button class="ghost" id="rc-print">${icon("printer")} ${t2("print")}</button>
+            </div>
+            <div id="rc-body"><p class="empty">${t2("select_student")}</p></div>
+          </div>
+        </div>
+
+        <div class="tabpane" data-tab="announce">
+          <div class="card">
+            <div class="card-head"><h2>${icon("megaphone", 18)} ${t2("announcements")}</h2></div>
+            <div class="form-row">
+              <div class="field"><label>${t2("message")}</label><input id="an-body" /></div>
+              <div class="field" style="max-width:220px;"><label>${t2("send_to")}</label>
+                <select id="an-course"><option value="">${t2("whole_org")}</option>${licCourseOptions}</select></div>
+              <button id="an-add">${t2("post")}</button>
+            </div>
+            ${(anns || []).map(a => `
+              <div class="lesson">
+                <span class="icon">${icon("megaphone")}</span>
+                <div class="meta">
+                  <div class="title" style="font-weight:500;">${esc(String(a.body).replace(/<[^>]*>/g, "").slice(0, 140))}</div>
+                  <span class="kind">${a.course_id ? esc(cTitle(a.course_id)) : t2("whole_org")} ·
+                    ${new Date(a.created_at).toLocaleDateString()}</span>
+                </div>
+                <button class="ghost an-del" data-id="${a.id}"
+                        style="color:var(--danger); border-color:var(--danger);">${t2("delete_")}</button>
+              </div>`).join("") || `<p class="empty">${t2("no_announcements")}</p>`}
+          </div>
         </div>
         <footer class="hub-footer">Thong's Learning Hub</footer>`;
 
-      // ---- wiring ----
+      // ---- tabs ----
+      function showTab(k) {
+        tab = k;
+        try { localStorage.setItem("hub_admin_tab", k); } catch (e) {}
+        app.querySelectorAll(".tabpane").forEach(p =>
+          p.classList.toggle("show", p.getAttribute("data-tab") === k));
+        app.querySelectorAll(".tabs button").forEach(b =>
+          b.classList.toggle("active", b.getAttribute("data-tab") === k));
+      }
+      app.querySelectorAll(".tabs button").forEach(b =>
+        b.addEventListener("click", () => showTab(b.getAttribute("data-tab"))));
+      showTab(tab);
+
+      // ---- create account ----
+      const inviteCb = document.getElementById("nu-invite");
+      inviteCb.addEventListener("change", () => {
+        document.getElementById("nu-pass").disabled = inviteCb.checked;
+        document.getElementById("nu-invite-note").style.display = inviteCb.checked ? "block" : "none";
+      });
       document.getElementById("nu-add").addEventListener("click", async () => {
-        const m = document.getElementById("nu-msg");
         const email = document.getElementById("nu-email").value.trim();
         const password = document.getElementById("nu-pass").value;
         const full_name = document.getElementById("nu-name").value.trim() || null;
         const role = document.getElementById("nu-role").value;
-        m.className = "msg";
-        if (!email || password.length < 6) {
-          m.textContent = "Enter an email and a password of at least 6 characters.";
-          m.className = "msg err"; return;
-        }
-        m.textContent = "Creating account…";
+        const invite = inviteCb.checked;
+        if (!email || (!invite && password.length < 6)) { toast(t2("need_email_pw"), "err"); return; }
+        const btn = document.getElementById("nu-add");
+        btn.disabled = true;
         try {
-          await createUser({ action: "create", email, password, full_name, role });
-          m.textContent = "Account created ✓";
-          setTimeout(render, 1000);
-        } catch (err) { m.textContent = "Could not create: " + err.message; m.className = "msg err"; }
+          await callFn({ action: "create", email, password, full_name, role,
+                         invite, redirect: new URL("reset.html", location.href).href });
+          toast(invite ? t2("invited_ok") : t2("created_ok"));
+          rerender(render);
+        } catch (err) { toast(t2("err_create") + err.message, "err"); btn.disabled = false; }
       });
 
+      // ---- teacher-course assignment ----
       document.getElementById("tc-add").addEventListener("click", async () => {
-        const m = document.getElementById("tc-msg");
         const teacher_id = document.getElementById("tc-teacher").value;
         const course_id = document.getElementById("tc-course").value;
-        if (!teacher_id || !course_id) { m.textContent = "Pick a teacher and a course."; m.className = "msg err"; return; }
+        if (!teacher_id || !course_id) { toast(t2("pick_teacher_course"), "err"); return; }
         const { error } = await sb.from("teacher_courses").insert({ teacher_id, course_id, org_id: myOrg });
         if (error) {
-          m.textContent = error.code === "23505"
-            ? "That teacher is already assigned to that course."
-            : "Could not assign: " + error.message;
-          m.className = "msg err"; return;
+          toast(error.code === "23505" ? t2("already_assigned") : t2("err_save") + error.message, "err");
+          return;
         }
-        render();
+        toast(t2("assigned_ok"));
+        rerender(render);
       });
-
       app.querySelectorAll(".tc-remove").forEach(btn => btn.addEventListener("click", async () => {
-        if (!confirm("Remove this assignment? The teacher loses access to the course.")) return;
+        if (!await confirmDialog({ title: t2("remove_asgn_title"), body: t2("remove_asgn_body"),
+                                   okText: t2("remove"), danger: true })) return;
         const { error } = await sb.from("teacher_courses").delete()
           .eq("teacher_id", btn.getAttribute("data-t"))
           .eq("course_id", btn.getAttribute("data-c"));
-        if (error) { alert("Could not remove: " + error.message); return; }
-        render();
+        if (error) { toast(t2("err_delete") + error.message, "err"); return; }
+        toast(t2("removed_ok"));
+        rerender(render);
       }));
 
+      // ---- enrollments ----
       document.getElementById("en-add").addEventListener("click", async () => {
-        const m = document.getElementById("en-msg");
         const student_id = document.getElementById("en-student").value;
         const course_id = document.getElementById("en-course").value;
         const teacher_id = document.getElementById("en-teacher").value || null;
-        if (!student_id || !course_id) { m.textContent = "Pick a student and a course."; m.className = "msg err"; return; }
+        if (!student_id || !course_id) { toast(t2("pick_student_course"), "err"); return; }
         const { error } = await sb.from("enrollments").insert({
           student_id, course_id, teacher_id, org_id: myOrg });
         if (error) {
-          m.textContent = error.code === "23505"
-            ? "That student is already enrolled in that course."
-            : (error.message.includes("seat limit")
-               ? "Seat limit reached — contact the platform owner for more seats."
-               : "Could not enroll: " + error.message);
-          m.className = "msg err"; return;
+          toast(error.code === "23505" ? t2("already_enrolled")
+            : (error.message.includes("seat limit") ? t2("seat_limit") : t2("err_enroll") + error.message), "err");
+          return;
         }
-        render();
+        toast(t2("enrolled_ok"));
+        rerender(render);
       });
-
       app.querySelectorAll(".en-remove").forEach(btn => btn.addEventListener("click", async () => {
-        if (!confirm("Remove this enrollment?")) return;
+        if (!await confirmDialog({ title: t2("remove_enr_title"), body: t2("remove_enr_body"),
+                                   okText: t2("remove"), danger: true })) return;
         const { error } = await sb.from("enrollments").delete().eq("id", btn.getAttribute("data-id"));
-        if (error) { alert("Could not remove: " + error.message); return; }
-        render();
+        if (error) { toast(t2("err_delete") + error.message, "err"); return; }
+        toast(t2("removed_ok"));
+        rerender(render);
       }));
 
-      const stMsg = () => document.getElementById("st-msg");
+      // ---- access management ----
       const patchStudent = async (id, patch, okText) => {
         const { error } = await sb.from("profiles").update(patch).eq("id", id);
-        const m = stMsg();
-        if (m) { m.className = "msg" + (error ? " err" : "");
-                 m.textContent = error ? "Could not save: " + error.message : okText; }
-        if (!error) setTimeout(render, 800);
+        if (error) { toast(t2("err_save") + error.message, "err"); return; }
+        toast(okText);
+        rerender(render);
       };
       app.querySelectorAll(".st-ext").forEach(btn => btn.addEventListener("click", () => {
         const id = btn.getAttribute("data-id"), d = parseInt(btn.getAttribute("data-d"), 10);
         const s = students.find(x => x.id === id);
-        const today = dstr(new Date());
-        const base = (s.access_expires && s.access_expires >= today) ? s.access_expires : null;
+        const today2 = dstr(new Date());
+        const base = (s.access_expires && s.access_expires >= today2) ? s.access_expires : null;
         patchStudent(id, { access_expires: addDaysStr(base, d),
-                           access_start: s.access_start || today, suspended: false },
-                     "Access extended ✓");
+                           access_start: s.access_start || today2, suspended: false }, t2("saved_ok"));
       }));
       app.querySelectorAll(".st-unlim").forEach(btn => btn.addEventListener("click", () => {
         patchStudent(btn.getAttribute("data-id"),
-          { access_start: null, access_expires: null, suspended: false }, "Unlimited access ✓");
+          { access_start: null, access_expires: null, suspended: false }, t2("saved_ok"));
       }));
-      app.querySelectorAll(".st-susp").forEach(btn => btn.addEventListener("click", () => {
+      app.querySelectorAll(".st-susp").forEach(btn => btn.addEventListener("click", async () => {
         const id = btn.getAttribute("data-id");
         const s = students.find(x => x.id === id);
-        if (!s.suspended && !confirm("Suspend this account?")) return;
-        patchStudent(id, { suspended: !s.suspended },
-          s.suspended ? "Account reactivated ✓" : "Account suspended ✓");
+        if (!s.suspended && !await confirmDialog({ title: t2("suspend_title"), body: t2("suspend_body"),
+                                                   okText: t2("suspend"), danger: true })) return;
+        patchStudent(id, { suspended: !s.suspended }, t2("saved_ok"));
       }));
 
+      // ---- reset password / delete user ----
+      app.querySelectorAll(".u-reset").forEach(btn => btn.addEventListener("click", async () => {
+        const pw = await promptDialog({ title: t2("reset_pw") + " — " + btn.getAttribute("data-name"),
+                                        label: t2("new_password"), placeholder: t2("pw_min6") });
+        if (pw === null) return;
+        if (pw.length < 6) { toast(t2("need_email_pw"), "err"); return; }
+        try {
+          await callFn({ action: "reset-password", user_id: btn.getAttribute("data-id"), new_password: pw });
+          toast(t2("reset_pw_ok"));
+        } catch (err) { toast(t2("err_generic") + err.message, "err"); }
+      }));
+      app.querySelectorAll(".u-del").forEach(btn => btn.addEventListener("click", async () => {
+        if (!await confirmDialog({
+          title: t2("del_user_title") + " (" + btn.getAttribute("data-name") + ")",
+          body: t2("del_user_body"), okText: t2("delete_"), danger: true })) return;
+        try {
+          await callFn({ action: "delete", user_id: btn.getAttribute("data-id") });
+          toast(t2("deleted_ok"));
+          rerender(render);
+        } catch (err) { toast(t2("err_delete") + err.message, "err"); }
+      }));
+
+      // ---- announcements ----
       document.getElementById("an-add").addEventListener("click", async () => {
-        const m = document.getElementById("an-msg");
         const body = document.getElementById("an-body").value.trim();
         const course_id = document.getElementById("an-course").value || null;
-        if (!body) { m.textContent = "Write a message first."; m.className = "msg err"; return; }
+        if (!body) { toast(t2("write_message"), "err"); return; }
         const { error } = await sb.from("announcements").insert({
           body, course_id, author_id: user.id, org_id: myOrg });
-        if (error) { m.textContent = "Could not post: " + error.message; m.className = "msg err"; return; }
-        render();
+        if (error) { toast(t2("err_post") + error.message, "err"); return; }
+        toast(t2("posted_ok"));
+        rerender(render);
+      });
+      app.querySelectorAll(".an-del").forEach(btn => btn.addEventListener("click", async () => {
+        if (!await confirmDialog({ title: t2("del_ann_title"), okText: t2("delete_"), danger: true })) return;
+        const { error } = await sb.from("announcements").delete().eq("id", btn.getAttribute("data-id"));
+        if (error) { toast(t2("err_delete") + error.message, "err"); return; }
+        toast(t2("deleted_ok"));
+        rerender(render);
+      }));
+
+      // ---- CSV exports ----
+      document.getElementById("stu-csv")?.addEventListener("click", () =>
+        csv("students.csv", students.map(s => ({
+          name: nameOf(s), email: s.email || "",
+          access_expires: s.access_expires || "unlimited",
+          suspended: s.suspended ? "yes" : "no",
+          lessons_completed: doneBy[s.id] || 0,
+          study_minutes: Math.round((timeBy[s.id] || 0) / 60),
+          last_active: lastBy[s.id] ? new Date(lastBy[s.id]).toLocaleDateString() : ""
+        }))));
+      document.getElementById("enr-csv")?.addEventListener("click", () =>
+        csv("enrollments.csv", (enrollments || []).map(e => ({
+          student: nameOf(pById(e.student_id)), course: cTitle(e.course_id),
+          teacher: nameOf(pById(e.teacher_id)),
+          enrolled: e.created_at ? new Date(e.created_at).toLocaleDateString() : ""
+        }))));
+
+      // ---- printable report card ----
+      function renderReportCard(sid) {
+        const box = document.getElementById("rc-body");
+        const s = students.find(x => x.id === sid);
+        if (!s) { box.innerHTML = `<p class="empty">${t2("select_student")}</p>`; return; }
+        const myEnr = (enrollments || []).filter(e => e.student_id === sid);
+        const rows = myEnr.map(e => {
+          const ls = (lessons || []).filter(x => x.course_id === e.course_id);
+          const done = (prog || []).filter(p => p.student_id === sid && p.status === "completed"
+            && ls.some(x => x.id === p.lesson_id)).length;
+          const pct = ls.length ? Math.round(done / ls.length * 100) : 0;
+          return `<tr>
+            <td>${esc(cTitle(e.course_id))}</td>
+            <td>${done} / ${ls.length}</td>
+            <td><div class="progress" style="margin:0 0 2px; max-width:150px;"><span style="width:${pct}%;"></span></div>${pct}%</td>
+            <td>${bestScoresIn(ls, sid)}</td>
+          </tr>`;
+        }).join("");
+        const mySubs = (subs || []).filter(x => x.student_id === sid);
+        const asgnRows = mySubs.map(x => {
+          const a = (asgns || []).find(y => y.id === x.assignment_id);
+          return `<tr>
+            <td>${esc(a?.title || "—")}</td>
+            <td>${esc(cTitle(a?.course_id))}</td>
+            <td>${x.status === "graded" ? (x.grade ?? "—") + (a?.points ? " / " + a.points : "") : t2("submitted")}</td>
+            <td>${esc(x.feedback || "—")}</td>
+          </tr>`;
+        }).join("");
+        box.innerHTML = `
+          <h1 style="font-size:1.3rem; margin:0.2rem 0 0;">${esc(nameOf(s))}</h1>
+          <p class="kind">${esc(org?.name || "")} · ${t2("generated")}: ${new Date().toLocaleDateString()} ·
+            ${t2("total_time")}: ${fmtTime(timeBy[sid] || 0)} ·
+            ${t2("last_active")}: ${lastBy[sid] ? new Date(lastBy[sid]).toLocaleDateString() : t2("never")}</p>
+          <table>
+            <thead><tr><th>${t2("course")}</th><th>${t2("lessons")}</th>
+              <th>${t2("completion")}</th><th>${t2("avg_score")}</th></tr></thead>
+            <tbody>${rows || `<tr><td colspan="4" class="empty">${t2("no_data")}</td></tr>`}</tbody>
+          </table>
+          ${asgnRows ? `
+          <h2 style="font-size:1rem; margin-top:1rem;">${t2("asgn_grades")}</h2>
+          <table>
+            <thead><tr><th>${t2("title_label")}</th><th>${t2("course")}</th>
+              <th>${t2("grade")}</th><th>${t2("feedback")}</th></tr></thead>
+            <tbody>${asgnRows}</tbody>
+          </table>` : ""}`;
+      }
+      document.getElementById("rc-student").addEventListener("change", e => renderReportCard(e.target.value));
+      document.getElementById("rc-print").addEventListener("click", () => {
+        document.body.classList.add("print-report");
+        window.print();
+        setTimeout(() => document.body.classList.remove("print-report"), 600);
       });
 
-      app.querySelectorAll(".an-del").forEach(btn => btn.addEventListener("click", async () => {
-        if (!confirm("Delete this announcement?")) return;
-        const { error } = await sb.from("announcements").delete().eq("id", btn.getAttribute("data-id"));
-        if (error) { alert("Could not delete: " + error.message); return; }
-        render();
-      }));
+      refreshIcons();
     }
 
     start();

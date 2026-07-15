@@ -10,6 +10,7 @@
   <header class="topbar">
     <span class="brand">Thong's Learning Hub</span>
     <div style="display:flex; align-items:center;">
+      <span id="bell-slot" style="margin-right:0.5rem;"></span>
       <span class="badge" id="who-badge" style="display:none;"></span>
       <span class="who" id="who"></span>
       <button class="ghost" id="lang-btn" style="margin-right:0.5rem;"></button>
@@ -24,6 +25,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="lang.js"></script>
   <script src="config.js"></script>
+  <script src="ui.js"></script>
   <script>
     applyI18n();
     const langBtn = document.getElementById("lang-btn");
@@ -147,6 +149,8 @@
         ? `<img src="${esc(profile.avatar_url)}" alt="" />`
         : esc(String(name).charAt(0).toUpperCase());
 
+      if (window.UI && UI.initBell) UI.initBell(document.getElementById("bell-slot"));
+
       if (profile?.role === "owner") renderAdmin();
       else if (profile?.role === "admin") { window.location.href = "admin.html"; return; }
       else if (profile?.role === "teacher") { window.location.href = "teacher.html"; return; }
@@ -155,6 +159,8 @@
 
     // ---------- STUDENT VIEW ----------
     async function renderStudent() {
+      const __scrollY = window.scrollY;
+      const T2c = window.UI ? UI.t2 : (k => k);
       // RLS already filters these to: my courses, their lessons,
       // plus any lesson that has no course.
       const { data: courses } = await sb
@@ -165,11 +171,19 @@
         .from("progress").select("lesson_id, status, updated_at").eq("student_id", user.id);
       const { data: myActs } = await sb
         .from("lesson_activity")
-        .select("lesson_id, kind, key, value, updated_at")
+        .select("lesson_id, kind, key, value, max_value, updated_at")
         .eq("student_id", user.id);
       const { data: anns } = await sb
         .from("announcements").select("*")
         .order("created_at", { ascending: false }).limit(10);
+      const { data: myAsgns } = await sb
+        .from("assignments").select("*").order("due_on", { ascending: true, nullsFirst: false });
+      const { data: mySubs } = await sb
+        .from("submissions").select("*").eq("student_id", user.id);
+      const { data: mySessions } = await sb
+        .from("sessions").select("*").order("starts_at", { ascending: true });
+      const { data: myMats } = await sb
+        .from("teacher_materials").select("*").order("created_at", { ascending: false });
 
       const done = new Set((mine || []).filter(p => p.status === "completed").map(p => p.lesson_id));
 
@@ -262,7 +276,8 @@
             ${badgeRow}
             ${c.description ? `<p style="color:var(--muted); font-size:0.88rem; margin:0 0 0.5rem;">${esc(c.description)}</p>` : ""}
             <div class="roadmap">${rows || `<p class="empty">${t("no_lessons_course")}</p>`}</div>
-            ${complete ? `<div class="congrats">🎉 <span>${esc(c.title)}${t("congrats")}</span></div>` : ""}
+            ${complete ? `<div class="congrats">🎉 <span style="flex:1;">${esc(c.title)}${t("congrats")}</span>
+              <button class="ghost cert-btn" data-course="${esc(c.title)}" style="flex:none;">🎓 ${T2c("cert_get")}</button></div>` : ""}
           </div>`;
       };
 
@@ -447,7 +462,7 @@
       const hubFooter = `<footer class="hub-footer">Designed by Thầy Lê Quốc Thông · 📞 Zalo: 0961 923 983</footer>`;
 
       const { data: me } = await sb
-        .from("profiles").select("full_name, bio, avatar_url, access_expires").eq("id", user.id).single();
+        .from("profiles").select("full_name, bio, avatar_url, access_expires, org_id").eq("id", user.id).single();
 
       // Subscription visibility: quiet line normally, warning when close.
       let accessNote = "";
@@ -491,17 +506,127 @@
           </div>
         </div>`;
 
+      const T2 = window.UI ? UI.t2 : (k => k);
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const asgnCard = (myAsgns || []).length ? `
+        <div class="card" id="asgn-card" style="border-top:4px solid var(--accent);">
+          <h2>📝 ${T2("asgn")}</h2>
+          ${(myAsgns || []).map(a => {
+            const sub = (mySubs || []).find(s => s.assignment_id === a.id);
+            const late = a.due_on && a.due_on < todayStr && !sub;
+            const pill = sub
+              ? (sub.status === "graded"
+                 ? `<span class="pill done">${T2("graded")}${sub.grade != null ? ": " + sub.grade + (a.points ? "/" + a.points : "") : ""}</span>`
+                 : `<span class="pill todo">${T2("submitted")}</span>`)
+              : (late ? `<span class="pill bad">${T2("overdue")}</span>`
+                      : `<span class="pill todo">${T2("not_submitted")}</span>`);
+            return `
+            <div class="lesson" style="flex-wrap:wrap;">
+              <div class="meta">
+                <div class="title">${esc(a.title)}</div>
+                <span class="kind">${esc((courses || []).find(c => c.id === a.course_id)?.title || "")}${a.due_on ? " · " + T2("due") + " " + esc(a.due_on) : ""}${a.points ? " · " + a.points + " pt" : ""}</span>
+                ${a.instructions ? `<div style="font-size:0.88rem; white-space:pre-wrap; margin-top:0.25rem;">${esc(a.instructions)}</div>` : ""}
+              </div>
+              ${pill}
+              ${sub?.status === "graded"
+                ? (sub.feedback ? `<div style="flex-basis:100%; font-size:0.88rem; color:var(--muted);">💬 ${esc(sub.feedback)}</div>` : "")
+                : `<div style="flex-basis:100%;">
+                     <textarea class="as-body" data-id="${a.id}" placeholder="${esc(T2("your_answer"))}" style="min-height:72px;">${esc(sub?.body || "")}</textarea>
+                     <div style="display:flex; gap:0.6rem; align-items:center; margin-top:0.4rem; flex-wrap:wrap;">
+                       <button class="as-submit" data-id="${a.id}">${sub ? T2("edit_answer") : T2("submit_answer")}</button>
+                       <span class="kind">${T2("editable_note")}</span>
+                     </div>
+                   </div>`}
+            </div>`;
+          }).join("")}
+        </div>` : "";
+
+      const discCard = (courses || []).length ? `
+        <div class="card" id="disc-card" style="border-top:4px solid var(--gold);">
+          <h2>💬 ${T2("disc")}
+            <select id="dc-course" style="float:right; width:auto; max-width:220px; font-size:0.85rem; padding:0.35rem 0.5rem;">
+              ${(courses || []).map(c => `<option value="${c.id}">${esc(c.title)}</option>`).join("")}
+            </select></h2>
+          <div id="dc-body"></div>
+        </div>` : "";
+
+      // upcoming class sessions (next hour onwards, max 5)
+      const upSess = (mySessions || []).filter(s =>
+        new Date(s.starts_at).getTime() >= Date.now() - 3600e3).slice(0, 5);
+      const schedCard = upSess.length ? `
+        <div class="card" style="border-top:4px solid var(--accent);">
+          <h2>🗓️ ${T2c("upcoming")}</h2>
+          ${upSess.map(s => `
+            <div class="lesson">
+              <div class="meta">
+                <div class="title">${esc(s.title)}</div>
+                <span class="kind">${new Date(s.starts_at).toLocaleString()} · ${s.duration_min || 60} min${
+                  s.course_id ? " · " + esc((courses || []).find(c => c.id === s.course_id)?.title || "") : ""}${
+                  s.notes ? " · " + esc(s.notes) : ""}</span>
+              </div>
+              ${s.location ? (/^https?:\/\//.test(s.location)
+                ? `<a class="btn ghost" href="${esc(s.location)}" target="_blank" rel="noopener" style="text-decoration:none;">${T2c("join")}</a>`
+                : `<span class="pill done">${esc(s.location)}</span>`) : ""}
+            </div>`).join("")}
+        </div>` : "";
+
+      // teacher materials, grouped by course
+      const matsCard = (myMats || []).length ? `
+        <div class="card" style="border-top:4px solid var(--gold);">
+          <h2>📎 ${T2c("materials_student")}</h2>
+          ${(myMats || []).map(m => `
+            <div class="lesson">
+              <span class="icon">${m.storage_path ? "📎" : "🔗"}</span>
+              <div class="meta">
+                <div class="title">${esc(m.title)}</div>
+                <span class="kind">${esc((courses || []).find(c => c.id === m.course_id)?.title || "")}</span>
+              </div>
+              <button class="ghost mat-open" data-id="${m.id}">${T2c("open_btn")}</button>
+            </div>`).join("")}
+        </div>` : "";
+
+      // suggested review: lessons whose best quiz score is under 70%
+      const bestScore = {};
+      (myActs || []).forEach(r => {
+        if (r.kind === "activity" && r.key !== "opened" && Number(r.max_value) > 1) {
+          const ratio = (Number(r.value) || 0) / Number(r.max_value);
+          if (!(r.lesson_id in bestScore) || ratio > bestScore[r.lesson_id])
+            bestScore[r.lesson_id] = ratio;
+        }
+      });
+      const reviewList = Object.entries(bestScore)
+        .filter(([lid, rt]) => rt < 0.7 && findL(lid))
+        .sort((a, b) => a[1] - b[1]).slice(0, 3);
+      const reviewCard = reviewList.length ? `
+        <div class="card" style="border-top:4px solid var(--gold);">
+          <h2>💡 ${T2c("review_title")}</h2>
+          <p class="kind" style="margin:0 0 0.4rem;">${T2c("review_hint")}</p>
+          ${reviewList.map(([lid, rt]) => `
+            <div class="lesson">
+              <div class="meta">
+                <div class="title">${esc(findL(lid).title)}</div>
+                <span class="kind">${Math.round(rt * 100)}%</span>
+              </div>
+              <button class="ghost rev-open" data-id="${lid}">${T2c("review_go")}</button>
+            </div>`).join("")}
+        </div>` : "";
+
       app.innerHTML = `
         <p class="eyebrow">${t("my_lessons")}</p>
         <h1>${t("welcome")}${me?.full_name ? ", " + esc(me.full_name) : ""}</h1>
         ${accessNote}
         ${heroCard}
+        ${schedCard}
         ${statsCard}
         <div class="search-wrap">
           <input id="hub-search" placeholder="${esc(t("search_ph"))}" autocomplete="off" />
           <div id="search-results" class="search-results" style="display:none;"></div>
         </div>
         ${annCard}
+        ${asgnCard}
+        ${discCard}
+        ${matsCard}
+        ${reviewCard}
         ${chipRow}
         ${catSections || `<div class="card"><p class="empty">${t("not_enrolled")}</p></div>`}
         ${looseCard}
@@ -540,6 +665,171 @@
         if (error) { m.textContent = t("err_save") + error.message; m.className = "msg err"; return; }
         renderStudent();
       });
+
+      // --- assignment submissions ---
+      app.querySelectorAll(".as-submit").forEach(btn => btn.addEventListener("click", async () => {
+        const aid = btn.getAttribute("data-id");
+        const body = app.querySelector(`.as-body[data-id="${aid}"]`).value.trim();
+        const T = window.UI ? UI.t2 : (k => k);
+        if (!body) {
+          if (window.UI) UI.toast(T("write_answer"), "err"); else alert(T("write_answer"));
+          return;
+        }
+        btn.disabled = true;
+        const { error } = await sb.from("submissions").upsert({
+          assignment_id: aid, student_id: user.id, body,
+          status: "submitted", submitted_at: new Date().toISOString()
+        }, { onConflict: "assignment_id,student_id" });
+        btn.disabled = false;
+        if (error) {
+          if (window.UI) UI.toast(T("err_save") + error.message, "err");
+          else alert(T("err_save") + error.message);
+          return;
+        }
+        if (window.UI) UI.toast(T("answer_saved"));
+        renderStudent();
+      }));
+
+      // --- teacher materials (signed links) ---
+      app.querySelectorAll(".mat-open").forEach(btn => btn.addEventListener("click", async () => {
+        const m = (myMats || []).find(x => x.id === btn.getAttribute("data-id"));
+        if (!m) return;
+        if (m.storage_path) {
+          btn.disabled = true;
+          const { data, error } = await sb.storage.from("teacher-materials")
+            .createSignedUrl(m.storage_path, 3600);
+          btn.disabled = false;
+          if (error) { alert(t("file_open_fail") + error.message); return; }
+          window.open(data.signedUrl, "_blank", "noopener");
+        } else if (m.url) window.open(m.url, "_blank", "noopener");
+      }));
+
+      // --- course completion certificates ---
+      app.querySelectorAll(".cert-btn").forEach(btn => btn.addEventListener("click", () => {
+        const courseTitle = btn.getAttribute("data-course");
+        const studentName = me?.full_name || user.email;
+        const old = document.querySelector(".cert-overlay");
+        if (old) old.remove();
+        const ov = document.createElement("div");
+        ov.className = "cert-overlay";
+        ov.innerHTML = `
+          <div style="max-width:680px; width:100%;">
+            <div class="cert">
+              <div class="c-eyebrow">Thong's Learning Hub</div>
+              <h1>${T2c("cert_title")}</h1>
+              <p style="margin:0;">${T2c("cert_awarded")}</p>
+              <div class="c-name">${esc(studentName)}</div>
+              <p style="margin:0.3rem 0 0;">${T2c("cert_completed")}</p>
+              <div class="c-course">${esc(courseTitle)}</div>
+              <div class="c-foot">
+                <span>${T2c("cert_date")}: ${new Date().toLocaleDateString()}</span>
+                <span>Thầy Lê Quốc Thông · Master of TESOL</span>
+              </div>
+            </div>
+            <div class="no-print" style="margin-top:0.8rem; display:flex; gap:0.6rem; justify-content:center;">
+              <button id="cert-print">🖨 ${T2c("print")}</button>
+              <button class="ghost" id="cert-close" style="background:#fff;">${T2c("close")}</button>
+            </div>
+          </div>`;
+        document.body.appendChild(ov);
+        ov.addEventListener("click", e => { if (e.target === ov) ov.remove(); });
+        document.getElementById("cert-print").addEventListener("click", () => {
+          document.body.classList.add("print-cert");
+          window.print();
+          setTimeout(() => document.body.classList.remove("print-cert"), 600);
+        });
+        document.getElementById("cert-close").addEventListener("click", () => ov.remove());
+      }));
+
+      // --- course discussions ---
+      (function () {
+        const sel = document.getElementById("dc-course");
+        if (!sel) return;
+        const T = window.UI ? UI.t2 : (k => k);
+        const myName2 = me?.full_name || user.email;
+        if (window.__dcC && [...sel.options].some(o => o.value === window.__dcC)) sel.value = window.__dcC;
+
+        async function renderDisc() {
+          const box = document.getElementById("dc-body");
+          if (!box) return;
+          const cid = sel.value;
+          window.__dcC = cid;
+
+          if (!window.__dcT) {
+            const [{ data: threads }, { data: pc }] = await Promise.all([
+              sb.from("discussion_threads").select("*").eq("course_id", cid)
+                .order("pinned", { ascending: false }).order("created_at", { ascending: false }),
+              sb.from("discussion_posts").select("id, thread_id")
+            ]);
+            const nP = id => (pc || []).filter(p => p.thread_id === id).length;
+            box.innerHTML = `
+              <div class="form-row" style="margin-bottom:0.8rem;">
+                <div class="field"><input id="dq-title" placeholder="${esc(T("question_ph"))}" /></div>
+                <div class="field"><input id="dq-body" placeholder="${esc(T("first_msg"))}" /></div>
+                <button id="dq-ask">${T("ask")}</button>
+              </div>
+              ${(threads || []).map(th => `
+                <div class="lesson thread-row" data-id="${th.id}" style="cursor:pointer;">
+                  <span class="icon">${th.pinned ? "📌" : "💬"}</span>
+                  <div class="meta">
+                    <div class="title">${esc(th.title)}</div>
+                    <span class="kind">${esc(th.author_name || "—")} · ${new Date(th.created_at).toLocaleDateString()} ·
+                      ${nP(th.id)} ${T("replies")}${th.locked ? " · 🔒" : ""}</span>
+                  </div>
+                </div>`).join("") || `<p class="empty">${T("no_threads")}</p>`}`;
+            box.querySelectorAll(".thread-row").forEach(r => r.addEventListener("click", () => {
+              window.__dcT = r.getAttribute("data-id"); renderDisc();
+            }));
+            document.getElementById("dq-ask").addEventListener("click", async () => {
+              const title = document.getElementById("dq-title").value.trim();
+              const bodyTxt = document.getElementById("dq-body").value.trim();
+              if (!title || !bodyTxt) { if (window.UI) UI.toast(T("need_q"), "err"); return; }
+              const { data: th, error } = await sb.from("discussion_threads").insert({
+                course_id: cid, org_id: me?.org_id || null, author_id: user.id,
+                author_name: myName2, title }).select().single();
+              if (error) { if (window.UI) UI.toast(T("err_post") + error.message, "err"); return; }
+              await sb.from("discussion_posts").insert({
+                thread_id: th.id, author_id: user.id, author_name: myName2, body: bodyTxt });
+              if (window.UI) UI.toast(T("q_posted"));
+              renderDisc();
+            });
+          } else {
+            const [{ data: th }, { data: posts }] = await Promise.all([
+              sb.from("discussion_threads").select("*").eq("id", window.__dcT).single(),
+              sb.from("discussion_posts").select("*").eq("thread_id", window.__dcT).order("created_at")
+            ]);
+            if (!th) { window.__dcT = null; renderDisc(); return; }
+            box.innerHTML = `
+              <button class="ghost" id="dc-back" style="margin-bottom:0.7rem;">${T("back_list")}</button>
+              <div style="font-weight:700; margin-bottom:0.5rem;">${th.pinned ? "📌 " : ""}${esc(th.title)}</div>
+              ${(posts || []).map(p => `
+                <div class="post">
+                  <span class="kind">${esc(p.author_name || "—")} · ${new Date(p.created_at).toLocaleString()}</span>
+                  <p>${esc(p.body)}</p>
+                </div>`).join("")}
+              ${th.locked ? `<p class="kind">🔒 ${T("locked_note")}</p>` : `
+                <div class="form-row" style="margin-top:0.6rem;">
+                  <div class="field"><textarea id="dr-body" placeholder="${esc(T("reply_ph"))}" style="min-height:64px;"></textarea></div>
+                  <button id="dr-send">${T("reply")}</button>
+                </div>`}`;
+            document.getElementById("dc-back").addEventListener("click", () => {
+              window.__dcT = null; renderDisc();
+            });
+            const send = document.getElementById("dr-send");
+            if (send) send.addEventListener("click", async () => {
+              const bodyTxt = document.getElementById("dr-body").value.trim();
+              if (!bodyTxt) return;
+              const { error } = await sb.from("discussion_posts").insert({
+                thread_id: th.id, author_id: user.id, author_name: myName2, body: bodyTxt });
+              if (error) { if (window.UI) UI.toast(T("err_post") + error.message, "err"); return; }
+              if (window.UI) UI.toast(T("reply_posted"));
+              renderDisc();
+            });
+          }
+        }
+        sel.addEventListener("change", () => { window.__dcT = null; renderDisc(); });
+        renderDisc();
+      })();
 
       wireFileButtons(app);
 
@@ -595,6 +885,11 @@
             });
         } else window.open(withLms(l), "_blank", "noopener");
       };
+      app.querySelectorAll(".rev-open").forEach(btn => btn.addEventListener("click", () => {
+        const l = findL(btn.getAttribute("data-id"));
+        if (l) openLesson(l);
+      }));
+
       const contBtn = document.getElementById("cont-open");
       if (contBtn && contLesson) contBtn.addEventListener("click", () => openLesson(contLesson));
 
@@ -667,10 +962,12 @@
           renderStudent();
         });
       });
+      window.scrollTo(0, __scrollY);
     }
 
     // ---------- ADMIN VIEW ----------
     async function renderAdmin() {
+      const __scrollY = window.scrollY;
       const { data: lessons } = await sb
         .from("lessons").select("*").order("sort_order").order("created_at");
 
@@ -701,6 +998,9 @@
 
       const { data: orgs } = await sb
         .from("organizations").select("id, name, kind").order("name");
+
+      const { data: allLics } = await sb
+        .from("course_licenses").select("org_id, course_id, seats, expires_on");
 
       const { data: events } = await sb
         .from("access_events")
@@ -796,9 +1096,22 @@
         </tr>`).join("");
 
 
+      const __today = new Date(); __today.setHours(0, 0, 0, 0);
+      const __expSoon = (allLics || []).filter(l => {
+        if (!l.expires_on) return false;
+        const d = Math.round((new Date(l.expires_on) - __today) / 86400000);
+        return d >= 0 && d <= 30;
+      });
+      const __orgName = id => (orgs || []).find(o => o.id === id)?.name || "?";
+      const __attention = __expSoon.length ? `
+        <div class="attention">⚠️ <b>Licenses expiring within 30 days:</b>
+          ${__expSoon.map(l => `${esc(__orgName(l.org_id))} — ${esc(courseName(l.course_id) || "?")} (${esc(l.expires_on)})`).join(" · ")}
+        </div>` : "";
+
       app.innerHTML = `
         <p class="eyebrow">Admin</p>
         <h1>Center overview</h1>
+        ${__attention}
 
         <div class="tabs">
           <button data-tab="lessons">Lessons (${(lessons || []).length})</button>
@@ -941,11 +1254,15 @@
               <select id="nu-org">${(orgs || []).map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join("") || `<option value="">— create an organization first —</option>`}</select></div>
             <button id="nu-add">Create account</button>
           </div>
+          <label style="font-size:0.85rem; color:var(--muted); cursor:pointer; display:block; margin-top:0.5rem;">
+            <input type="checkbox" id="nu-invite" /> Email an invitation instead (they choose their own password)
+          </label>
           <p id="nu-msg" class="msg"></p>
         </div>
         <div class="stat-grid" id="stu-summary"></div>
         <div class="card">
-          <h2>Students <span id="stu-count" class="kind"></span></h2>
+          <h2>Students <span id="stu-count" class="kind"></span>
+            <button class="ghost" id="stu-csv" style="float:right; font-size:0.82rem;">⬇ Export CSV</button></h2>
           <div class="form-row" style="margin-bottom:0.7rem;">
             <div class="field"><label>Search</label>
               <input id="sf-q" placeholder="Name, email or course…" autocomplete="off" /></div>
@@ -1466,8 +1783,9 @@
         const full_name = document.getElementById("nu-name").value.trim() || null;
         const role = document.getElementById("nu-role").value;
         const org_id = document.getElementById("nu-org").value;
+        const invite = document.getElementById("nu-invite").checked;
         m.className = "msg";
-        if (!email || password.length < 6) {
+        if (!email || (!invite && password.length < 6)) {
           m.textContent = "Enter an email and a password of at least 6 characters.";
           m.className = "msg err"; return;
         }
@@ -1480,7 +1798,8 @@
             headers: { "Content-Type": "application/json",
                        Authorization: "Bearer " + session.access_token,
                    apikey: SUPABASE_ANON_KEY },
-            body: JSON.stringify({ action: "create", email, password, full_name, role, org_id })
+            body: JSON.stringify({ action: "create", email, password, full_name, role, org_id,
+                                   invite, redirect: new URL("reset.html", location.href).href })
           });
           const out = await res.json();
           if (!res.ok) throw new Error(out.error || "Request failed");
@@ -2126,6 +2445,15 @@
           sf[k] = el.value; saveSf(); renderStudentTable();
         }));
       renderStudentTable();
+      document.getElementById("stu-csv")?.addEventListener("click", () => {
+        if (!window.UI) return;
+        UI.csv("students.csv", (students || []).map(s => ({
+          name: s.full_name || "", email: s.email || "", role: s.role,
+          access_start: s.access_start || "", access_expires: s.access_expires || "",
+          suspended: s.suspended ? "yes" : "no",
+          courses: coursesOf(s.id).join("; ")
+        })));
+      });
       // =============== END STUDENT MANAGEMENT ENGINE ===============
 
       lfCourse.addEventListener("change", () => { lf.course = lfCourse.value; saveLf(); renderLessonList(); });
@@ -2134,7 +2462,7 @@
       renderLessonList();
 
       wireFileButtons(app);
-
+      window.scrollTo(0, __scrollY);
     }
 
     start();

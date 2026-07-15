@@ -8,28 +8,36 @@
 </head>
 <body>
   <header class="topbar">
-    <span class="brand">Thong's Learning Hub · Teacher</span>
-    <div style="display:flex; align-items:center;">
+    <span class="brand">Thong's Learning Hub</span>
+    <div style="display:flex; align-items:center; gap:0.4rem;">
+      <span id="bell-slot"></span>
+      <button class="ghost" id="lang-btn"></button>
       <span class="who" id="who"></span>
-      <button class="ghost" id="signout">Sign out</button>
+      <button class="ghost" id="signout"></button>
     </div>
   </header>
 
-  <main class="container" id="app">
-    <p class="empty">Loading…</p>
-  </main>
+  <main class="container" id="app"></main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="config.js"></script>
+  <script src="ui.js"></script>
   <script>
+    const { t2, toast, confirmDialog, promptDialog, skeleton, csv, icon,
+            refreshIcons, wireLangButton, rerender } = window.UI;
     const app = document.getElementById("app");
     const who = document.getElementById("who");
-    let user = null, myOrg = null;
+    let user = null, myOrg = null, myName = "";
+    let tab = localStorage.getItem("hub_teacher_tab") || "overview";
+    let dcCourse = null, dcThread = null;   // discussions state
 
+    document.getElementById("signout").textContent = t2("sign_out");
     document.getElementById("signout").addEventListener("click", async () => {
       await sb.auth.signOut();
       window.location.href = "index.html";
     });
+    wireLangButton(document.getElementById("lang-btn"));
 
     function esc(s) {
       return String(s ?? "").replace(/[&<>"']/g, c =>
@@ -38,7 +46,7 @@
     const fmtTime = s => !s ? "—" : (s < 60 ? "<1 min" : Math.round(s / 60) + " min");
     const nameOf = p => p?.full_name || p?.email || "—";
 
-    async function createUser(payload) {
+    async function callFn(payload) {
       const { data: { session } } = await sb.auth.getSession();
       const res = await fetch(SUPABASE_URL + "/functions/v1/manage-user", {
         method: "POST",
@@ -48,11 +56,12 @@
         body: JSON.stringify(payload)
       });
       const out = await res.json();
-      if (!res.ok) throw new Error(out.error || "Request failed");
+      if (!res.ok || out.error) throw new Error(out.error || "Request failed");
       return out;
     }
 
     async function start() {
+      app.innerHTML = skeleton(3);
       const { data: { session } } = await sb.auth.getSession();
       if (!session) { window.location.href = "index.html"; return; }
       user = session.user;
@@ -60,16 +69,19 @@
         .select("full_name, role, org_id").eq("id", user.id).single();
       if (me?.role !== "teacher") { window.location.href = "dashboard.html"; return; }
       myOrg = me.org_id;
-      who.textContent = me.full_name || user.email;
+      myName = me.full_name || user.email;
+      who.textContent = myName;
+      window.UI.initBell(document.getElementById("bell-slot"));
       render();
     }
 
     async function render() {
-      // Everything below is already filtered by the database (RLS):
-      // a teacher only ever receives their own courses and students.
+      // RLS filters everything to this teacher's own courses/students.
       const [{ data: courses }, { data: lessons }, { data: enrollments },
              { data: students }, { data: prog }, { data: activity },
-             { data: licenses }, { data: anns }] = await Promise.all([
+             { data: licenses }, { data: anns },
+             { data: asgns }, { data: subs },
+             { data: sess }, { data: mats }] = await Promise.all([
         sb.from("courses").select("*").order("sort_order").order("created_at"),
         sb.from("lessons").select("id, title, course_id, kind").order("sort_order"),
         sb.from("enrollments").select("id, student_id, course_id, created_at")
@@ -80,29 +92,32 @@
         sb.from("lesson_activity").select("student_id, lesson_id, kind, key, value, max_value, updated_at"),
         sb.from("course_licenses").select("course_id, seats, expires_on"),
         sb.from("announcements").select("*").eq("author_id", user.id)
+          .order("created_at", { ascending: false }),
+        sb.from("assignments").select("*").eq("teacher_id", user.id)
+          .order("created_at", { ascending: false }),
+        sb.from("submissions").select("*"),
+        sb.from("sessions").select("*").eq("teacher_id", user.id)
+          .order("starts_at", { ascending: true }),
+        sb.from("teacher_materials").select("*").eq("teacher_id", user.id)
           .order("created_at", { ascending: false })
       ]);
 
       const cTitle = id => (courses || []).find(c => c.id === id)?.title || "—";
-      const lById = id => (lessons || []).find(l => l.id === id);
       const sById = id => (students || []).find(s => s.id === id);
       const seatUse = cid => (enrollments || []).filter(e => e.course_id === cid).length;
       const licOf = cid => (licenses || []).find(l => l.course_id === cid);
 
-      // time per student
-      const timeBy = {};
+      const timeBy = {}, doneBy = {}, lastBy = {};
       (activity || []).forEach(a => {
         if (a.kind === "time" && a.key === "total")
           timeBy[a.student_id] = (timeBy[a.student_id] || 0) + (Number(a.value) || 0);
+        if (a.updated_at && (!lastBy[a.student_id] || a.updated_at > lastBy[a.student_id]))
+          lastBy[a.student_id] = a.updated_at;
       });
-      const doneBy = {};
       (prog || []).forEach(p => {
         if (p.status === "completed") doneBy[p.student_id] = (doneBy[p.student_id] || 0) + 1;
-      });
-      const lastBy = {};
-      [...(prog || []), ...(activity || [])].forEach(r => {
-        if (r.updated_at && (!lastBy[r.student_id] || r.updated_at > lastBy[r.student_id]))
-          lastBy[r.student_id] = r.updated_at;
+        if (p.updated_at && (!lastBy[p.student_id] || p.updated_at > lastBy[p.student_id]))
+          lastBy[p.student_id] = p.updated_at;
       });
 
       const myStudents = (students || []).filter(s =>
@@ -112,20 +127,44 @@
       const studentOptions = (students || []).map(s =>
         `<option value="${s.id}">${esc(nameOf(s))}</option>`).join("");
 
+      // ---- attention banner: expiring licenses / full seats ----
+      const today = new Date(); today.setHours(0,0,0,0);
+      const expSoon = (licenses || []).filter(l => {
+        if (!l.expires_on) return false;
+        const d = Math.round((new Date(l.expires_on) - today) / 86400000);
+        return d >= 0 && d <= 30;
+      });
+      const seatWarn = (licenses || []).filter(l =>
+        l.seats && seatUse(l.course_id) >= l.seats * 0.8);
+      const attention = (expSoon.length || seatWarn.length) ? `
+        <div class="attention">${icon("alert-triangle")} <b>${t2("needs_attention")}</b>
+          <ul>
+            ${expSoon.map(l => `<li>${esc(cTitle(l.course_id))} — ${t2("license_until")} ${esc(l.expires_on)} (${t2("expiring_soon")})</li>`).join("")}
+            ${seatWarn.map(l => `<li>${esc(cTitle(l.course_id))} — ${seatUse(l.course_id)}/${l.seats} ${t2("seats_used")}</li>`).join("")}
+          </ul>
+        </div>` : "";
+
       const stat = (k, v, sub) =>
         `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div>${sub ? `<div class="sub">${sub}</div>` : ""}</div>`;
 
+      const seatBar = lic => {
+        if (!lic?.seats) return "";
+        const used = seatUse(lic.course_id), pct = Math.min(100, Math.round(used / lic.seats * 100));
+        const cls = pct >= 100 ? "full" : (pct >= 80 ? "warn" : "");
+        return `<div class="seatbar ${cls}"><span style="width:${pct}%;"></span></div>`;
+      };
+
       const courseCards = (courses || []).map(c => {
         const lic = licOf(c.id);
-        const used = seatUse(c.id);
         return `
         <div class="lesson">
           <span style="width:14px;height:14px;border-radius:50%;background:${esc(c.color || "#1e4f8f")};flex:none;"></span>
           <div class="meta">
             <div class="title">${esc(c.title)}</div>
-            <span class="kind">${(lessons || []).filter(l => l.course_id === c.id).length} lessons ·
-              ${used}${lic?.seats ? " / " + lic.seats : ""} students enrolled${
-              lic?.expires_on ? " · license until " + esc(lic.expires_on) : ""}</span>
+            <span class="kind">${(lessons || []).filter(l => l.course_id === c.id).length} ${t2("lessons")} ·
+              ${seatUse(c.id)}${lic?.seats ? " / " + lic.seats : ""} ${t2("students").toLowerCase()}${
+              lic?.expires_on ? " · " + t2("license_until") + " " + esc(lic.expires_on) : ""}</span>
+            ${seatBar(lic)}
           </div>
         </div>`;
       }).join("");
@@ -137,194 +176,728 @@
                    status: p?.status || "not_started", date: p?.updated_at };
         }));
 
+      // per (student, lesson) engagement: study time + best quiz score
+      const aggT = {}, aggS = {};
+      (activity || []).forEach(a => {
+        const k = a.student_id + "|" + a.lesson_id;
+        if (a.kind === "time" && a.key === "total") aggT[k] = Number(a.value) || 0;
+        if (a.kind === "activity" && a.key !== "opened" && Number(a.max_value) > 1) {
+          const r = (Number(a.value) || 0) / Number(a.max_value);
+          if (!(k in aggS) || r > aggS[k]) aggS[k] = r;
+        }
+      });
+
+      // ---- per-student drill-down (printable) ----
+      const studentDetailHtml = s => {
+        const myEnr = (enrollments || []).filter(e => e.student_id === s.id);
+        const courseBlocks = myEnr.map(e => {
+          const ls = (lessons || []).filter(l => l.course_id === e.course_id);
+          const rows = ls.map(l => {
+            const k = s.id + "|" + l.id;
+            const p = (prog || []).find(x => x.student_id === s.id && x.lesson_id === l.id);
+            return `<tr><td>${esc(l.title)}</td>
+              <td>${p?.status === "completed"
+                ? `<span class="pill done">${t2("completed").toLowerCase()}</span>`
+                : `<span class="kind">${t2(p ? "in_progress" : "not_started")}</span>`}</td>
+              <td>${fmtTime(aggT[k] || 0)}</td>
+              <td>${k in aggS ? Math.round(aggS[k] * 100) + "%" : "—"}</td></tr>`;
+          }).join("");
+          const done = ls.filter(l => (prog || []).some(p =>
+            p.student_id === s.id && p.lesson_id === l.id && p.status === "completed")).length;
+          const pct = ls.length ? Math.round(done / ls.length * 100) : 0;
+          return `
+            <h2 style="font-size:0.98rem; margin:0.8rem 0 0.25rem;">${esc(cTitle(e.course_id))}
+              <span class="kind">${done}/${ls.length} · ${pct}%</span></h2>
+            <div class="progress" style="max-width:220px; margin:0 0 0.5rem;"><span style="width:${pct}%;"></span></div>
+            <table><thead><tr><th>${t2("lessons")}</th><th></th><th>${t2("time")}</th><th>${t2("score")}</th></tr></thead>
+              <tbody>${rows}</tbody></table>`;
+        }).join("");
+        const mySb = (subs || []).filter(x => x.student_id === s.id);
+        const aRows = mySb.map(x => {
+          const a = (asgns || []).find(y => y.id === x.assignment_id);
+          return `<tr><td>${esc(a?.title || "—")}</td>
+            <td>${x.status === "graded" ? (x.grade ?? "—") + (a?.points ? " / " + a.points : "") : t2("submitted")}</td>
+            <td>${esc(x.feedback || "—")}</td></tr>`;
+        }).join("");
+        return `
+          <div style="display:flex; align-items:center; gap:0.7rem; flex-wrap:wrap;">
+            <b>${esc(nameOf(s))}</b><span class="kind">${esc(s.email || "")}</span>
+            <button class="ghost sd-print" data-id="${s.id}" style="margin-left:auto;">🖨 ${t2("print")}</button>
+          </div>
+          <p class="kind" style="margin:0.2rem 0 0;">${t2("generated")}: ${new Date().toLocaleDateString()} ·
+            ${t2("total_time")}: ${fmtTime(timeBy[s.id] || 0)} ·
+            ${t2("last_active")}: ${lastBy[s.id] ? new Date(lastBy[s.id]).toLocaleDateString() : t2("never")}</p>
+          ${courseBlocks || `<p class="empty">${t2("no_data")}</p>`}
+          ${aRows ? `
+            <h2 style="font-size:0.98rem; margin-top:0.9rem;">${t2("asgn_grades")}</h2>
+            <table><thead><tr><th>${t2("title_label")}</th><th>${t2("grade")}</th><th>${t2("feedback")}</th></tr></thead>
+              <tbody>${aRows}</tbody></table>` : ""}`;
+      };
+
+      const tabs = [["overview", t2("overview")], ["students", t2("students")],
+                    ["progress", t2("progress")], ["asgn", t2("asgn")],
+                    ["disc", t2("disc")], ["sched", t2("schedule")],
+                    ["announce", t2("announcements")]];
+
       app.innerHTML = `
-        <p class="eyebrow">Teacher</p>
-        <h1>My teaching</h1>
+        <p class="eyebrow">${t2("teacher")}</p>
+        <h1>${t2("my_teaching")}</h1>
 
-        <div class="stat-grid" style="margin-bottom:1rem;">
-          ${stat("My courses", (courses || []).length)}
-          ${stat("My students", myStudents.length)}
-          ${stat("Lessons completed", (prog || []).filter(p => p.status === "completed").length, "by my students")}
+        <div class="tabs">
+          ${tabs.map(([k, label]) =>
+            `<button data-tab="${k}" class="${tab === k ? "active" : ""}">${label}</button>`).join("")}
         </div>
 
-        <div class="card">
-          <h2>My courses</h2>
-          ${courseCards || `<p class="empty">No courses assigned to you yet — ask your administrator (or the platform owner).</p>`}
-        </div>
-
-        <div class="card">
-          <h2>Add a student account</h2>
-          <div class="form-row">
-            <div class="field"><label>Email</label><input id="ns-email" placeholder="student@example.com" /></div>
-            <div class="field" style="max-width:170px;"><label>Password</label><input id="ns-pass" placeholder="min 6 characters" /></div>
-            <div class="field"><label>Full name (optional)</label><input id="ns-name" /></div>
-            <button id="ns-add">Create student</button>
+        <div class="tabpane" data-tab="overview">
+          ${attention}
+          <div class="stat-grid">
+            ${stat(t2("my_courses"), (courses || []).length)}
+            ${stat(t2("my_students"), myStudents.length)}
+            ${stat(t2("lessons_completed"), (prog || []).filter(p => p.status === "completed").length, t2("by_students"))}
           </div>
-          <p id="ns-msg" class="msg"></p>
-        </div>
-
-        <div class="card">
-          <h2>Enroll a student in a course</h2>
-          <div class="form-row">
-            <div class="field"><label>Student</label>
-              <select id="en-student">${studentOptions || `<option value="">No students yet</option>`}</select></div>
-            <div class="field"><label>Course</label>
-              <select id="en-course">${courseOptions || `<option value="">No courses yet</option>`}</select></div>
-            <button id="en-add">Enroll</button>
+          <div class="card">
+            <div class="card-head"><h2>${icon("book-open", 18)} ${t2("my_courses")}</h2></div>
+            ${courseCards || `<p class="empty">${t2("no_courses_assigned")}</p>`}
           </div>
-          <p id="en-msg" class="msg"></p>
-          ${(enrollments || []).length ? `
-          <table style="margin-top:0.75rem;">
-            <thead><tr><th>Student</th><th>Course</th><th></th></tr></thead>
-            <tbody>${(enrollments || []).map(e => `
-              <tr>
-                <td>${esc(nameOf(sById(e.student_id)))}</td>
-                <td>${esc(cTitle(e.course_id))}</td>
-                <td><button class="ghost en-remove" data-id="${e.id}">Remove</button></td>
-              </tr>`).join("")}</tbody>
-          </table>` : `<p class="empty" style="margin-top:0.75rem;">No enrollments yet.</p>`}
-        </div>
 
-        <div class="card">
-          <h2>My students</h2>
-          ${myStudents.length ? `
-          <table>
-            <thead><tr><th>Student</th><th>Email</th><th>Completed</th><th>Study time</th><th>Last active</th></tr></thead>
-            <tbody>${myStudents.map(s => `
-              <tr>
-                <td>${esc(nameOf(s))}${s.suspended ? ' <span class="pill off">suspended</span>' : ""}</td>
-                <td>${esc(s.email || "—")}</td>
-                <td>${doneBy[s.id] || 0} lessons</td>
-                <td>${fmtTime(timeBy[s.id] || 0)}</td>
-                <td>${lastBy[s.id] ? new Date(lastBy[s.id]).toLocaleDateString() : "never"}</td>
-              </tr>`).join("")}</tbody>
-          </table>` : `<p class="empty">No students yet — create an account above, then enroll them in a course.</p>`}
-        </div>
-
-        <div class="card">
-          <h2>Student progress <span class="kind" id="tp-count"></span></h2>
-          <div class="form-row" style="margin-bottom:0.6rem;">
-            <div class="field" style="max-width:200px;"><label>Course</label>
-              <select id="tp-course"><option value="all">All courses</option>${courseOptions}</select></div>
-            <div class="field" style="max-width:200px;"><label>Student</label>
-              <select id="tp-student"><option value="all">All students</option>
-                ${myStudents.map(s => `<option value="${s.id}">${esc(nameOf(s))}</option>`).join("")}</select></div>
+          <div class="card">
+            <div class="card-head"><h2>${icon("paperclip", 18)} ${t2("materials")}</h2></div>
+            <div class="form-row">
+              <div class="field"><label>${t2("title_label")}</label><input id="tm-title" /></div>
+              <div class="field" style="max-width:200px;"><label>${t2("course")}</label>
+                <select id="tm-course">${courseOptions || `<option value="">${t2("no_courses")}</option>`}</select></div>
+              <div class="field"><label>${t2("link_label")}</label><input id="tm-url" placeholder="https://…" /></div>
+              <div class="field" style="max-width:230px;"><label>&nbsp;</label>
+                <input type="file" id="tm-file" style="padding:0.42rem;" /></div>
+              <button id="tm-add">${t2("add_material")}</button>
+            </div>
+            ${(mats || []).map(m => `
+              <div class="lesson">
+                <span class="icon">${m.storage_path ? "📎" : "🔗"}</span>
+                <div class="meta">
+                  <div class="title">${esc(m.title)}</div>
+                  <span class="kind">${esc(cTitle(m.course_id))} · ${m.storage_path ? t2("uploaded_file") : esc(m.url || "")}</span>
+                </div>
+                <button class="ghost tm-open" data-id="${m.id}">${t2("open_btn")}</button>
+                <button class="ghost tm-del" data-id="${m.id}"
+                        style="color:var(--danger); border-color:var(--danger);">${t2("delete_")}</button>
+              </div>`).join("") || `<p class="empty">${t2("no_data")}</p>`}
           </div>
-          <div id="tp-table"></div>
         </div>
 
-        <div class="card">
-          <h2>Announcements to my students</h2>
-          <div class="form-row">
-            <div class="field"><label>Message</label><input id="an-body" placeholder="e.g. Homework for this week…" /></div>
-            <div class="field" style="max-width:200px;"><label>Course</label>
-              <select id="an-course">${courseOptions}</select></div>
-            <button id="an-add">Post</button>
+        <div class="tabpane" data-tab="students">
+          <div class="card">
+            <div class="card-head"><h2>${icon("user-plus", 18)} ${t2("add_student")}</h2></div>
+            <div class="form-row">
+              <div class="field"><label>${t2("email")}</label><input id="ns-email" placeholder="student@example.com" /></div>
+              <div class="field" style="max-width:170px;"><label>${t2("password")}</label><input id="ns-pass" placeholder="${t2("pw_min6")}" /></div>
+              <div class="field"><label>${t2("full_name_opt")}</label><input id="ns-name" /></div>
+              <button id="ns-add">${icon("user-plus")} ${t2("create_student")}</button>
+            </div>
+            <label style="font-size:0.85rem; color:var(--muted); cursor:pointer; display:block; margin-top:0.5rem;">
+              <input type="checkbox" id="ns-invite" /> ${t2("invite_instead")}
+            </label>
+            <p class="kind" id="ns-invite-note" style="display:none; margin:0.3rem 0 0;">${t2("invite_note")}</p>
           </div>
-          <p id="an-msg" class="msg"></p>
-          ${(anns || []).map(a => `
-            <div class="lesson">
-              <span class="icon">📣</span>
-              <div class="meta">
-                <div class="title" style="font-weight:500;">${esc(String(a.body).replace(/<[^>]*>/g, "").slice(0, 140))}</div>
-                <span class="kind">${esc(cTitle(a.course_id))} · ${new Date(a.created_at).toLocaleDateString()}</span>
+
+          <div class="card">
+            <div class="card-head"><h2>${icon("book-plus", 18)} ${t2("enroll_title")}</h2></div>
+            <div class="form-row">
+              <div class="field"><label>${t2("student")}</label>
+                <select id="en-student">${studentOptions || `<option value="">${t2("no_students")}</option>`}</select></div>
+              <div class="field"><label>${t2("course")}</label>
+                <select id="en-course">${courseOptions || `<option value="">${t2("no_courses")}</option>`}</select></div>
+              <button id="en-add">${t2("enroll")}</button>
+            </div>
+            ${(enrollments || []).length ? `
+            <table class="stackable" style="margin-top:0.75rem;">
+              <thead><tr><th>${t2("student")}</th><th>${t2("course")}</th><th></th></tr></thead>
+              <tbody>${(enrollments || []).map(e => `
+                <tr>
+                  <td data-th="${t2("student")}">${esc(nameOf(sById(e.student_id)))}</td>
+                  <td data-th="${t2("course")}">${esc(cTitle(e.course_id))}</td>
+                  <td><button class="ghost en-remove" data-id="${e.id}">${t2("remove")}</button></td>
+                </tr>`).join("")}</tbody>
+            </table>` : `<p class="empty" style="margin-top:0.75rem;">${t2("no_enrollments")}</p>`}
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <h2>${icon("users", 18)} ${t2("my_students")}</h2>
+              <button class="ghost" id="stu-csv">${icon("download")} ${t2("export_csv")}</button>
+            </div>
+            ${myStudents.length ? `
+            <table class="stackable">
+              <thead><tr><th>${t2("student")}</th><th>${t2("email")}</th><th>${t2("completed")}</th>
+                <th>${t2("study_time")}</th><th>${t2("last_active")}</th><th>${t2("actions")}</th></tr></thead>
+              <tbody>${myStudents.map(s => `
+                <tr>
+                  <td data-th="${t2("student")}">${esc(nameOf(s))}${s.suspended ? ` <span class="pill off">${t2("suspended")}</span>` : ""}</td>
+                  <td data-th="${t2("email")}">${esc(s.email || "—")}</td>
+                  <td data-th="${t2("completed")}">${doneBy[s.id] || 0} ${t2("lessons")}</td>
+                  <td data-th="${t2("study_time")}">${fmtTime(timeBy[s.id] || 0)}</td>
+                  <td data-th="${t2("last_active")}">${lastBy[s.id] ? new Date(lastBy[s.id]).toLocaleDateString() : t2("never")}</td>
+                  <td style="white-space:nowrap;">
+                    <button class="ghost sd-open" data-id="${s.id}">▸ ${t2("detail")}</button>
+                    <button class="ghost st-reset" data-id="${s.id}" data-name="${esc(nameOf(s))}">${icon("key-round")} ${t2("reset_pw")}</button>
+                  </td>
+                </tr>
+                <tr class="sd-panel" data-id="${s.id}" style="display:none;"><td colspan="6">
+                  <div class="eng-detail sd-content" data-id="${s.id}">${studentDetailHtml(s)}</div>
+                </td></tr>`).join("")}</tbody>
+            </table>` : `<p class="empty">${t2("no_students_hint")}</p>`}
+          </div>
+        </div>
+
+        <div class="tabpane" data-tab="progress">
+          <div class="card">
+            <div class="card-head">
+              <h2>${icon("bar-chart-3", 18)} ${t2("progress")} <span class="kind" id="tp-count"></span></h2>
+              <button class="ghost" id="prog-csv">${icon("download")} ${t2("export_csv")}</button>
+            </div>
+            <div class="form-row" style="margin-bottom:0.6rem;">
+              <div class="field" style="max-width:220px;"><label>${t2("course")}</label>
+                <select id="tp-course"><option value="all">${t2("all_courses")}</option>${courseOptions}</select></div>
+              <div class="field" style="max-width:220px;"><label>${t2("student")}</label>
+                <select id="tp-student"><option value="all">${t2("all_students")}</option>
+                  ${myStudents.map(s => `<option value="${s.id}">${esc(nameOf(s))}</option>`).join("")}</select></div>
+            </div>
+            <div id="tp-table"></div>
+          </div>
+        </div>
+
+        <div class="tabpane" data-tab="asgn">
+          <div class="card">
+            <div class="card-head"><h2>${icon("clipboard-list", 18)} ${t2("new_asgn")}</h2></div>
+            <div class="form-row">
+              <div class="field"><label>${t2("title_label")}</label><input id="ag-title" /></div>
+              <div class="field" style="max-width:210px;"><label>${t2("course")}</label>
+                <select id="ag-course">${courseOptions || `<option value="">${t2("no_courses")}</option>`}</select></div>
+              <div class="field" style="max-width:160px;"><label>${t2("due_date")}</label>
+                <input type="date" id="ag-due" /></div>
+              <div class="field" style="max-width:170px;"><label>${t2("points")}</label>
+                <input type="number" id="ag-points" min="1" /></div>
+            </div>
+            <div class="field" style="margin-top:0.5rem;"><label>${t2("instructions")}</label>
+              <textarea id="ag-inst"></textarea></div>
+            <button id="ag-add">${icon("clipboard-list")} ${t2("create_asgn")}</button>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h2>${icon("clipboard-check", 18)} ${t2("asgn")}</h2></div>
+            ${(asgns || []).map(a => {
+              const aSubs = (subs || []).filter(s => s.assignment_id === a.id);
+              const expected = (enrollments || []).filter(e => e.course_id === a.course_id).length;
+              const late = a.due_on && a.due_on < new Date().toISOString().slice(0, 10);
+              return `
+              <div class="lesson">
+                <div class="meta">
+                  <div class="title">${esc(a.title)}</div>
+                  <span class="kind">${esc(cTitle(a.course_id))}${a.due_on ? " · " + t2("due") + " " + esc(a.due_on) : ""}${a.points ? " · " + a.points + " pt" : ""} ·
+                    ${aSubs.length}/${expected} ${t2("submissions")} ·
+                    ${aSubs.filter(s => s.status === "graded").length} ${t2("graded").toLowerCase()}</span>
+                </div>
+                ${late ? `<span class="pill bad">${t2("overdue")}</span>` : ""}
+                <button class="ghost ag-open" data-id="${a.id}">▸</button>
+                <button class="ghost ag-del" data-id="${a.id}"
+                        style="color:var(--danger); border-color:var(--danger);">${t2("delete_")}</button>
               </div>
-              <button class="ghost an-del" data-id="${a.id}"
-                      style="color:var(--danger); border-color:var(--danger);">Delete</button>
-            </div>`).join("")}
+              <div class="ag-panel" data-id="${a.id}" style="display:none; padding:0.3rem 0 1rem; border-bottom:1px solid var(--line);">
+                ${a.instructions ? `<p class="kind" style="white-space:pre-wrap;">${esc(a.instructions)}</p>` : ""}
+                ${aSubs.length ? `
+                <table class="stackable">
+                  <thead><tr><th>${t2("student")}</th><th>${t2("your_answer")}</th>
+                    <th>${t2("grade")}</th><th>${t2("feedback")}</th><th></th></tr></thead>
+                  <tbody>${aSubs.map(s => `
+                    <tr>
+                      <td data-th="${t2("student")}">${esc(nameOf(sById(s.student_id)))}
+                        <div class="kind">${s.submitted_at ? new Date(s.submitted_at).toLocaleDateString() : ""}
+                          ${s.status === "graded" ? `· <span class="pill done">${t2("graded")}</span>` : ""}</div></td>
+                      <td data-th="${t2("your_answer")}" style="max-width:340px;">
+                        <div style="white-space:pre-wrap; font-size:0.88rem;">${esc(s.body || "—")}</div></td>
+                      <td data-th="${t2("grade")}">
+                        <input type="number" class="sg-grade" data-id="${s.id}" value="${s.grade ?? ""}"
+                               style="max-width:85px;" min="0" ${a.points ? `max="${a.points}"` : ""} />
+                        ${a.points ? `<span class="kind">/ ${a.points}</span>` : ""}</td>
+                      <td data-th="${t2("feedback")}"><input class="sg-fb" data-id="${s.id}" value="${esc(s.feedback || "")}" /></td>
+                      <td><button class="ghost sg-save" data-id="${s.id}">${t2("save_grade")}</button></td>
+                    </tr>`).join("")}</tbody>
+                </table>` : `<p class="empty">${t2("not_submitted")}</p>`}
+              </div>`;
+            }).join("") || `<p class="empty">${t2("no_asgn_teacher")}</p>`}
+          </div>
+        </div>
+
+        <div class="tabpane" data-tab="disc">
+          <div class="card">
+            <div class="card-head">
+              <h2>${icon("messages-square", 18)} ${t2("disc")}</h2>
+              <select id="dc-course" style="max-width:230px;">${courseOptions || `<option value="">${t2("no_courses")}</option>`}</select>
+            </div>
+            <div id="dc-body"><p class="empty">${t2("loading")}</p></div>
+          </div>
+        </div>
+
+        <div class="tabpane" data-tab="sched">
+          <div class="card">
+            <div class="card-head"><h2>${icon("calendar-plus", 18)} ${t2("new_session")}</h2></div>
+            <div class="form-row">
+              <div class="field"><label>${t2("title_label")}</label><input id="ss-title" placeholder="HSK 1 — Unit 3" /></div>
+              <div class="field" style="max-width:200px;"><label>${t2("course")}</label>
+                <select id="ss-course"><option value="">${t2("general")}</option>${courseOptions}</select></div>
+              <div class="field" style="max-width:210px;"><label>${t2("when")}</label>
+                <input type="datetime-local" id="ss-when" /></div>
+              <div class="field" style="max-width:140px;"><label>${t2("duration")}</label>
+                <input type="number" id="ss-dur" value="60" min="10" step="5" /></div>
+              <div class="field"><label>${t2("location_link")}</label>
+                <input id="ss-loc" placeholder="Room 2 / https://meet…" /></div>
+              <button id="ss-add">${t2("create")}</button>
+            </div>
+            <div class="field" style="margin-top:0.5rem;"><label>${t2("notes")}</label>
+              <input id="ss-notes" /></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h2>${icon("calendar-days", 18)} ${t2("upcoming")}</h2></div>
+            ${(() => {
+              const now = Date.now() - 3600e3;
+              const up = (sess || []).filter(s => new Date(s.starts_at).getTime() >= now);
+              const past = (sess || []).filter(s => new Date(s.starts_at).getTime() < now).slice(-5).reverse();
+              const row = (s, dim) => `
+                <div class="lesson" style="${dim ? "opacity:0.55;" : ""}">
+                  <span class="icon">🗓️</span>
+                  <div class="meta">
+                    <div class="title">${esc(s.title)}</div>
+                    <span class="kind">${new Date(s.starts_at).toLocaleString()} · ${s.duration_min || 60} min ·
+                      ${s.course_id ? esc(cTitle(s.course_id)) : t2("general")}${s.notes ? " · " + esc(s.notes) : ""}</span>
+                  </div>
+                  ${s.location ? (/^https?:\/\//.test(s.location)
+                    ? `<a class="btn ghost" href="${esc(s.location)}" target="_blank" rel="noopener" style="text-decoration:none;">${t2("join")}</a>`
+                    : `<span class="pill done">${esc(s.location)}</span>`) : ""}
+                  <button class="ghost ss-del" data-id="${s.id}"
+                          style="color:var(--danger); border-color:var(--danger);">${t2("delete_")}</button>
+                </div>`;
+              return (up.map(s => row(s, false)).join("") || `<p class="empty">${t2("no_sessions")}</p>`)
+                + (past.length ? `<p class="kind" style="margin:0.8rem 0 0.2rem;">${t2("past")}</p>` + past.map(s => row(s, true)).join("") : "");
+            })()}
+          </div>
+        </div>
+
+        <div class="tabpane" data-tab="announce">
+          <div class="card">
+            <div class="card-head"><h2>${icon("megaphone", 18)} ${t2("announcements")}</h2></div>
+            <div class="form-row">
+              <div class="field"><label>${t2("message")}</label><input id="an-body" /></div>
+              <div class="field" style="max-width:220px;"><label>${t2("course")}</label>
+                <select id="an-course">${courseOptions}</select></div>
+              <button id="an-add">${t2("post")}</button>
+            </div>
+            ${(anns || []).map(a => `
+              <div class="lesson">
+                <span class="icon">${icon("megaphone")}</span>
+                <div class="meta">
+                  <div class="title" style="font-weight:500;">${esc(String(a.body).replace(/<[^>]*>/g, "").slice(0, 140))}</div>
+                  <span class="kind">${esc(cTitle(a.course_id))} · ${new Date(a.created_at).toLocaleDateString()}</span>
+                </div>
+                <button class="ghost an-del" data-id="${a.id}"
+                        style="color:var(--danger); border-color:var(--danger);">${t2("delete_")}</button>
+              </div>`).join("") || `<p class="empty">${t2("no_announcements")}</p>`}
+          </div>
         </div>
         <footer class="hub-footer">Thong's Learning Hub</footer>`;
 
-      // ---- wiring ----
-      const STATUS_PILL = {
-        completed: '<span class="pill done">completed</span>',
-        in_progress: '<span class="pill todo">in progress</span>',
-        not_started: '<span class="kind">not started</span>'
+      // ---- tabs ----
+      function showTab(k) {
+        tab = k;
+        try { localStorage.setItem("hub_teacher_tab", k); } catch (e) {}
+        app.querySelectorAll(".tabpane").forEach(p =>
+          p.classList.toggle("show", p.getAttribute("data-tab") === k));
+        app.querySelectorAll(".tabs button").forEach(b =>
+          b.classList.toggle("active", b.getAttribute("data-tab") === k));
+      }
+      app.querySelectorAll(".tabs button").forEach(b =>
+        b.addEventListener("click", () => showTab(b.getAttribute("data-tab"))));
+      showTab(tab);
+
+      // ---- progress table ----
+      const PILL = {
+        completed: `<span class="pill done">${t2("completed").toLowerCase()}</span>`,
+        in_progress: `<span class="pill todo">${t2("in_progress")}</span>`,
+        not_started: `<span class="kind">${t2("not_started")}</span>`
       };
+      let progList = [];
       function renderProg() {
         const fc = document.getElementById("tp-course").value;
         const fs = document.getElementById("tp-student").value;
-        const list = progRows.filter(r =>
+        progList = progRows.filter(r =>
           (fc === "all" || r.cid === fc) && (fs === "all" || r.sid === fs));
-        document.getElementById("tp-count").textContent = "(" + list.length + " records)";
-        document.getElementById("tp-table").innerHTML = list.length ? `
-          <table>
-            <thead><tr><th>Student</th><th>Lesson</th><th>Course</th><th>Status</th><th>Updated</th></tr></thead>
-            <tbody>${list.map(r => `
+        document.getElementById("tp-count").textContent = "(" + progList.length + " " + t2("records") + ")";
+        document.getElementById("tp-table").innerHTML = progList.length ? `
+          <table class="stackable">
+            <thead><tr><th>${t2("student")}</th><th>${t2("lessons")}</th><th>${t2("course")}</th>
+              <th>${t2("time")}</th><th>${t2("score")}</th><th></th><th></th></tr></thead>
+            <tbody>${progList.map(r => {
+              const k = r.sid + "|" + r.lesson.id;
+              return `
               <tr>
-                <td>${esc(nameOf(sById(r.sid)))}</td>
-                <td>${esc(r.lesson.title)}</td>
-                <td>${esc(cTitle(r.cid))}</td>
-                <td>${STATUS_PILL[r.status] || esc(r.status)}</td>
+                <td data-th="${t2("student")}">${esc(nameOf(sById(r.sid)))}</td>
+                <td data-th="${t2("lessons")}">${esc(r.lesson.title)}</td>
+                <td data-th="${t2("course")}">${esc(cTitle(r.cid))}</td>
+                <td data-th="${t2("time")}">${fmtTime(aggT[k] || 0)}</td>
+                <td data-th="${t2("score")}">${k in aggS ? Math.round(aggS[k] * 100) + "%" : "—"}</td>
+                <td>${PILL[r.status] || esc(r.status)}</td>
                 <td>${r.date ? new Date(r.date).toLocaleDateString() : "—"}</td>
-              </tr>`).join("")}</tbody>
-          </table>` : `<p class="empty">No records yet.</p>`;
+              </tr>`;
+            }).join("")}</tbody>
+          </table>` : `<p class="empty">${t2("no_enrollments")}</p>`;
       }
       document.getElementById("tp-course").addEventListener("change", renderProg);
       document.getElementById("tp-student").addEventListener("change", renderProg);
       renderProg();
 
+      // ---- CSV exports ----
+      document.getElementById("stu-csv")?.addEventListener("click", () =>
+        csv("students.csv", myStudents.map(s => ({
+          name: nameOf(s), email: s.email || "",
+          lessons_completed: doneBy[s.id] || 0,
+          study_minutes: Math.round((timeBy[s.id] || 0) / 60),
+          last_active: lastBy[s.id] ? new Date(lastBy[s.id]).toLocaleDateString() : ""
+        }))));
+      document.getElementById("prog-csv")?.addEventListener("click", () =>
+        csv("progress.csv", progList.map(r => ({
+          student: nameOf(sById(r.sid)), lesson: r.lesson.title,
+          course: cTitle(r.cid), status: r.status,
+          updated: r.date ? new Date(r.date).toLocaleDateString() : ""
+        }))));
+
+      // ---- create student (invite or password) ----
+      const inviteCb = document.getElementById("ns-invite");
+      inviteCb.addEventListener("change", () => {
+        document.getElementById("ns-pass").disabled = inviteCb.checked;
+        document.getElementById("ns-invite-note").style.display = inviteCb.checked ? "block" : "none";
+      });
       document.getElementById("ns-add").addEventListener("click", async () => {
-        const m = document.getElementById("ns-msg");
         const email = document.getElementById("ns-email").value.trim();
         const password = document.getElementById("ns-pass").value;
         const full_name = document.getElementById("ns-name").value.trim() || null;
-        m.className = "msg";
-        if (!email || password.length < 6) {
-          m.textContent = "Enter an email and a password of at least 6 characters.";
-          m.className = "msg err"; return;
-        }
-        m.textContent = "Creating account…";
+        const invite = inviteCb.checked;
+        if (!email || (!invite && password.length < 6)) { toast(t2("need_email_pw"), "err"); return; }
+        const btn = document.getElementById("ns-add");
+        btn.disabled = true;
         try {
-          await createUser({ action: "create", email, password, full_name, role: "student" });
-          m.textContent = "Student account created ✓ — now enroll them in a course below.";
-          setTimeout(render, 1200);
-        } catch (err) { m.textContent = "Could not create: " + err.message; m.className = "msg err"; }
+          await callFn({ action: "create", email, password, full_name, role: "student",
+                         invite, redirect: new URL("reset.html", location.href).href });
+          toast(invite ? t2("invited_ok") : t2("created_ok"));
+          rerender(render);
+        } catch (err) { toast(t2("err_create") + err.message, "err"); btn.disabled = false; }
       });
 
+      // ---- enroll / remove ----
       document.getElementById("en-add").addEventListener("click", async () => {
-        const m = document.getElementById("en-msg");
         const student_id = document.getElementById("en-student").value;
         const course_id = document.getElementById("en-course").value;
-        if (!student_id || !course_id) { m.textContent = "Pick a student and a course."; m.className = "msg err"; return; }
+        if (!student_id || !course_id) { toast(t2("pick_student_course"), "err"); return; }
         const { error } = await sb.from("enrollments").insert({
           student_id, course_id, teacher_id: user.id, org_id: myOrg });
         if (error) {
-          m.textContent = error.code === "23505"
-            ? "That student is already enrolled in that course."
-            : (error.message.includes("seat limit")
-               ? "Seat limit reached for this course — contact the platform owner for more seats."
-               : "Could not enroll: " + error.message);
-          m.className = "msg err"; return;
+          toast(error.code === "23505" ? t2("already_enrolled")
+            : (error.message.includes("seat limit") ? t2("seat_limit") : t2("err_enroll") + error.message), "err");
+          return;
         }
-        render();
+        toast(t2("enrolled_ok"));
+        rerender(render);
       });
-
       app.querySelectorAll(".en-remove").forEach(btn => btn.addEventListener("click", async () => {
-        if (!confirm("Remove this enrollment? The student loses access to that course.")) return;
+        if (!await confirmDialog({ title: t2("remove_enr_title"), body: t2("remove_enr_body"),
+                                   okText: t2("remove"), danger: true })) return;
         const { error } = await sb.from("enrollments").delete().eq("id", btn.getAttribute("data-id"));
-        if (error) { alert("Could not remove: " + error.message); return; }
-        render();
+        if (error) { toast(t2("err_delete") + error.message, "err"); return; }
+        toast(t2("removed_ok"));
+        rerender(render);
       }));
 
+      // ---- reset password ----
+      app.querySelectorAll(".st-reset").forEach(btn => btn.addEventListener("click", async () => {
+        const pw = await promptDialog({ title: t2("reset_pw") + " — " + btn.getAttribute("data-name"),
+                                        label: t2("new_password"), placeholder: t2("pw_min6") });
+        if (pw === null) return;
+        if (pw.length < 6) { toast(t2("need_email_pw"), "err"); return; }
+        try {
+          await callFn({ action: "reset-password", user_id: btn.getAttribute("data-id"), new_password: pw });
+          toast(t2("reset_pw_ok"));
+        } catch (err) { toast(t2("err_generic") + err.message, "err"); }
+      }));
+
+      // ---- announcements ----
       document.getElementById("an-add").addEventListener("click", async () => {
-        const m = document.getElementById("an-msg");
         const body = document.getElementById("an-body").value.trim();
         const course_id = document.getElementById("an-course").value || null;
-        if (!body) { m.textContent = "Write a message first."; m.className = "msg err"; return; }
-        if (!course_id) { m.textContent = "Pick a course."; m.className = "msg err"; return; }
+        if (!body) { toast(t2("write_message"), "err"); return; }
+        if (!course_id) { toast(t2("pick_course"), "err"); return; }
         const { error } = await sb.from("announcements").insert({
           body, course_id, author_id: user.id, org_id: myOrg });
-        if (error) { m.textContent = "Could not post: " + error.message; m.className = "msg err"; return; }
-        render();
+        if (error) { toast(t2("err_post") + error.message, "err"); return; }
+        toast(t2("posted_ok"));
+        rerender(render);
       });
-
       app.querySelectorAll(".an-del").forEach(btn => btn.addEventListener("click", async () => {
-        if (!confirm("Delete this announcement?")) return;
+        if (!await confirmDialog({ title: t2("del_ann_title"), okText: t2("delete_"), danger: true })) return;
         const { error } = await sb.from("announcements").delete().eq("id", btn.getAttribute("data-id"));
-        if (error) { alert("Could not delete: " + error.message); return; }
-        render();
+        if (error) { toast(t2("err_delete") + error.message, "err"); return; }
+        toast(t2("deleted_ok"));
+        rerender(render);
       }));
+
+      // ---- assignments ----
+      document.getElementById("ag-add").addEventListener("click", async () => {
+        const title = document.getElementById("ag-title").value.trim();
+        const course_id = document.getElementById("ag-course").value;
+        const due_on = document.getElementById("ag-due").value || null;
+        const points = parseInt(document.getElementById("ag-points").value, 10) || null;
+        const instructions = document.getElementById("ag-inst").value.trim() || null;
+        if (!title || !course_id) { toast(t2("need_title_course"), "err"); return; }
+        const { error } = await sb.from("assignments").insert({
+          title, course_id, due_on, points, instructions,
+          teacher_id: user.id, org_id: myOrg });
+        if (error) { toast(t2("err_save") + error.message, "err"); return; }
+        toast(t2("asgn_created"));
+        rerender(render);
+      });
+      app.querySelectorAll(".ag-open").forEach(btn => btn.addEventListener("click", () => {
+        const p = app.querySelector(`.ag-panel[data-id="${btn.getAttribute("data-id")}"]`);
+        const open = p.style.display !== "none";
+        p.style.display = open ? "none" : "";
+        btn.textContent = open ? "▸" : "▾";
+      }));
+      app.querySelectorAll(".ag-del").forEach(btn => btn.addEventListener("click", async () => {
+        if (!await confirmDialog({ title: t2("del_asgn_title"), body: t2("del_asgn_body"),
+                                   okText: t2("delete_"), danger: true })) return;
+        const { error } = await sb.from("assignments").delete().eq("id", btn.getAttribute("data-id"));
+        if (error) { toast(t2("err_delete") + error.message, "err"); return; }
+        toast(t2("deleted_ok"));
+        rerender(render);
+      }));
+      app.querySelectorAll(".sg-save").forEach(btn => btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-id");
+        const grade = parseFloat(app.querySelector(`.sg-grade[data-id="${id}"]`).value);
+        const feedback = app.querySelector(`.sg-fb[data-id="${id}"]`).value.trim() || null;
+        btn.disabled = true;
+        const { error } = await sb.from("submissions").update({
+          grade: isNaN(grade) ? null : grade, feedback,
+          status: "graded", graded_at: new Date().toISOString() }).eq("id", id);
+        btn.disabled = false;
+        if (error) { toast(t2("err_save") + error.message, "err"); return; }
+        toast(t2("grade_saved"));   // stays on the open panel — no re-render
+      }));
+
+      // ---- schedule wiring ----
+      document.getElementById("ss-add").addEventListener("click", async () => {
+        const title = document.getElementById("ss-title").value.trim();
+        const when = document.getElementById("ss-when").value;
+        if (!title || !when) { toast(t2("need_session"), "err"); return; }
+        const { error } = await sb.from("sessions").insert({
+          title,
+          course_id: document.getElementById("ss-course").value || null,
+          starts_at: new Date(when).toISOString(),
+          duration_min: parseInt(document.getElementById("ss-dur").value, 10) || 60,
+          location: document.getElementById("ss-loc").value.trim() || null,
+          notes: document.getElementById("ss-notes").value.trim() || null,
+          teacher_id: user.id, org_id: myOrg });
+        if (error) { toast(t2("err_save") + error.message, "err"); return; }
+        toast(t2("session_created"));
+        rerender(render);
+      });
+      app.querySelectorAll(".ss-del").forEach(btn => btn.addEventListener("click", async () => {
+        if (!await confirmDialog({ title: t2("del_session_title"), okText: t2("delete_"), danger: true })) return;
+        const { error } = await sb.from("sessions").delete().eq("id", btn.getAttribute("data-id"));
+        if (error) { toast(t2("err_delete") + error.message, "err"); return; }
+        toast(t2("deleted_ok"));
+        rerender(render);
+      }));
+
+      // ---- materials wiring ----
+      document.getElementById("tm-add").addEventListener("click", async () => {
+        const btn = document.getElementById("tm-add");
+        const title = document.getElementById("tm-title").value.trim();
+        const course_id = document.getElementById("tm-course").value;
+        const url = document.getElementById("tm-url").value.trim() || null;
+        const file = document.getElementById("tm-file").files[0] || null;
+        if (!title || !course_id || (!url && !file)) { toast(t2("need_material"), "err"); return; }
+        btn.disabled = true;
+        let storage_path = null;
+        if (file) {
+          toast(t2("uploading"), "info");
+          storage_path = user.id + "/" + Date.now() + "-" + file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+          const { error: upErr } = await sb.storage.from("teacher-materials")
+            .upload(storage_path, file, { contentType: file.type || undefined });
+          if (upErr) { toast(t2("err_save") + upErr.message, "err"); btn.disabled = false; return; }
+        }
+        const { error } = await sb.from("teacher_materials").insert({
+          title, course_id, url: file ? null : url, storage_path,
+          teacher_id: user.id, org_id: myOrg });
+        if (error) { toast(t2("err_save") + error.message, "err"); btn.disabled = false; return; }
+        toast(t2("material_added"));
+        rerender(render);
+      });
+      app.querySelectorAll(".tm-open").forEach(btn => btn.addEventListener("click", async () => {
+        const m = (mats || []).find(x => x.id === btn.getAttribute("data-id"));
+        if (!m) return;
+        if (m.storage_path) {
+          const { data, error } = await sb.storage.from("teacher-materials")
+            .createSignedUrl(m.storage_path, 3600);
+          if (error) { toast(t2("err_generic") + error.message, "err"); return; }
+          window.open(data.signedUrl, "_blank", "noopener");
+        } else if (m.url) window.open(m.url, "_blank", "noopener");
+      }));
+      app.querySelectorAll(".tm-del").forEach(btn => btn.addEventListener("click", async () => {
+        if (!await confirmDialog({ title: t2("del_material_title"), okText: t2("delete_"), danger: true })) return;
+        const m = (mats || []).find(x => x.id === btn.getAttribute("data-id"));
+        const { error } = await sb.from("teacher_materials").delete().eq("id", m.id);
+        if (error) { toast(t2("err_delete") + error.message, "err"); return; }
+        if (m.storage_path) await sb.storage.from("teacher-materials").remove([m.storage_path]);
+        toast(t2("deleted_ok"));
+        rerender(render);
+      }));
+
+      // ---- per-student drill-down wiring ----
+      app.querySelectorAll(".sd-open").forEach(btn => btn.addEventListener("click", () => {
+        const p = app.querySelector(`.sd-panel[data-id="${btn.getAttribute("data-id")}"]`);
+        const open = p.style.display !== "none";
+        p.style.display = open ? "none" : "";
+        btn.textContent = (open ? "▸ " : "▾ ") + t2("detail");
+      }));
+      app.querySelectorAll(".sd-print").forEach(btn => btn.addEventListener("click", () => {
+        const c = app.querySelector(`.sd-content[data-id="${btn.getAttribute("data-id")}"]`);
+        c.classList.add("print-target");
+        document.body.classList.add("print-report2");
+        window.print();
+        setTimeout(() => {
+          document.body.classList.remove("print-report2");
+          c.classList.remove("print-target");
+        }, 600);
+      }));
+
+      // ---- discussions (with moderation) ----
+      async function renderDisc() {
+        const box = document.getElementById("dc-body");
+        const sel = document.getElementById("dc-course");
+        if (!box || !sel) return;
+        if (!dcCourse || ![...sel.options].some(o => o.value === dcCourse)) dcCourse = sel.value;
+        sel.value = dcCourse;
+        if (!dcCourse) { box.innerHTML = `<p class="empty">${t2("no_courses")}</p>`; return; }
+
+        if (!dcThread) {
+          const [{ data: threads }, { data: pc }] = await Promise.all([
+            sb.from("discussion_threads").select("*").eq("course_id", dcCourse)
+              .order("pinned", { ascending: false }).order("created_at", { ascending: false }),
+            sb.from("discussion_posts").select("id, thread_id")
+          ]);
+          const nP = id => (pc || []).filter(p => p.thread_id === id).length;
+          box.innerHTML = `
+            <div class="form-row" style="margin-bottom:0.8rem;">
+              <div class="field"><label>${t2("new_question")}</label>
+                <input id="dq-title" placeholder="${esc(t2("question_ph"))}" /></div>
+              <div class="field"><label>${t2("message")}</label>
+                <input id="dq-body" placeholder="${esc(t2("first_msg"))}" /></div>
+              <button id="dq-ask">${t2("ask")}</button>
+            </div>
+            ${(threads || []).map(th => `
+              <div class="lesson thread-row" data-id="${th.id}">
+                <span class="icon">${th.pinned ? "📌" : "💬"}</span>
+                <div class="meta">
+                  <div class="title">${esc(th.title)}</div>
+                  <span class="kind">${esc(th.author_name || "—")} · ${new Date(th.created_at).toLocaleDateString()} ·
+                    ${nP(th.id)} ${t2("replies")}${th.locked ? " · 🔒 " + t2("locked") : ""}</span>
+                </div>
+              </div>`).join("") || `<p class="empty">${t2("no_threads")}</p>`}`;
+          box.querySelectorAll(".thread-row").forEach(r => r.addEventListener("click", () => {
+            dcThread = r.getAttribute("data-id"); renderDisc();
+          }));
+          document.getElementById("dq-ask").addEventListener("click", async () => {
+            const title = document.getElementById("dq-title").value.trim();
+            const bodyTxt = document.getElementById("dq-body").value.trim();
+            if (!title || !bodyTxt) { toast(t2("need_q"), "err"); return; }
+            const { data: th, error } = await sb.from("discussion_threads").insert({
+              course_id: dcCourse, org_id: myOrg, author_id: user.id,
+              author_name: myName, title }).select().single();
+            if (error) { toast(t2("err_post") + error.message, "err"); return; }
+            await sb.from("discussion_posts").insert({
+              thread_id: th.id, author_id: user.id, author_name: myName, body: bodyTxt });
+            toast(t2("q_posted"));
+            renderDisc();
+          });
+        } else {
+          const [{ data: th }, { data: posts }] = await Promise.all([
+            sb.from("discussion_threads").select("*").eq("id", dcThread).single(),
+            sb.from("discussion_posts").select("*").eq("thread_id", dcThread).order("created_at")
+          ]);
+          if (!th) { dcThread = null; renderDisc(); return; }
+          box.innerHTML = `
+            <button class="ghost" id="dc-back" style="margin-bottom:0.7rem;">${t2("back_list")}</button>
+            <div class="card-head">
+              <h2 style="font-size:1.05rem;">${th.pinned ? "📌 " : ""}${esc(th.title)}</h2>
+              <button class="ghost dc-pin">${th.pinned ? t2("unpin") : t2("pin")}</button>
+              <button class="ghost dc-lock">${th.locked ? t2("unlock") : t2("lock")}</button>
+              <button class="ghost dc-delth"
+                      style="color:var(--danger); border-color:var(--danger);">${t2("delete_")}</button>
+            </div>
+            ${(posts || []).map(p => `
+              <div class="post">
+                <span class="kind">${esc(p.author_name || "—")} · ${new Date(p.created_at).toLocaleString()}</span>
+                <p>${esc(p.body)}</p>
+                <button class="ghost dc-delpost" data-id="${p.id}"
+                        style="margin-top:0.35rem; padding:0.2rem 0.6rem; font-size:0.78rem; min-height:0;
+                               color:var(--danger); border-color:var(--danger);">${t2("delete_")}</button>
+              </div>`).join("")}
+            ${th.locked ? `<p class="kind">🔒 ${t2("locked_note")}</p>` : `
+              <div class="form-row" style="margin-top:0.6rem;">
+                <div class="field"><textarea id="dr-body" placeholder="${esc(t2("reply_ph"))}" style="min-height:64px;"></textarea></div>
+                <button id="dr-send">${t2("reply")}</button>
+              </div>`}`;
+          document.getElementById("dc-back").addEventListener("click", () => { dcThread = null; renderDisc(); });
+          box.querySelector(".dc-pin").addEventListener("click", async () => {
+            await sb.from("discussion_threads").update({ pinned: !th.pinned }).eq("id", th.id);
+            renderDisc();
+          });
+          box.querySelector(".dc-lock").addEventListener("click", async () => {
+            await sb.from("discussion_threads").update({ locked: !th.locked }).eq("id", th.id);
+            renderDisc();
+          });
+          box.querySelector(".dc-delth").addEventListener("click", async () => {
+            if (!await confirmDialog({ title: t2("del_thread_title"), body: t2("del_thread_body"),
+                                       okText: t2("delete_"), danger: true })) return;
+            const { error } = await sb.from("discussion_threads").delete().eq("id", th.id);
+            if (error) { toast(t2("err_delete") + error.message, "err"); return; }
+            toast(t2("deleted_ok"));
+            dcThread = null; renderDisc();
+          });
+          box.querySelectorAll(".dc-delpost").forEach(b => b.addEventListener("click", async () => {
+            if (!await confirmDialog({ title: t2("del_post_title"), okText: t2("delete_"), danger: true })) return;
+            const { error } = await sb.from("discussion_posts").delete().eq("id", b.getAttribute("data-id"));
+            if (error) { toast(t2("err_delete") + error.message, "err"); return; }
+            renderDisc();
+          }));
+          const send = document.getElementById("dr-send");
+          if (send) send.addEventListener("click", async () => {
+            const bodyTxt = document.getElementById("dr-body").value.trim();
+            if (!bodyTxt) { toast(t2("write_message"), "err"); return; }
+            const { error } = await sb.from("discussion_posts").insert({
+              thread_id: th.id, author_id: user.id, author_name: myName, body: bodyTxt });
+            if (error) { toast(t2("err_post") + error.message, "err"); return; }
+            toast(t2("reply_posted"));
+            renderDisc();
+          });
+        }
+        refreshIcons();
+      }
+      document.getElementById("dc-course").addEventListener("change", () => {
+        dcCourse = document.getElementById("dc-course").value;
+        dcThread = null;
+        renderDisc();
+      });
+      renderDisc();
+
+      refreshIcons();
     }
 
     start();

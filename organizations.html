@@ -8,27 +8,34 @@
 </head>
 <body>
   <header class="topbar">
-    <span class="brand">Thong's Learning Hub · Organizations</span>
-    <div style="display:flex; align-items:center;">
-      <a class="btn ghost" href="dashboard.html" style="text-decoration:none; margin-right:0.5rem;">← Dashboard</a>
-      <button class="ghost" id="signout">Sign out</button>
+    <span class="brand">Thong's Learning Hub</span>
+    <div style="display:flex; align-items:center; gap:0.4rem;">
+      <a class="btn ghost" href="dashboard.html" style="text-decoration:none;">← <span id="nav-dash"></span></a>
+      <span id="bell-slot"></span>
+      <button class="ghost" id="lang-btn"></button>
+      <button class="ghost" id="signout"></button>
     </div>
   </header>
 
-  <main class="container" id="app">
-    <p class="empty">Loading…</p>
-  </main>
+  <main class="container" id="app"></main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="config.js"></script>
+  <script src="ui.js"></script>
   <script>
+    const { t2, toast, confirmDialog, promptDialog, skeleton, csv, icon,
+            refreshIcons, wireLangButton, rerender } = window.UI;
     const app = document.getElementById("app");
     let user = null;
 
+    document.getElementById("nav-dash").textContent = t2("dashboard");
+    document.getElementById("signout").textContent = t2("sign_out");
     document.getElementById("signout").addEventListener("click", async () => {
       await sb.auth.signOut();
       window.location.href = "index.html";
     });
+    wireLangButton(document.getElementById("lang-btn"));
 
     function esc(s) {
       return String(s ?? "").replace(/[&<>"']/g, c =>
@@ -36,7 +43,7 @@
     }
     const nameOf = p => p?.full_name || p?.email || "—";
 
-    async function createUser(payload) {
+    async function callFn(payload) {
       const { data: { session } } = await sb.auth.getSession();
       const res = await fetch(SUPABASE_URL + "/functions/v1/manage-user", {
         method: "POST",
@@ -46,17 +53,19 @@
         body: JSON.stringify(payload)
       });
       const out = await res.json();
-      if (!res.ok) throw new Error(out.error || "Request failed");
+      if (!res.ok || out.error) throw new Error(out.error || "Request failed");
       return out;
     }
 
     async function start() {
+      app.innerHTML = skeleton(3);
       const { data: { session } } = await sb.auth.getSession();
       if (!session) { window.location.href = "index.html"; return; }
       user = session.user;
       const { data: me } = await sb.from("profiles")
         .select("role").eq("id", user.id).single();
       if (me?.role !== "owner") { window.location.href = "dashboard.html"; return; }
+      window.UI.initBell(document.getElementById("bell-slot"));
       render();
     }
 
@@ -75,212 +84,268 @@
       const courseOptions = (courses || []).map(c =>
         `<option value="${c.id}">${esc(c.title)}</option>`).join("");
       const membersOf = oid => (people || []).filter(p => p.org_id === oid);
+      const orgName = oid => (orgs || []).find(o => o.id === oid)?.name || "?";
       const seatUse = (oid, cid) => (enrollments || [])
         .filter(e => e.org_id === oid && e.course_id === cid).length;
+
+      // ---- platform-wide attention banner ----
+      const today = new Date(); today.setHours(0,0,0,0);
+      const expSoon = (licenses || []).filter(l => {
+        if (!l.expires_on) return false;
+        const d = Math.round((new Date(l.expires_on) - today) / 86400000);
+        return d >= 0 && d <= 30;
+      });
+      const seatWarn = (licenses || []).filter(l =>
+        l.seats && seatUse(l.org_id, l.course_id) >= l.seats * 0.8);
+      const attention = (expSoon.length || seatWarn.length) ? `
+        <div class="attention">${icon("alert-triangle")} <b>${t2("needs_attention")}</b>
+          <ul>
+            ${expSoon.map(l => `<li>${expSoon.length} ${t2("alert_lic_expiring")} <b>${esc(orgName(l.org_id))}</b> — ${esc(cTitle(l.course_id))} (${esc(l.expires_on)})</li>`).join("")}
+            ${seatWarn.map(l => `<li>${t2("alert_seats_full")} <b>${esc(orgName(l.org_id))}</b> — ${esc(cTitle(l.course_id))} (${seatUse(l.org_id, l.course_id)}/${l.seats})</li>`).join("")}
+          </ul>
+        </div>` : "";
 
       const orgCard = o => {
         const members = membersOf(o.id);
         const admins = members.filter(p => p.role === "admin");
         const teachers = members.filter(p => p.role === "teacher");
         const students = members.filter(p => p.role === "student");
+        const staff = [...admins, ...teachers];
         const myLics = (licenses || []).filter(l => l.org_id === o.id);
         const myTcs = (tcs || []).filter(t => t.org_id === o.id);
         const tOptions = teachers.map(p => `<option value="${p.id}">${esc(nameOf(p))}</option>`).join("");
         const licOptions = myLics.map(l => `<option value="${l.course_id}">${esc(cTitle(l.course_id))}</option>`).join("");
 
+        const seatBar = l => {
+          if (!l.seats) return "";
+          const pct = Math.min(100, Math.round(seatUse(o.id, l.course_id) / l.seats * 100));
+          const cls = pct >= 100 ? "full" : (pct >= 80 ? "warn" : "");
+          return `<div class="seatbar ${cls}"><span style="width:${pct}%;"></span></div>`;
+        };
+
         return `
         <div class="card" style="border-top:4px solid ${o.suspended ? "var(--danger)" : "var(--gold)"};">
-          <h2>${o.kind === "individual" ? "👤" : "🏢"} ${esc(o.name)}
-            ${o.suspended ? '<span class="pill off">suspended</span>' : ""}
-            <span class="kind" style="float:right;">${o.kind === "individual" ? "individual teacher" : "language center"}</span>
-          </h2>
+          <div class="card-head">
+            <h2>${icon(o.kind === "individual" ? "user" : "building-2", 18)} ${esc(o.name)}
+              ${o.suspended ? `<span class="pill off">${t2("suspended").toLowerCase()}</span>` : ""}</h2>
+            <span class="kind">${o.kind === "individual" ? t2("teacher") : t2("org_admin")}</span>
+          </div>
           <p class="kind" style="margin:0 0 0.6rem;">
-            ${admins.length} admin${admins.length !== 1 ? "s" : ""} ·
-            ${teachers.length} teacher${teachers.length !== 1 ? "s" : ""} ·
-            ${students.length} student${students.length !== 1 ? "s" : ""}
-            ${admins.length ? " — admin: " + esc(admins.map(nameOf).join(", ")) : ""}
-            ${o.kind === "individual" && teachers.length ? " — teacher: " + esc(teachers.map(nameOf).join(", ")) : ""}
+            ${admins.length} ${t2("org_admin").toLowerCase()} · ${teachers.length} ${t2("teachers").toLowerCase()} ·
+            ${students.length} ${t2("students").toLowerCase()}
           </p>
 
-          <h2 style="font-size:1rem;">Licenses</h2>
+          ${staff.length ? `
+          <table class="stackable" style="margin-bottom:0.8rem;">
+            <thead><tr><th>${t2("people")}</th><th>${t2("role")}</th><th>${t2("actions")}</th></tr></thead>
+            <tbody>${staff.map(p => `
+              <tr>
+                <td data-th="${t2("people")}">${esc(nameOf(p))}<div class="kind">${esc(p.email || "")}</div></td>
+                <td data-th="${t2("role")}"><span class="pill done">${p.role === "admin" ? t2("org_admin") : t2("teacher")}</span></td>
+                <td style="white-space:nowrap;">
+                  <button class="ghost u-reset" data-id="${p.id}" data-name="${esc(nameOf(p))}">${icon("key-round")} ${t2("reset_pw")}</button>
+                  <button class="ghost u-del" data-id="${p.id}" data-name="${esc(nameOf(p))}"
+                          style="color:var(--danger); border-color:var(--danger);">${icon("trash-2")}</button>
+                </td>
+              </tr>`).join("")}</tbody>
+          </table>` : ""}
+
+          <h2 style="font-size:1rem;">${icon("book-open")} ${t2("licenses")}</h2>
           ${myLics.map(l => `
             <div class="lesson">
-              <span class="icon">📚</span>
               <div class="meta">
                 <div class="title">${esc(cTitle(l.course_id))}</div>
-                <span class="kind">${seatUse(o.id, l.course_id)}${l.seats ? " / " + l.seats : " / unlimited"} seats ·
-                  ${l.expires_on ? "until " + esc(l.expires_on) : "no expiry"}</span>
+                <span class="kind">${seatUse(o.id, l.course_id)}${l.seats ? " / " + l.seats : ""} ${t2("seats")} ·
+                  ${l.expires_on ? t2("valid_until") + " " + esc(l.expires_on) : t2("no_expiry")}</span>
+                ${seatBar(l)}
               </div>
               <button class="ghost lic-del" data-id="${l.id}"
-                      style="color:var(--danger); border-color:var(--danger);">Revoke</button>
-            </div>`).join("") || `<p class="empty">No licenses yet.</p>`}
+                      style="color:var(--danger); border-color:var(--danger);">${t2("revoke")}</button>
+            </div>`).join("") || `<p class="empty">${t2("no_licenses")}</p>`}
 
           <div class="form-row" style="margin-top:0.6rem;">
-            <div class="field" style="max-width:220px;"><label>Grant course</label>
+            <div class="field" style="max-width:220px;"><label>${t2("course")}</label>
               <select class="lic-course" data-org="${o.id}">${courseOptions}</select></div>
-            <div class="field" style="max-width:110px;"><label>Seats</label>
+            <div class="field" style="max-width:110px;"><label>${t2("seats")}</label>
               <input type="number" class="lic-seats" data-org="${o.id}" min="1" placeholder="∞" /></div>
-            <div class="field" style="max-width:160px;"><label>Expires (optional)</label>
+            <div class="field" style="max-width:170px;"><label>${t2("until")} (optional)</label>
               <input type="date" class="lic-exp" data-org="${o.id}" /></div>
-            <button class="lic-add" data-org="${o.id}">Grant license</button>
+            <button class="lic-add" data-org="${o.id}">${t2("assign")}</button>
           </div>
-          <p class="msg lic-msg" data-org="${o.id}"></p>
 
-          <h2 style="font-size:1rem; margin-top:0.8rem;">Create ${o.kind === "individual" ? "the teacher" : "an admin or teacher"} account</h2>
+          <h2 style="font-size:1rem; margin-top:0.9rem;">${icon("user-plus")} ${t2("create_account")}</h2>
           <div class="form-row">
-            <div class="field"><label>Email</label><input class="na-email" data-org="${o.id}" /></div>
-            <div class="field" style="max-width:160px;"><label>Password</label><input class="na-pass" data-org="${o.id}" placeholder="min 6 chars" /></div>
-            <div class="field"><label>Full name</label><input class="na-name" data-org="${o.id}" /></div>
-            <div class="field" style="max-width:140px;"><label>Role</label>
+            <div class="field"><label>${t2("email")}</label><input class="na-email" data-org="${o.id}" /></div>
+            <div class="field" style="max-width:160px;"><label>${t2("password")}</label>
+              <input class="na-pass" data-org="${o.id}" placeholder="${t2("pw_min6")}" /></div>
+            <div class="field"><label>${t2("full_name")}</label><input class="na-name" data-org="${o.id}" /></div>
+            <div class="field" style="max-width:150px;"><label>${t2("role")}</label>
               <select class="na-role" data-org="${o.id}">
                 ${o.kind === "individual"
-                  ? `<option value="teacher">Teacher</option>`
-                  : `<option value="admin">Org admin</option><option value="teacher">Teacher</option>`}
+                  ? `<option value="teacher">${t2("teacher")}</option>`
+                  : `<option value="admin">${t2("org_admin")}</option><option value="teacher">${t2("teacher")}</option>`}
               </select></div>
-            <button class="na-add" data-org="${o.id}">Create account</button>
+            <button class="na-add" data-org="${o.id}">${t2("create")}</button>
           </div>
-          <p class="msg na-msg" data-org="${o.id}"></p>
+          <label style="font-size:0.85rem; color:var(--muted); cursor:pointer; display:block; margin-top:0.4rem;">
+            <input type="checkbox" class="na-invite" data-org="${o.id}" /> ${t2("invite_instead")}
+          </label>
 
           ${teachers.length ? `
-          <h2 style="font-size:1rem; margin-top:0.8rem;">Teacher course assignments</h2>
+          <h2 style="font-size:1rem; margin-top:0.9rem;">${icon("graduation-cap")} ${t2("assign_title")}</h2>
           ${myTcs.map(t => `
             <div class="lesson">
-              <span class="icon">🧑‍🏫</span>
-              <div class="meta"><div class="title">${esc(nameOf(teachers.find(p => p.id === t.teacher_id) || membersOf(o.id).find(p => p.id === t.teacher_id)))}</div>
+              <div class="meta"><div class="title">${esc(nameOf(members.find(p => p.id === t.teacher_id)))}</div>
                 <span class="kind">${esc(cTitle(t.course_id))}</span></div>
-              <button class="ghost tc-del" data-t="${t.teacher_id}" data-c="${t.course_id}">Remove</button>
-            </div>`).join("") || `<p class="empty">No assignments yet.</p>`}
+              <button class="ghost tc-del" data-t="${t.teacher_id}" data-c="${t.course_id}">${t2("remove")}</button>
+            </div>`).join("") || `<p class="empty">${t2("no_assignments")}</p>`}
           <div class="form-row" style="margin-top:0.4rem;">
-            <div class="field" style="max-width:220px;"><label>Teacher</label>
+            <div class="field" style="max-width:220px;"><label>${t2("teacher")}</label>
               <select class="tc-teacher" data-org="${o.id}">${tOptions}</select></div>
-            <div class="field" style="max-width:220px;"><label>Licensed course</label>
-              <select class="tc-course" data-org="${o.id}">${licOptions || `<option value="">Grant a license first</option>`}</select></div>
-            <button class="tc-add" data-org="${o.id}">Assign</button>
-          </div>
-          <p class="msg tc-msg" data-org="${o.id}"></p>` : ""}
+            <div class="field" style="max-width:220px;"><label>${t2("course")}</label>
+              <select class="tc-course" data-org="${o.id}">${licOptions || `<option value="">${t2("no_courses")}</option>`}</select></div>
+            <button class="tc-add" data-org="${o.id}">${t2("assign")}</button>
+          </div>` : ""}
 
-          <div style="margin-top:0.8rem; border-top:1px solid var(--line); padding-top:0.6rem;">
+          <div style="margin-top:0.9rem; border-top:1px solid var(--line); padding-top:0.6rem;">
             <button class="ghost org-susp" data-id="${o.id}"
               ${o.suspended ? "" : 'style="color:var(--danger); border-color:var(--danger);"'}>
-              ${o.suspended ? "▶ Reactivate organization" : "⏸ Suspend organization"}</button>
+              ${o.suspended ? "▶ " + t2("reactivate") : "⏸ " + t2("suspend")}</button>
           </div>
         </div>`;
       };
 
       app.innerHTML = `
-        <p class="eyebrow">Platform owner</p>
-        <h1>Organizations &amp; licenses</h1>
-        <p class="kind" style="margin:-0.4rem 0 1rem;">
-          Every customer is an organization: a <b>language center</b> (with its own admin who manages
-          teachers &amp; students) or an <b>individual teacher</b> (a one-person organization).
-          Grant a license to give an organization access to one of your courses.</p>
+        <p class="eyebrow">${t2("organizations")}</p>
+        <h1>${t2("organizations")} &amp; ${t2("licenses").toLowerCase()}</h1>
+        ${attention}
 
         <div class="card">
-          <h2>New organization</h2>
+          <div class="card-head"><h2>${icon("plus-circle", 18)} ${t2("create")}</h2></div>
           <div class="form-row">
-            <div class="field"><label>Name</label><input id="o-name" placeholder="ABC Language Center / Ms Lan" /></div>
-            <div class="field" style="max-width:220px;"><label>Type</label>
+            <div class="field"><label>${t2("full_name")}</label><input id="o-name" placeholder="ABC Language Center / Ms Lan" /></div>
+            <div class="field" style="max-width:230px;"><label>${t2("role")}</label>
               <select id="o-kind">
-                <option value="center">Language center</option>
-                <option value="individual">Individual teacher</option>
+                <option value="center">🏢 Center / school</option>
+                <option value="individual">👤 ${t2("teacher")}</option>
               </select></div>
-            <button id="o-add">Create organization</button>
+            <button id="o-add">${t2("create")}</button>
           </div>
-          <p id="o-msg" class="msg"></p>
         </div>
 
-        ${(orgs || []).map(orgCard).join("") || `<p class="empty">No organizations yet.</p>`}
+        ${(orgs || []).map(orgCard).join("") || `<p class="empty">${t2("no_enrollments")}</p>`}
         <footer class="hub-footer">Thong's Learning Hub</footer>`;
 
       // ---- wiring ----
+      const el = (cls, org) => app.querySelector(`.${cls}[data-org="${org}"]`);
+
       document.getElementById("o-add").addEventListener("click", async () => {
-        const m = document.getElementById("o-msg");
         const name = document.getElementById("o-name").value.trim();
         const kind = document.getElementById("o-kind").value;
-        if (!name) { m.textContent = "Give the organization a name."; m.className = "msg err"; return; }
+        if (!name) { toast(t2("need_email"), "err"); return; }
         const { error } = await sb.from("organizations").insert({ name, kind });
-        if (error) { m.textContent = "Could not create: " + error.message; m.className = "msg err"; return; }
-        render();
+        if (error) { toast(t2("err_create") + error.message, "err"); return; }
+        toast(t2("created_ok"));
+        rerender(render);
       });
-
-      const msgIn = (cls, org) => app.querySelector(`.${cls}[data-org="${org}"]`);
 
       app.querySelectorAll(".lic-add").forEach(btn => btn.addEventListener("click", async () => {
         const org = btn.getAttribute("data-org");
-        const m = msgIn("lic-msg", org);
-        const course_id = msgIn("lic-course", org).value;
-        const seats = parseInt(msgIn("lic-seats", org).value, 10) || null;
-        const expires_on = msgIn("lic-exp", org).value || null;
+        const course_id = el("lic-course", org).value;
+        const seats = parseInt(el("lic-seats", org).value, 10) || null;
+        const expires_on = el("lic-exp", org).value || null;
         const { error } = await sb.from("course_licenses")
           .insert({ org_id: org, course_id, seats, expires_on });
         if (error) {
-          m.textContent = error.code === "23505"
-            ? "This organization already has a license for that course."
-            : "Could not grant: " + error.message;
-          m.className = "msg err"; return;
+          toast(error.code === "23505" ? t2("already_assigned") : t2("err_save") + error.message, "err");
+          return;
         }
-        render();
+        toast(t2("assigned_ok"));
+        rerender(render);
       }));
-
       app.querySelectorAll(".lic-del").forEach(btn => btn.addEventListener("click", async () => {
-        if (!confirm("Revoke this license? The organization immediately loses access to the course.")) return;
+        if (!await confirmDialog({ title: t2("revoke_lic_title"), body: t2("revoke_lic_body"),
+                                   okText: t2("revoke"), danger: true })) return;
         const { error } = await sb.from("course_licenses").delete().eq("id", btn.getAttribute("data-id"));
-        if (error) { alert("Could not revoke: " + error.message); return; }
-        render();
+        if (error) { toast(t2("err_delete") + error.message, "err"); return; }
+        toast(t2("removed_ok"));
+        rerender(render);
       }));
 
       app.querySelectorAll(".na-add").forEach(btn => btn.addEventListener("click", async () => {
         const org = btn.getAttribute("data-org");
-        const m = msgIn("na-msg", org);
-        const email = msgIn("na-email", org).value.trim();
-        const password = msgIn("na-pass", org).value;
-        const full_name = msgIn("na-name", org).value.trim() || null;
-        const role = msgIn("na-role", org).value;
-        m.className = "msg";
-        if (!email || password.length < 6) {
-          m.textContent = "Enter an email and a password of at least 6 characters.";
-          m.className = "msg err"; return;
-        }
-        m.textContent = "Creating account…";
+        const email = el("na-email", org).value.trim();
+        const password = el("na-pass", org).value;
+        const full_name = el("na-name", org).value.trim() || null;
+        const role = el("na-role", org).value;
+        const invite = el("na-invite", org).checked;
+        if (!email || (!invite && password.length < 6)) { toast(t2("need_email_pw"), "err"); return; }
+        btn.disabled = true;
         try {
-          await createUser({ action: "create", email, password, full_name, role, org_id: org });
-          m.textContent = "Account created ✓ — send them the login details.";
-          setTimeout(render, 1000);
-        } catch (err) { m.textContent = "Could not create: " + err.message; m.className = "msg err"; }
+          await callFn({ action: "create", email, password, full_name, role, org_id: org,
+                         invite, redirect: new URL("reset.html", location.href).href });
+          toast(invite ? t2("invited_ok") : t2("created_ok"));
+          rerender(render);
+        } catch (err) { toast(t2("err_create") + err.message, "err"); btn.disabled = false; }
       }));
 
       app.querySelectorAll(".tc-add").forEach(btn => btn.addEventListener("click", async () => {
         const org = btn.getAttribute("data-org");
-        const m = msgIn("tc-msg", org);
-        const teacher_id = msgIn("tc-teacher", org).value;
-        const course_id = msgIn("tc-course", org).value;
-        if (!teacher_id || !course_id) { m.textContent = "Pick a teacher and a licensed course."; m.className = "msg err"; return; }
+        const teacher_id = el("tc-teacher", org).value;
+        const course_id = el("tc-course", org).value;
+        if (!teacher_id || !course_id) { toast(t2("pick_teacher_course"), "err"); return; }
         const { error } = await sb.from("teacher_courses").insert({ teacher_id, course_id, org_id: org });
         if (error) {
-          m.textContent = error.code === "23505"
-            ? "Already assigned." : "Could not assign: " + error.message;
-          m.className = "msg err"; return;
+          toast(error.code === "23505" ? t2("already_assigned") : t2("err_save") + error.message, "err");
+          return;
         }
-        render();
+        toast(t2("assigned_ok"));
+        rerender(render);
       }));
-
       app.querySelectorAll(".tc-del").forEach(btn => btn.addEventListener("click", async () => {
-        if (!confirm("Remove this assignment?")) return;
+        if (!await confirmDialog({ title: t2("remove_asgn_title"), body: t2("remove_asgn_body"),
+                                   okText: t2("remove"), danger: true })) return;
         const { error } = await sb.from("teacher_courses").delete()
           .eq("teacher_id", btn.getAttribute("data-t"))
           .eq("course_id", btn.getAttribute("data-c"));
-        if (error) { alert("Could not remove: " + error.message); return; }
-        render();
+        if (error) { toast(t2("err_delete") + error.message, "err"); return; }
+        toast(t2("removed_ok"));
+        rerender(render);
+      }));
+
+      app.querySelectorAll(".u-reset").forEach(btn => btn.addEventListener("click", async () => {
+        const pw = await promptDialog({ title: t2("reset_pw") + " — " + btn.getAttribute("data-name"),
+                                        label: t2("new_password"), placeholder: t2("pw_min6") });
+        if (pw === null) return;
+        if (pw.length < 6) { toast(t2("need_email_pw"), "err"); return; }
+        try {
+          await callFn({ action: "reset-password", user_id: btn.getAttribute("data-id"), new_password: pw });
+          toast(t2("reset_pw_ok"));
+        } catch (err) { toast(t2("err_generic") + err.message, "err"); }
+      }));
+      app.querySelectorAll(".u-del").forEach(btn => btn.addEventListener("click", async () => {
+        if (!await confirmDialog({
+          title: t2("del_user_title") + " (" + btn.getAttribute("data-name") + ")",
+          body: t2("del_user_body"), okText: t2("delete_"), danger: true })) return;
+        try {
+          await callFn({ action: "delete", user_id: btn.getAttribute("data-id") });
+          toast(t2("deleted_ok"));
+          rerender(render);
+        } catch (err) { toast(t2("err_delete") + err.message, "err"); }
       }));
 
       app.querySelectorAll(".org-susp").forEach(btn => btn.addEventListener("click", async () => {
         const o = (orgs || []).find(x => x.id === btn.getAttribute("data-id"));
-        if (!o.suspended && !confirm("Suspend this organization? All its members keep their accounts but you should also suspend/expire them individually if needed.")) return;
+        if (!o.suspended && !await confirmDialog({ title: t2("suspend_title"),
+                                                   okText: t2("suspend"), danger: true })) return;
         const { error } = await sb.from("organizations")
           .update({ suspended: !o.suspended }).eq("id", o.id);
-        if (error) { alert("Could not update: " + error.message); return; }
-        render();
+        if (error) { toast(t2("err_save") + error.message, "err"); return; }
+        toast(t2("saved_ok"));
+        rerender(render);
       }));
+
+      refreshIcons();
     }
 
     start();
