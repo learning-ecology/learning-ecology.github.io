@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Thong's Learning Hub</title>
   <link rel="stylesheet" href="styles.css" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#17263e" />
+  <link rel="icon" type="image/png" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/icon-180.png" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Learning Ecology" />
 </head>
 <body>
   <main class="login-wrap">
@@ -70,6 +78,11 @@
       msg.textContent = t("reset_ok");
       setTimeout(() => (window.location.href = "dashboard.html"), 1200);
     });
+  </script>
+  <script>
+    // PWA: offline shell + installability (needs HTTPS, e.g. GitHub Pages)
+    if ("serviceWorker" in navigator && location.protocol === "https:")
+      navigator.serviceWorker.register("sw.js");
   </script>
 </body>
 </html>

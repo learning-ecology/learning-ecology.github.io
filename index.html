@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Thong's Learning Hub</title>
   <link rel="stylesheet" href="styles.css" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#17263e" />
+  <link rel="icon" type="image/png" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/icon-180.png" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Learning Ecology" />
 </head>
 <body>
   <main class="login-wrap">
@@ -33,6 +41,7 @@
         <a href="#" id="lang-toggle" style="font-size:0.85rem; color:var(--muted);"></a>
       </p>
     </div>
+    <div id="pwa-banner" class="login-card" style="display:none; margin-top:0.9rem; padding:1.1rem 1.3rem;"></div>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -122,6 +131,61 @@
     document.getElementById("password").addEventListener("keydown", (e) => {
       if (e.key === "Enter") signIn();
     });
+
+    // ---- "install as an app" hint ----
+    // Android/Chrome: real install button (native prompt).
+    // iPhone/iPad: Safari has no prompt, so show tap-by-tap directions.
+    // Hidden once installed, or after the student dismisses it.
+    (function () {
+      const box = document.getElementById("pwa-banner");
+      const standalone = window.matchMedia("(display-mode: standalone)").matches
+        || window.navigator.standalone;
+      let hidden = false;
+      try { hidden = localStorage.getItem("hub_pwa_hint") === "no"; } catch (e) {}
+      if (!box || standalone || hidden) return;
+
+      const show = (inner) => {
+        box.innerHTML = `
+          <div style="display:flex; gap:0.7rem; align-items:flex-start;">
+            <img src="icons/icon-192.png" alt="" width="42" height="42" style="border-radius:10px; flex:none;" />
+            <div style="flex:1; min-width:0;">
+              <div style="font-weight:700; margin-bottom:0.25rem;">${t("pwa_title")}</div>
+              ${inner}
+            </div>
+          </div>
+          <p style="text-align:right; margin:0.6rem 0 0;">
+            <a href="#" id="pwa-no" style="font-size:0.82rem; color:var(--muted);">${t("pwa_dismiss")}</a>
+          </p>`;
+        box.style.display = "block";
+        document.getElementById("pwa-no").addEventListener("click", (e) => {
+          e.preventDefault();
+          try { localStorage.setItem("hub_pwa_hint", "no"); } catch (e2) {}
+          box.style.display = "none";
+        });
+      };
+
+      const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent)
+        || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      if (isIOS) {
+        show(`<p style="margin:0; font-size:0.86rem; color:var(--muted);">${t("pwa_ios")}</p>`);
+      } else {
+        let deferred = null;
+        window.addEventListener("beforeinstallprompt", (e) => {
+          e.preventDefault();
+          deferred = e;
+          show(`<button id="pwa-go" style="width:auto;">${t("pwa_install")}</button>`);
+          document.getElementById("pwa-go").addEventListener("click", () => {
+            box.style.display = "none";
+            if (deferred) deferred.prompt();
+          });
+        });
+      }
+    })();
+  </script>
+  <script>
+    // PWA: offline shell + installability (needs HTTPS, e.g. GitHub Pages)
+    if ("serviceWorker" in navigator && location.protocol === "https:")
+      navigator.serviceWorker.register("sw.js");
   </script>
 </body>
 </html>

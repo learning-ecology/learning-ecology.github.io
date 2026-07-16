@@ -26,6 +26,12 @@ const I18N = {
     msg_reset_fail: "Could not send the email. Try again in a minute.",
     msg_kicked: "This account was signed in on another device, so this session was signed out.",
 
+    // --- install as an app (PWA) ---
+    pwa_title: "Use Learning Ecology as an app",
+    pwa_install: "📲 Install the app",
+    pwa_ios: "On iPhone/iPad: open this page in Safari, tap the Share button, then choose \"Add to Home Screen\".",
+    pwa_dismiss: "Not now",
+
     // --- reset password ---
     reset_title: "Set a new password",
     reset_sub: "Choose a new password for your account.",
@@ -119,6 +125,12 @@ const I18N = {
     msg_reset_sent: "Hãy kiểm tra hộp thư — liên kết đặt lại mật khẩu đã được gửi.",
     msg_reset_fail: "Không gửi được email. Hãy thử lại sau ít phút.",
     msg_kicked: "Tài khoản vừa đăng nhập trên thiết bị khác nên phiên này đã bị đăng xuất.",
+
+    // --- cài đặt như ứng dụng (PWA) ---
+    pwa_title: "Dùng Learning Ecology như một ứng dụng",
+    pwa_install: "📲 Cài đặt ứng dụng",
+    pwa_ios: "Trên iPhone/iPad: mở trang này bằng Safari, bấm nút Chia sẻ, rồi chọn \"Thêm vào MH chính\".",
+    pwa_dismiss: "Để sau",
 
     // --- đặt lại mật khẩu ---
     reset_title: "Đặt mật khẩu mới",
