@@ -25,7 +25,8 @@
   <script src="ui.js"></script>
   <script>
     const { t2, toast, confirmDialog, promptDialog, skeleton, csv, icon,
-            refreshIcons, wireLangButton, rerender } = window.UI;
+            refreshIcons, wireLangButton, rerender, membership, memberBadge } = window.UI;
+    const isPremRow = s => ["premium", "teacher-prem"].includes(membership(s).key);
     const app = document.getElementById("app");
     const who = document.getElementById("who");
     let user = null, myOrg = null, myName = "";
@@ -330,8 +331,8 @@
               <thead><tr><th>${t2("student")}</th><th>${t2("email")}</th><th>${t2("completed")}</th>
                 <th>${t2("study_time")}</th><th>${t2("last_active")}</th><th>${t2("actions")}</th></tr></thead>
               <tbody>${myStudents.map(s => `
-                <tr>
-                  <td data-th="${t2("student")}">${esc(nameOf(s))}${s.plan === "premium" ? ` <span class="pill done">👑${s.premium_until ? " → " + esc(s.premium_until) : ""}</span>` : ` <span class="pill off">${t2("free_plan")}</span>`}${s.suspended ? ` <span class="pill off">${t2("suspended")}</span>` : ""}</td>
+                <tr class="${isPremRow(s) ? "row-premium" : ""}">
+                  <td data-th="${t2("student")}">${esc(nameOf(s))} ${memberBadge(s)}${s.plan === "premium" && s.premium_until ? ` <span class="kind">→ ${esc(s.premium_until)}</span>` : ""}${s.suspended ? ` <span class="pill off">${t2("suspended")}</span>` : ""}</td>
                   <td data-th="${t2("email")}">${esc(s.email || "—")}</td>
                   <td data-th="${t2("completed")}">${doneBy[s.id] || 0} ${t2("lessons")}</td>
                   <td data-th="${t2("study_time")}">${fmtTime(timeBy[s.id] || 0)}</td>
@@ -579,6 +580,8 @@
       document.getElementById("stu-csv")?.addEventListener("click", () =>
         csv("students.csv", myStudents.map(s => ({
           name: nameOf(s), email: s.email || "",
+          membership: membership(s).label,
+          plan: s.plan || "free", premium_until: s.premium_until || "",
           lessons_completed: doneBy[s.id] || 0,
           study_minutes: Math.round((timeBy[s.id] || 0) / 60),
           last_active: lastBy[s.id] ? new Date(lastBy[s.id]).toLocaleDateString() : ""

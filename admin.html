@@ -25,7 +25,8 @@
   <script src="ui.js"></script>
   <script>
     const { t2, toast, confirmDialog, promptDialog, skeleton, csv, icon,
-            refreshIcons, wireLangButton, rerender } = window.UI;
+            refreshIcons, wireLangButton, rerender, membership, memberBadge } = window.UI;
+    const isPremRow = s => ["premium", "teacher-prem"].includes(membership(s).key);
     const app = document.getElementById("app");
     const who = document.getElementById("who");
     let user = null, myOrg = null;
@@ -301,9 +302,9 @@
               <thead><tr><th>${t2("student")}</th><th>${t2("access")}</th><th>${t2("completed")}</th>
                 <th>${t2("study_time")}</th><th>${t2("last_active")}</th><th>${t2("actions")}</th></tr></thead>
               <tbody>${students.map(s => `
-                <tr>
-                  <td data-th="${t2("student")}">${esc(nameOf(s))}<div class="kind">${esc(s.email || "")}</div></td>
-                  <td data-th="${t2("access")}">${accPill(s)}${s.plan === "premium" ? ` <span class="pill done">👑${s.premium_until ? " → " + esc(s.premium_until) : ""}</span>` : ""}</td>
+                <tr class="${isPremRow(s) ? "row-premium" : ""}">
+                  <td data-th="${t2("student")}">${esc(nameOf(s))} ${memberBadge(s)}<div class="kind">${esc(s.email || "")}</div></td>
+                  <td data-th="${t2("access")}">${accPill(s)}${s.plan === "premium" && s.premium_until ? ` <span class="kind">👑 → ${esc(s.premium_until)}</span>` : ""}</td>
                   <td data-th="${t2("completed")}">${doneBy[s.id] || 0}</td>
                   <td data-th="${t2("study_time")}">${fmtTime(timeBy[s.id] || 0)}</td>
                   <td data-th="${t2("last_active")}">${lastBy[s.id] ? new Date(lastBy[s.id]).toLocaleDateString() : t2("never")}</td>
@@ -605,6 +606,8 @@
       document.getElementById("stu-csv")?.addEventListener("click", () =>
         csv("students.csv", students.map(s => ({
           name: nameOf(s), email: s.email || "",
+          membership: membership(s).label,
+          plan: s.plan || "free", premium_until: s.premium_until || "",
           access_expires: s.access_expires || "unlimited",
           suspended: s.suspended ? "yes" : "no",
           lessons_completed: doneBy[s.id] || 0,

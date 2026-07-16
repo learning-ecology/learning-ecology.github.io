@@ -160,6 +160,16 @@
       brand_hint: "Pick your organization's color — it is applied to buttons, tabs, and highlights on all your pages (teachers and students included).",
       brand_saved: "Branding saved ✓",
       reset_default: "Reset to default",
+      // --- Phase 4: membership + lesson images ---
+      membership: "Membership", mb_teacher_pro: "Teacher Pro",
+      mb_teacher_prem: "Teacher Premium", mb_org: "Organization", mb_owner: "Owner",
+      all_accounts: "All accounts", free_accounts: "Free accounts",
+      premium_accounts: "Premium accounts", teacher_accounts: "Teacher accounts",
+      org_accounts: "Organization accounts",
+      lesson_image: "Lesson image", replace_image: "Replace image",
+      remove_image: "Remove image", image_saved: "Image saved ✓",
+      image_removed: "Image removed ✓",
+      lessons_left: "remaining",
       lang_btn: "VI",
     },
     vi: {
@@ -309,6 +319,16 @@
       brand_hint: "Chọn màu của tổ chức — màu này áp dụng cho nút bấm, thẻ và điểm nhấn trên mọi trang của bạn (kể cả giáo viên và học viên).",
       brand_saved: "Đã lưu màu thương hiệu ✓",
       reset_default: "Khôi phục mặc định",
+      // --- Phase 4: membership + lesson images ---
+      membership: "Gói tài khoản", mb_teacher_pro: "Teacher Pro",
+      mb_teacher_prem: "Teacher Premium", mb_org: "Tổ chức", mb_owner: "Chủ nền tảng",
+      all_accounts: "Tất cả tài khoản", free_accounts: "Tài khoản miễn phí",
+      premium_accounts: "Tài khoản Premium", teacher_accounts: "Tài khoản giáo viên",
+      org_accounts: "Tài khoản tổ chức",
+      lesson_image: "Ảnh bài học", replace_image: "Đổi ảnh",
+      remove_image: "Xóa ảnh", image_saved: "Đã lưu ảnh ✓",
+      image_removed: "Đã xóa ảnh ✓",
+      lessons_left: "còn lại",
       lang_btn: "EN",
     }
   };
@@ -515,6 +535,31 @@
         .map(c => dk(c).toString(16).padStart(2, "0")).join(""));
   }
 
+  // ---------- membership (Phase 4) ----------
+  // One consistent account label + color across every page:
+  //   free (blue) · premium (gold) · teacher pro / teacher premium
+  //   (purple) · organization (navy) · owner (navy + gold)
+  function membership(p) {
+    if (!p) return { key: "free", label: t2("free_plan"), icon: "" };
+    const today = new Date().toISOString().slice(0, 10);
+    const premOK = p.plan === "premium" && (!p.premium_until || p.premium_until >= today);
+    if (p.role === "owner")
+      return { key: "owner", label: t2("mb_owner"), icon: "★ " };
+    if (p.role === "admin")
+      return { key: "org", label: t2("mb_org"), icon: "🏢 " };
+    if (p.role === "teacher")
+      return premOK
+        ? { key: "teacher-prem", label: t2("mb_teacher_prem"), icon: "👑 " }
+        : { key: "teacher", label: t2("mb_teacher_pro"), icon: "🎓 " };
+    return premOK
+      ? { key: "premium", label: t2("premium"), icon: "👑 " }
+      : { key: "free", label: t2("free_plan"), icon: "" };
+  }
+  function memberBadge(p) {
+    const m = membership(p);
+    return `<span class="mb mb-${m.key}">${m.icon}${m.label}</span>`;
+  }
+
   // ---------- client-side image downscale (banner uploads) ----------
   function resizeImage(file, maxW) {
     return new Promise((resolve, reject) => {
@@ -526,6 +571,31 @@
           cv.width = Math.max(1, Math.round(img.width * scale));
           cv.height = Math.max(1, Math.round(img.height * scale));
           cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+          cv.toBlob(b => b ? resolve(b) : reject(new Error("resize failed")),
+                    "image/jpeg", 0.85);
+        } catch (e) { reject(e); }
+        URL.revokeObjectURL(img.src);
+      };
+      img.onerror = reject;
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  // ---------- crop + resize to a fixed frame (lesson covers) ----------
+  // Center-crops the image to exactly w×h (cover), so every lesson
+  // thumbnail has the same shape no matter what was uploaded.
+  function cropResize(file, w, h) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const W = w || 640, H = h || 360;
+          const scale = Math.max(W / img.width, H / img.height);
+          const sw = W / scale, sh = H / scale;
+          const sx = (img.width - sw) / 2, sy = (img.height - sh) / 2;
+          const cv = document.createElement("canvas");
+          cv.width = W; cv.height = H;
+          cv.getContext("2d").drawImage(img, sx, sy, sw, sh, 0, 0, W, H);
           cv.toBlob(b => b ? resolve(b) : reject(new Error("resize failed")),
                     "image/jpeg", 0.85);
         } catch (e) { reject(e); }
@@ -579,6 +649,7 @@
 
   window.UI = { t2, LANG, toast, confirmDialog, promptDialog, skeleton,
                 csv, icon, refreshIcons, wireLangButton, rerender, initBell,
-                applyBrand, resizeImage, BRAND_PRESETS, initNav };
+                applyBrand, resizeImage, cropResize, membership, memberBadge,
+                BRAND_PRESETS, initNav };
   document.documentElement.setAttribute("lang", LANG);
 })();
