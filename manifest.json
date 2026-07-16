@@ -2,7 +2,7 @@
   "name": "Learning Ecology",
   "short_name": "Learning Ecology",
   "description": "Learning Ecology — your lessons, courses, and progress in one place.",
-  "start_url": "./index.html",
+  "start_url": "./login.html",
   "scope": "./",
   "display": "standalone",
   "background_color": "#f4f6fa",

@@ -44,7 +44,7 @@
     document.getElementById("signout").textContent = t2("sign_out");
     document.getElementById("signout").addEventListener("click", async () => {
       await sb.auth.signOut();
-      window.location.href = "index.html";
+      window.location.href = "login.html";
     });
     wireLangButton(document.getElementById("lang-btn"));
 
@@ -74,7 +74,7 @@
     async function start() {
       app.innerHTML = skeleton(3);
       const { data: { session } } = await sb.auth.getSession();
-      if (!session) { window.location.href = "index.html"; return; }
+      if (!session) { window.location.href = "login.html"; return; }
       user = session.user;
       const { data: me } = await sb.from("profiles")
         .select("full_name, role, org_id").eq("id", user.id).single();

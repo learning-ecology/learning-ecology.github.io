@@ -49,7 +49,7 @@
 
     document.getElementById("signout").addEventListener("click", async () => {
       await sb.auth.signOut();
-      window.location.href = "index.html";
+      window.location.href = "login.html";
     });
 
     function esc(s) {
@@ -95,7 +95,7 @@
 
     async function start() {
       const { data: { session } } = await sb.auth.getSession();
-      if (!session) { window.location.href = "index.html"; return; }
+      if (!session) { window.location.href = "login.html"; return; }
       user = session.user;
 
       const { data: profile } = await sb
@@ -134,7 +134,7 @@
         }
         const kick = async () => {
           try { await sb.auth.signOut({ scope: "local" }); } catch (e) {}
-          window.location.href = "index.html?kicked=1";
+          window.location.href = "login.html?kicked=1";
         };
         if (!profile?.active_session) {
           // Legacy session from before this feature: claim this device.
@@ -199,6 +199,20 @@
         .from("teacher_materials").select("*").order("created_at", { ascending: false });
       const { data: mePlan } = await sb
         .from("profiles").select("plan, premium_until").eq("id", user.id).single();
+
+      // flashcards + weekly leaderboard (need migration 23 — until it
+      // runs these come back empty and the features simply stay hidden)
+      const { data: myCardsRaw } = await sb
+        .from("flashcards").select("*").order("sort_order").order("created_at");
+      const myCards = myCardsRaw || [];
+      const { data: myRevsRaw } = await sb
+        .from("flashcard_reviews").select("*").eq("student_id", user.id);
+      const myRevs = myRevsRaw || [];
+      const { data: lbRows } = await sb.rpc("class_leaderboard");
+      let lbPref = null;   // null = column not there yet → hide the toggle
+      { const { data: lp, error: lpe } = await sb
+          .from("profiles").select("show_on_leaderboard").eq("id", user.id).single();
+        if (!lpe && lp) lbPref = lp.show_on_leaderboard !== false; }
 
       // ---- Free vs Premium gating ----
       const __t0 = new Date().toISOString().slice(0, 10);
@@ -396,6 +410,15 @@
           else run = 1;
           longestStreak = Math.max(longestStreak, run); prev = x;
         }); }
+      // streak about to break? (studied yesterday and before, nothing today)
+      let riskStreak = 0;
+      if (!activeDates.has(dloc(new Date()))) {
+        const rd = new Date(); rd.setDate(rd.getDate() - 1);
+        while (activeDates.has(dloc(rd))) { riskStreak++; rd.setDate(rd.getDate() - 1); }
+      }
+      const streakBar = riskStreak >= 2
+        ? `<div class="alert-bar">${tf("streak_risk", { n: riskStreak })}</div>` : "";
+
       const doneAll = (mine || []).filter(p => p.status === "completed").length;
       const week7 = lastNDays(7);
       const weekDone = (mine || []).filter(p => p.status === "completed" && p.updated_at &&
@@ -439,6 +462,23 @@
           ${chart}
           <p class="kind" style="margin:0.3rem 0 0;">${enc}</p>
         </div>`;
+
+      // ---- weekly class leaderboard (opt-out in Profile) ----
+      const lbCard = (lbRows && lbRows.length && lbRows.some(r => r.xp > 0)) ? `
+        <div class="card" style="border-top:4px solid var(--gold);">
+          <h2>🏆 ${t("lb_title")}</h2>
+          <p class="kind" style="margin:0 0 0.4rem;">${t("lb_hint")}</p>
+          ${lbRows.map((r, i) => `
+            <div class="lesson" style="padding:0.5rem 0.4rem;${r.student_id === user.id ? " background:rgba(183,130,63,0.09); border-radius:8px;" : ""}">
+              <span style="width:1.7rem; text-align:center; font-weight:800; flex:none;">${i < 3 ? ["🥇", "🥈", "🥉"][i] : i + 1}</span>
+              ${r.avatar_url
+                ? `<img src="${esc(r.avatar_url)}" alt="" style="width:26px;height:26px;border-radius:50%;object-fit:cover;flex:none;" />`
+                : `<span style="width:26px;height:26px;border-radius:50%;background:var(--line);display:grid;place-items:center;font-size:0.72rem;font-weight:700;color:var(--muted);flex:none;">${esc(String(r.full_name || "?").charAt(0).toUpperCase())}</span>`}
+              <div class="meta"><div class="title" style="font-weight:600;">${esc(r.full_name || "—")}
+                ${r.student_id === user.id ? ` <span class="pill done">${t("lb_you")}</span>` : ""}</div></div>
+              <span class="pill todo">${r.xp} XP</span>
+            </div>`).join("")}
+        </div>` : "";
 
       // ---- continue learning / next up ----
       const findL = id => (lessons || []).find(x => x.id === id);
@@ -591,6 +631,10 @@
                 <input id="p-bio" value="${esc(me?.bio || "")}" placeholder="${esc(t("ph_bio"))}" /></div>
               <button id="p-save">${t("save_profile")}</button>
               <p id="p-msg" class="msg"></p>
+              ${lbPref === null ? "" : `
+              <label style="font-size:0.85rem; color:var(--muted); cursor:pointer; display:block; margin-top:0.5rem;">
+                <input type="checkbox" id="p-lb" ${lbPref ? "checked" : ""} /> 🏆 ${t("lb_show_me")}
+              </label>`}
             </div>
           </div>
         </div>`;
@@ -700,6 +744,40 @@
             </div>`).join("")}
         </div>` : "";
 
+      // ---- flashcard decks (SM-2 spaced repetition) ----
+      const dstrLoc = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+      const fcToday = dstrLoc(new Date());
+      const revBy = {};
+      myRevs.forEach(r => { revBy[r.card_id] = r; });
+      const NEW_PER_DAY = 10;
+      const deckStats = (courses || []).map(c => {
+        const cs = myCards.filter(k => k.course_id === c.id);
+        if (!cs.length) return null;
+        const due = cs.filter(k => revBy[k.id] && revBy[k.id].due_on <= fcToday).length;
+        const fresh = Math.min(cs.filter(k => !revBy[k.id]).length, NEW_PER_DAY);
+        const locked = !isPremUser && c.tier === "premium";
+        return { c, total: cs.length, due, fresh, locked };
+      }).filter(Boolean);
+      const flashPane = deckStats.length ? `
+        <div class="card" style="border-top:4px solid var(--tone-purple);">
+          <h2>🃏 ${t("flash_tab")}</h2>
+          <p class="kind" style="margin:0 0 0.5rem;">${t("flash_hint")}</p>
+          ${deckStats.map(d => `
+            <div class="lesson">
+              <span class="icon">${esc(d.c.icon || "🃏")}</span>
+              <div class="meta">
+                <div class="title">${esc(d.c.title)}</div>
+                <span class="kind">${d.due} ${t("flash_due")} · ${d.fresh} ${t("flash_new")} · ${d.total} 🃏</span>
+              </div>
+              ${d.locked
+                ? `<button class="ghost prem-btn lc-prem-btn">👑 Premium</button>`
+                : (d.due + d.fresh
+                   ? `<button class="fc-start" data-course="${d.c.id}">${t("flash_start")} · ${d.due + d.fresh}</button>`
+                   : `<span class="pill done" title="${esc(t("flash_all_done"))}">✓</span>`)}
+            </div>`).join("")}
+        </div>`
+        : `<div class="card"><p class="empty">${t("flash_none")}</p></div>`;
+
       const T2p = window.UI ? UI.t2 : (k => k);
       const anyPremiumContent = (lessons || []).some(l => tierOf(l) === "premium");
       const premBar = isPremUser
@@ -716,9 +794,11 @@
         ${accessNote}
         ${premBar}
         <div class="tabpane" data-tab="home">
+          ${streakBar}
           ${heroCard}
           ${schedCard}
           ${statsCard}
+          ${lbCard}
           <div class="search-wrap">
             <input id="hub-search" placeholder="${esc(t("search_ph"))}" autocomplete="off" />
             <div id="search-results" class="search-results" style="display:none;"></div>
@@ -731,6 +811,9 @@
           ${looseCard}
           ${matsCard}
           ${reviewCard}
+        </div>
+        <div class="tabpane" data-tab="flash">
+          ${flashPane}
         </div>
         <div class="tabpane" data-tab="asgn">
           ${asgnCard || `<div class="card"><p class="empty">${T2p("no_asgn_student")}</p></div>`}
@@ -786,6 +869,7 @@
         const items = [
           { id: "home", label: T("nav_home"), icon: "home" },
           { id: "courses", label: T("my_courses"), icon: "book-open" },
+          { id: "flash", label: t("flash_tab"), icon: "wallet-cards" },
           { id: "asgn", label: T("asgn"), icon: "clipboard-list" },
           { id: "community", label: T("disc"), icon: "messages-square" },
           { id: "profile", label: T("profile_tab"), icon: "user" },
@@ -815,6 +899,94 @@
         showUpgrade();
       }));
       document.getElementById("upg-open")?.addEventListener("click", showUpgrade);
+
+      // --- leaderboard visibility toggle ---
+      document.getElementById("p-lb")?.addEventListener("change", async (e) => {
+        const { error } = await sb.from("profiles")
+          .update({ show_on_leaderboard: e.target.checked }).eq("id", user.id);
+        if (error) { e.target.checked = !e.target.checked; return; }
+        if (window.UI) UI.toast(t("saved"));
+      });
+
+      // --- flashcard review session (SM-2 spaced repetition) ---
+      function startReview(courseId) {
+        const cs = myCards.filter(k => k.course_id === courseId);
+        const due = cs.filter(k => revBy[k.id] && revBy[k.id].due_on <= fcToday);
+        const fresh = cs.filter(k => !revBy[k.id]).slice(0, NEW_PER_DAY);
+        const queue = [...due, ...fresh].sort(() => Math.random() - 0.5);
+        if (!queue.length) return;
+        let doneN = 0;
+        const ov = document.createElement("div");
+        ov.className = "cert-overlay";
+        document.body.appendChild(ov);
+        const finish = () => { ov.remove(); renderStudent(); };
+
+        function show() {
+          if (!queue.length) {
+            ov.innerHTML = `
+              <div class="modal" style="max-width:380px; text-align:center;">
+                <div style="font-size:2.4rem;">🎉</div>
+                <h3 style="font-family:var(--serif); margin:0.3rem 0;">${t("flash_done_t")}</h3>
+                <p style="color:var(--muted);">${tf("flash_done_m", { n: doneN })}</p>
+                <button id="fr-close">OK</button>
+              </div>`;
+            ov.querySelector("#fr-close").addEventListener("click", finish);
+            return;
+          }
+          const card = queue[0];
+          ov.innerHTML = `
+            <div class="modal" style="max-width:440px; text-align:center;">
+              <div class="kind" style="text-align:right;">${queue.length} ${t("flash_left")}</div>
+              <div style="font-family:var(--serif); font-size:2.3rem; line-height:1.3; margin:1.1rem 0 0.4rem; overflow-wrap:anywhere;">${esc(card.front)}</div>
+              <div id="fr-back" style="display:none;">
+                ${card.reading ? `<div style="color:var(--muted); font-size:1.08rem;">${esc(card.reading)}</div>` : ""}
+                <div style="font-size:1.3rem; font-weight:700; margin-top:0.5rem;">${esc(card.back)}</div>
+                ${card.example ? `<div style="color:var(--muted); font-size:0.92rem; margin-top:0.6rem; overflow-wrap:anywhere;">${esc(card.example)}</div>` : ""}
+                <div style="display:flex; gap:0.45rem; justify-content:center; margin-top:1.3rem; flex-wrap:wrap;">
+                  <button class="ghost fr-g" data-g="0" style="color:var(--danger); border-color:var(--danger);">${t("flash_again")}</button>
+                  <button class="ghost fr-g" data-g="3">${t("flash_hard")}</button>
+                  <button class="fr-g" data-g="4">${t("flash_good")}</button>
+                  <button class="fr-g" data-g="5" style="background:var(--success); border-color:var(--success);">${t("flash_easy")}</button>
+                </div>
+              </div>
+              <button id="fr-flip" style="margin-top:1.1rem;">${t("flash_show")}</button>
+              <div style="margin-top:0.9rem;"><button class="ghost" id="fr-x" style="font-size:0.85rem;">✕</button></div>
+            </div>`;
+          ov.querySelector("#fr-flip").addEventListener("click", () => {
+            ov.querySelector("#fr-back").style.display = "block";
+            ov.querySelector("#fr-flip").style.display = "none";
+          });
+          ov.querySelector("#fr-x").addEventListener("click", finish);
+          ov.querySelectorAll(".fr-g").forEach(b => b.addEventListener("click", async () => {
+            ov.querySelectorAll(".fr-g").forEach(x => (x.disabled = true));
+            const g = Number(b.getAttribute("data-g"));
+            const prev = revBy[card.id] || { ease: 2.5, interval_days: 0, reps: 0 };
+            let ease = Number(prev.ease) || 2.5;
+            let interval = Number(prev.interval_days) || 0;
+            let reps = Number(prev.reps) || 0;
+            if (g < 3) { reps = 0; interval = 0; }
+            else {
+              reps += 1;
+              interval = reps === 1 ? 1 : reps === 2 ? 6 : Math.max(1, Math.round(interval * ease));
+              ease = Math.max(1.3, ease + (0.1 - (5 - g) * (0.08 + (5 - g) * 0.02)));
+            }
+            const dd = new Date(); dd.setDate(dd.getDate() + interval);
+            const rec = { student_id: user.id, card_id: card.id, ease,
+                          interval_days: interval, reps, due_on: dstrLoc(dd),
+                          last_grade: g, updated_at: new Date().toISOString() };
+            revBy[card.id] = rec;
+            await sb.from("flashcard_reviews")
+              .upsert(rec, { onConflict: "student_id,card_id" });
+            queue.shift();
+            if (g < 3) queue.push(card);   // failed → comes back this session
+            else doneN++;
+            show();
+          }));
+        }
+        show();
+      }
+      app.querySelectorAll(".fc-start").forEach(b => b.addEventListener("click", () =>
+        startReview(b.getAttribute("data-course"))));
 
       // --- assignment submissions ---
       app.querySelectorAll(".as-submit").forEach(btn => btn.addEventListener("click", async () => {
@@ -1169,6 +1341,11 @@
         .from("lock_events").select("lesson_id, student_id, created_at")
         .order("created_at", { ascending: false }).limit(2000);
 
+      // flashcard decks (needs migration 23 — stays empty until then)
+      let { data: cards } = await sb
+        .from("flashcards").select("*").order("sort_order").order("created_at");
+      cards = cards || [];
+
       const courseName = id => (courses || []).find(c => c.id === id)?.title || null;
 
       // account status: active / expiring / expired / suspended (+unlimited)
@@ -1415,6 +1592,33 @@
           </div>
           <div id="lesson-list"></div>
           <input type="file" id="li-file" accept="image/*" style="display:none;" />
+        </div>
+        </div>
+
+        <div class="tabpane" data-tab="flash">
+        <div class="card">
+          <h2>🃏 Flashcards <span class="kind" id="fc-count"></span></h2>
+          <p class="kind" style="margin:0 0 0.7rem;">Students review these with spaced repetition (hard cards return sooner, easy ones wait longer). A deck belongs to a course — only its enrolled students see it.</p>
+          <div class="form-row" style="margin-bottom:0.7rem;">
+            <div class="field" style="max-width:260px;"><label>Course (deck)</label>
+              <select id="fc-course">${courseOptions || `<option value="">— create a course first —</option>`}</select></div>
+          </div>
+          <div class="form-row">
+            <div class="field" style="max-width:170px;"><label>Front (word)</label><input id="fc-front" placeholder="你好" /></div>
+            <div class="field" style="max-width:150px;"><label>Reading (optional)</label><input id="fc-read" placeholder="nǐ hǎo" /></div>
+            <div class="field"><label>Back (meaning)</label><input id="fc-back" placeholder="xin chào" /></div>
+            <div class="field"><label>Example (optional)</label><input id="fc-ex" placeholder="你好，我是 Thông。" /></div>
+            <button id="fc-add">Add card</button>
+          </div>
+          <p id="fc-msg" class="msg"></p>
+          <details style="margin-top:0.5rem;">
+            <summary style="cursor:pointer; font-size:0.88rem; color:var(--accent-ink); font-weight:600;">⬆ Bulk import — paste a whole list at once</summary>
+            <p class="kind" style="margin:0.5rem 0;">One card per line, parts separated by <b>|</b> : &nbsp;front | back | reading | example &nbsp;(reading and example are optional)</p>
+            <textarea id="fc-bulk" style="min-height:120px; font-family:var(--mono); font-size:0.85rem;"
+              placeholder="你好 | xin chào | nǐ hǎo | 你好，我是Thông。&#10;谢谢 | cảm ơn | xièxie"></textarea>
+            <button id="fc-import" style="margin-top:0.5rem;">Import cards</button>
+          </details>
+          <div id="fc-list" style="margin-top:0.8rem;"></div>
         </div>
         </div>
 
@@ -1824,6 +2028,7 @@
         items: [
           { id: "lessons", label: "Lessons (" + (lessons || []).length + ")", icon: "book-open" },
           { id: "courses", label: "Courses (" + (courses || []).length + ")", icon: "layers" },
+          { id: "flash", label: "Flashcards" + (cards.length ? " (" + cards.length + ")" : ""), icon: "wallet-cards" },
           { id: "students", label: "Students (" + onlyStudents.length + ")" + (stuWarn ? " ⚠️" : ""), icon: "users" },
           { id: "progress", label: "Analytics", icon: "bar-chart-3" },
           { id: "announce", label: "Announce" + ((anns || []).length ? " (" + anns.length + ")" : ""), icon: "megaphone" },
@@ -2117,6 +2322,105 @@
           else alert("Upload failed: " + err.message);
         }
       });
+
+      // ---- flashcard deck management ----
+      (function () {
+        const sel = document.getElementById("fc-course");
+        if (!sel) return;
+        const list = document.getElementById("fc-list");
+        const msgEl = document.getElementById("fc-msg");
+        const say = (txt, err) => { msgEl.textContent = txt; msgEl.className = "msg" + (err ? " err" : ""); };
+        try {
+          const saved = localStorage.getItem("hub_fc_course");
+          if (saved && [...sel.options].some(o => o.value === saved)) sel.value = saved;
+        } catch (e) {}
+
+        function fcRows() {
+          const cid = sel.value;
+          const mine = cards.filter(c => c.course_id === cid);
+          document.getElementById("fc-count").textContent =
+            "(" + mine.length + " in this course · " + cards.length + " total)";
+          list.innerHTML = mine.map(c => `
+            <div class="lesson" style="flex-wrap:wrap;">
+              <input class="fce" data-id="${c.id}" data-f="front" value="${esc(c.front)}" style="max-width:150px;" title="Front" />
+              <input class="fce" data-id="${c.id}" data-f="reading" value="${esc(c.reading || "")}" placeholder="reading" style="max-width:130px;" title="Reading" />
+              <input class="fce" data-id="${c.id}" data-f="back" value="${esc(c.back)}" style="flex:1; min-width:130px;" title="Back" />
+              <input class="fce" data-id="${c.id}" data-f="example" value="${esc(c.example || "")}" placeholder="example" style="flex:1; min-width:150px;" title="Example" />
+              <button class="ghost fc-save" data-id="${c.id}">Save</button>
+              <button class="ghost fc-del" data-id="${c.id}" style="color:var(--danger); border-color:var(--danger);">Delete</button>
+            </div>`).join("") || `<p class="empty">No cards in this course yet — add one above, or use bulk import.</p>`;
+
+          list.querySelectorAll(".fc-save").forEach(b => b.addEventListener("click", async () => {
+            const id = b.getAttribute("data-id");
+            const patch = {};
+            list.querySelectorAll(`.fce[data-id="${id}"]`).forEach(i =>
+              patch[i.getAttribute("data-f")] = i.value.trim() || null);
+            if (!patch.front || !patch.back) { say("Front and back can't be empty.", true); return; }
+            b.disabled = true;
+            const { error } = await sb.from("flashcards").update(patch).eq("id", id);
+            b.disabled = false;
+            if (error) { say("Could not save: " + error.message, true); return; }
+            Object.assign(cards.find(x => x.id === id) || {}, patch);
+            b.textContent = "Saved ✓"; setTimeout(() => (b.textContent = "Save"), 1200);
+          }));
+          list.querySelectorAll(".fc-del").forEach(b => b.addEventListener("click", async () => {
+            if (!confirm("Delete this card? Students' review history for it is removed too.")) return;
+            b.disabled = true;
+            const { error } = await sb.from("flashcards").delete().eq("id", b.getAttribute("data-id"));
+            if (error) { b.disabled = false; say("Could not delete: " + error.message, true); return; }
+            cards = cards.filter(x => x.id !== b.getAttribute("data-id"));
+            fcRows();
+          }));
+        }
+
+        sel.addEventListener("change", () => {
+          try { localStorage.setItem("hub_fc_course", sel.value); } catch (e) {}
+          fcRows();
+        });
+
+        document.getElementById("fc-add").addEventListener("click", async () => {
+          const front = document.getElementById("fc-front").value.trim();
+          const back = document.getElementById("fc-back").value.trim();
+          const reading = document.getElementById("fc-read").value.trim() || null;
+          const example = document.getElementById("fc-ex").value.trim() || null;
+          if (!sel.value) { say("Create a course first.", true); return; }
+          if (!front || !back) { say("Front and back are required.", true); return; }
+          const { data: row, error } = await sb.from("flashcards")
+            .insert({ course_id: sel.value, front, back, reading, example,
+                      sort_order: cards.filter(c => c.course_id === sel.value).length + 1,
+                      created_by: user.id }).select().single();
+          if (error) { say("Could not add: " + error.message + (error.message.includes("does not exist") ? " — run migration23 first." : ""), true); return; }
+          cards.push(row);
+          ["fc-front", "fc-back", "fc-read", "fc-ex"].forEach(x => (document.getElementById(x).value = ""));
+          say("Card added ✓");
+          document.getElementById("fc-front").focus();
+          fcRows();
+        });
+
+        document.getElementById("fc-import").addEventListener("click", async () => {
+          const lines = document.getElementById("fc-bulk").value.split("\n").map(l => l.trim()).filter(Boolean);
+          if (!sel.value) { say("Create a course first.", true); return; }
+          if (!lines.length) { say("Paste at least one line first.", true); return; }
+          const base = cards.filter(c => c.course_id === sel.value).length;
+          const rowsIn = [];
+          for (let i = 0; i < lines.length; i++) {
+            const p = lines[i].split("|").map(x => x.trim());
+            if (!p[0] || !p[1]) { say('Line ' + (i + 1) + ' needs at least "front | back".', true); return; }
+            rowsIn.push({ course_id: sel.value, front: p[0], back: p[1],
+                          reading: p[2] || null, example: p[3] || null,
+                          sort_order: base + i + 1, created_by: user.id });
+          }
+          say("Importing " + rowsIn.length + " cards…");
+          const { data: ins, error } = await sb.from("flashcards").insert(rowsIn).select();
+          if (error) { say("Import failed: " + error.message, true); return; }
+          cards.push(...(ins || []));
+          document.getElementById("fc-bulk").value = "";
+          say("Imported " + (ins || []).length + " cards ✓");
+          fcRows();
+        });
+
+        fcRows();
+      })();
 
       // ---- filtered, searchable, sortable lesson list ----
       let lf = { course: "all", sort: "order" };

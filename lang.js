@@ -104,7 +104,30 @@ const I18N = {
     chip_done2: "Completed",
     enc_streak: "🔥 {n}-day streak — amazing consistency!",
     enc_keep: "Nice work — keep the momentum going!",
-    enc_start: "Open a lesson today to start your streak!"
+    enc_start: "Open a lesson today to start your streak!",
+
+    // --- Phase 7: flashcards, streak nudge, leaderboard ---
+    flash_tab: "Flashcards",
+    flash_due: "due today",
+    flash_new: "new",
+    flash_start: "Start review",
+    flash_none: "No flashcards in this course yet — your teacher is preparing them.",
+    flash_all_done: "All caught up for today! 🎉 Come back tomorrow.",
+    flash_show: "Show answer",
+    flash_again: "Again",
+    flash_hard: "Hard",
+    flash_good: "Good",
+    flash_easy: "Easy",
+    flash_left: "cards left",
+    flash_done_t: "Review complete!",
+    flash_done_m: "You reviewed {n} cards today.",
+    flash_hint: "Cards you find hard come back sooner; easy ones wait longer — a few minutes a day is enough.",
+    streak_risk: "🔥 Your {n}-day streak ends tonight — open a lesson or review flashcards to keep it!",
+    lb_title: "Weekly leaderboard",
+    lb_hint: "XP this week = completed lessons ×50 + study minutes.",
+    lb_you: "You",
+    lb_empty: "No activity in your class this week yet — be the first!",
+    lb_show_me: "Show my name on the leaderboard"
   },
 
   vi: {
@@ -204,7 +227,30 @@ const I18N = {
     chip_done2: "Đã xong",
     enc_streak: "🔥 Chuỗi {n} ngày liên tiếp — kiên trì tuyệt vời!",
     enc_keep: "Làm tốt lắm — giữ vững phong độ nhé!",
-    enc_start: "Mở một bài học hôm nay để bắt đầu chuỗi ngày học nhé!"
+    enc_start: "Mở một bài học hôm nay để bắt đầu chuỗi ngày học nhé!",
+
+    // --- Phase 7: flashcard, nhắc chuỗi ngày học, bảng xếp hạng ---
+    flash_tab: "Ôn từ vựng",
+    flash_due: "thẻ đến hạn hôm nay",
+    flash_new: "thẻ mới",
+    flash_start: "Bắt đầu ôn",
+    flash_none: "Khóa này chưa có flashcard — giáo viên đang chuẩn bị.",
+    flash_all_done: "Hôm nay đã ôn xong! 🎉 Hẹn gặp lại ngày mai.",
+    flash_show: "Xem đáp án",
+    flash_again: "Chưa nhớ",
+    flash_hard: "Khó",
+    flash_good: "Nhớ",
+    flash_easy: "Dễ",
+    flash_left: "thẻ còn lại",
+    flash_done_t: "Hoàn thành buổi ôn!",
+    flash_done_m: "Bạn đã ôn {n} thẻ hôm nay.",
+    flash_hint: "Thẻ khó sẽ quay lại sớm hơn, thẻ dễ sẽ chờ lâu hơn — mỗi ngày vài phút là đủ.",
+    streak_risk: "🔥 Chuỗi {n} ngày của bạn sẽ mất nếu hôm nay không học — mở một bài học hoặc ôn flashcard để giữ chuỗi nhé!",
+    lb_title: "Bảng xếp hạng tuần",
+    lb_hint: "XP tuần này = số bài hoàn thành ×50 + số phút học.",
+    lb_you: "Bạn",
+    lb_empty: "Tuần này lớp chưa ai có hoạt động — hãy là người đầu tiên!",
+    lb_show_me: "Hiện tên tôi trên bảng xếp hạng"
   }
 };
 

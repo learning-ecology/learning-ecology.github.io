@@ -1,9 +1,21 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Thong's Learning Hub</title>
+  <title>Learning Ecology — Học tiếng Anh &amp; tiếng Trung theo lộ trình</title>
+  <meta name="description" content="Learning Ecology — nền tảng học tiếng Anh và tiếng Trung theo lộ trình cùng Thầy Lê Quốc Thông (Master of TESOL, IELTS 7.5, HSK 5). Theo dõi tiến độ, quiz, chứng nhận hoàn thành, học như ứng dụng trên điện thoại." />
+
+  <!-- social share preview (Zalo / Facebook / Messenger) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Learning Ecology — Học tiếng Anh & tiếng Trung theo lộ trình" />
+  <meta property="og:description" content="Học có lộ trình, tiến bộ đo được mỗi ngày — cùng Thầy Lê Quốc Thông (Master of TESOL, IELTS 7.5, HSK 5). Đăng ký học thử miễn phí." />
+  <meta property="og:url" content="https://learning-ecology.github.io/" />
+  <meta property="og:image" content="https://learning-ecology.github.io/social-card.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+
   <link rel="stylesheet" href="styles.css" />
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#17263e" />
@@ -13,174 +25,240 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Learning Ecology" />
+
+  <style>
+    /* ---- landing-page styles (this page only) ---- */
+    .lp-header {
+      position: sticky; top: 0; z-index: 50;
+      display: flex; align-items: center; gap: 0.6rem;
+      padding: 0.7rem clamp(1rem, 4vw, 2.5rem);
+      background: rgba(23,38,62,0.94);
+      backdrop-filter: blur(6px);
+      color: #fff;
+    }
+    .lp-header img { width: 34px; height: 34px; border-radius: 8px; }
+    .lp-header .name { font-family: var(--serif); font-size: 1.15rem; font-weight: 700; flex: 1; }
+    .lp-hero {
+      background: linear-gradient(135deg, #1e4f8f, #132743);
+      color: #fff;
+      padding: clamp(3rem, 9vw, 5.5rem) 1.25rem clamp(3.2rem, 9vw, 6rem);
+      text-align: center;
+    }
+    .lp-hero h1 {
+      font-size: clamp(1.9rem, 5.4vw, 3.1rem);
+      margin: 0 auto 0.8rem; max-width: 820px; line-height: 1.22;
+    }
+    .lp-hero .sub {
+      color: #dbe6f5; font-size: clamp(0.98rem, 2.4vw, 1.15rem);
+      max-width: 640px; margin: 0 auto 1.6rem;
+    }
+    .lp-cta { display: flex; gap: 0.7rem; justify-content: center; flex-wrap: wrap; }
+    .lp-cta .gold {
+      background: linear-gradient(135deg, #f4d68a, #d9a53c);
+      border-color: #d9a53c; color: #132743; font-weight: 800;
+    }
+    .lp-cta .gold:hover { background: linear-gradient(135deg, #f8e0a5, #e0b055); }
+    .lp-cta a { text-decoration: none; }
+    .lp-chips { display: flex; gap: 0.5rem 1.4rem; justify-content: center; flex-wrap: wrap; margin-top: 2rem; }
+    .lp-chips span { font-size: 0.86rem; color: #cfe0f5; font-weight: 600; }
+    .lp-section { max-width: 980px; margin: 0 auto; padding: clamp(2.4rem, 7vw, 4rem) 1.25rem; }
+    .lp-section > h2 {
+      font-size: clamp(1.4rem, 3.6vw, 1.9rem); text-align: center; margin-bottom: 0.4rem;
+    }
+    .lp-section > .lead { text-align: center; color: var(--muted); margin: 0 auto 2rem; max-width: 560px; }
+    .lp-quote {
+      background: #fbf7ec; border-top: 1px solid #eadfc4; border-bottom: 1px solid #eadfc4;
+      text-align: center; padding: clamp(2.4rem, 7vw, 3.6rem) 1.25rem;
+    }
+    .lp-quote .vi {
+      font-family: var(--serif); font-style: italic; font-weight: 700;
+      font-size: clamp(1.3rem, 3.8vw, 1.9rem); color: #8a5f27; max-width: 760px; margin: 0 auto;
+    }
+    .lp-quote .en { margin-top: 0.9rem; font-size: clamp(0.95rem, 2.4vw, 1.1rem); color: var(--muted); font-style: italic; }
+    .lp-quote .zh { margin-top: 0.45rem; font-size: clamp(1rem, 2.6vw, 1.2rem); color: var(--ink); }
+    .lp-teacher {
+      display: flex; gap: clamp(1.2rem, 4vw, 2.5rem); align-items: center; flex-wrap: wrap;
+      background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+      padding: clamp(1.2rem, 4vw, 2rem);
+      box-shadow: 0 14px 40px -24px rgba(23,38,62,0.35);
+    }
+    .lp-teacher .photo, .lp-teacher .photo-fb {
+      width: min(240px, 60vw); border-radius: 14px; flex: none; margin: 0 auto;
+    }
+    .lp-teacher .photo { display: block; object-fit: cover; object-position: 50% 18%; aspect-ratio: 4/5; }
+    .lp-teacher .photo-fb {
+      display: none; aspect-ratio: 4/5; place-items: center;
+      background: linear-gradient(135deg, #1e4f8f, #132743);
+      color: #e3b95c; font-family: var(--serif); font-size: 4rem; font-weight: 700;
+    }
+    .lp-teacher .info { flex: 1; min-width: 260px; }
+    .lp-teacher h3 { font-family: var(--serif); font-size: 1.45rem; margin: 0 0 0.2rem; }
+    .lp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; }
+    .lp-course {
+      background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+      padding: 1.4rem 1.3rem; transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    .lp-course:hover { transform: translateY(-4px); box-shadow: 0 18px 38px -18px rgba(23,38,62,0.4); }
+    .lp-course .em { font-size: 2rem; }
+    .lp-course h3 { font-family: var(--serif); font-size: 1.15rem; margin: 0.5rem 0 0.35rem; }
+    .lp-course p { color: var(--muted); font-size: 0.92rem; margin: 0; }
+    .lp-feat { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 0.9rem; }
+    .lp-feat .f {
+      background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+      padding: 1rem 1.1rem; font-size: 0.94rem;
+    }
+    .lp-feat .f b { display: block; margin-bottom: 0.2rem; }
+    .lp-contact {
+      background: linear-gradient(135deg, #1e4f8f, #132743); color: #fff;
+      border-radius: 18px; padding: clamp(1.6rem, 5vw, 2.6rem);
+      display: flex; gap: 2rem; align-items: center; flex-wrap: wrap;
+    }
+    .lp-contact .qr { flex: none; text-align: center; margin: 0 auto; }
+    .lp-contact .qr img { border-radius: 10px; border: 4px solid #fff; }
+    .lp-contact .qr .kind { color: #cfe0f5; display: block; margin-top: 0.4rem; }
+    .lp-contact h2 { font-size: 1.5rem; margin: 0 0 0.4rem; }
+    .lp-contact p { color: #dbe6f5; margin: 0 0 1.1rem; }
+    .lp-contact a.btn { text-decoration: none; display: inline-block; margin: 0 0.5rem 0.5rem 0; }
+    .lp-contact a.zalo { background: #fff; border-color: #fff; color: #132743; }
+    .lp-contact a.zalo:hover { background: #e9eef7; }
+    .lp-contact a.fb { background: transparent; border-color: rgba(255,255,255,0.55); }
+    .lp-footer { text-align: center; color: var(--muted); font-size: 0.85rem; padding: 2rem 1rem 2.6rem; }
+    .lp-footer a { color: var(--accent-ink); }
+  </style>
 </head>
 <body>
-  <main class="login-wrap">
-    <div class="login-card">
-      <p class="eyebrow">Thong's Learning Hub</p>
-      <h1 data-i18n="signin_title">Sign in</h1>
-      <p data-i18n="signin_sub" style="color:var(--muted); margin:0 0 1.5rem; font-size:0.9rem;">
-        Use the email and password your teacher gave you.
-      </p>
 
-      <div class="field">
-        <label for="email" data-i18n="email">Email</label>
-        <input id="email" type="email" autocomplete="email" placeholder="you@example.com" />
-      </div>
-      <div class="field">
-        <label for="password" data-i18n="password">Password</label>
-        <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" />
-      </div>
+  <header class="lp-header">
+    <img src="icons/icon-192.png" alt="Learning Ecology" />
+    <span class="name">Learning Ecology</span>
+    <a id="hd-login" class="btn ghost" href="login.html"
+       style="text-decoration:none; color:#fff; border-color:rgba(255,255,255,0.4);">Đăng nhập</a>
+  </header>
 
-      <button id="signin" data-i18n="signin_btn" style="width:100%;">Sign in</button>
-      <p style="text-align:center; margin:0.9rem 0 0;">
-        <a href="#" id="forgot" data-i18n="forgot" style="font-size:0.85rem;">Forgot password?</a>
-      </p>
-      <p id="msg" class="msg"></p>
-      <p style="text-align:center; margin:1.1rem 0 0; border-top:1px solid var(--line); padding-top:0.9rem;">
-        <a href="#" id="lang-toggle" style="font-size:0.85rem; color:var(--muted);"></a>
-      </p>
+  <!-- ================= HERO ================= -->
+  <section class="lp-hero">
+    <h1>Học tiếng Anh &amp; tiếng Trung theo lộ trình,<br />tiến bộ đo được mỗi ngày</h1>
+    <p class="sub">Lớp học trực tuyến của Thầy Lê Quốc Thông — mỗi bài học nằm trong một lộ trình rõ ràng,
+      có quiz, bài tập, theo dõi thời gian học và chứng nhận khi hoàn thành khóa.</p>
+    <div class="lp-cta">
+      <a id="hero-start" class="btn gold" href="login.html">Bắt đầu học →</a>
+      <a class="btn ghost" href="#lien-he" style="color:#fff; border-color:rgba(255,255,255,0.5);">Học thử miễn phí</a>
     </div>
-    <div id="pwa-banner" class="login-card" style="display:none; margin-top:0.9rem; padding:1.1rem 1.3rem;"></div>
-  </main>
+    <div class="lp-chips">
+      <span>🀄 Tiếng Trung HSK 3.0</span>
+      <span>🎓 IELTS · VSTEP</span>
+      <span>📊 Theo dõi tiến độ</span>
+      <span>📲 Học như ứng dụng trên điện thoại</span>
+    </div>
+  </section>
+
+  <!-- ================= QUOTE ================= -->
+  <section class="lp-quote">
+    <p class="vi">“Biết thêm một ngôn ngữ là sống thêm một cuộc đời.”</p>
+    <p class="en">“One who learns a language lives two lives.”</p>
+    <p class="zh">「学会一门语言，就是多活一个人生。」</p>
+  </section>
+
+  <!-- ================= TEACHER ================= -->
+  <section class="lp-section" id="giao-vien">
+    <h2>Giáo viên của bạn</h2>
+    <p class="lead">Một giáo viên trực tiếp thiết kế, giảng dạy và đồng hành trong toàn bộ lộ trình.</p>
+    <div class="lp-teacher">
+      <img class="photo" src="profile.jpg" alt="Thầy Lê Quốc Thông"
+           onerror="this.style.display='none'; document.getElementById('photo-fb').style.display='grid';" />
+      <div class="photo-fb" id="photo-fb">T</div>
+      <div class="info">
+        <h3>Thầy Lê Quốc Thông</h3>
+        <p style="color:var(--muted); margin:0 0 0.7rem;">Giáo viên tiếng Anh &amp; tiếng Trung</p>
+        <div class="creds" style="margin:0 0 0.9rem;">
+          <span class="cred-badge">🎓 Master of TESOL</span>
+          <span class="cred-badge">VSTEP C1 (9.0)</span>
+          <span class="cred-badge">IELTS 7.5</span>
+          <span class="cred-badge">HSK 5 (276/300)</span>
+        </div>
+        <p style="font-size:0.95rem; margin:0 0 1rem;">Phương châm của lớp học: <b>học có lộ trình — tiến bộ đo được</b>.
+          Mỗi học viên biết chính xác mình đang ở đâu, cần học gì tiếp theo, và đã tiến bộ bao nhiêu sau mỗi tuần.</p>
+        <a class="btn" href="https://zalo.me/0961923983" target="_blank" rel="noopener"
+           style="text-decoration:none; display:inline-block; margin-right:0.5rem;">💬 Zalo: 0961 923 983</a>
+        <a class="btn ghost" href="https://www.facebook.com/lqt248" target="_blank" rel="noopener"
+           style="text-decoration:none; display:inline-block;">👤 Facebook</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= COURSES ================= -->
+  <section class="lp-section" id="khoa-hoc" style="padding-top:0;">
+    <h2>Các khóa học</h2>
+    <p class="lead">Chương trình được chia thành bài học nhỏ theo trình tự — hoàn thành đến đâu, mở khóa đến đó.</p>
+    <div class="lp-grid">
+      <div class="lp-course">
+        <span class="em">🀄</span>
+        <h3>Tiếng Trung HSK (chuẩn 3.0)</h3>
+        <p>Lộ trình từ HSK 1 theo chuẩn mới nhất, kèm quiz từ vựng, luyện viết chữ Hán và bài tập sau mỗi bài học.</p>
+      </div>
+      <div class="lp-course">
+        <span class="em">🎓</span>
+        <h3>Tiếng Anh IELTS &amp; VSTEP</h3>
+        <p>Luyện thi theo lộ trình cùng giáo viên đạt IELTS 7.5 và VSTEP C1 — chiến lược làm bài, chấm và nhận xét chi tiết.</p>
+      </div>
+      <div class="lp-course">
+        <span class="em">💬</span>
+        <h3>Tiếng Anh nền tảng &amp; giao tiếp</h3>
+        <p>Xây nền phát âm, từ vựng và phản xạ giao tiếp cho người mới bắt đầu hoặc mất gốc.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= FEATURES ================= -->
+  <section class="lp-section" id="tinh-nang" style="padding-top:0;">
+    <h2>Học trên nền tảng hiện đại</h2>
+    <p class="lead">Không chỉ là tài liệu — cả lớp học được số hóa.</p>
+    <div class="lp-feat">
+      <div class="f"><b>🗺️ Lộ trình rõ ràng</b>Mỗi khóa là một chuỗi bài học theo thứ tự, biết rõ bài tiếp theo cần học.</div>
+      <div class="f"><b>📊 Tiến độ &amp; chuỗi ngày học</b>Thời gian học, điểm quiz, huy hiệu và chuỗi ngày học liên tục — như Duolingo.</div>
+      <div class="f"><b>📝 Quiz &amp; bài tập có chấm</b>Làm bài ngay trên nền tảng, giáo viên chấm và nhận xét từng bài.</div>
+      <div class="f"><b>🎓 Chứng nhận hoàn thành</b>Hoàn thành 100% khóa học nhận chứng nhận mang tên bạn, in được ra giấy.</div>
+      <div class="f"><b>📲 Như một ứng dụng</b>Cài lên màn hình chính điện thoại, mở toàn màn hình, không cần App Store.</div>
+      <div class="f"><b>💬 Hỏi đáp với giáo viên</b>Mỗi khóa có mục thảo luận riêng — hỏi bài và được trả lời trực tiếp.</div>
+    </div>
+  </section>
+
+  <!-- ================= CONTACT / PRICING ================= -->
+  <section class="lp-section" id="lien-he" style="padding-top:0;">
+    <div class="lp-contact">
+      <div style="flex:1; min-width:260px;">
+        <h2>Học phí &amp; đăng ký học thử</h2>
+        <p>Liên hệ để biết thêm thông tin về học phí và nhận <b>buổi học thử miễn phí</b>.
+          Nhắn tin Zalo hoặc quét mã QR bên cạnh — thầy sẽ phản hồi trong ngày.</p>
+        <a class="btn zalo" href="https://zalo.me/0961923983" target="_blank" rel="noopener">💬 Nhắn Zalo: 0961 923 983</a>
+        <a class="btn fb" href="https://www.facebook.com/lqt248" target="_blank" rel="noopener">👤 Facebook: lqt248</a>
+      </div>
+      <div class="qr">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https%3A%2F%2Fzalo.me%2F0961923983"
+             alt="Zalo QR" width="150" height="150" />
+        <span class="kind">Quét để mở Zalo</span>
+      </div>
+    </div>
+  </section>
+
+  <footer class="lp-footer">
+    © 2026 Learning Ecology · Thầy Lê Quốc Thông ·
+    <a href="https://zalo.me/0961923983" target="_blank" rel="noopener">Zalo 0961 923 983</a> ·
+    <a href="https://www.facebook.com/lqt248" target="_blank" rel="noopener">Facebook</a>
+    <br /><a href="login.html">Đăng nhập dành cho học viên</a>
+  </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="lang.js"></script>
   <script src="config.js"></script>
   <script>
-    applyI18n();
-    const langLink = document.getElementById("lang-toggle");
-    langLink.textContent = t("lang_name");
-    langLink.addEventListener("click", (e) => { e.preventDefault(); setLang(otherLang()); });
-
-    const msg = document.getElementById("msg");
-
-    // Arrived here because the account was signed in on another device?
-    if (new URLSearchParams(location.search).get("kicked")) {
-      msg.textContent = t("msg_kicked");
-      msg.className = "msg err";
-    }
-
-    // If already logged in, skip straight to the dashboard.
+    // Already signed in? Turn the login buttons into "go to my lessons".
     sb.auth.getSession().then(({ data }) => {
-      if (data.session) window.location.href = "dashboard.html";
-    });
-
-    async function signIn() {
-      const email = document.getElementById("email").value.trim();
-      const password = document.getElementById("password").value;
-      msg.textContent = "";
-      msg.className = "msg";
-
-      if (!email || !password) {
-        msg.textContent = t("msg_enter_both");
-        msg.className = "msg err";
-        return;
-      }
-
-      const { error } = await sb.auth.signInWithPassword({ email, password });
-      if (error) {
-        msg.textContent = t("msg_bad_login");
-        msg.className = "msg err";
-        return;
-      }
-
-      // One device per account: mark THIS device as the active one
-      // and revoke every other device's session.
-      try {
-        const device = crypto.randomUUID();
-        localStorage.setItem("hub_device", device);
-        const { data: { user } } = await sb.auth.getUser();
-        await sb.from("profiles").update({ active_session: device }).eq("id", user.id);
-        await sb.auth.signOut({ scope: "others" });
-        // login history
-        const ua = navigator.userAgent;
-        const dtp = /iPad|Tablet/i.test(ua) ? "tablet"
-          : (/Mobi|iPhone|Android.*Mobile/i.test(ua) ? "mobile" : "desktop");
-        const os = /Windows/i.test(ua) ? "Windows" : /Mac OS X/i.test(ua) ? "macOS"
-          : /Android/i.test(ua) ? "Android" : /iPhone|iPad/i.test(ua) ? "iOS" : "other";
-        const br = /Edg\//.test(ua) ? "Edge" : /Chrome\//.test(ua) ? "Chrome"
-          : /Firefox\//.test(ua) ? "Firefox" : /Safari\//.test(ua) ? "Safari" : "other";
-        await sb.from("access_events").insert({
-          student_id: user.id, event: "login",
-          device, device_type: dtp, agent: os + " · " + br
-        });
-      } catch (e) { /* non-fatal: login still proceeds */ }
-
-      window.location.href = "dashboard.html";
-    }
-
-    document.getElementById("signin").addEventListener("click", signIn);
-
-    document.getElementById("forgot").addEventListener("click", async (e) => {
-      e.preventDefault();
-      const email = document.getElementById("email").value.trim();
-      msg.className = "msg";
-      if (!email) {
-        msg.textContent = t("msg_type_email_first");
-        msg.className = "msg err";
-        return;
-      }
-      // Send a reset link that lands on reset.html of THIS site.
-      const redirectTo = new URL("reset.html", window.location.href).href;
-      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
-      msg.textContent = error ? t("msg_reset_fail") : t("msg_reset_sent");
-      if (error) msg.className = "msg err";
-    });
-
-    document.getElementById("password").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") signIn();
-    });
-
-    // ---- "install as an app" hint ----
-    // Android/Chrome: real install button (native prompt).
-    // iPhone/iPad: Safari has no prompt, so show tap-by-tap directions.
-    // Hidden once installed, or after the student dismisses it.
-    (function () {
-      const box = document.getElementById("pwa-banner");
-      const standalone = window.matchMedia("(display-mode: standalone)").matches
-        || window.navigator.standalone;
-      let hidden = false;
-      try { hidden = localStorage.getItem("hub_pwa_hint") === "no"; } catch (e) {}
-      if (!box || standalone || hidden) return;
-
-      const show = (inner) => {
-        box.innerHTML = `
-          <div style="display:flex; gap:0.7rem; align-items:flex-start;">
-            <img src="icons/icon-192.png" alt="" width="42" height="42" style="border-radius:10px; flex:none;" />
-            <div style="flex:1; min-width:0;">
-              <div style="font-weight:700; margin-bottom:0.25rem;">${t("pwa_title")}</div>
-              ${inner}
-            </div>
-          </div>
-          <p style="text-align:right; margin:0.6rem 0 0;">
-            <a href="#" id="pwa-no" style="font-size:0.82rem; color:var(--muted);">${t("pwa_dismiss")}</a>
-          </p>`;
-        box.style.display = "block";
-        document.getElementById("pwa-no").addEventListener("click", (e) => {
-          e.preventDefault();
-          try { localStorage.setItem("hub_pwa_hint", "no"); } catch (e2) {}
-          box.style.display = "none";
-        });
-      };
-
-      const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent)
-        || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-      if (isIOS) {
-        show(`<p style="margin:0; font-size:0.86rem; color:var(--muted);">${t("pwa_ios")}</p>`);
-      } else {
-        let deferred = null;
-        window.addEventListener("beforeinstallprompt", (e) => {
-          e.preventDefault();
-          deferred = e;
-          show(`<button id="pwa-go" style="width:auto;">${t("pwa_install")}</button>`);
-          document.getElementById("pwa-go").addEventListener("click", () => {
-            box.style.display = "none";
-            if (deferred) deferred.prompt();
-          });
-        });
-      }
-    })();
+      if (!data.session) return;
+      const hd = document.getElementById("hd-login");
+      const hero = document.getElementById("hero-start");
+      hd.textContent = "Vào học ngay →"; hd.href = "dashboard.html";
+      hero.textContent = "Vào học ngay →"; hero.href = "dashboard.html";
+    }).catch(() => {});
   </script>
   <script>
     // PWA: offline shell + installability (needs HTTPS, e.g. GitHub Pages)
