@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chứng nhận hoàn thành — Learning Ecology</title>
+  <meta name="description" content="Chứng nhận hoàn thành khóa học tại Learning Ecology — học tiếng Anh & tiếng Trung theo lộ trình cùng Thầy Lê Quốc Thông." />
+
+  <!-- social share preview -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="🎓 Chứng nhận hoàn thành khóa học — Learning Ecology" />
+  <meta property="og:description" content="Tôi vừa hoàn thành một khóa học tại Learning Ecology! Học tiếng Anh & tiếng Trung theo lộ trình — đăng ký học thử miễn phí." />
+  <meta property="og:image" content="https://learning-ecology.github.io/social-card.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" type="image/png" href="icons/icon-192.png" />
+  <meta name="theme-color" content="#17263e" />
+
+  <style>
+    body { background: linear-gradient(135deg, #1e4f8f, #132743); min-height: 100vh; margin: 0; }
+    .cert-page { max-width: 720px; margin: 0 auto; padding: 2rem 1rem 3rem; }
+    .cp-head { text-align: center; margin-bottom: 1.2rem; }
+    .cp-head img { border-radius: 14px; box-shadow: 0 10px 26px -10px rgba(0,0,0,0.55); }
+    .cp-head .name { color: #fff; font-family: var(--serif); font-size: 1.3rem; font-weight: 700; margin-top: 0.5rem; }
+    .cp-actions { display: flex; gap: 0.6rem; justify-content: center; flex-wrap: wrap; margin-top: 1.1rem; }
+    .cp-actions a, .cp-actions button { text-decoration: none; }
+    .cp-fb { background: #1877f2 !important; border-color: #1877f2 !important; }
+    .cp-note { text-align: center; color: #cfe0f5; font-size: 0.85rem; margin-top: 1.4rem; }
+    .cp-note a { color: #f4d68a; }
+    #cert-box .cert { box-shadow: 0 30px 70px -30px rgba(0,0,0,0.6); }
+    @media print {
+      body { background: #fff; }
+      .cp-head, .cp-actions, .cp-note { display: none !important; }
+      .cert-page { padding: 0; max-width: none; }
+      #cert-box .cert { box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="cert-page">
+    <div class="cp-head">
+      <a href="index.html"><img src="icons/icon-192.png" alt="Learning Ecology" width="54" height="54" /></a>
+      <div class="name">Learning Ecology</div>
+    </div>
+
+    <div id="cert-box">
+      <div class="cert" style="opacity:0.5; text-align:center;">
+        <p style="font-family:var(--sans);">Đang tải chứng nhận… / Loading certificate…</p>
+      </div>
+    </div>
+
+    <div class="cp-actions" id="cp-actions" style="display:none;">
+      <a class="btn cp-fb" id="cp-share" target="_blank" rel="noopener">📣 Chia sẻ Facebook</a>
+      <button class="ghost" id="cp-copy" style="color:#fff; border-color:rgba(255,255,255,0.5);">🔗 Sao chép liên kết</button>
+      <button class="ghost" id="cp-print" style="color:#fff; border-color:rgba(255,255,255,0.5);">🖨 In / Lưu PDF</button>
+    </div>
+
+    <p class="cp-note">Chứng nhận này được cấp bởi <a href="index.html">Learning Ecology</a> — Thầy Lê Quốc Thông ·
+      Học tiếng Anh &amp; tiếng Trung theo lộ trình · <a href="index.html">Đăng ký học thử miễn phí →</a></p>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script>
+    (async function () {
+      const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
+        ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+      const box = document.getElementById("cert-box");
+      const id = new URLSearchParams(location.search).get("id");
+      const fail = () => {
+        box.innerHTML = `<div class="cert" style="text-align:center;">
+          <p style="font-family:var(--sans);">Không tìm thấy chứng nhận này.<br />
+          <span style="color:var(--muted); font-size:0.9rem;">This certificate could not be found.</span></p>
+        </div>`;
+      };
+      if (!id) return fail();
+      const { data: c, error } = await sb.from("certificates")
+        .select("student_name, course_title, issued_on").eq("id", id).single();
+      if (error || !c) return fail();
+
+      box.innerHTML = `
+        <div class="cert">
+          <div class="c-eyebrow">Learning Ecology</div>
+          <h1>Chứng nhận hoàn thành</h1>
+          <p style="margin:0;">Chứng nhận này được trao cho</p>
+          <div class="c-name">${esc(c.student_name)}</div>
+          <p style="margin:0.3rem 0 0;">vì đã hoàn thành xuất sắc khóa học</p>
+          <div class="c-course">${esc(c.course_title)}</div>
+          <div class="c-foot">
+            <span>Ngày: ${new Date(c.issued_on + "T12:00:00").toLocaleDateString("vi-VN")}</span>
+            <span>Thầy Lê Quốc Thông · Master of TESOL</span>
+          </div>
+        </div>`;
+      document.title = "🎓 " + c.student_name + " — " + c.course_title + " — Learning Ecology";
+
+      const actions = document.getElementById("cp-actions");
+      actions.style.display = "flex";
+      document.getElementById("cp-share").href =
+        "https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(location.href);
+      document.getElementById("cp-copy").addEventListener("click", async (e) => {
+        try { await navigator.clipboard.writeText(location.href); e.target.textContent = "✓ Đã sao chép"; }
+        catch (err) { prompt("Copy this link:", location.href); }
+      });
+      document.getElementById("cp-print").addEventListener("click", () => window.print());
+    })();
+  </script>
+</body>
+</html>

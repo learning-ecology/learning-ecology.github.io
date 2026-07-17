@@ -412,7 +412,8 @@
               ${c.description ? `<p style="color:var(--muted); font-size:0.88rem; margin:0 0 0.5rem;">${esc(c.description)}</p>` : ""}
               ${rows ? `<div class="lesson-grid">${rows}</div>` : `<p class="empty">${t("no_lessons_course")}</p>`}
               ${complete ? `<div class="congrats">🎉 <span style="flex:1;">${esc(c.title)}${t("congrats")}</span>
-                <button class="ghost cert-btn" data-course="${esc(c.title)}" style="flex:none;">🎓 ${T2c("cert_get")}</button></div>` : ""}
+                <button class="ghost cert-btn" data-course="${esc(c.title)}" style="flex:none;">🎓 ${T2c("cert_get")}</button>
+                <button class="ghost cert-share" data-cid="${c.id}" style="flex:none;" title="${esc(t("cert_share"))}">📣 ${t("cert_share")}</button></div>` : ""}
             </div></div>
           </div>`;
       };
@@ -1061,6 +1062,19 @@
         } else if (m.url) window.open(m.url, "_blank", "noopener");
       }));
 
+      // --- shareable certificate links (public cert.html page) ---
+      app.querySelectorAll(".cert-share").forEach(btn => btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        const { data: cid, error } = await sb.rpc("issue_certificate",
+          { p_course: btn.getAttribute("data-cid") });
+        btn.disabled = false;
+        if (error) {
+          if (window.UI) UI.toast(error.message, "err"); else alert(error.message);
+          return;
+        }
+        window.open("cert.html?id=" + cid, "_blank", "noopener");
+      }));
+
       // --- course completion certificates ---
       app.querySelectorAll(".cert-btn").forEach(btn => btn.addEventListener("click", () => {
         const courseTitle = btn.getAttribute("data-course");
@@ -1353,7 +1367,7 @@
         { data: lessons }, { data: prog }, { data: students }, { data: courses },
         { data: enrollments }, { data: anns }, { data: skeys }, { data: orgs },
         { data: allLics }, { data: events }, { data: activity }, { data: lockEvents },
-        cardsRes
+        cardsRes, { data: pageViews }
       ] = await Promise.all([
         sb.from("lessons").select("*").order("sort_order").order("created_at"),
         // Every student's progress, joined with names + lesson titles.
@@ -1381,7 +1395,11 @@
         sb.from("lock_events").select("lesson_id, student_id, created_at")
           .order("created_at", { ascending: false }).limit(2000),
         // flashcard decks (needs migration 23 — stays empty until then)
-        sb.from("flashcards").select("*").order("sort_order").order("created_at")
+        sb.from("flashcards").select("*").order("sort_order").order("created_at"),
+        // landing-page visits, last 30 days (needs migration 24)
+        sb.from("page_views").select("path, ref, device, created_at")
+          .gte("created_at", new Date(Date.now() - 30 * 86400000).toISOString())
+          .order("created_at", { ascending: false }).limit(1000)
       ]);
       let cards = cardsRes.data || [];
 
@@ -1766,6 +1784,15 @@
         </div>
 
         <div class="tabpane" data-tab="progress">
+        <div class="card">
+          <div class="card-head">
+            <h2>🌐 Website visitors <span class="kind" id="pv-note"></span></h2>
+            <button class="ghost" id="bk-run" title="Export every table to one JSON file — keep a copy somewhere safe">🛟 Download full backup</button>
+          </div>
+          <div class="stat-grid" id="pv-stats" style="margin-bottom:0.3rem;"></div>
+          <div id="pv-chart"></div>
+          <p id="bk-msg" class="msg"></p>
+        </div>
         <div class="stat-grid" id="p-analytics"></div>
 
         <div class="card">
@@ -2336,6 +2363,91 @@
           m.className = "msg err";
         }
       });
+
+      // ================= VISITORS + FULL BACKUP =================
+      (function () {
+        const stats = document.getElementById("pv-stats");
+        if (!stats) return;
+        const note = document.getElementById("pv-note");
+        if (!pageViews) {
+          note.textContent = "— run migration24 to start counting visits";
+        }
+        const views = pageViews || [];
+        const dayOf = v => String(v.created_at).slice(0, 10);
+        const today = new Date().toISOString().slice(0, 10);
+        const nDaysAgo = n => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+        const home = views.filter(v => v.path === "home");
+        const inDays = (list, n) => list.filter(v => dayOf(v) >= nDaysAgo(n - 1)).length;
+        const clicks = p => views.filter(v => v.path === p).length;
+        const srcCount = {};
+        home.forEach(v => { const s = v.ref || "direct"; srcCount[s] = (srcCount[s] || 0) + 1; });
+        const topSrc = Object.entries(srcCount).sort((a, b) => b[1] - a[1])[0];
+        const stat = (k, v, sub) =>
+          `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div>${sub ? `<div class="sub">${sub}</div>` : ""}</div>`;
+        stats.innerHTML =
+          stat("Visits today", home.filter(v => dayOf(v) === today).length) +
+          stat("Last 7 days", inDays(home, 7)) +
+          stat("Last 30 days", home.length + (views.length >= 1000 ? "+" : "")) +
+          stat("Trial clicks", clicks("cta-trial"), "Học thử miễn phí") +
+          stat("Zalo clicks", clicks("cta-zalo")) +
+          stat("Top source", topSrc ? esc(topSrc[0]) : "—", topSrc ? topSrc[1] + " visits" : "");
+        // last 14 days as a mini bar chart
+        const days = [];
+        for (let i = 13; i >= 0; i--) days.push(nDaysAgo(i));
+        const byDay = {};
+        home.forEach(v => { const d = dayOf(v); byDay[d] = (byDay[d] || 0) + 1; });
+        const maxV = Math.max(1, ...days.map(d => byDay[d] || 0));
+        document.getElementById("pv-chart").innerHTML = views.length ? `
+          <span class="kind">Visits — last 14 days</span>
+          <div class="mini-chart">${days.map(d => `
+            <div class="bar" title="${d}: ${byDay[d] || 0}">
+              <span style="height:${Math.max(4, Math.round((byDay[d] || 0) / maxV * 100))}%; ${byDay[d] ? "" : "background:var(--line);"}"></span>
+              <i>${d.slice(8)}</i>
+            </div>`).join("")}</div>
+          <p class="kind" style="margin:0.3rem 0 0;">Tip: put ?src=qr on printed QR codes and ?src=zalo on Zalo shares to see where visitors come from.</p>` : "";
+      })();
+
+      document.getElementById("bk-run")?.addEventListener("click", async () => {
+        const btn = document.getElementById("bk-run");
+        const m = document.getElementById("bk-msg");
+        btn.disabled = true;
+        const TABLES = ["organizations", "profiles", "courses", "lessons", "enrollments",
+          "teacher_courses", "course_licenses", "progress", "lesson_activity", "access_events",
+          "announcements", "announcement_reads", "assignments", "submissions",
+          "discussion_threads", "discussion_posts", "sessions", "teacher_materials",
+          "share_keys", "lock_events", "flashcards", "flashcard_reviews",
+          "certificates", "page_views"];
+        const backup = { app: "Learning Ecology", exported_at: new Date().toISOString(), tables: {} };
+        const problems = [];
+        for (let i = 0; i < TABLES.length; i++) {
+          const tb = TABLES[i];
+          m.className = "msg";
+          m.textContent = "Backing up " + (i + 1) + "/" + TABLES.length + ": " + tb + "…";
+          const rows = [];
+          let bad = null;
+          // page through in blocks of 1000 — Supabase caps single requests
+          for (let from = 0; ; from += 1000) {
+            const { data, error } = await sb.from(tb).select("*").range(from, from + 999);
+            if (error) { bad = error.message; break; }
+            rows.push(...(data || []));
+            if (!data || data.length < 1000) break;
+          }
+          backup.tables[tb] = rows;
+          if (bad && !/does not exist|schema cache/i.test(bad)) problems.push(tb + ": " + bad);
+        }
+        const blob = new Blob([JSON.stringify(backup)], { type: "application/json" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "learning-ecology-backup-" + dstr(new Date()) + ".json";
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        const total = Object.values(backup.tables).reduce((s, r) => s + r.length, 0);
+        m.className = "msg" + (problems.length ? " err" : "");
+        m.textContent = "Backup saved ✓ — " + total.toLocaleString() + " rows. Keep the file somewhere safe (Google Drive / USB). Uploaded files in Storage are not inside it — your lesson files also live in GitHub."
+          + (problems.length ? " Issues: " + problems.join("; ") : "");
+        btn.disabled = false;
+      });
+      // =============== END VISITORS + FULL BACKUP ===============
 
       // ================= BULK ACCOUNT IMPORT =================
       (function () {

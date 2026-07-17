@@ -260,6 +260,27 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
   <script>
+    // Anonymous visit counter — writes one row per visit into YOUR
+    // Supabase (owner-only stats). No cookies, no third parties.
+    (function () {
+      try {
+        const src = new URLSearchParams(location.search).get("src")
+          || (document.referrer ? new URL(document.referrer).hostname : "direct");
+        const dev = /Mobi|iPhone|Android.*Mobile/i.test(navigator.userAgent) ? "mobile" : "desktop";
+        const hit = p => { try { sb.from("page_views").insert({ path: p, ref: src, device: dev }).then(() => {}); } catch (e) {} };
+        if (!sessionStorage.getItem("le_seen")) {
+          sessionStorage.setItem("le_seen", "1");
+          hit("home");
+        }
+        document.querySelectorAll('a[href="login.html"]').forEach(a =>
+          a.addEventListener("click", () => hit("cta-login")));
+        document.querySelectorAll('a[href="#lien-he"]').forEach(a =>
+          a.addEventListener("click", () => hit("cta-trial")));
+        document.querySelectorAll('a[href^="https://zalo.me"]').forEach(a =>
+          a.addEventListener("click", () => hit("cta-zalo")));
+      } catch (e) { /* stats must never break the page */ }
+    })();
+
     // Already signed in? Turn the login buttons into "go to my lessons".
     sb.auth.getSession().then(({ data }) => {
       if (!data.session) return;

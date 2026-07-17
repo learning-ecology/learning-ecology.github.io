@@ -127,7 +127,8 @@ const I18N = {
     lb_hint: "XP this week = completed lessons ×50 + study minutes.",
     lb_you: "You",
     lb_empty: "No activity in your class this week yet — be the first!",
-    lb_show_me: "Show my name on the leaderboard"
+    lb_show_me: "Show my name on the leaderboard",
+    cert_share: "Share"
   },
 
   vi: {
@@ -250,7 +251,8 @@ const I18N = {
     lb_hint: "XP tuần này = số bài hoàn thành ×50 + số phút học.",
     lb_you: "Bạn",
     lb_empty: "Tuần này lớp chưa ai có hoạt động — hãy là người đầu tiên!",
-    lb_show_me: "Hiện tên tôi trên bảng xếp hạng"
+    lb_show_me: "Hiện tên tôi trên bảng xếp hạng",
+    cert_share: "Chia sẻ"
   }
 };
 
