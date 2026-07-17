@@ -9,7 +9,7 @@
 //  - Requests to other origins (Supabase, CDNs) are not touched.
 // ------------------------------------------------------------
 
-const CACHE = "learning-ecology-v3";
+const CACHE = "learning-ecology-v4";
 
 // The app shell, pre-cached at install so the first offline
 // launch works. Files that fail to cache are skipped silently
@@ -53,6 +53,27 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== "GET" || url.origin !== self.location.origin) return;
+
+  // Images: serve the cached copy INSTANTLY, refresh it in the
+  // background ("stale-while-revalidate"). Icons, the logo, lesson
+  // covers and photos rarely change, so this makes every page feel
+  // immediate — and a changed image still arrives on the next view.
+  if (/\.(png|jpg|jpeg|webp|gif|svg|ico)$/i.test(url.pathname)) {
+    e.respondWith(
+      caches.match(e.request).then((hit) => {
+        const net = fetch(e.request).then((res) => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(e.request, copy));
+          }
+          return res;
+        }).catch(() => hit);
+        return hit || net;
+      })
+    );
+    return;
+  }
+
   e.respondWith(
     fetch(e.request)
       .then((res) => {

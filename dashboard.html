@@ -38,7 +38,7 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.454.0/dist/umd/lucide.min.js"></script>
   <script src="lang.js"></script>
   <script src="config.js"></script>
   <script src="ui.js"></script>
@@ -62,6 +62,13 @@
     function esc(s) {
       return String(s ?? "").replace(/[&<>"']/g, c =>
         ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+    }
+
+    // Wait for a pause in typing before rebuilding lists/tables —
+    // keeps every keystroke instant even with hundreds of rows.
+    function debounce(fn, ms) {
+      let t;
+      return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms || 200); };
     }
 
     // Label a file/link by its extension.
@@ -181,45 +188,44 @@
     async function renderStudent() {
       const __scrollY = window.scrollY;
       const T2c = window.UI ? UI.t2 : (k => k);
-      // RLS already filters these to: my courses, their lessons,
-      // plus any lesson that has no course.
-      const { data: courses } = await sb
-        .from("courses").select("*").order("sort_order").order("created_at");
-      const { data: lessons } = await sb
-        .from("lessons").select("*").order("sort_order").order("created_at");
-      const { data: mine } = await sb
-        .from("progress").select("lesson_id, status, updated_at").eq("student_id", user.id);
-      const { data: myActs } = await sb
-        .from("lesson_activity")
-        .select("lesson_id, kind, key, value, max_value, updated_at")
-        .eq("student_id", user.id);
-      const { data: anns } = await sb
-        .from("announcements").select("*")
-        .order("created_at", { ascending: false }).limit(10);
-      const { data: myAsgns } = await sb
-        .from("assignments").select("*").order("due_on", { ascending: true, nullsFirst: false });
-      const { data: mySubs } = await sb
-        .from("submissions").select("*").eq("student_id", user.id);
-      const { data: mySessions } = await sb
-        .from("sessions").select("*").order("starts_at", { ascending: true });
-      const { data: myMats } = await sb
-        .from("teacher_materials").select("*").order("created_at", { ascending: false });
-      const { data: mePlan } = await sb
-        .from("profiles").select("plan, premium_until").eq("id", user.id).single();
+      // First visit: show skeleton cards instead of a blank page.
+      // (Re-renders keep the old content visible while data reloads.)
+      if (!app.querySelector(".tabpane") && window.UI) app.innerHTML = UI.skeleton(3);
 
-      // flashcards + weekly leaderboard (need migration 23 — until it
-      // runs these come back empty and the features simply stay hidden)
-      const { data: myCardsRaw } = await sb
-        .from("flashcards").select("*").order("sort_order").order("created_at");
+      // RLS already filters these to: my courses, their lessons,
+      // plus any lesson that has no course. All queries run IN
+      // PARALLEL — one network round trip instead of sixteen.
+      const [
+        { data: courses }, { data: lessons }, { data: mine }, { data: myActs },
+        { data: anns }, { data: myAsgns }, { data: mySubs }, { data: mySessions },
+        { data: myMats }, { data: mePlan }, { data: myCardsRaw }, { data: myRevsRaw },
+        { data: lbRows }, lpRes, { data: teachers }, { data: me }
+      ] = await Promise.all([
+        sb.from("courses").select("*").order("sort_order").order("created_at"),
+        sb.from("lessons").select("*").order("sort_order").order("created_at"),
+        sb.from("progress").select("lesson_id, status, updated_at").eq("student_id", user.id),
+        sb.from("lesson_activity")
+          .select("lesson_id, kind, key, value, max_value, updated_at")
+          .eq("student_id", user.id),
+        sb.from("announcements").select("*")
+          .order("created_at", { ascending: false }).limit(10),
+        sb.from("assignments").select("*").order("due_on", { ascending: true, nullsFirst: false }),
+        sb.from("submissions").select("*").eq("student_id", user.id),
+        sb.from("sessions").select("*").order("starts_at", { ascending: true }),
+        sb.from("teacher_materials").select("*").order("created_at", { ascending: false }),
+        sb.from("profiles").select("plan, premium_until").eq("id", user.id).single(),
+        // flashcards + leaderboard need migration 23 — empty until then
+        sb.from("flashcards").select("*").order("sort_order").order("created_at"),
+        sb.from("flashcard_reviews").select("*").eq("student_id", user.id),
+        sb.rpc("class_leaderboard"),
+        sb.from("profiles").select("show_on_leaderboard").eq("id", user.id).single(),
+        sb.from("profiles").select("full_name, avatar_url, bio").neq("id", user.id).limit(1),
+        sb.from("profiles").select("full_name, bio, avatar_url, access_expires, org_id").eq("id", user.id).single()
+      ]);
       const myCards = myCardsRaw || [];
-      const { data: myRevsRaw } = await sb
-        .from("flashcard_reviews").select("*").eq("student_id", user.id);
       const myRevs = myRevsRaw || [];
-      const { data: lbRows } = await sb.rpc("class_leaderboard");
       let lbPref = null;   // null = column not there yet → hide the toggle
-      { const { data: lp, error: lpe } = await sb
-          .from("profiles").select("show_on_leaderboard").eq("id", user.id).single();
-        if (!lpe && lp) lbPref = lp.show_on_leaderboard !== false; }
+      if (!lpRes.error && lpRes.data) lbPref = lpRes.data.show_on_leaderboard !== false;
 
       // ---- Free vs Premium gating ----
       const __t0 = new Date().toISOString().slice(0, 10);
@@ -578,9 +584,8 @@
             </div>`).join("")}
         </div>` : "";
 
-      // Instructor panel (teacher profile is readable thanks to migration 8).
-      const { data: teachers } = await sb
-        .from("profiles").select("full_name, avatar_url, bio").neq("id", user.id).limit(1);
+      // Instructor panel (teacher profile is readable thanks to migration 8;
+      // the row itself was prefetched in the parallel batch above).
       const teacher = (teachers || [])[0];
       const zaloUrl = "https://zalo.me/0961923983";
       const instructorCard = `
@@ -603,15 +608,13 @@
                  style="text-decoration:none; display:inline-block;">💬 ${t("zalo_chat")}: 0961 923 983</a>
             </div>
             <img src="https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${encodeURIComponent(zaloUrl)}"
-                 alt="Zalo QR" width="110" height="110"
+                 alt="Zalo QR" width="110" height="110" loading="lazy" decoding="async"
                  style="border:1px solid var(--line); border-radius:8px; flex:none;" />
           </div>
         </div>`;
       const hubFooter = `<footer class="hub-footer">Designed by Thầy Lê Quốc Thông · 📞 Zalo: 0961 923 983</footer>`;
 
-      const { data: me } = await sb
-        .from("profiles").select("full_name, bio, avatar_url, access_expires, org_id").eq("id", user.id).single();
-
+      // ("me" was prefetched in the parallel batch above.)
       // Subscription visibility: quiet line normally, warning when close.
       let accessNote = "";
       if (me?.access_expires) {
@@ -994,8 +997,9 @@
                           interval_days: interval, reps, due_on: dstrLoc(dd),
                           last_grade: g, updated_at: new Date().toISOString() };
             revBy[card.id] = rec;
-            await sb.from("flashcard_reviews")
-              .upsert(rec, { onConflict: "student_id,card_id" });
+            // save in the background — the next card appears instantly
+            sb.from("flashcard_reviews")
+              .upsert(rec, { onConflict: "student_id,card_id" }).then(() => {});
             queue.shift();
             if (g < 3) queue.push(card);   // failed → comes back this session
             else doneN++;
@@ -1250,7 +1254,7 @@
         renderStudent();
       }));
 
-      sInput.addEventListener("input", () => {
+      sInput.addEventListener("input", debounce(() => {
         const q = sInput.value.trim();
         if (!q) { sBox.style.display = "none"; sBox.innerHTML = ""; return; }
         const nq = normTxt(q);
@@ -1280,7 +1284,7 @@
             setTimeout(() => el.classList.remove("flash"), 1400);
           }
         }));
-      });
+      }, 150));
       sInput.addEventListener("keydown", e => { if (e.key === "Escape") sBox.style.display = "none"; });
       if (!window.__hubDocClick) {
         window.__hubDocClick = true;
@@ -1322,59 +1326,46 @@
     // ---------- ADMIN VIEW ----------
     async function renderAdmin() {
       const __scrollY = window.scrollY;
-      const { data: lessons } = await sb
-        .from("lessons").select("*").order("sort_order").order("created_at");
 
-      // Every student's progress, joined with names + lesson titles.
-      const { data: prog } = await sb
-        .from("progress")
-        .select("student_id, lesson_id, status, updated_at")
-        .order("updated_at", { ascending: false });
+      // First visit: skeleton cards instead of a blank page.
+      if (!app.querySelector(".tabpane") && window.UI) app.innerHTML = UI.skeleton(3);
 
-      const { data: students } = await sb
-        .from("profiles")
-        .select("id, full_name, email, role, org_id, avatar_url, bio, multi_device, access_start, access_expires, suspended, plan, premium_until")
-        .order("created_at");
-
-      const { data: courses } = await sb
-        .from("courses").select("*").order("sort_order").order("created_at");
-
-      const { data: enrollments } = await sb
-        .from("enrollments")
-        .select("id, student_id, course_id, profiles(full_name, email), courses(title)")
-        .order("created_at");
-
-      const { data: anns } = await sb
-        .from("announcements").select("*").order("created_at", { ascending: false });
-
-      const { data: skeys } = await sb
-        .from("share_keys").select("*").order("created_at", { ascending: false });
-
-      const { data: orgs } = await sb
-        .from("organizations").select("id, name, kind").order("name");
-
-      const { data: allLics } = await sb
-        .from("course_licenses").select("org_id, course_id, seats, expires_on");
-
-      const { data: events } = await sb
-        .from("access_events")
-        .select("student_id, lesson_id, event, device, device_type, agent, created_at")
-        .order("created_at", { ascending: false })
-        .limit(2000);
-
-      const { data: activity } = await sb
-        .from("lesson_activity")
-        .select("student_id, lesson_id, kind, key, value, max_value, updated_at")
-        .order("updated_at", { ascending: false });
-
-      const { data: lockEvents } = await sb
-        .from("lock_events").select("lesson_id, student_id, created_at")
-        .order("created_at", { ascending: false }).limit(2000);
-
-      // flashcard decks (needs migration 23 — stays empty until then)
-      let { data: cards } = await sb
-        .from("flashcards").select("*").order("sort_order").order("created_at");
-      cards = cards || [];
+      // All queries run IN PARALLEL — one round trip instead of thirteen.
+      const [
+        { data: lessons }, { data: prog }, { data: students }, { data: courses },
+        { data: enrollments }, { data: anns }, { data: skeys }, { data: orgs },
+        { data: allLics }, { data: events }, { data: activity }, { data: lockEvents },
+        cardsRes
+      ] = await Promise.all([
+        sb.from("lessons").select("*").order("sort_order").order("created_at"),
+        // Every student's progress, joined with names + lesson titles.
+        sb.from("progress")
+          .select("student_id, lesson_id, status, updated_at")
+          .order("updated_at", { ascending: false }),
+        sb.from("profiles")
+          .select("id, full_name, email, role, org_id, avatar_url, bio, multi_device, access_start, access_expires, suspended, plan, premium_until")
+          .order("created_at"),
+        sb.from("courses").select("*").order("sort_order").order("created_at"),
+        sb.from("enrollments")
+          .select("id, student_id, course_id, profiles(full_name, email), courses(title)")
+          .order("created_at"),
+        sb.from("announcements").select("*").order("created_at", { ascending: false }),
+        sb.from("share_keys").select("*").order("created_at", { ascending: false }),
+        sb.from("organizations").select("id, name, kind").order("name"),
+        sb.from("course_licenses").select("org_id, course_id, seats, expires_on"),
+        sb.from("access_events")
+          .select("student_id, lesson_id, event, device, device_type, agent, created_at")
+          .order("created_at", { ascending: false })
+          .limit(2000),
+        sb.from("lesson_activity")
+          .select("student_id, lesson_id, kind, key, value, max_value, updated_at")
+          .order("updated_at", { ascending: false }),
+        sb.from("lock_events").select("lesson_id, student_id, created_at")
+          .order("created_at", { ascending: false }).limit(2000),
+        // flashcard decks (needs migration 23 — stays empty until then)
+        sb.from("flashcards").select("*").order("sort_order").order("created_at")
+      ]);
+      let cards = cardsRes.data || [];
 
       const courseName = id => (courses || []).find(c => c.id === id)?.title || null;
 
@@ -3183,10 +3174,13 @@
         }));
       }
 
-      Object.entries(pfEls).forEach(([k, el]) =>
-        el.addEventListener(el.tagName === "SELECT" ? "change" : "input", () => {
+      Object.entries(pfEls).forEach(([k, el]) => {
+        const apply = () => {
           pf[k] = el.value; if (k === "date") showCustom(); savePf(); renderProgressTables();
-        }));
+        };
+        el.addEventListener(el.tagName === "SELECT" ? "change" : "input",
+          el.tagName === "SELECT" ? apply : debounce(apply, 180));
+      });
       $id("pf-reset").addEventListener("click", () => {
         pf = Object.assign(pf, { q: "", student: "all", course: "all", lesson: "all",
                                  status: "all", date: "all", d1: "", d2: "" });
@@ -3468,10 +3462,11 @@
         }));
       }
 
-      Object.entries(sfEls).forEach(([k, el]) =>
-        el.addEventListener(el.tagName === "SELECT" ? "change" : "input", () => {
-          sf[k] = el.value; saveSf(); renderStudentTable();
-        }));
+      Object.entries(sfEls).forEach(([k, el]) => {
+        const apply = () => { sf[k] = el.value; saveSf(); renderStudentTable(); };
+        el.addEventListener(el.tagName === "SELECT" ? "change" : "input",
+          el.tagName === "SELECT" ? apply : debounce(apply, 180));
+      });
       renderStudentTable();
       document.getElementById("stu-csv")?.addEventListener("click", () => {
         if (!window.UI) return;
@@ -3488,7 +3483,7 @@
 
       lfCourse.addEventListener("change", () => { lf.course = lfCourse.value; saveLf(); renderLessonList(); });
       lfSort.addEventListener("change", () => { lf.sort = lfSort.value; saveLf(); renderLessonList(); });
-      lfQ.addEventListener("input", renderLessonList);
+      lfQ.addEventListener("input", debounce(renderLessonList, 180));
       renderLessonList();
 
       wireFileButtons(app);
