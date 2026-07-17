@@ -3,8 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Organizations — Thong's Learning Hub</title>
+  <title>Organizations — Learning Ecology</title>
   <link rel="stylesheet" href="styles.css" />
+  <script>
+    /* apply dark mode before first paint: saved choice, else device preference */
+    try { var __t = localStorage.getItem("hub_theme");
+      if (__t === "dark" || (!__t && matchMedia("(prefers-color-scheme: dark)").matches))
+        document.documentElement.setAttribute("data-theme", "dark");
+    } catch (e) {}
+  </script>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#17263e" />
   <link rel="icon" type="image/png" href="icons/icon-192.png" />
@@ -16,7 +23,7 @@
 </head>
 <body>
   <header class="topbar">
-    <span class="brand">Thong's Learning Hub</span>
+    <span class="brand"><img src="icons/icon-192.png" alt="" />Learning Ecology</span>
     <div style="display:flex; align-items:center; gap:0.4rem;">
       <a class="btn ghost" href="dashboard.html" style="text-decoration:none;">← <span id="nav-dash"></span></a>
       <span id="bell-slot"></span>
@@ -249,7 +256,7 @@
         </div>
 
         ${(orgs || []).map(orgCard).join("") || `<p class="empty">${t2("no_enrollments")}</p>`}
-        <footer class="hub-footer">Thong's Learning Hub</footer>`;
+        <footer class="hub-footer">Learning Ecology · Thầy Lê Quốc Thông</footer>`;
 
       // ---- wiring ----
       const el = (cls, org) => app.querySelector(`.${cls}[data-org="${org}"]`);

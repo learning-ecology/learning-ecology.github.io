@@ -67,7 +67,7 @@ input, select, textarea {
   padding: 0.6rem 0.7rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--card);
   color: var(--ink);
   width: 100%;
 }
@@ -84,6 +84,7 @@ label { display: block; font-size: 0.82rem; color: var(--muted); margin: 0 0 0.3
   display: grid;
   place-items: center;
   padding: 1.5rem;
+  background: linear-gradient(135deg, #1e4f8f, #132743);
 }
 .login-card {
   width: 100%;
@@ -105,10 +106,11 @@ label { display: block; font-size: 0.82rem; color: var(--muted); margin: 0 0 0.3
   align-items: center;
   justify-content: space-between;
   padding: 0.9rem 1.25rem;
-  background: var(--ink);
+  background: #17263e;
   color: #fff;
 }
-.topbar .brand { font-family: var(--serif); font-size: 1.15rem; }
+.topbar .brand { font-family: var(--serif); font-size: 1.15rem; display: inline-flex; align-items: center; gap: 0.55rem; }
+.topbar .brand img { width: 27px; height: 27px; border-radius: 7px; flex: none; }
 .topbar .who { font-size: 0.85rem; opacity: 0.8; margin-right: 0.9rem; }
 .topbar button.ghost { color: #fff; border-color: rgba(255,255,255,0.35); }
 .topbar button.ghost:hover { background: rgba(255,255,255,0.12); }
@@ -282,7 +284,7 @@ th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-t
   background: var(--paper);
 }
 .rte-bar button {
-  background: #fff;
+  background: var(--card);
   color: var(--ink);
   border: 1px solid var(--line);
   padding: 0.35rem 0.55rem;
@@ -291,14 +293,14 @@ th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-t
   min-width: 32px;
   font-weight: 500;
 }
-.rte-bar button:hover { border-color: var(--accent); background: #fff; color: var(--accent-ink); }
+.rte-bar button:hover { border-color: var(--accent); background: var(--card); color: var(--accent-ink); }
 .rte-bar select { width: auto; padding: 0.3rem 0.35rem; font-size: 0.85rem; }
-.rte-bar input[type="color"] { width: 34px; height: 32px; padding: 2px; border: 1px solid var(--line); border-radius: 6px; background: #fff; cursor: pointer; }
+.rte-bar input[type="color"] { width: 34px; height: 32px; padding: 2px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); cursor: pointer; }
 .rte-bar .sep { width: 1px; height: 22px; background: var(--line); margin: 0 0.2rem; }
 .rte-area {
   border: 1px solid var(--line);
   border-radius: 0 0 var(--radius) var(--radius);
-  background: #fff;
+  background: var(--card);
   min-height: 170px;
   padding: 0.85rem;
   font-size: 0.95rem;
@@ -317,7 +319,7 @@ th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-t
   background: rgba(30,79,143,0.05);
 }
 .ann-body pre, .rte-area pre {
-  background: #f1f3f7;
+  background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 0.6rem 0.85rem;
@@ -553,7 +555,7 @@ button i[data-lucide] { margin-right: 4px; }
   display: flex; flex-direction: column; gap: 8px; max-width: min(92vw, 380px);
 }
 .toast {
-  background: var(--ink); color: #fff;
+  background: #17263e; color: #fff;
   border-radius: var(--radius); padding: 0.7rem 1rem;
   font-size: 0.9rem; box-shadow: var(--shadow-pop);
   opacity: 0; transform: translateY(8px);
@@ -587,7 +589,7 @@ button.danger-btn:hover { background: #8a3a28; }
 
 /* ---- skeleton loading ---- */
 .sk {
-  background: linear-gradient(90deg, var(--line) 25%, #edf1f7 50%, var(--line) 75%);
+  background: linear-gradient(90deg, var(--line) 25%, var(--paper) 50%, var(--line) 75%);
   background-size: 200% 100%;
   animation: skshine 1.2s linear infinite;
   border-radius: 6px;
@@ -643,7 +645,7 @@ button.danger-btn:hover { background: #8a3a28; }
 /* ---- Phase 2b: discussions + printable report card ---- */
 .post {
   border: 1px solid var(--line); border-radius: var(--radius);
-  padding: 0.6rem 0.85rem; margin-bottom: 0.55rem; background: #fff;
+  padding: 0.6rem 0.85rem; margin-bottom: 0.55rem; background: var(--card);
 }
 .post .kind { display: block; margin-bottom: 0.25rem; }
 .post p { margin: 0; font-size: 0.92rem; white-space: pre-wrap; }
@@ -954,6 +956,50 @@ tr.row-premium + tr.st-panel td { background: var(--prem-row); }
   display: grid; place-items: center; font-size: 1rem;
   color: rgba(255,255,255,0.95);
 }
+
+/* ============================================================
+   PHASE 8 — dark mode
+   Activated by <html data-theme="dark"> (set by a tiny script in
+   each page's head: saved choice first, otherwise the device's
+   own light/dark preference).
+   ============================================================ */
+:root[data-theme="dark"] {
+  --paper:  #0f1725;
+  --card:   #172233;
+  --ink:    #e7edf8;
+  --muted:  #97a4bb;
+  --line:   #2a3650;
+  --accent: #3d78c8;
+  --accent-ink: #9dbfe8;
+  --gold:   #d9ab5c;
+  --danger: #e07a5f;
+  --success:    #4ec98a;
+  --success-bg: rgba(78,201,138,0.14);
+  --warning:    #e0a35c;
+  --warning-bg: rgba(224,163,92,0.12);
+  --info-bg:    rgba(61,120,200,0.16);
+  --prem:       #e8c477;
+  --prem-bg:    linear-gradient(135deg, #3a2f14, #57431c);
+  --prem-row:   rgba(217,171,92,0.10);
+  --teacher:    #b79df1;
+}
+:root[data-theme="dark"] .card,
+:root[data-theme="dark"] .stat { box-shadow: none; }
+:root[data-theme="dark"] button.ghost:hover { background: rgba(120,160,220,0.12); }
+:root[data-theme="dark"] .pill.done { background: rgba(78,201,138,0.14); color: var(--success); }
+:root[data-theme="dark"] .cred-badge { color: #e3b95c; background: rgba(217,171,92,0.12); }
+:root[data-theme="dark"] .search-results { box-shadow: 0 14px 34px -14px rgba(0,0,0,0.7); }
+:root[data-theme="dark"] .mb-free { background: rgba(96,148,220,0.16); color: #9dbfe8; border-color: rgba(96,148,220,0.4); }
+:root[data-theme="dark"] .mb-premium { color: var(--prem); }
+:root[data-theme="dark"] .mb-teacher-prem { color: #c9aef5; }
+:root[data-theme="dark"] .lp-quote { background: #1c1710; border-color: #3a2f1a; }
+:root[data-theme="dark"] .lp-quote .vi { color: #e3b95c; }
+:root[data-theme="dark"] .cb-tag { background: rgba(23,38,62,0.85); color: #e7edf8; }
+/* the certificate always prints on cream paper */
+:root[data-theme="dark"] .cert { color: #17263e; }
+
+/* theme toggle button in the topbar / landing header */
+.theme-btn { padding: 0.45rem 0.6rem !important; min-width: 0; line-height: 1; }
 
 /* ---- Phase 3d: sticky navigation bar below the header ---- */
 .topbar { position: static; }   /* the nav below is now the sticky element */

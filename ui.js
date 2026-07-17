@@ -647,9 +647,32 @@
     refreshIcons();
   }
 
+  // ---------- dark mode toggle (Phase 8) ----------
+  // The theme itself is applied by a tiny head snippet on every page
+  // (before first paint). This just adds the 🌙/☀️ switch to the topbar.
+  function initTheme() {
+    const root = document.documentElement;
+    const isDark = () => root.getAttribute("data-theme") === "dark";
+    const slot = document.querySelector(".topbar > div");
+    if (!slot || slot.querySelector(".theme-btn")) return;
+    const btn = document.createElement("button");
+    btn.className = "ghost theme-btn";
+    btn.setAttribute("aria-label", "Light / dark mode");
+    btn.textContent = isDark() ? "☀️" : "🌙";
+    btn.addEventListener("click", () => {
+      const next = isDark() ? "light" : "dark";
+      if (next === "dark") root.setAttribute("data-theme", "dark");
+      else root.removeAttribute("data-theme");
+      try { localStorage.setItem("hub_theme", next); } catch (e) {}
+      btn.textContent = next === "dark" ? "☀️" : "🌙";
+    });
+    slot.insertBefore(btn, slot.firstChild);
+  }
+  initTheme();   // ui.js loads at the end of <body>, so the topbar exists
+
   window.UI = { t2, LANG, toast, confirmDialog, promptDialog, skeleton,
                 csv, icon, refreshIcons, wireLangButton, rerender, initBell,
                 applyBrand, resizeImage, cropResize, membership, memberBadge,
-                BRAND_PRESETS, initNav };
+                BRAND_PRESETS, initNav, initTheme };
   document.documentElement.setAttribute("lang", LANG);
 })();

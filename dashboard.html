@@ -3,8 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard — Thong's Learning Hub</title>
+  <title>Dashboard — Learning Ecology</title>
   <link rel="stylesheet" href="styles.css" />
+  <script>
+    /* apply dark mode before first paint: saved choice, else device preference */
+    try { var __t = localStorage.getItem("hub_theme");
+      if (__t === "dark" || (!__t && matchMedia("(prefers-color-scheme: dark)").matches))
+        document.documentElement.setAttribute("data-theme", "dark");
+    } catch (e) {}
+  </script>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#17263e" />
   <link rel="icon" type="image/png" href="icons/icon-192.png" />
@@ -16,7 +23,7 @@
 </head>
 <body>
   <header class="topbar">
-    <span class="brand">Thong's Learning Hub</span>
+    <span class="brand"><img src="icons/icon-192.png" alt="" />Learning Ecology</span>
     <div style="display:flex; align-items:center;">
       <span id="bell-slot" style="margin-right:0.5rem;"></span>
       <span class="badge" id="who-badge" style="display:none;"></span>
@@ -1037,7 +1044,7 @@
         ov.innerHTML = `
           <div style="max-width:680px; width:100%;">
             <div class="cert">
-              <div class="c-eyebrow">Thong's Learning Hub</div>
+              <div class="c-eyebrow">Learning Ecology</div>
               <h1>${T2c("cert_title")}</h1>
               <p style="margin:0;">${T2c("cert_awarded")}</p>
               <div class="c-name">${esc(studentName)}</div>

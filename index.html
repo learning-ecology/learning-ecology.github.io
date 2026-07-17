@@ -17,6 +17,13 @@
   <meta name="twitter:card" content="summary_large_image" />
 
   <link rel="stylesheet" href="styles.css" />
+  <script>
+    /* apply dark mode before first paint: saved choice, else device preference */
+    try { var __t = localStorage.getItem("hub_theme");
+      if (__t === "dark" || (!__t && matchMedia("(prefers-color-scheme: dark)").matches))
+        document.documentElement.setAttribute("data-theme", "dark");
+    } catch (e) {}
+  </script>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#17263e" />
   <link rel="icon" type="image/png" href="icons/icon-192.png" />
@@ -131,6 +138,8 @@
   <header class="lp-header">
     <img src="icons/icon-192.png" alt="Learning Ecology" />
     <span class="name">Learning Ecology</span>
+    <button id="lp-theme" class="ghost theme-btn" aria-label="Light / dark mode"
+            style="color:#fff; border-color:rgba(255,255,255,0.4); margin-right:0.4rem;">🌙</button>
     <a id="hd-login" class="btn ghost" href="login.html"
        style="text-decoration:none; color:#fff; border-color:rgba(255,255,255,0.4);">Đăng nhập</a>
   </header>
@@ -259,6 +268,22 @@
       hd.textContent = "Vào học ngay →"; hd.href = "dashboard.html";
       hero.textContent = "Vào học ngay →"; hero.href = "dashboard.html";
     }).catch(() => {});
+  </script>
+  <script>
+    // light / dark switch (the head snippet applied the initial theme)
+    (function () {
+      const root = document.documentElement;
+      const b = document.getElementById("lp-theme");
+      const cur = () => root.getAttribute("data-theme") === "dark";
+      b.textContent = cur() ? "☀️" : "🌙";
+      b.addEventListener("click", () => {
+        const next = cur() ? "light" : "dark";
+        if (next === "dark") root.setAttribute("data-theme", "dark");
+        else root.removeAttribute("data-theme");
+        try { localStorage.setItem("hub_theme", next); } catch (e) {}
+        b.textContent = next === "dark" ? "☀️" : "🌙";
+      });
+    })();
   </script>
   <script>
     // PWA: offline shell + installability (needs HTTPS, e.g. GitHub Pages)

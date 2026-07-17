@@ -3,8 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Thong's Learning Hub</title>
+  <title>Reset password — Learning Ecology</title>
   <link rel="stylesheet" href="styles.css" />
+  <script>
+    /* apply dark mode before first paint: saved choice, else device preference */
+    try { var __t = localStorage.getItem("hub_theme");
+      if (__t === "dark" || (!__t && matchMedia("(prefers-color-scheme: dark)").matches))
+        document.documentElement.setAttribute("data-theme", "dark");
+    } catch (e) {}
+  </script>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#17263e" />
   <link rel="icon" type="image/png" href="icons/icon-192.png" />
@@ -16,8 +23,13 @@
 </head>
 <body>
   <main class="login-wrap">
+    <div style="width:100%; max-width:380px;">
+      <div style="text-align:center; margin-bottom:1.1rem;">
+        <img src="icons/icon-192.png" alt="Learning Ecology" width="60" height="60"
+             style="border-radius:14px; box-shadow:0 10px 26px -10px rgba(0,0,0,0.55);" />
+        <div style="color:#fff; font-family:var(--serif); font-size:1.35rem; font-weight:700; margin-top:0.55rem; text-shadow:0 2px 8px rgba(0,0,0,0.35);">Learning Ecology</div>
+      </div>
     <div class="login-card">
-      <p class="eyebrow">Thong's Learning Hub</p>
       <h1 data-i18n="reset_title">Set a new password</h1>
       <p data-i18n="reset_sub" style="color:var(--muted); margin:0 0 1.5rem; font-size:0.9rem;">
         Choose a new password for your account.
@@ -37,6 +49,7 @@
       <p style="text-align:center; margin:1.1rem 0 0; border-top:1px solid var(--line); padding-top:0.9rem;">
         <a href="#" id="lang-toggle" style="font-size:0.85rem; color:var(--muted);"></a>
       </p>
+    </div>
     </div>
   </main>
 
