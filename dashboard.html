@@ -312,8 +312,13 @@
 
       // Each course card can fold its lessons away (state remembered
       // per device, so students with many courses keep a short page).
+      // DEFAULT: everything starts collapsed as a compact list, except
+      // the course the student is currently working on (defaultOpenId,
+      // decided below once "continue learning" is known). A student's
+      // own open/close choices always win over the default.
       let collapsedCourses = {};
       try { collapsedCourses = JSON.parse(localStorage.getItem("hub_courses_closed") || "{}"); } catch (e) {}
+      let defaultOpenId = null;
 
       // One roadmap card per course, grouped into collapsible categories.
       const courseCard = c => {
@@ -391,8 +396,11 @@
             </div>
           </div>`;
 
+        const isClosed = (c.id in collapsedCourses)
+          ? !!collapsedCourses[c.id]
+          : (c.id !== defaultOpenId);
         return `
-          <div class="card course-card ${collapsedCourses[c.id] ? "collapsed" : ""}" id="course-${c.id}" style="border-top:4px solid ${esc(color)};">
+          <div class="card course-card ${isClosed ? "collapsed" : ""}" id="course-${c.id}" style="border-top:4px solid ${esc(color)};">
             ${banner}
             <button class="course-toggle" type="button" data-course="${c.id}">
               <span class="chev">▸</span>
@@ -528,6 +536,10 @@
       }
       const contCourse = contLesson
         ? ((courses || []).find(c => c.id === contLesson.course_id)?.title || t("other_lessons")) : "";
+
+      // the course being studied right now starts expanded; all others
+      // start as compact strips (used by courseCard via defaultOpenId)
+      defaultOpenId = contLesson?.course_id || (courses || [])[0]?.id || null;
       const heroCard = contLesson ? `
         <div class="card" style="background:linear-gradient(135deg,#1e4f8f,#153a6b); color:#fff; border:none;">
           <p class="eyebrow" style="color:rgba(255,255,255,0.72);">${contIsNext ? t("next_up") : t("continue_learning")}</p>
@@ -1179,14 +1191,20 @@
       wireFileButtons(app);
 
       // --- collapsible course cards (state remembered per device) ---
-      app.querySelectorAll(".course-toggle").forEach(h => {
-        h.addEventListener("click", () => {
-          const cardEl = h.closest(".course-card");
-          cardEl.classList.toggle("collapsed");
-          collapsedCourses[h.getAttribute("data-course")] = cardEl.classList.contains("collapsed");
-          try { localStorage.setItem("hub_courses_closed", JSON.stringify(collapsedCourses)); } catch (e) {}
-        });
-      });
+      const toggleCourse = cardEl => {
+        cardEl.classList.toggle("collapsed");
+        const cid = cardEl.id.replace("course-", "");
+        collapsedCourses[cid] = cardEl.classList.contains("collapsed");
+        try { localStorage.setItem("hub_courses_closed", JSON.stringify(collapsedCourses)); } catch (e) {}
+      };
+      app.querySelectorAll(".course-toggle").forEach(h =>
+        h.addEventListener("click", () => toggleCourse(h.closest(".course-card"))));
+      // a collapsed strip expands when tapped anywhere on the banner
+      app.querySelectorAll(".course-card .course-banner").forEach(b =>
+        b.addEventListener("click", () => {
+          const cardEl = b.closest(".course-card");
+          if (cardEl.classList.contains("collapsed")) toggleCourse(cardEl);
+        }));
 
       // --- collapsible categories (state remembered per device) ---
       app.querySelectorAll(".cat-head").forEach(h => {

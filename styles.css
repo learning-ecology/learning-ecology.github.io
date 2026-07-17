@@ -962,7 +962,24 @@ tr.row-premium + tr.st-panel td { background: var(--prem-row); }
 .course-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 0.3s ease; }
 .course-card.collapsed .course-body { grid-template-rows: 0fr; }
 .course-body > div { overflow: hidden; }
-.course-card.collapsed .course-banner { margin-bottom: 0.4rem; }
+
+/* collapsed course = one compact strip, so many courses read as a list */
+.course-banner { transition: height 0.3s ease; }
+.course-card.collapsed .course-banner { height: 64px; margin-bottom: 0.35rem; cursor: pointer; }
+.course-card.collapsed .cb-bg { font-size: 1.5rem; }
+.course-card.collapsed .cb-shade {
+  background: linear-gradient(90deg, rgba(15,23,42,0.72) 0%, rgba(15,23,42,0.35) 60%, rgba(15,23,42,0.15) 100%);
+}
+.course-card.collapsed .cb-info { bottom: 50%; transform: translateY(50%); }
+.course-card.collapsed .cb-title { font-size: 1.05rem; text-shadow: 0 1px 6px rgba(0,0,0,0.55); }
+.course-card.collapsed .cb-stats,
+.course-card.collapsed .cb-bar,
+.course-card.collapsed .cb-tag { display: none; }
+.course-card.collapsed .cb-prem { top: 50%; transform: translateY(-50%); right: 0.8rem; }
+@media (max-width: 640px) {
+  .course-card.collapsed .course-banner { height: 56px; }
+  .course-card.collapsed .cb-title { font-size: 0.95rem; }
+}
 
 /* ---- admin lesson thumbnails ---- */
 .adm-thumb {
