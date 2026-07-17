@@ -4,7 +4,7 @@
 //  Add these TWO lines near the end of any HTML lesson's <body>:
 //
 //  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-//  <script src="https://lqthongforwork.github.io/learninghub/tracker.js"></script>
+//  <script src="https://learning-ecology.github.io/tracker.js"></script>
 //
 //  What happens automatically:
 //   • time on the lesson is recorded (only while the tab is visible)
@@ -74,9 +74,9 @@
       '<div style="font-size:2.2rem;">🔒</div>' +
       '<h2 style="margin:0.6rem 0 0.4rem;">' + msgEn + '</h2>' +
       '<p style="color:#5a6577;margin:0 0 1.2rem;">' + msgVi + '</p>' +
-      '<a href="https://lqthongforwork.github.io/learninghub/" ' +
+      '<a href="https://learning-ecology.github.io/" ' +
       'style="display:inline-block;background:#1e4f8f;color:#fff;text-decoration:none;' +
-      'padding:0.7rem 1.4rem;border-radius:10px;font-weight:600;">Thong\u2019s Learning Hub \u2192</a>' +
+      'padding:0.7rem 1.4rem;border-radius:10px;font-weight:600;">Learning Ecology \u2192</a>' +
       '</div></div>';
   }
 
