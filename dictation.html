@@ -1,0 +1,1542 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nghe chép chính tả — 听写 · Learning Ecology</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.26.0/dist/index.min.js"></script>
+<style>
+  :root {
+    --bg:#f4f6fb; --panel:#fff; --ink:#1c2740; --muted:#64708a; --line:#dfe4ef;
+    --accent:#1d5fc2; --accent-soft:#e8f0fe; --ok:#178a4c; --warn:#c05600;
+    --chart:#2a78d6; --chart-grid:#e3e8f2;
+    --l1:#178a4c; --l1bg:#e2f4e9; --l2:#1d5fc2; --l2bg:#e4edfb;
+    --l3:#9a7b00; --l3bg:#faf3d0; --l4:#c05600; --l4bg:#fdeadc;
+    --l5:#c62f2f; --l5bg:#fde3e3; --l6:#7c3aad; --l6bg:#f1e5fb;
+    --hz:26px;
+    --hz-font:"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#10141f; --panel:#1a2130; --ink:#e8ecf5; --muted:#93a0b8; --line:#2c3549;
+      --accent:#6ea8ff; --accent-soft:#1e2c47; --ok:#4cc98a; --warn:#ffb066;
+      --chart:#3987e5; --chart-grid:#2c3549;
+      --l1:#4cc98a; --l1bg:#173226; --l2:#6ea8ff; --l2bg:#1c2b47;
+      --l3:#e8c74a; --l3bg:#33301a; --l4:#ffa05e; --l4bg:#38281c;
+      --l5:#ff7b7b; --l5bg:#3a2020; --l6:#cfa0f0; --l6bg:#30203f;
+    }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:15px/1.5 -apple-system,"Segoe UI",Roboto,sans-serif; }
+  a { color:var(--accent); }
+  button { border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           border-radius:8px; padding:7px 13px; font-size:14px; cursor:pointer; }
+  button:hover { border-color:var(--accent); color:var(--accent); }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.primary:hover { filter:brightness(1.1); color:#fff; }
+  button.small { padding:4px 9px; font-size:12.5px; border-radius:6px; }
+  button.on { background:var(--accent-soft); border-color:var(--accent); color:var(--accent); font-weight:600; }
+  input, select, textarea { border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           border-radius:8px; padding:7px 10px; font-size:14px; }
+  input:focus, select:focus, textarea:focus { outline:2px solid var(--accent); border-color:transparent; }
+  textarea { width:100%; resize:vertical; line-height:1.6; font-family:inherit; }
+
+  header { background:var(--panel); border-bottom:1px solid var(--line); padding:10px 18px;
+           display:flex; align-items:center; gap:14px; flex-wrap:wrap; position:sticky; top:0; z-index:20; }
+  header h1 { margin:0; font-size:18px; white-space:nowrap; }
+  header h1 span { color:var(--accent); }
+  nav { display:flex; gap:4px; flex-wrap:wrap; }
+  nav button { border:none; background:none; padding:7px 12px; border-radius:8px; font-size:14px; color:var(--muted); }
+  nav button.active { background:var(--accent-soft); color:var(--accent); font-weight:600; }
+
+  main { max-width:1180px; margin:0 auto; padding:16px 18px 70px; }
+  .view { display:none; }
+  .view.active { display:block; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:14px; }
+  .row { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; }
+  .grow { flex:1; }
+  h2 { font-size:17px; margin:4px 0 12px; }
+  .mutetext { color:var(--muted); font-size:13px; }
+  .offline { color:var(--warn); }
+  .group { display:inline-flex; align-items:center; gap:6px; color:var(--muted); font-size:13px; }
+  .toggle { display:inline-flex; align-items:center; gap:5px; cursor:pointer; color:var(--muted); font-size:13px; white-space:nowrap; }
+
+  .lv { display:inline-block; font-size:11.5px; font-weight:700; border-radius:6px; padding:1px 7px; white-space:nowrap; }
+  .lv1 { color:var(--l1); background:var(--l1bg); } .lv2 { color:var(--l2); background:var(--l2bg); }
+  .lv3 { color:var(--l3); background:var(--l3bg); } .lv4 { color:var(--l4); background:var(--l4bg); }
+  .lv5 { color:var(--l5); background:var(--l5bg); } .lv6 { color:var(--l6); background:var(--l6bg); }
+  .lv0 { color:var(--muted); background:var(--bg); }
+  .chip { border:1px solid var(--line); background:var(--panel); border-radius:16px; padding:4px 12px; font-size:13px; cursor:pointer; }
+  .chip.active { background:var(--accent-soft); border-color:var(--accent); color:var(--accent); font-weight:600; }
+
+  /* library */
+  .libgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:12px; }
+  .vcard { background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden;
+           cursor:pointer; transition:box-shadow .15s, transform .15s; position:relative; }
+  .vcard:hover { box-shadow:0 6px 18px rgba(0,0,0,.12); transform:translateY(-2px); }
+  .vcard.locked { opacity:.68; }
+  .vcard img { width:100%; aspect-ratio:16/9; object-fit:cover; display:block; background:#000; }
+  .vcard .body { padding:10px 12px; }
+  .vcard h3 { margin:0 0 6px; font-size:14.5px; line-height:1.35; }
+  .vcard .meta { display:flex; gap:6px; flex-wrap:wrap; align-items:center; font-size:12px; color:var(--muted); }
+  .vcard .done { position:absolute; top:8px; right:10px; background:var(--ok); color:#fff;
+                 border-radius:8px; padding:1px 8px; font-size:12px; font-weight:700; }
+  .vcard .dur { position:absolute; top:8px; left:10px; background:rgba(0,0,0,.72); color:#fff;
+                border-radius:6px; padding:0 6px; font-size:11.5px; }
+  .pbar { height:5px; background:var(--line); border-radius:3px; overflow:hidden; margin-top:7px; }
+  .pbar div { height:100%; background:var(--ok); }
+
+  /* dictation session */
+  .pgrid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; align-items:start; }
+  @media (max-width: 900px) { .pgrid { grid-template-columns:1fr; } }
+  .videobox { position:relative; padding-top:56.25%; border-radius:12px; overflow:hidden; background:#000; }
+  .videobox iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
+  #vidCover { position:absolute; inset:0; background:var(--accent-soft); display:none;
+              align-items:center; justify-content:center; flex-direction:column; gap:8px;
+              color:var(--accent); font-weight:700; font-size:17px; z-index:5; }
+  #vidCover.on { display:flex; }
+  .sessbar { height:7px; background:var(--line); border-radius:4px; overflow:hidden; margin:8px 0; }
+  #sessFill { height:100%; background:var(--accent); transition:width .2s; }
+  #dictIn { font-size:20px; font-family:var(--hz-font); min-height:74px; }
+  #dictIn.pymode { font-family:inherit; font-size:17px; }
+  .anschars { font-family:var(--hz-font); font-size:calc(var(--hz) + 4px); line-height:1.6; }
+  .anschars .g { color:var(--ok); }
+  .anschars .y { color:var(--l3); border-bottom:2px dotted var(--l3); }
+  .anschars .r { color:var(--l5); text-decoration:underline dotted; }
+  .extras { color:var(--muted); font-size:14px; }
+  .extras s { color:var(--l5); font-family:var(--hz-font); }
+  #dictScore b { font-size:24px; }
+  .pyline { color:var(--accent); }
+  .trline2 { color:var(--muted); font-size:14px; }
+  .tok { display:inline-block; text-align:center; margin:0 1px; vertical-align:bottom; border-radius:6px; }
+  .tok.zh { cursor:pointer; }
+  .tok.zh:hover { background:var(--accent-soft); }
+  .tok .py { display:block; font-size:13px; color:var(--muted); line-height:1.15; }
+  .tok .hz { display:block; font-size:var(--hz); font-family:var(--hz-font); line-height:1.3; }
+  .tok.l1 .hz { border-bottom:2px solid var(--l1); } .tok.l2 .hz { border-bottom:2px solid var(--l2); }
+  .tok.l3 .hz { border-bottom:2px solid var(--l3); } .tok.l4 .hz { border-bottom:2px solid var(--l4); }
+  .tok.l5 .hz { border-bottom:2px solid var(--l5); } .tok.l6 .hz { border-bottom:2px solid var(--l6); }
+  .tok.saved .hz { background:var(--l3bg); border-radius:4px; }
+  #hintLine { color:var(--warn); font-family:var(--hz-font); font-size:18px; min-height:24px; }
+
+  /* stats */
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-bottom:14px; }
+  .tile { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+  .tile b { display:block; font-size:22px; }
+  .tile span { color:var(--muted); font-size:12.5px; }
+  .chart { display:flex; align-items:flex-end; gap:4px; height:120px; padding:6px 2px 0; }
+  .chart .col { flex:1; display:flex; flex-direction:column; justify-content:flex-end; height:100%; cursor:default; }
+  .chart .col .seg1 { background:var(--chart); border-radius:3px 3px 0 0; }
+  .chart .col .lbl { font-size:10px; color:var(--muted); text-align:center; margin-top:3px; }
+
+  #popup { position:fixed; display:none; background:var(--panel); border:1px solid var(--line);
+           border-radius:12px; padding:12px 36px 12px 14px; box-shadow:0 12px 34px rgba(0,0,0,.28);
+           z-index:120; max-width:min(330px, 92vw); }
+  #popup .w { font-family:var(--hz-font); font-size:26px; margin-right:8px; }
+  #popup .p { color:var(--accent); font-size:15px; margin-right:8px; }
+  #popup .m { margin:6px 0 2px; }
+  #popup .ex { color:var(--muted); font-family:var(--hz-font); font-size:13.5px; margin-top:4px; }
+  #popup .close { position:absolute; top:6px; right:6px; border:none; background:none; font-size:15px; color:var(--muted); }
+  #toast { position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px);
+           background:var(--ink); color:var(--bg); border-radius:10px; padding:9px 18px; font-size:14px;
+           opacity:0; pointer-events:none; transition:.25s; z-index:200; max-width:88vw; }
+  #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🎧 Nghe chép <span>chính tả</span> <small class="mutetext">听写</small></h1>
+  <nav>
+    <button id="navLib" class="active">🎬 Chọn video</button>
+    <button id="navDict">✍️ Chép chính tả</button>
+    <button id="navStats">📊 Thống kê</button>
+  </nav>
+  <div class="grow"></div>
+  <span id="whoami" class="mutetext"></span>
+  <a href="dashboard.html" class="mutetext">← Trang học</a>
+</header>
+
+<main>
+
+<!-- ==================== LIBRARY ==================== -->
+<section id="view-lib" class="view active">
+  <div class="panel">
+    <h2>➕ Nạp video YouTube mới</h2>
+    <div class="mutetext" style="margin-bottom:8px">Video dùng chung với trang Shadow Chinese — nạp ở đây thì bên đó cũng có, và ngược lại.</div>
+    <div class="row">
+      <input id="impUrl" class="grow" placeholder="Dán link video YouTube có phụ đề tiếng Trung… (youtube.com/watch?v=…)">
+      <button id="btnLoadUrl" class="primary">Nạp video</button>
+    </div>
+    <div id="impStatus" class="mutetext" style="margin-top:8px"></div>
+  </div>
+
+  <div id="impPanel" class="panel" hidden>
+    <div class="row" style="align-items:flex-start">
+      <img id="impThumb" style="width:168px;border-radius:8px" alt="">
+      <div class="grow">
+        <div class="row"><input id="impTitle" class="grow" placeholder="Tên video"></div>
+        <div class="row" style="margin-top:8px">
+          <span class="mutetext">Cấp độ:</span>
+          <select id="impLevel">
+            <option value="0">Chưa xếp</option><option value="1">HSK 1</option><option value="2">HSK 2</option>
+            <option value="3">HSK 3</option><option value="4">HSK 4</option><option value="5">HSK 5</option><option value="6">HSK 6</option>
+          </select>
+          <label class="toggle" id="impPubWrap" hidden><input type="checkbox" id="impPub" checked> Chia sẻ cho mọi học viên</label>
+          <span class="group" id="impTierWrap" hidden><span class="mutetext">Gói:</span>
+            <select id="impTier"><option value="free">Free</option><option value="premium">👑 Premium</option></select></span>
+        </div>
+      </div>
+    </div>
+    <div id="subFetchStatus" class="mutetext" style="margin:10px 0 6px"></div>
+    <div id="autoResult" hidden>
+      <div class="row">
+        <span id="autoInfo"></span>
+        <span class="mutetext">Dịch nghĩa:</span>
+        <select id="autoTrLang"><option value="vi">Tiếng Việt</option><option value="en">English</option><option value="">Không</option></select>
+        <button id="btnUseAuto" class="primary">✓ Dùng phụ đề này</button>
+      </div>
+    </div>
+    <details id="manualBox" style="margin-top:10px">
+      <summary class="mutetext" style="cursor:pointer">📋 Hoặc dán phụ đề thủ công (bản chép lời YouTube / SRT / VTT)</summary>
+      <div class="mutetext" style="margin-top:8px">💡 Trên YouTube: mô tả video → <b>Show transcript / Hiện bản chép lời</b> → bôi đen → copy → dán nguyên văn vào ô dưới.</div>
+      <div class="row" style="margin-top:8px;align-items:flex-start">
+        <div class="grow">
+          <div class="mutetext">Phụ đề tiếng Trung (bắt buộc) — hoặc chọn tệp: <input type="file" id="subFileZh" accept=".srt,.vtt,.txt"></div>
+          <textarea id="subPasteZh" rows="6" placeholder="0:07&#10;大家好&#10;0:08&#10;欢迎来到我的频道"></textarea>
+        </div>
+        <div class="grow">
+          <div class="mutetext">Bản dịch (không bắt buộc): <input type="file" id="subFileTr" accept=".srt,.vtt,.txt"></div>
+          <textarea id="subPasteTr" rows="6" placeholder="0:07&#10;Chào mọi người"></textarea>
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px"><button id="btnUseManual">✓ Dùng phụ đề đã dán</button><span id="manualInfo" class="mutetext"></span></div>
+    </details>
+    <div class="row" style="margin-top:12px">
+      <button id="btnSaveVideo" class="primary" disabled>💾 Lưu &amp; chép chính tả</button>
+      <button id="btnCancelImport">Hủy</button>
+      <span id="impSaveInfo" class="mutetext"></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>🎬 Chọn video để chép chính tả</h2>
+    <div class="row" style="margin-bottom:12px">
+      <div id="lvChips" class="row" style="gap:6px"></div>
+      <div class="grow"></div>
+      <input id="libSearch" placeholder="🔍 Tìm video…" style="min-width:170px">
+    </div>
+    <div id="libGrid" class="libgrid"></div>
+    <div id="libEmpty" class="mutetext" hidden>Chưa có video nào — dán một link YouTube ở trên, hoặc nạp video trong trang Shadow Chinese.</div>
+  </div>
+</section>
+
+<!-- ==================== DICTATION ==================== -->
+<section id="view-dict" class="view">
+  <div id="noVid" class="panel mutetext">Chưa chọn video — hãy chọn một video trong 🎬 Chọn video.</div>
+  <div id="dictWrap" hidden>
+    <div class="row" style="margin-bottom:10px">
+      <button id="btnBackLib" class="small">← Thư viện</button>
+      <b id="dTitle" style="font-size:16px"></b>
+      <span id="dLv" class="lv lv0"></span>
+      <div class="grow"></div>
+      <span id="dProgTxt" class="mutetext"></span>
+    </div>
+
+    <div id="setupPanel" class="panel">
+      <h2>⚙️ Thiết lập buổi chép chính tả</h2>
+      <div class="row">
+        <span class="group">Số câu
+          <select id="cfgCount"><option value="10">10 câu</option><option value="20">20 câu</option><option value="0">Tất cả</option></select></span>
+        <span class="group">Bắt đầu từ câu
+          <select id="cfgStart"></select></span>
+        <span class="group">Thứ tự
+          <select id="cfgOrder"><option value="seq">Theo video</option><option value="rand">Ngẫu nhiên</option></select></span>
+        <span class="group">Chế độ gõ
+          <select id="cfgMode"><option value="hanzi">Chữ Hán 汉字</option><option value="pinyin">Pinyin (người mới)</option></select></span>
+        <span class="group">Âm thanh
+          <select id="cfgAudio"><option value="video">Giọng thật từ video</option><option value="tts">Giọng đọc AI (chậm hơn)</option></select></span>
+        <span class="group">Tốc độ video
+          <select id="cfgRate"><option value="0.75">0.75×</option><option value="1" selected>1×</option></select></span>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button id="btnStart" class="primary">▶ Bắt đầu</button>
+        <label class="toggle"><input type="checkbox" id="cfgCover" checked> 🙈 Che hình video (chỉ nghe)</label>
+      </div>
+    </div>
+
+    <div id="sessPanel" hidden>
+      <div class="pgrid">
+        <div>
+          <div class="videobox">
+            <div id="ytMount"></div>
+            <div id="vidCover"><span>🎧 Chỉ nghe — hình đã che</span><button class="small" id="btnPeek">👁 Xem hình</button></div>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <button id="btnReplay" class="primary">▶ Nghe lại câu</button>
+            <button id="btnSlowTts">🐢 AI đọc chậm</button>
+            <span id="listenCount" class="mutetext"></span>
+            <div class="grow"></div>
+            <label class="toggle"><input type="checkbox" id="chkCover" checked> 🙈 Che hình</label>
+          </div>
+        </div>
+        <div>
+          <div class="panel" style="margin-bottom:10px">
+            <div class="row"><b id="sessPos"></b><div class="grow"></div><span id="sessAcc" class="mutetext"></span></div>
+            <div class="sessbar"><div id="sessFill" style="width:0%"></div></div>
+            <div class="mutetext" id="dictPrompt" style="margin:6px 0">Nghe câu rồi gõ lại bằng chữ Hán:</div>
+            <textarea id="dictIn" rows="2" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Gõ câu bạn nghe được…"></textarea>
+            <div id="hintLine"></div>
+            <div class="row" style="margin-top:8px">
+              <button id="btnCheck" class="primary">✔ Kiểm tra (Enter)</button>
+              <button id="btnHint">💡 Gợi ý</button>
+              <button id="btnSkip">⏭ Bỏ qua &amp; xem đáp án</button>
+            </div>
+          </div>
+          <div id="dictResult" class="panel" hidden>
+            <div id="dictScore" style="margin-bottom:6px"></div>
+            <div class="anschars" id="ansChars"></div>
+            <div class="extras" id="ansExtras"></div>
+            <div class="pyline" id="ansPy"></div>
+            <div class="trline2" id="ansTr"></div>
+            <div id="ansToks" style="margin-top:8px"></div>
+            <div class="row" style="margin-top:10px">
+              <button id="btnRetryCue" class="small">🔁 Thử lại câu này</button>
+              <button id="btnNextCue" class="primary">▶ Câu tiếp</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="sumPanel" class="panel" hidden>
+      <h2>🎉 Hoàn thành buổi chép chính tả!</h2>
+      <div id="sumTiles" class="tiles"></div>
+      <div class="row">
+        <button id="btnRedoWrong" class="primary">🔁 Luyện lại các câu chưa tốt</button>
+        <button id="btnSumSetup">⚙️ Buổi mới</button>
+        <button id="btnSumLib">🎬 Chọn video khác</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== STATS ==================== -->
+<section id="view-stats" class="view">
+  <div id="statTiles" class="tiles"></div>
+  <div class="panel">
+    <h2>📈 14 ngày gần đây <span class="mutetext">(số câu đã chép mỗi ngày)</span></h2>
+    <div id="statChart" class="chart"></div>
+  </div>
+  <div class="panel mutetext">💡 Từ vựng lưu trong lúc chép chính tả nằm chung sổ từ với Đọc hiểu HSK và Shadow Chinese — ôn thẻ nhớ trong trang <a href="reading.html">Đọc hiểu HSK</a>.</div>
+</section>
+
+</main>
+
+<div id="popup"></div>
+<div id="toast"></div>
+
+<script>
+(function () {
+'use strict';
+const $ = id => document.getElementById(id);
+const todayKey = (d) => { const x = d ? new Date(d) : new Date(); return x.getFullYear() + '-' + String(x.getMonth()+1).padStart(2,'0') + '-' + String(x.getDate()).padStart(2,'0'); };
+/* per-account key namespacing; vocabulary keys reuse the SAME storage as
+   reading.html/shadow.html ("crh-…") so every page shares one word library */
+let uid = null, isStaff = false;
+const K = k => k === 'crh-dict-v1' ? k
+  : (k.indexOf('crh-') === 0 ? 'crh-' : 'cdt-') + (uid ? uid.slice(0, 8) : 'anon') + '-' + k;
+function store(key, val) { try { localStorage.setItem(K(key), JSON.stringify(val)); } catch (e) { toast('⚠️ Bộ nhớ đầy'); } }
+function read(key, fb) { try { return JSON.parse(localStorage.getItem(K(key))) ?? fb; } catch (e) { return fb; } }
+let toastTimer = null;
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2600); }
+const escH = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const fmtT = s => { s = Math.max(0, Math.round(s)); return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); };
+const fmtH = s => s >= 3600 ? (s/3600).toFixed(1) + ' giờ' : Math.round(s/60) + ' phút';
+
+/* ================= hub account ================= */
+let isPremium = false;
+async function requireLogin() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { location.href = 'login.html'; return null; }
+  const user = session.user;
+  let prof = null;
+  try {
+    const { data } = await sb.from('profiles')
+      .select('full_name, role, active_session, multi_device, suspended, plan, premium_until').eq('id', user.id).single();
+    prof = data;
+  } catch (e) {}
+  if (prof && prof.suspended) { location.href = 'login.html'; return null; }
+  const device = localStorage.getItem('hub_device');
+  if (prof && prof.active_session && !prof.multi_device && device && prof.active_session !== device) {
+    location.href = 'login.html?kicked=1'; return null;
+  }
+  uid = user.id;
+  isStaff = !!prof && (prof.role === 'teacher' || prof.role === 'owner' || prof.role === 'admin');
+  const _td = new Date().toISOString().slice(0, 10);
+  isPremium = isStaff || (!!prof && prof.plan === 'premium' && (!prof.premium_until || prof.premium_until >= _td));
+  $('whoami').textContent = (prof && prof.full_name) || user.email || '';
+  if (isStaff) { $('impPubWrap').hidden = false; $('impTierWrap').hidden = false; }
+  return user;
+}
+
+/* ================= shared video library (same table as Shadow Chinese) ================= */
+let VIDS = [];
+async function loadVideos() {
+  try {
+    const { data, error } = await sb.from('shadow_videos').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    VIDS = data;
+    store('vids-cache', VIDS.map(v => ({ ...v, subs: (v.subs || []).slice(0, 400) })));
+  } catch (e) { VIDS = read('vids-cache', []); }
+  freeOrderCache = null;
+}
+
+/* ================= access control (identical rules to Shadow Chinese) ================= */
+let ACCESS_READY = false, GRANTS = [], FREE_LIMIT = 0, freeOrderCache = null;
+async function loadAccess() {
+  try {
+    const { data } = await sb.from('shadow_access').select('video_id, level');
+    GRANTS = data || [];
+  } catch (e) { GRANTS = []; }
+  try {
+    const { data } = await sb.from('shadow_settings').select('free_limit').eq('id', 1).maybeSingle();
+    if (data && typeof data.free_limit === 'number') { FREE_LIMIT = data.free_limit; ACCESS_READY = true; }
+  } catch (e) {}
+}
+function grantCovers(v) {
+  return GRANTS.some(g => g.video_id === v.id || (!g.video_id && (g.level == null || g.level === (v.level || 0))));
+}
+function freeRank(id) {
+  if (!freeOrderCache) {
+    freeOrderCache = VIDS.filter(x => x.published && x.tier !== 'premium')
+      .sort((a, b) => ((a.sort_order || 0) - (b.sort_order || 0)) || String(a.created_at).localeCompare(String(b.created_at)))
+      .map(x => x.id);
+  }
+  return freeOrderCache.indexOf(id);
+}
+function isLocked(v) {
+  if (!ACCESS_READY || isStaff || isPremium) return false;
+  if (v.created_by === uid) return false;
+  if (grantCovers(v)) return false;
+  if (v.tier === 'premium') return true;
+  if (!FREE_LIMIT) return false;
+  return freeRank(v.id) >= FREE_LIMIT;
+}
+function showUpgrade(v) {
+  const reason = (v && v.tier === 'premium')
+    ? 'Video này thuộc gói Premium. Nâng cấp để mở khóa toàn bộ thư viện.'
+    : 'Bạn đã dùng hết ' + FREE_LIMIT + ' video miễn phí. Nâng cấp Premium để luyện không giới hạn — hoặc nhờ giáo viên mở thêm video cho bạn.';
+  let ov = document.getElementById('upgOv');
+  if (ov) ov.remove();
+  ov = document.createElement('div');
+  ov.id = 'upgOv';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:400;background:rgba(10,16,28,.6);display:flex;align-items:center;justify-content:center;padding:16px;';
+  ov.innerHTML = '<div style="max-width:400px;width:100%;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:16px;padding:26px 22px;text-align:center;box-shadow:0 30px 70px -30px rgba(0,0,0,.6);">' +
+    '<div style="font-size:38px;">👑</div>' +
+    '<h3 style="margin:8px 0 6px;font-size:19px;">Nội dung Premium</h3>' +
+    '<p style="color:var(--muted);font-size:14px;line-height:1.55;margin:0 0 16px;">' + reason + '</p>' +
+    '<a href="https://zalo.me/0961923983" target="_blank" rel="noopener" style="display:inline-block;background:linear-gradient(135deg,#f4d68a,#d9a53c);color:#132743;font-weight:800;padding:10px 20px;border-radius:12px;text-decoration:none;">💬 Liên hệ nâng cấp Premium</a>' +
+    '<div style="margin-top:12px;"><button id="upgX" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;">Đóng</button></div></div>';
+  document.body.appendChild(ov);
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  ov.querySelector('#upgX').addEventListener('click', () => ov.remove());
+}
+
+/* ================= dictation progress + daily stats (cloud) ================= */
+let PROGD = null;      // dictation results for the current video: {results:{cueIdx: bestScore}}
+function blankProgD(videoId) { return { user_id: uid, video_id: videoId, results: {}, updated_at: new Date().toISOString() }; }
+let progTimer = null;
+function scheduleProgPush() {
+  clearTimeout(progTimer); progTimer = setTimeout(pushProgD, 4000);
+  if (PROGD) store('dprog-' + PROGD.video_id, PROGD);
+}
+async function pushProgD() {
+  if (!uid || !PROGD || !PROGD.video_id) return;
+  try {
+    PROGD.updated_at = new Date().toISOString();
+    await sb.from('dict_progress').upsert(PROGD);
+  } catch (e) {}
+}
+async function pullProgD(videoId) {
+  let p = read('dprog-' + videoId, null);
+  try {
+    const { data, error } = await sb.from('dict_progress').select('*')
+      .eq('user_id', uid).eq('video_id', videoId).maybeSingle();
+    if (error) throw error;
+    if (data && (!p || new Date(data.updated_at) >= new Date(p.updated_at || 0))) p = data;
+  } catch (e) {}
+  PROGD = p || blankProgD(videoId);
+  PROGD.results = PROGD.results || {};
+  store('dprog-' + videoId, PROGD);
+}
+let MYDICT = {};       // video_id -> results map, for library progress bars
+async function loadMyDict() {
+  try {
+    const { data, error } = await sb.from('dict_progress').select('video_id, results').eq('user_id', uid);
+    if (error) throw error;
+    MYDICT = {};
+    for (const r of data) MYDICT[r.video_id] = r.results || {};
+    store('mydict-cache', MYDICT);
+  } catch (e) { MYDICT = read('mydict-cache', {}); }
+}
+
+const stats = () => read('stats', { days: {} });
+function bumpStat(kind, n) {
+  const s = stats(); const k = todayKey();
+  const d = s.days[k] || (s.days[k] = {});
+  d[kind] = (d[kind] || 0) + n;
+  store('stats', s);
+  scheduleDayPush();
+}
+let dayTimer = null;
+function scheduleDayPush() { clearTimeout(dayTimer); dayTimer = setTimeout(pushDay, 6000); }
+async function pushDay() {
+  if (!uid) return;
+  const k = todayKey(); const d = stats().days[k] || {};
+  try {
+    await sb.from('dict_days').upsert({ user_id: uid, day: k, sent: d.sent || 0,
+      ok: d.ok || 0, total: d.total || 0, listen_sec: d.listen || 0 });
+  } catch (e) {}
+}
+async function pullDays() {
+  try {
+    const { data, error } = await sb.from('dict_days').select('*');
+    if (error) throw error;
+    const s = stats(); const tk = todayKey();
+    for (const r of data) {
+      const loc = s.days[r.day] || {};
+      s.days[r.day] = r.day === tk
+        ? { sent: Math.max(loc.sent||0, r.sent), ok: Math.max(loc.ok||0, r.ok),
+            total: Math.max(loc.total||0, r.total), listen: Math.max(loc.listen||0, r.listen_sec) }
+        : { sent: r.sent, ok: r.ok, total: r.total, listen: r.listen_sec };
+    }
+    store('stats', s);
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { pushDay(); pushProgD(); }
+});
+
+/* ================= vocabulary — SAME store + table as reading/shadow ================= */
+function localToRow(w, v) {
+  return { user_id: uid, word: w, pinyin: v.p || '', meaning: v.m || '', level: v.lvl || 0,
+    example: v.ex || '', note: v.note || '', status: v.status || 'new',
+    added_at: new Date(v.added || Date.now()).toISOString(),
+    ef: v.srs.ef, ivl_ms: Math.round(v.srs.ivl || 0), due: new Date(v.srs.due || Date.now()).toISOString(),
+    reps: v.srs.reps, lapses: v.srs.lapses, ok: v.srs.ok, total: v.srs.total,
+    up_ms: v.up || Date.now() };
+}
+function rowToLocal(r) {
+  return { p: r.pinyin, m: r.meaning, lvl: r.level, ex: r.example, note: r.note, status: r.status,
+    added: new Date(r.added_at).getTime(), up: Number(r.up_ms) || 0, pushed: true,
+    srs: { ef: r.ef, ivl: Number(r.ivl_ms), due: new Date(r.due).getTime(),
+           reps: r.reps, lapses: r.lapses, ok: r.ok, total: r.total } };
+}
+const pending = () => read('crh-pending', { up: [], del: [] });
+async function pushVocab(w) {
+  if (!uid) return;
+  const vocab = read('crh-vocab', {});
+  const v = vocab[w]; if (!v) return;
+  try {
+    const { error } = await sb.from('reading_vocab').upsert(localToRow(w, v));
+    if (error) throw error;
+    v.pushed = true; store('crh-vocab', vocab);
+  } catch (e) {
+    const p = pending(); if (!p.up.includes(w)) p.up.push(w); store('crh-pending', p);
+  }
+}
+async function pullVocab() {
+  try {
+    const { data, error } = await sb.from('reading_vocab').select('*');
+    if (error) throw error;
+    const local = read('crh-vocab', {});
+    const server = {};
+    for (const r of data) server[r.word] = rowToLocal(r);
+    const p = pending();
+    const merged = {}, pushUp = [];
+    for (const w of new Set([...Object.keys(local), ...Object.keys(server)])) {
+      if (p.del.includes(w)) continue;
+      const l = local[w], s = server[w];
+      if (l && s) { if ((l.up || 0) > (s.up || 0)) { merged[w] = l; pushUp.push(w); } else merged[w] = s; }
+      else if (l && !s) { if (!l.pushed) { merged[w] = l; pushUp.push(w); } }
+      else merged[w] = s;
+    }
+    store('crh-vocab', merged);
+    for (const w of p.del.splice(0)) { try { await sb.from('reading_vocab').delete().eq('user_id', uid).eq('word', w); } catch (e) {} }
+    const toPush = [...new Set([...p.up.splice(0), ...pushUp])];
+    store('crh-pending', p);
+    for (const w of toPush) await pushVocab(w);
+  } catch (e) {}
+}
+function saveWord(w, p, m, lvl, ex, note, status) {
+  const vocab = read('crh-vocab', {});
+  const isNew = !vocab[w];
+  const cur = vocab[w] || { added: Date.now(), status: 'new',
+    srs: { ef: 2.5, ivl: 0, due: Date.now(), reps: 0, lapses: 0, ok: 0, total: 0 } };
+  vocab[w] = { ...cur, p, m: m || cur.m || '', lvl, ex: ex || cur.ex || '',
+    note: note !== undefined ? note : cur.note || '', status: status || cur.status,
+    up: Date.now(), pushed: false };
+  store('crh-vocab', vocab);
+  toast(isNew ? '💾 Đã lưu "' + w + '" vào sổ từ chung' : '✓ Đã cập nhật "' + w + '"');
+  pushVocab(w);
+}
+
+/* ================= tone utilities (same pipeline as reading/shadow) ================= */
+const MARK_MAP = (() => {
+  const rows = { a:'āáǎà', e:'ēéěè', i:'īíǐì', o:'ōóǒò', u:'ūúǔù', 'ü':'ǖǘǚǜ' };
+  const map = {};
+  for (const plain in rows) [...rows[plain]].forEach((ch, i) => { map[ch] = [plain, i + 1]; });
+  return map;
+})();
+const TONE_CHARS = { a:'āáǎà', e:'ēéěè', i:'īíǐì', o:'ōóǒò', u:'ūúǔù', 'ü':'ǖǘǚǜ' };
+function stripTone(syl) { let out = ''; for (const ch of String(syl).normalize('NFC')) out += MARK_MAP[ch] ? MARK_MAP[ch][0] : ch; return out; }
+function toneOfMarked(syl) { for (const ch of String(syl).normalize('NFC')) if (MARK_MAP[ch]) return MARK_MAP[ch][1]; return 0; }
+function applyTone(plain, tone) {
+  if (!tone || tone < 1 || tone > 4) return plain;
+  const lower = plain.toLowerCase(); let idx = -1;
+  if (lower.includes('a')) idx = lower.indexOf('a');
+  else if (lower.includes('e')) idx = lower.indexOf('e');
+  else if (lower.includes('ou')) idx = lower.indexOf('o');
+  else for (let i = lower.length - 1; i >= 0; i--) if ('aeiouü'.includes(lower[i])) { idx = i; break; }
+  if (idx === -1) return plain;
+  const ch = plain[idx];
+  return plain.slice(0, idx) + (TONE_CHARS[ch] ? TONE_CHARS[ch][tone - 1] : ch) + plain.slice(idx + 1);
+}
+const CJK = /[〇一-鿿㐀-䶿豈-﫿]/;
+function charAnalyse(line) {
+  if (!window.pinyinPro) return null;
+  const py = window.pinyinPro.pinyin;
+  const base = py(line, { type: 'all', toneSandhi: false });
+  let yibu = null;
+  const s = py(line, { type: 'all', toneSandhi: true });
+  if (s.length === base.length) yibu = s;
+  const items = base.map((b, i) => {
+    const isZh = (typeof b.isZh === 'boolean') ? b.isZh : CJK.test(b.origin);
+    let tone = b.num || 0;
+    if (yibu && isZh) { const t2 = yibu[i].num || 0; if (t2 !== tone) tone = t2; }
+    return { origin: b.origin, plain: isZh ? stripTone(b.pinyin) : '', tone, isZh };
+  });
+  for (let i = 1; i < items.length - 1; i++) {
+    if (items[i].origin === '不' && items[i-1].isZh && items[i+1].isZh &&
+        items[i-1].origin === items[i+1].origin && items[i].tone !== 0) items[i].tone = 0;
+  }
+  let start = -1;
+  const flush = end => { if (start !== -1 && end - start >= 2) for (let i = start; i < end - 1; i++) items[i].tone = 2; start = -1; };
+  items.forEach((it, i) => { if (it.isZh && it.tone === 3) { if (start === -1) start = i; } else flush(i); });
+  flush(items.length);
+  return items.map(it => ({ ...it, mark: it.isZh ? applyTone(it.plain, it.tone) : it.origin }));
+}
+function pyOf(text) {
+  const items = charAnalyse(text);
+  return items ? items.filter(x => x.isZh).map(x => x.mark).join(' ') : '';
+}
+
+/* ================= HSK dictionary (same cache as reading/shadow) ================= */
+const DICT_URL = i => 'https://cdn.jsdelivr.net/gh/clem109/hsk-vocabulary@master/hsk-vocab-json/hsk-level-' + i + '.json';
+let DICT = {}, DICT_CUSTOM = [], MAXW = 1;
+function rebuildDictIndex() {
+  for (const e of DICT_CUSTOM) DICT[e.word] = [e.pinyin, e.meaning, +e.level, e.example || ''];
+  MAXW = 1;
+  for (const w in DICT) if (w.length > MAXW) MAXW = w.length;
+}
+async function loadCloudDict() {
+  try {
+    const { data, error } = await sb.from('reading_dict').select('*').order('word');
+    if (error) throw error;
+    DICT_CUSTOM = data;
+    store('cdict-cache', DICT_CUSTOM);
+  } catch (e) { DICT_CUSTOM = read('cdict-cache', []); }
+}
+async function loadDict() {
+  const cached = read('crh-dict-v1', null);
+  if (cached && cached.words) { DICT = cached.words; rebuildDictIndex(); return true; }
+  try {
+    const all = await Promise.all([1,2,3,4,5,6].map(i => fetch(DICT_URL(i)).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })));
+    DICT = {};
+    all.forEach((list, idx) => {
+      for (const e of list) {
+        if (!DICT[e.hanzi]) DICT[e.hanzi] = [String(e.pinyin || '').trim(), (e.translations || []).slice(0, 3).join('; '), idx + 1];
+      }
+    });
+    store('crh-dict-v1', { v: 1, words: DICT });
+    rebuildDictIndex();
+    return true;
+  } catch (e) { rebuildDictIndex(); return false; }
+}
+function lookup(w) { return DICT[w] || null; }
+function segment(line) {
+  const toks = [];
+  let i = 0;
+  while (i < line.length) {
+    const ch = line[i];
+    if (!CJK.test(ch)) { toks.push({ w: ch, lvl: -1, zh: false }); i++; continue; }
+    let hit = null;
+    for (let len = Math.min(MAXW, line.length - i); len >= 2; len--) {
+      const cand = line.substr(i, len);
+      if (DICT[cand]) { hit = cand; break; }
+    }
+    if (!hit) hit = ch;
+    const d = lookup(hit);
+    toks.push({ w: hit, lvl: d ? d[2] : 0, zh: true });
+    i += hit.length;
+  }
+  return toks;
+}
+
+/* ================= speech engine (Azure shared key + device voices) ================= */
+const escXml = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+let netOk = true;
+const netCache = new Map();
+let AZ_SHARED = { key: '', region: 'southeastasia' };
+async function loadSettings() {
+  try {
+    const { data } = await sb.from('reading_settings').select('*').eq('id', 1).maybeSingle();
+    if (data && data.az_key) AZ_SHARED = { key: data.az_key, region: data.az_region || 'southeastasia' };
+  } catch (e) {}
+}
+async function azureSynth(text, ratePct) {
+  const res = await fetch('https://' + AZ_SHARED.region + '.tts.speech.microsoft.com/cognitiveservices/v1', {
+    method: 'POST',
+    headers: { 'Ocp-Apim-Subscription-Key': AZ_SHARED.key, 'Content-Type': 'application/ssml+xml',
+      'X-Microsoft-OutputFormat': 'audio-24khz-48kbitrate-mono-mp3' },
+    body: '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="zh-CN">' +
+      '<voice name="zh-CN-XiaoxiaoNeural"><prosody rate="' + (ratePct >= 0 ? '+' : '') + Math.round(ratePct) + '%">' +
+      escXml(text) + '</prosody></voice></speak>'
+  });
+  if (!res.ok) { const e = new Error('HTTP ' + res.status); e.status = res.status; throw e; }
+  return new Blob([await res.arrayBuffer()], { type: 'audio/mpeg' });
+}
+function mandarinVoices() {
+  if (!('speechSynthesis' in window)) return [];
+  return speechSynthesis.getVoices()
+    .filter(v => /^zh[-_](cn|tw)/i.test(v.lang) || /^zh$/i.test(v.lang))
+    .filter(v => !/hk|cantonese/i.test(v.lang + ' ' + v.name) && !/^yue/i.test(v.lang));
+}
+let speakToken = 0, currentAudio = null;
+function stopSpeak() {
+  speakToken++;
+  if (currentAudio) { try { currentAudio.pause(); } catch (e) {} currentAudio = null; }
+  try { speechSynthesis.cancel(); } catch (e) {}
+}
+async function speak(text, ratePct) {
+  stopSpeak();
+  const my = speakToken;
+  ratePct = ratePct || 0;
+  if (AZ_SHARED.key && netOk && navigator.onLine !== false) {
+    try {
+      const k = ratePct + '|' + text;
+      if (!netCache.has(k)) {
+        if (netCache.size > 60) netCache.delete(netCache.keys().next().value);
+        netCache.set(k, azureSynth(text, ratePct));
+        netCache.get(k).catch(() => netCache.delete(k));
+      }
+      const blob = await netCache.get(k);
+      if (speakToken !== my) return;
+      await new Promise(res => {
+        const a = new Audio(URL.createObjectURL(blob));
+        currentAudio = a; a.onended = res; a.onerror = res;
+        a.play().catch(res);
+      });
+      return;
+    } catch (e) { netOk = false; }
+  }
+  if (!('speechSynthesis' in window)) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'zh-CN';
+  const v = mandarinVoices()[0]; if (v) u.voice = v;
+  u.rate = 1 + ratePct / 100;
+  if (speakToken !== my) return;
+  speechSynthesis.speak(u);
+}
+
+/* ================= import machinery (same as Shadow Chinese, same table) ================= */
+function extractYtId(url) {
+  url = String(url || '').trim();
+  if (/^[\w-]{11}$/.test(url)) return url;
+  const m = url.match(/(?:youtube\.com\/(?:watch\?[^#]*v=|shorts\/|embed\/|live\/)|youtu\.be\/)([\w-]{11})/);
+  return m ? m[1] : null;
+}
+const PROXIES = [
+  u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
+  u => 'https://corsproxy.io/?url=' + encodeURIComponent(u),
+];
+async function proxied(url) {
+  let lastErr = null;
+  for (const p of PROXIES) {
+    try {
+      const r = await fetchT(p(url), 14000);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const txt = await r.text();
+      if (txt) return txt;
+      throw new Error('empty');
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error('proxy');
+}
+function fetchT(url, ms, opts) {
+  const ctl = new AbortController();
+  const kill = setTimeout(() => ctl.abort(), ms || 10000);
+  return fetch(url, { ...(opts || {}), signal: ctl.signal }).finally(() => clearTimeout(kill));
+}
+async function edgeFetch(ytid, tlang) {
+  const { data: { session } } = await sb.auth.getSession();
+  const res = await fetchT(SUPABASE_URL + '/functions/v1/yt-captions', 20000, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + (session ? session.access_token : SUPABASE_ANON_KEY),
+      'apikey': SUPABASE_ANON_KEY },
+    body: JSON.stringify({ ytid: ytid, tlang: tlang || '' })
+  });
+  if (!res.ok) throw new Error('edge ' + res.status);
+  return res.json();
+}
+const INV_HOSTS = ['inv.nadeko.net', 'iv.melmac.space', 'yewtu.be', 'invidious.f5.si'];
+async function invidiousSubs(ytid) {
+  for (const h of INV_HOSTS) {
+    try {
+      const list = await (await fetchT('https://' + h + '/api/v1/captions/' + ytid, 8000)).json();
+      const caps = list.captions || [];
+      const zh = caps.find(c => /^zh/i.test(c.languageCode || ''));
+      if (!zh) continue;
+      const vtt = await (await fetchT('https://' + h + zh.url, 8000)).text();
+      const cues = parseSrt(vtt);
+      if (cues.length) return { source: 'inv', host: h, caps, cues, label: zh.label || 'tiếng Trung', ytid };
+    } catch (e) {}
+  }
+  throw new Error('inv');
+}
+async function fetchTitle(ytid) {
+  try {
+    const r = await fetch('https://noembed.com/embed?url=' + encodeURIComponent('https://www.youtube.com/watch?v=' + ytid));
+    const j = await r.json();
+    if (j && j.title) return j.title;
+  } catch (e) {}
+  try {
+    const t = await proxied('https://www.youtube.com/oembed?url=' + encodeURIComponent('https://www.youtube.com/watch?v=' + ytid) + '&format=json');
+    const j = JSON.parse(t);
+    if (j && j.title) return j.title;
+  } catch (e) {}
+  return '';
+}
+function extractTracks(html) {
+  const key = '"captionTracks":';
+  const at = html.indexOf(key);
+  if (at === -1) return [];
+  let i = html.indexOf('[', at + key.length);
+  if (i === -1) return [];
+  let depth = 0, inStr = false, esc = false;
+  for (let j = i; j < html.length; j++) {
+    const c = html[j];
+    if (inStr) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === '"') inStr = false; continue; }
+    if (c === '"') inStr = true;
+    else if (c === '[') depth++;
+    else if (c === ']') { depth--; if (depth === 0) { try { return JSON.parse(html.slice(i, j + 1)); } catch (e) { return []; } } }
+  }
+  return [];
+}
+function json3ToCues(j) {
+  const out = [];
+  for (const e of (j.events || [])) {
+    if (!e.segs) continue;
+    const text = e.segs.map(s => s.utf8 || '').join('').replace(/\s*\n\s*/g, ' ').trim();
+    if (!text) continue;
+    out.push({ a: e.tStartMs / 1000, b: (e.tStartMs + (e.dDurMs || 3000)) / 1000, zh: text });
+  }
+  return out;
+}
+async function fetchAutoSubs(ytid) {
+  try {
+    const j = await edgeFetch(ytid, '');
+    if (j && j.zh) {
+      const cues = json3ToCues(j.zh);
+      if (cues.length) return { source: 'edge', cues, label: j.label || 'tiếng Trung', ytid };
+    }
+  } catch (e) {}
+  try {
+    const html = await proxied('https://www.youtube.com/watch?v=' + ytid + '&hl=zh-CN&has_verified=1');
+    const tracks = extractTracks(html);
+    const zh = tracks.filter(t => /^zh/i.test(t.languageCode || ''));
+    const track = zh.find(t => t.kind !== 'asr') || zh[0];
+    if (track) {
+      const cues = json3ToCues(JSON.parse(await proxied(track.baseUrl + '&fmt=json3')));
+      if (cues.length) {
+        const label = (track.name && (track.name.simpleText || (track.name.runs || []).map(r => r.text).join(''))) || track.languageCode;
+        return { source: 'scrape', cues, track, ytid, label: label + (track.kind === 'asr' ? ' (tự động)' : '') };
+      }
+    }
+  } catch (e) {}
+  return invidiousSubs(ytid);
+}
+async function fetchTranslationFor(auto, lang) {
+  if (auto.source === 'edge') {
+    const j = await edgeFetch(auto.ytid, lang);
+    if (j && j.tr) { const cues = json3ToCues(j.tr); if (cues.length) return cues; }
+    throw new Error('notr');
+  }
+  if (auto.source === 'scrape')
+    return json3ToCues(JSON.parse(await proxied(auto.track.baseUrl + '&fmt=json3&tlang=' + lang)));
+  if (auto.source === 'inv') {
+    const c = (auto.caps || []).find(x => (x.languageCode || '') === lang);
+    if (c) { const cues = parseSrt(await (await fetchT('https://' + auto.host + c.url, 8000)).text()); if (cues.length) return cues; }
+    throw new Error('notr');
+  }
+  throw new Error('notr');
+}
+function parseSrt(text) {
+  text = String(text || '').replace(/^﻿/, '').replace(/\r/g, '');
+  const cues = [];
+  const toSec = ts => {
+    const m = ts.match(/(?:(\d+):)?(\d+):(\d+)[.,](\d+)/);
+    if (!m) return null;
+    return (+(m[1] || 0)) * 3600 + (+m[2]) * 60 + (+m[3]) + (+m[4].padEnd(3, '0').slice(0, 3)) / 1000;
+  };
+  for (const block of text.split(/\n\s*\n/)) {
+    const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+    const ti = lines.findIndex(l => l.includes('-->'));
+    if (ti === -1) continue;
+    const [t0, t1] = lines[ti].split('-->').map(s => toSec(s));
+    if (t0 === null || t1 === null) continue;
+    const body = lines.slice(ti + 1).map(l => l.replace(/<[^>]+>/g, '').trim()).filter(Boolean);
+    if (!body.length) continue;
+    const zhLines = body.filter(l => CJK.test(l));
+    const trLines = body.filter(l => !CJK.test(l));
+    const cue = { a: t0, b: t1, zh: (zhLines.length ? zhLines : body).join(' ') };
+    if (zhLines.length && trLines.length) cue.tr = trLines.join(' ');
+    cues.push(cue);
+  }
+  return cues.sort((x, y) => x.a - y.a);
+}
+function parseTranscript(text) {
+  const TS = /^(?:(\d{1,2}):)?(\d{1,3}):(\d{2})(?:\s+(.*))?$/;
+  const cues = [];
+  let cur = null;
+  for (let line of String(text || '').replace(/\r/g, '').split('\n')) {
+    line = line.trim();
+    if (!line) continue;
+    const m = line.match(TS);
+    if (m && !/-->/.test(line)) {
+      if (cur && cur.zh.length) cues.push(cur);
+      const sec = (+(m[1] || 0)) * 3600 + (+m[2]) * 60 + (+m[3]);
+      cur = { a: sec, zh: [] };
+      if (m[4]) cur.zh.push(m[4].trim());
+    } else if (cur) {
+      cur.zh.push(line);
+    }
+  }
+  if (cur && cur.zh.length) cues.push(cur);
+  return cues.map((c, i) => {
+    const body = c.zh;
+    const zhLines = body.filter(l => CJK.test(l));
+    const trLines = body.filter(l => !CJK.test(l));
+    const out = { a: c.a, b: i + 1 < cues.length ? cues[i + 1].a : c.a + 4,
+                  zh: (zhLines.length ? zhLines : body).join(' ') };
+    if (zhLines.length && trLines.length) out.tr = trLines.join(' ');
+    return out;
+  }).filter(c => c.zh);
+}
+function parseSubs(text) {
+  const srt = parseSrt(text);
+  return srt.length ? srt : parseTranscript(text);
+}
+function mergeTr(cues, trCues) {
+  if (!trCues || !trCues.length) return;
+  for (const c of cues) {
+    let best = null, bestOv = 0;
+    for (const t of trCues) {
+      const ov = Math.min(c.b, t.b) - Math.max(c.a, t.a);
+      if (ov > bestOv) { bestOv = ov; best = t; }
+      if (t.a > c.b) break;
+    }
+    if (best && !c.tr) c.tr = best.zh;
+  }
+}
+function normalizeCues(cues) {
+  cues.sort((x, y) => x.a - y.a);
+  for (let i = 0; i < cues.length; i++) {
+    const c = cues[i];
+    c.a = Math.max(0, +c.a || 0);
+    c.b = Math.max(c.a + 0.4, +c.b || c.a + 3);
+    if (i + 1 < cues.length && c.b > cues[i + 1].a) c.b = Math.max(c.a + 0.4, cues[i + 1].a);
+    c.zh = String(c.zh || '').trim();
+    if (c.tr) c.tr = String(c.tr).trim();
+  }
+  return cues.filter(c => c.zh);
+}
+/* ================= preferences ================= */
+let prefs = { count: '10', order: 'seq', mode: 'hanzi', audio: 'video', rate: 1, cover: true, lastvid: '' };
+function loadPrefs() { prefs = { ...prefs, ...read('prefs', {}) }; }
+function savePrefs() { store('prefs', prefs); }
+
+/* ================= import flow (writes into the shared shadow_videos table) ================= */
+let IMP = null;
+$('btnLoadUrl').addEventListener('click', startImport);
+$('impUrl').addEventListener('keydown', e => { if (e.key === 'Enter') startImport(); });
+async function startImport() {
+  const ytid = extractYtId($('impUrl').value);
+  if (!ytid) { $('impStatus').textContent = '✗ Link chưa đúng — hãy dán link video YouTube (youtube.com/watch?v=… hoặc youtu.be/…).'; return; }
+  const existing = VIDS.find(v => v.yt === ytid && (v.published || v.created_by === uid || isStaff));
+  if (existing) { toast('Video này đã có trong thư viện — mở luôn.'); openVideoD(existing); return; }
+  IMP = { yt: ytid, title: '', auto: null, cues: null };
+  $('impStatus').textContent = '';
+  $('impPanel').hidden = false;
+  $('impThumb').src = 'https://img.youtube.com/vi/' + ytid + '/mqdefault.jpg';
+  $('impTitle').value = '';
+  $('autoResult').hidden = true;
+  $('manualBox').open = false;
+  $('manualInfo').textContent = '';
+  $('btnSaveVideo').disabled = true;
+  $('impSaveInfo').textContent = '';
+  $('subFetchStatus').textContent = '⏳ Đang lấy tên video và tìm phụ đề tiếng Trung…';
+  fetchTitle(ytid).then(t => { if (IMP && IMP.yt === ytid && t && !$('impTitle').value) { IMP.title = t; $('impTitle').value = t; } });
+  try {
+    const auto = await fetchAutoSubs(ytid);
+    if (!IMP || IMP.yt !== ytid) return;
+    IMP.auto = auto;
+    $('subFetchStatus').textContent = '';
+    $('autoInfo').innerHTML = '✓ Tìm thấy phụ đề <b>' + escH(auto.label) + '</b> — ' + auto.cues.length + ' câu.';
+    $('autoResult').hidden = false;
+  } catch (e) {
+    if (!IMP || IMP.yt !== ytid) return;
+    $('subFetchStatus').innerHTML = '<span class="offline">Không tự lấy được phụ đề của video này. Bạn có thể dán phụ đề thủ công bên dưới 👇</span>';
+    $('manualBox').open = true;
+  }
+}
+$('btnUseAuto').addEventListener('click', async () => {
+  if (!IMP || !IMP.auto) return;
+  const lang = $('autoTrLang').value;
+  $('autoInfo').textContent = '⏳ Đang chuẩn bị phụ đề' + (lang ? ' + bản dịch…' : '…');
+  const cues = IMP.auto.cues.map(c => ({ ...c }));
+  if (lang) {
+    try { mergeTr(cues, await fetchTranslationFor(IMP.auto, lang)); }
+    catch (e) { toast('Không lấy được bản dịch — vẫn dùng được phụ đề tiếng Trung.'); }
+  }
+  IMP.cues = normalizeCues(cues);
+  $('autoInfo').innerHTML = '✓ Sẵn sàng: <b>' + IMP.cues.length + ' câu</b>' + (IMP.cues.some(c => c.tr) ? ' (có bản dịch)' : '') + '.';
+  $('btnSaveVideo').disabled = false;
+});
+function readFileInto(fileInput, ta) {
+  const f = fileInput.files && fileInput.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => { ta.value = r.result; };
+  r.readAsText(f);
+}
+$('subFileZh').addEventListener('change', () => readFileInto($('subFileZh'), $('subPasteZh')));
+$('subFileTr').addEventListener('change', () => readFileInto($('subFileTr'), $('subPasteTr')));
+$('btnUseManual').addEventListener('click', () => {
+  if (!IMP) return;
+  const cues = parseSubs($('subPasteZh').value);
+  if (!cues.length) { $('manualInfo').textContent = '✗ Chưa đọc được phụ đề — dán tệp SRT/VTT hoặc bản chép lời của YouTube (dòng "0:07" rồi dòng chữ).'; return; }
+  mergeTr(cues, parseSubs($('subPasteTr').value));
+  IMP.cues = normalizeCues(cues);
+  $('manualInfo').textContent = '✓ Đã đọc ' + IMP.cues.length + ' câu' + (IMP.cues.some(c => c.tr) ? ' (có bản dịch)' : '') + '.';
+  $('btnSaveVideo').disabled = false;
+});
+$('btnCancelImport').addEventListener('click', () => { IMP = null; $('impPanel').hidden = true; });
+$('btnSaveVideo').addEventListener('click', async () => {
+  if (!IMP || !IMP.cues || !IMP.cues.length) return;
+  $('btnSaveVideo').disabled = true;
+  $('impSaveInfo').textContent = '⏳ Đang lưu…';
+  const row = { yt: IMP.yt, title: ($('impTitle').value || IMP.title || 'Video ' + IMP.yt).trim(),
+    level: +$('impLevel').value, subs: IMP.cues, published: isStaff ? $('impPub').checked : false, created_by: uid };
+  if (ACCESS_READY) {
+    row.tier = isStaff ? $('impTier').value : 'free';
+    row.sort_order = VIDS.reduce((m, v) => Math.max(m, v.sort_order || 0), 0) + 1;
+  }
+  try {
+    const { data, error } = await sb.from('shadow_videos').insert(row).select().single();
+    if (error) throw error;
+    VIDS.unshift(data);
+    store('vids-cache', VIDS);
+    IMP = null; $('impPanel').hidden = true; $('impUrl').value = '';
+    renderLibrary();
+    toast('💾 Đã lưu video vào thư viện chung');
+    openVideoD(data);
+  } catch (e) {
+    $('impSaveInfo').textContent = '✗ Không lưu được (' + (e.message || 'mất mạng') + ') — video vẫn mở để luyện, nhưng sẽ không được ghi nhớ.';
+    $('btnSaveVideo').disabled = false;
+    openVideoD({ id: null, ...row });
+  }
+});
+
+/* ================= navigation ================= */
+let currentView = 'lib';
+function showView(name) {
+  currentView = name;
+  for (const v of ['lib', 'dict', 'stats']) {
+    document.getElementById('view-' + v).classList.toggle('active', v === name);
+    document.getElementById('nav' + v[0].toUpperCase() + v.slice(1)).classList.toggle('active', v === name);
+  }
+  if (name === 'stats') renderStats();
+  if (name === 'dict' && !CURD) {
+    const last = VIDS.find(v => v.id === prefs.lastvid);
+    if (last && !isLocked(last)) openVideoD(last);
+  }
+  hidePopup();
+}
+$('navLib').addEventListener('click', () => showView('lib'));
+$('navDict').addEventListener('click', () => showView('dict'));
+$('navStats').addEventListener('click', () => showView('stats'));
+
+/* ================= library ================= */
+let libLvl = -1;
+function renderLibChips() {
+  const chips = [{ v: -1, t: 'Tất cả' }, { v: 1, t: 'HSK 1' }, { v: 2, t: 'HSK 2' }, { v: 3, t: 'HSK 3' },
+                 { v: 4, t: 'HSK 4' }, { v: 5, t: 'HSK 5' }, { v: 6, t: 'HSK 6' }, { v: 0, t: 'Chưa xếp' }];
+  $('lvChips').innerHTML = chips.map(c =>
+    '<span class="chip' + (libLvl === c.v ? ' active' : '') + '" data-v="' + c.v + '">' + c.t + '</span>').join('');
+}
+$('lvChips').addEventListener('click', e => {
+  const c = e.target.closest('.chip'); if (!c) return;
+  libLvl = +c.dataset.v; renderLibrary();
+});
+$('libSearch').addEventListener('input', renderLibrary);
+function visibleVids() {
+  const list = VIDS.filter(v => v.published || v.created_by === uid);
+  if (ACCESS_READY)
+    list.sort((a, b) => ((a.sort_order || 0) - (b.sort_order || 0)) || String(a.created_at).localeCompare(String(b.created_at)));
+  return list;
+}
+function dictDone(v) {
+  const res = (v.id && MYDICT[v.id]) || {};
+  const n = (v.subs || []).length;
+  const good = Object.values(res).filter(s => s >= 80).length;
+  return { good, n };
+}
+function renderLibrary() {
+  renderLibChips();
+  freeOrderCache = null;
+  const q = $('libSearch').value.trim().toLowerCase();
+  let list = visibleVids();
+  if (libLvl >= 0) list = list.filter(v => (v.level || 0) === libLvl);
+  if (q) list = list.filter(v => (v.title || '').toLowerCase().includes(q));
+  $('libGrid').innerHTML = list.map(v => {
+    const subs = v.subs || [];
+    const dur = subs.length ? subs[subs.length - 1].b : 0;
+    const d = dictDone(v);
+    const lock = isLocked(v);
+    return '<div class="vcard' + (lock ? ' locked' : '') + '" data-id="' + v.id + '">' +
+      '<img loading="lazy" src="https://img.youtube.com/vi/' + escH(v.yt) + '/mqdefault.jpg" alt="">' +
+      (dur ? '<span class="dur">' + fmtT(dur) + '</span>' : '') +
+      (lock ? '<span class="done" style="background:linear-gradient(135deg,#f4d68a,#d9a53c);color:#713f12;">👑</span>'
+            : (d.n && d.good >= d.n ? '<span class="done">✓ Xong</span>' : '')) +
+      '<div class="body"><h3>' + escH(v.title) + '</h3>' +
+      '<div class="meta"><span class="lv lv' + (v.level || 0) + '">' + (v.level ? 'HSK ' + v.level : 'chưa xếp') + '</span>' +
+      '<span>' + subs.length + ' câu</span>' +
+      (!v.published ? '<span>🔒 riêng tư</span>' : '') +
+      (d.good ? '<span>✍ ' + d.good + '/' + d.n + '</span>' : '') +
+      '</div>' +
+      (d.n ? '<div class="pbar"><div style="width:' + Math.round(d.good / d.n * 100) + '%"></div></div>' : '') +
+      '</div></div>';
+  }).join('');
+  $('libEmpty').hidden = list.length > 0;
+}
+$('libGrid').addEventListener('click', e => {
+  const card = e.target.closest('.vcard'); if (!card) return;
+  const v = VIDS.find(x => x.id === card.dataset.id);
+  if (v) openVideoD(v);
+});
+
+/* ================= player ================= */
+let yt = null, ytReadyq = null, segToken = 0;
+function loadYtApi() {
+  if (window.YT && window.YT.Player) return Promise.resolve();
+  if (ytReadyq) return ytReadyq;
+  ytReadyq = new Promise(res => {
+    window.onYouTubeIframeAPIReady = () => res();
+    const s = document.createElement('script');
+    s.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(s);
+  });
+  return ytReadyq;
+}
+async function mountPlayer(ytid) {
+  await loadYtApi();
+  if (yt && yt.loadVideoById) { yt.cueVideoById(ytid); return; }
+  yt = new YT.Player('ytMount', {
+    videoId: ytid,
+    playerVars: { rel: 0, playsinline: 1, controls: 1, iv_load_policy: 3 },
+    events: {}
+  });
+}
+function playSeg(a, b, rate) {
+  segToken++;
+  const my = segToken;
+  try {
+    yt.setPlaybackRate(rate || 1);
+    yt.seekTo(a, true);
+    yt.playVideo();
+  } catch (e) { return; }
+  setTimeout(() => { if (segToken === my) { try { yt.pauseVideo(); } catch (e) {} } },
+    Math.max(400, (b - a) / (rate || 1) * 1000 + 150));
+}
+
+/* ================= dictation session ================= */
+let CURD = null, cues = [];
+function openVideoD(v) {
+  if (isLocked(v)) { showUpgrade(v); return; }
+  CURD = v;
+  cues = normalizeCues((v.subs || []).map(c => ({ ...c })));
+  prefs.lastvid = v.id || ''; savePrefs();
+  showView('dict');
+  $('noVid').hidden = true;
+  $('dictWrap').hidden = false;
+  $('dTitle').textContent = v.title;
+  $('dLv').className = 'lv lv' + (v.level || 0);
+  $('dLv').textContent = v.level ? 'HSK ' + v.level : 'chưa xếp cấp';
+  $('setupPanel').hidden = false;
+  $('sessPanel').hidden = true;
+  $('sumPanel').hidden = true;
+  PROGD = blankProgD(v.id);
+  if (v.id) pullProgD(v.id).then(updateProgTxt);
+  const start = $('cfgStart');
+  start.innerHTML = cues.map((c, i) =>
+    '<option value="' + i + '">câu ' + (i + 1) + ' — ' + escH(c.zh.slice(0, 12)) + (c.zh.length > 12 ? '…' : '') + '</option>').join('');
+  $('cfgCount').value = prefs.count;
+  $('cfgOrder').value = prefs.order;
+  $('cfgMode').value = prefs.mode;
+  $('cfgAudio').value = prefs.audio;
+  $('cfgRate').value = String(prefs.rate);
+  $('cfgCover').checked = prefs.cover;
+  updateProgTxt();
+}
+function updateProgTxt() {
+  if (!CURD) return;
+  const good = Object.values((PROGD && PROGD.results) || {}).filter(s => s >= 80).length;
+  $('dProgTxt').textContent = good ? '✍ đã chép tốt ' + good + '/' + cues.length + ' câu' : cues.length + ' câu';
+  const start = $('cfgStart');
+  if (start.options.length && PROGD) {
+    let first = 0;
+    while (first < cues.length && (PROGD.results[first] || 0) >= 80) first++;
+    start.value = String(Math.min(first, cues.length - 1));
+  }
+}
+$('btnBackLib').addEventListener('click', () => showView('lib'));
+
+let SES = null;
+$('btnStart').addEventListener('click', () => {
+  prefs.count = $('cfgCount').value;
+  prefs.order = $('cfgOrder').value;
+  prefs.mode = $('cfgMode').value;
+  prefs.audio = $('cfgAudio').value;
+  prefs.rate = +$('cfgRate').value;
+  prefs.cover = $('cfgCover').checked;
+  savePrefs();
+  const startAt = +$('cfgStart').value || 0;
+  let idx = cues.map((_, i) => i).slice(startAt);
+  if (prefs.order === 'rand') for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; }
+  const n = +prefs.count;
+  if (n) idx = idx.slice(0, n);
+  startSession(idx);
+});
+async function startSession(idxList) {
+  if (!idxList.length) { toast('Không có câu nào để luyện.'); return; }
+  SES = { idx: idxList, pos: 0, results: {}, submitted: {}, t0: Date.now(), listens: 0, hint: 0 };
+  $('setupPanel').hidden = true;
+  $('sumPanel').hidden = true;
+  $('sessPanel').hidden = false;
+  $('chkCover').checked = prefs.cover;
+  applyCover();
+  $('dictIn').classList.toggle('pymode', prefs.mode === 'pinyin');
+  $('dictPrompt').textContent = prefs.mode === 'pinyin'
+    ? 'Nghe câu rồi gõ lại bằng pinyin (dấu thanh hoặc số 1-4, ví dụ: ni3 hao3):'
+    : 'Nghe câu rồi gõ lại bằng chữ Hán:';
+  await mountPlayer(CURD.yt);
+  enterCue();
+}
+const curIdx = () => SES.idx[SES.pos];
+function enterCue() {
+  const c = cues[curIdx()];
+  SES.hint = 0;
+  $('sessPos').textContent = 'Câu ' + (SES.pos + 1) + '/' + SES.idx.length;
+  $('sessFill').style.width = Math.round(SES.pos / SES.idx.length * 100) + '%';
+  updateSessAcc();
+  $('dictIn').value = '';
+  $('hintLine').textContent = '';
+  $('listenCount').textContent = '';
+  $('dictResult').hidden = true;
+  $('dictIn').disabled = false;
+  $('dictIn').focus();
+  playCue();
+}
+function playCue() {
+  const c = cues[curIdx()];
+  if (!c) return;
+  SES.listens++;
+  $('listenCount').textContent = '🔊 đã nghe ' + SES.listens + ' lần';
+  bumpStat('listen', Math.max(1, Math.round(c.b - c.a)));
+  if (prefs.audio === 'tts') { try { yt.pauseVideo(); } catch (e) {} speak(c.zh, -20); }
+  else { stopSpeak(); playSeg(c.a, c.b, prefs.rate); }
+}
+$('btnReplay').addEventListener('click', playCue);
+$('btnSlowTts').addEventListener('click', () => {
+  const c = cues[curIdx()]; if (!c) return;
+  SES.listens++;
+  $('listenCount').textContent = '🔊 đã nghe ' + SES.listens + ' lần';
+  bumpStat('listen', Math.max(1, Math.round(c.b - c.a)));
+  try { yt.pauseVideo(); } catch (e) {}
+  speak(c.zh, -35);
+});
+function applyCover() { $('vidCover').classList.toggle('on', $('chkCover').checked); }
+$('chkCover').addEventListener('change', () => { prefs.cover = $('chkCover').checked; savePrefs(); applyCover(); });
+$('btnPeek').addEventListener('click', () => { $('chkCover').checked = false; applyCover(); });
+
+/* ---------- grading ---------- */
+const onlyHan = s => String(s || '').replace(/[^〇一-鿿㐀-䶿]/g, '');
+function lcsPairs(a, b) {              // arrays; returns matched index pairs [[i,j],…]
+  const n = a.length, m = b.length;
+  const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = 1; i <= n; i++) for (let j = 1; j <= m; j++)
+    dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+  const pairs = [];
+  let i = n, j = m;
+  while (i > 0 && j > 0) {
+    if (a[i - 1] === b[j - 1]) { pairs.push([i - 1, j - 1]); i--; j--; }
+    else if (dp[i - 1][j] >= dp[i][j - 1]) i--; else j--;
+  }
+  return pairs.reverse();
+}
+function gradeHanzi(target, typed) {
+  const t = [...onlyHan(target)], y = [...onlyHan(typed)];
+  const pairs = lcsPairs(t, y);
+  const hitT = new Set(pairs.map(p => p[0])), hitY = new Set(pairs.map(p => p[1]));
+  const marks = t.map((ch, i) => ({ ch, cls: hitT.has(i) ? 'g' : 'r' }));
+  const extras = y.filter((_, j) => !hitY.has(j));
+  const score = t.length ? Math.round(hitT.size / t.length * 100) : 0;
+  return { marks, extras, score, okChars: hitT.size, totalChars: t.length };
+}
+function targetSyls(zh) {
+  return (charAnalyse(zh) || []).filter(x => x.isZh)
+    .map(x => ({ ch: x.origin, plain: x.plain.toLowerCase(), tone: x.tone }));
+}
+function parseTypedPy(input) {
+  const out = [];
+  const toks = String(input || '').normalize('NFC').toLowerCase()
+    .replace(/v/g, 'ü').split(/[^a-zü0-9āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]+/).filter(Boolean);
+  for (let tk of toks) {
+    let tone = 0;
+    const m = tk.match(/^(.*?)([0-5])$/);
+    if (m) { tk = m[1]; tone = +m[2] % 5; }
+    else { const tm = toneOfMarked(tk); if (tm) tone = tm; }
+    const plain = stripTone(tk);
+    if (plain) out.push({ plain, tone });
+  }
+  return out;
+}
+function gradePinyin(target, typed) {
+  const t = targetSyls(target);
+  const y = parseTypedPy(typed);
+  const pairs = lcsPairs(t.map(s => s.plain), y.map(s => s.plain));
+  const cls = t.map(() => 'r');
+  const hitY = new Set();
+  let green = 0, yellow = 0;
+  for (const [i, j] of pairs) {
+    hitY.add(j);
+    const toneOk = t[i].tone === y[j].tone || (!t[i].tone && !y[j].tone) || t[i].tone === 0;
+    if (toneOk && y[j].tone === t[i].tone) { cls[i] = 'g'; green++; }
+    else if (t[i].tone === 0) { cls[i] = 'g'; green++; }
+    else { cls[i] = 'y'; yellow++; }
+  }
+  const marks = t.map((s, i) => ({ ch: s.ch, cls: cls[i] }));
+  const extras = y.filter((_, j) => !hitY.has(j)).map(s => s.plain + (s.tone || ''));
+  const score = t.length ? Math.round((green + 0.6 * yellow) / t.length * 100) : 0;
+  return { marks, extras, score, okChars: green, totalChars: t.length };
+}
+function tokHtml(line) {
+  const items = charAnalyse(line) || [];
+  const chars = {};
+  let ci = 0;
+  for (const it of items) { chars[ci] = it; ci += it.origin.length; }
+  const toks = segment(line);
+  const vocab = read('crh-vocab', {});
+  let html = '', pos = 0, plain = '';
+  const flushPlain = () => { if (plain) { html += '<span class="tok o"><span class="py"></span><span class="hz">' + escH(plain) + '</span></span>'; plain = ''; } };
+  for (const tk of toks) {
+    if (!tk.zh) { plain += tk.w; pos += tk.w.length; continue; }
+    flushPlain();
+    let py = '';
+    for (let k = 0; k < tk.w.length; k++) { const it = chars[pos + k]; if (it && it.isZh) py += (py ? ' ' : '') + it.mark; }
+    html += '<span class="tok zh l' + (tk.lvl > 0 ? tk.lvl : 0) + (vocab[tk.w] ? ' saved' : '') + '" data-w="' + escH(tk.w) + '">' +
+      '<span class="py">' + escH(py) + '</span><span class="hz">' + escH(tk.w) + '</span></span>';
+    pos += tk.w.length;
+  }
+  flushPlain();
+  return html;
+}
+function check(skipped) {
+  const i = curIdx();
+  const c = cues[i];
+  const typed = $('dictIn').value;
+  const g = prefs.mode === 'pinyin' ? gradePinyin(c.zh, typed) : gradeHanzi(c.zh, typed);
+  if (skipped) g.score = Math.min(g.score, 0);
+  SES.results[i] = g.score;
+  if (!SES.submitted[i]) {
+    SES.submitted[i] = 1;
+    bumpStat('sent', 1);
+    bumpStat('ok', g.okChars);
+    bumpStat('total', g.totalChars);
+  }
+  if (PROGD) {
+    if ((PROGD.results[i] || 0) < g.score || PROGD.results[i] === undefined) PROGD.results[i] = g.score;
+    scheduleProgPush();
+  }
+  $('dictScore').innerHTML = (skipped ? '⏭ Đã bỏ qua — đáp án:' :
+    'Điểm: <b>' + g.score + '</b>/100 · đúng ' + g.okChars + '/' + g.totalChars +
+    (prefs.mode === 'pinyin' ? ' âm tiết' : ' chữ') +
+    (g.score >= 90 ? ' 🌟' : g.score >= 70 ? ' 👍' : ' 💪'));
+  $('ansChars').innerHTML = g.marks.map(m => '<span class="' + m.cls + '">' + escH(m.ch) + '</span>').join('') +
+    (prefs.mode === 'pinyin' ? ' <span class="mutetext" style="font-size:13px;font-family:inherit">(xanh = đúng cả thanh · vàng = đúng âm, sai/thiếu thanh · đỏ = thiếu)</span>' : '');
+  $('ansExtras').innerHTML = g.extras.length ? 'Thừa: <s>' + g.extras.map(escH).join(' ') + '</s>' : '';
+  $('ansPy').textContent = pyOf(c.zh);
+  $('ansTr').textContent = c.tr ? '→ ' + c.tr : '';
+  $('ansToks').innerHTML = '<div class="mutetext" style="margin-bottom:4px">Bấm vào từ để nghe và lưu vào sổ từ:</div>' + tokHtml(c.zh);
+  $('dictResult').hidden = false;
+  $('dictIn').disabled = true;
+  updateSessAcc();
+  $('btnNextCue').focus();
+}
+function updateSessAcc() {
+  const vals = Object.values(SES ? SES.results : {});
+  $('sessAcc').textContent = vals.length ? 'trung bình ' + Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) + '/100' : '';
+}
+$('btnCheck').addEventListener('click', () => check(false));
+$('btnSkip').addEventListener('click', () => { check(true); });
+$('btnHint').addEventListener('click', () => {
+  const c = cues[curIdx()]; if (!c) return;
+  const t = onlyHan(c.zh);
+  SES.hint = Math.min(t.length, SES.hint + 1);
+  $('hintLine').textContent = '💡 ' + t.slice(0, SES.hint) + '…';
+});
+$('dictIn').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if ($('dictResult').hidden) check(false); }
+});
+$('btnRetryCue').addEventListener('click', () => {
+  $('dictResult').hidden = true;
+  $('dictIn').disabled = false;
+  $('dictIn').value = '';
+  $('hintLine').textContent = '';
+  $('dictIn').focus();
+  playCue();
+});
+$('btnNextCue').addEventListener('click', nextCue);
+function nextCue() {
+  stopSpeak(); segToken++;
+  try { yt.pauseVideo(); } catch (e) {}
+  if (SES.pos + 1 < SES.idx.length) { SES.pos++; enterCue(); }
+  else finishSession();
+}
+function finishSession() {
+  $('sessPanel').hidden = true;
+  const vals = SES.idx.map(i => SES.results[i] ?? 0);
+  const avg = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0;
+  const mins = Math.max(1, Math.round((Date.now() - SES.t0) / 60000));
+  const tile = (v, l) => '<div class="tile"><b>' + v + '</b><span>' + l + '</span></div>';
+  $('sumTiles').innerHTML =
+    tile(SES.idx.length, '💬 câu đã chép') +
+    tile(avg + '/100', '🎯 điểm trung bình') +
+    tile(SES.listens, '🔊 lần nghe') +
+    tile(mins + ' phút', '⏱ thời gian');
+  $('sumPanel').hidden = false;
+  updateProgTxt();
+  renderLibrary();
+  pushProgD(); pushDay();
+}
+$('btnRedoWrong').addEventListener('click', () => {
+  const wrong = SES.idx.filter(i => (SES.results[i] ?? 0) < 80);
+  if (!wrong.length) { toast('🌟 Không có câu nào dưới 80 điểm!'); return; }
+  startSession(wrong);
+});
+$('btnSumSetup').addEventListener('click', () => { $('sumPanel').hidden = true; $('setupPanel').hidden = false; updateProgTxt(); });
+$('btnSumLib').addEventListener('click', () => showView('lib'));
+
+/* ================= word popup (shared vocabulary) ================= */
+function wordClicked(w, line, cell) {
+  const d = lookup(w);
+  const pyStr = d ? d[0] : pyOf(w);
+  const ex = (d && d[3]) ? d[3] : line;
+  const vocab = read('crh-vocab', {});
+  const saved = vocab[w];
+  const pop = $('popup');
+  pop.innerHTML =
+    '<button class="close" id="ppClose">✕</button>' +
+    '<div><span class="w">' + escH(w) + '</span><span class="p">' + escH(pyStr) + '</span> ' +
+    '<span class="lv lv' + (d ? d[2] : 0) + '">' + (d && d[2] ? 'HSK ' + d[2] : 'ngoài HSK') + '</span></div>' +
+    '<div class="m">' + (d ? escH(d[1]) : '<span class="mutetext">Không có trong từ điển HSK — bạn vẫn có thể lưu và tự ghi nghĩa.</span>') + '</div>' +
+    (ex && ex !== w ? '<div class="ex">' + escH(ex) + '</div>' : '') +
+    '<div class="row" style="margin-top:10px">' +
+      '<button class="small" id="ppAudio">🔊 Nghe</button>' +
+      '<button class="small primary" id="ppSave">' + (saved ? '✓ Đã lưu' : '💾 Lưu từ') + '</button>' +
+    '</div>';
+  pop.style.display = 'block';
+  const r = cell.getBoundingClientRect();
+  let x = Math.min(window.innerWidth - pop.offsetWidth - 10, Math.max(10, r.left));
+  let y = r.bottom + 8;
+  if (y + pop.offsetHeight > window.innerHeight - 10) y = Math.max(10, r.top - pop.offsetHeight - 8);
+  pop.style.left = x + 'px'; pop.style.top = y + 'px';
+  $('ppClose').onclick = hidePopup;
+  $('ppAudio').onclick = () => speak(w);
+  $('ppSave').onclick = () => {
+    saveWord(w, pyStr, d ? d[1] : '', d ? d[2] : 0, ex);
+    hidePopup();
+    document.querySelectorAll('#ansToks .tok.zh').forEach(tk => { if (tk.dataset.w === w) tk.classList.add('saved'); });
+  };
+}
+function hidePopup() { $('popup').style.display = 'none'; }
+document.addEventListener('click', e => { if (!e.target.closest('#popup') && !e.target.closest('.tok.zh')) hidePopup(); });
+$('ansToks').addEventListener('click', e => {
+  const tok = e.target.closest('.tok.zh'); if (!tok) return;
+  wordClicked(tok.dataset.w, cues[curIdx()] ? cues[curIdx()].zh : '', tok);
+});
+
+/* ================= stats ================= */
+function renderStats() {
+  const s = stats();
+  let sent = 0, ok = 0, total = 0, listen = 0;
+  for (const k in s.days) { const d = s.days[k]; sent += d.sent || 0; ok += d.ok || 0; total += d.total || 0; listen += d.listen || 0; }
+  const acc = total ? Math.round(ok / total * 100) : 0;
+  let stk = 0;
+  const day = new Date();
+  const active = d => d && (d.sent || 0) > 0;
+  if (!active(s.days[todayKey()])) day.setDate(day.getDate() - 1);
+  while (active(s.days[todayKey(day)])) { stk++; day.setDate(day.getDate() - 1); }
+  const tile = (v, l) => '<div class="tile"><b>' + v + '</b><span>' + l + '</span></div>';
+  $('statTiles').innerHTML =
+    tile(sent, '💬 câu đã chép') +
+    tile(acc + '%', '🎯 độ chính xác (' + (prefs.mode === 'pinyin' ? 'âm tiết' : 'chữ') + ')') +
+    tile(fmtH(listen), '🎧 thời gian nghe') +
+    tile(stk + ' 🔥', 'chuỗi ngày chép chính tả');
+  let max = 1;
+  const days = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const k = todayKey(d);
+    const row = s.days[k] || {};
+    days.push({ k, n: row.sent || 0, lbl: d.getDate() + '/' + (d.getMonth() + 1) });
+    max = Math.max(max, row.sent || 0);
+  }
+  $('statChart').innerHTML = days.map(d =>
+    '<div class="col" title="' + d.k + ': ' + d.n + ' câu">' +
+    '<div class="seg1" style="height:' + Math.round(d.n / max * 100) + '%"></div>' +
+    '<div class="lbl">' + d.lbl + '</div></div>').join('');
+}
+
+/* ================= init ================= */
+(async function boot() {
+  const user = await requireLogin();
+  if (!user) return;
+  loadPrefs();
+  $('impStatus').textContent = '⏳ Đang tải dữ liệu tài khoản…';
+  await Promise.all([loadVideos(), loadCloudDict(), loadSettings(), loadAccess(), pullVocab(), pullDays(), loadMyDict()]);
+  await loadDict();
+  rebuildDictIndex();
+  $('impStatus').textContent = '';
+  renderLibrary();
+})();
+})();
+</script>
+</body>
+</html>

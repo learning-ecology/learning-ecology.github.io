@@ -27,6 +27,7 @@ const CORE = [
   "./reading.html",
   "./shadow.html",
   "./writing.html",
+  "./dictation.html",
   "./cert.html",
   "./styles.css",
   "./ui.js",

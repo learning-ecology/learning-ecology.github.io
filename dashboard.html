@@ -908,6 +908,7 @@
           { href: "reading.html", label: "Đọc hiểu HSK 阅读", icon: "book-open", group: T("g_learn") },
           { href: "shadow.html", label: "Shadow Chinese 跟读", icon: "video", group: T("g_learn") },
           { href: "writing.html", label: "Tập viết chữ Hán 写字", icon: "pen-tool", group: T("g_learn") },
+          { href: "dictation.html", label: "Nghe chép chính tả 听写", icon: "headphones", group: T("g_learn") },
           { id: "asgn", label: T("asgn"), icon: "clipboard-list", group: T("g_comm") },
           { id: "community", label: T("disc"), icon: "messages-square", group: T("g_comm") },
           { id: "profile", label: T("profile_tab"), icon: "user", group: T("g_account") },
@@ -3006,7 +3007,8 @@
           "reading_texts", "reading_dict", "reading_settings",
           "reading_vocab", "reading_days", "reading_progress", "reading_access",
           "shadow_videos", "shadow_progress", "shadow_days", "shadow_profile",
-          "shadow_settings", "shadow_access", "hanzi_words", "hanzi_profile"];
+          "shadow_settings", "shadow_access", "hanzi_words", "hanzi_profile",
+          "dict_progress", "dict_days"];
         const backup = { app: "Learning Ecology", exported_at: new Date().toISOString(), tables: {} };
         const problems = [];
         for (let i = 0; i < TABLES.length; i++) {
