@@ -77,6 +77,7 @@
   .libcard:hover { box-shadow:0 6px 18px rgba(0,0,0,.12); transform:translateY(-2px); }
   .libcard h3 { margin:0 0 6px; font-family:var(--hz-font); font-size:17px; }
   .libcard .meta { display:flex; gap:6px; flex-wrap:wrap; align-items:center; font-size:12px; color:var(--muted); }
+  .libcard.locked { opacity:.68; }
   .libcard .done { position:absolute; top:10px; right:12px; color:var(--ok); font-weight:700; }
   .tag { background:var(--bg); border-radius:6px; padding:1px 7px; font-size:11.5px; color:var(--muted); }
   .chip { border:1px solid var(--line); background:var(--panel); border-radius:16px; padding:4px 12px; font-size:13px; cursor:pointer; }
@@ -466,7 +467,7 @@ async function requireLogin() {
   let prof = null;
   try {
     const { data } = await sb.from('profiles')
-      .select('full_name, role, active_session, multi_device, suspended').eq('id', user.id).single();
+      .select('full_name, role, active_session, multi_device, suspended, plan, premium_until').eq('id', user.id).single();
     prof = data;
   } catch (e) {}
   if (prof && prof.suspended) { location.href = 'login.html'; return null; }
@@ -476,6 +477,9 @@ async function requireLogin() {
   }
   uid = user.id;
   isStaff = !!prof && (prof.role === 'teacher' || prof.role === 'owner');
+  const _td = new Date().toISOString().slice(0, 10);
+  isPremium = isStaff || (!!prof && (prof.role === 'admin'
+    || (prof.plan === 'premium' && (!prof.premium_until || prof.premium_until >= _td))));
   $('whoami').textContent = (prof && prof.full_name) || user.email || '';
   if (isStaff) $('navAdmin').hidden = false;
   return user;
@@ -484,11 +488,18 @@ async function requireLogin() {
 /* --- shared content: reading texts + extra dictionary (cloud, cached for offline) --- */
 let TEXTS = [];
 let DICT_CUSTOM = [];
+/* --- access control (migration 26): premium plan, per-student grants,
+       free-text limit. If the migration hasn't run yet (no tier column),
+       ACCESS_READY stays false and nothing is ever locked. --- */
+let isPremium = false, ACCESS_READY = false, GRANTS = [], FREE_LIMIT = 0, freeOrderCache = null;
 async function loadTexts() {
   try {
     const { data, error } = await sb.from('reading_texts').select('*').order('level').order('created_at');
     if (error) throw error;
-    TEXTS = data.map(r => ({ id: r.id, title: r.title, level: r.level, text: r.content, tr: r.translation || '', tags: r.tags || [] }));
+    ACCESS_READY = data.length > 0 && ('tier' in data[0]);
+    TEXTS = data.map(r => ({ id: r.id, title: r.title, level: r.level, text: r.content, tr: r.translation || '', tags: r.tags || [],
+      tier: r.tier || 'free', so: r.sort_order || 0, ca: r.created_at || '', pub: r.published !== false, cat: r.category || '' }));
+    freeOrderCache = null;
     store('texts-cache', TEXTS);
   } catch (e) { TEXTS = read('texts-cache', []); }
 }
@@ -718,6 +729,55 @@ function segment(line) {
   return toks;
 }
 
+/* ================= access control (locks + upgrade prompt) ================= */
+async function loadAccess() {
+  try {
+    const { data } = await sb.from('reading_access').select('text_id, level').eq('student_id', uid);
+    GRANTS = data || [];
+  } catch (e) { GRANTS = []; }
+  try {
+    const { data } = await sb.from('reading_settings').select('free_limit').eq('id', 1).maybeSingle();
+    if (data && typeof data.free_limit === 'number') FREE_LIMIT = data.free_limit;
+  } catch (e) { /* column not there yet → no limit */ }
+}
+function grantCovers(t) {
+  return GRANTS.some(g => g.text_id === t.id || (!g.text_id && (g.level == null || g.level === t.level)));
+}
+function freeRank(id) {
+  if (!freeOrderCache) {
+    freeOrderCache = TEXTS.filter(x => x.tier !== 'premium' && x.pub !== false)
+      .sort((a, b) => (a.so - b.so) || String(a.ca).localeCompare(String(b.ca)))
+      .map(x => x.id);
+  }
+  return freeOrderCache.indexOf(id);
+}
+function isLocked(t) {
+  if (!ACCESS_READY || isStaff || isPremium) return false;
+  if (grantCovers(t)) return false;
+  if (t.tier === 'premium') return true;
+  if (!FREE_LIMIT) return false;
+  return freeRank(t.id) >= FREE_LIMIT;
+}
+function showUpgradeR(t) {
+  const reason = (t && t.tier === 'premium')
+    ? 'Bài đọc này thuộc gói Premium. Nâng cấp để mở khóa toàn bộ thư viện đọc hiểu.'
+    : 'Bạn đã dùng hết ' + FREE_LIMIT + ' bài đọc miễn phí. Nâng cấp Premium để đọc không giới hạn — hoặc nhờ giáo viên mở thêm bài cho bạn.';
+  let ov = document.getElementById('upgOv');
+  if (ov) ov.remove();
+  ov = document.createElement('div');
+  ov.id = 'upgOv';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:400;background:rgba(10,16,28,.6);display:flex;align-items:center;justify-content:center;padding:16px;';
+  ov.innerHTML = '<div style="max-width:400px;width:100%;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:16px;padding:26px 22px;text-align:center;box-shadow:0 30px 70px -30px rgba(0,0,0,.6);">' +
+    '<div style="font-size:38px;">👑</div>' +
+    '<h3 style="margin:8px 0 6px;font-size:19px;">Nội dung Premium</h3>' +
+    '<p style="color:var(--muted);font-size:14px;line-height:1.55;margin:0 0 16px;">' + reason + '</p>' +
+    '<a href="https://zalo.me/0961923983" target="_blank" rel="noopener" style="display:inline-block;background:linear-gradient(135deg,#f4d68a,#d9a53c);color:#132743;font-weight:800;padding:10px 20px;border-radius:12px;text-decoration:none;">💬 Liên hệ nâng cấp Premium</a>' +
+    '<div style="margin-top:12px;"><button id="upgX" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;">Đóng</button></div></div>';
+  document.body.appendChild(ov);
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  ov.querySelector('#upgX').addEventListener('click', () => ov.remove());
+}
+
 /* ================= reading texts (shared, from Supabase) ================= */
 function getTexts() { return TEXTS; }
 function estMinutes(t) { return Math.max(1, Math.round((t.text.match(CJK_G) || []).length / 180)); }
@@ -767,8 +827,10 @@ function renderLibrary() {
   const list = getTexts().filter(t => (!libLevel || t.level === libLevel) &&
     (!q || t.title.toLowerCase().includes(q) || (t.tags || []).join(' ').toLowerCase().includes(q)));
   $('libGrid').innerHTML = list.map(t =>
-    '<div class="libcard" data-id="' + t.id + '">' +
-      (done.includes(t.id) ? '<span class="done">✓</span>' : '') +
+    '<div class="libcard' + (isLocked(t) ? ' locked' : '') + '" data-id="' + t.id + '">' +
+      (isLocked(t) ? '<span class="done" style="background:linear-gradient(135deg,#fde68a,#d9a53c);color:#713f12;">👑</span>'
+        : (done.includes(t.id) ? '<span class="done">✓</span>' : '')) +
+      (isStaff && t.pub === false ? '<span class="tag" style="float:right;">bản nháp</span>' : '') +
       '<h3>' + escH(t.title) + '</h3>' +
       '<div class="meta"><span class="lv lv' + t.level + '">HSK ' + t.level + '</span>' +
       '<span>⏱ ~' + estMinutes(t) + ' phút</span>' +
@@ -783,10 +845,11 @@ $('libGrid').addEventListener('click', e => {
 /* ================= reader ================= */
 let currentText = null;
 let readTimer = null;
-function textList() { return getTexts().filter(t => !libLevel || t.level === libLevel); }
+function textList() { return getTexts().filter(t => (!libLevel || t.level === libLevel) && !isLocked(t)); }
 function openText(id) {
   const t = getTexts().find(x => x.id === id);
   if (!t) return;
+  if (isLocked(t)) { showUpgradeR(t); return; }
   currentText = t;
   show('reader');
   renderReader();
@@ -1571,7 +1634,7 @@ $('btnKeySave').addEventListener('click', async () => {
   loadPrefs();
   if ('speechSynthesis' in window) populateVoicePick();
   $('dictStatus').textContent = '⏳ Đang tải dữ liệu tài khoản…';
-  await Promise.all([loadTexts(), loadCloudDict(), loadSettings(), pullVocab(), pullDays(), pullProgress()]);
+  await Promise.all([loadTexts(), loadCloudDict(), loadAccess(), loadSettings(), pullVocab(), pullDays(), pullProgress()]);
   await loadDict();          // HSK dictionary from CDN (cached on the device after first load)
   rebuildDictIndex();
   renderLibrary();

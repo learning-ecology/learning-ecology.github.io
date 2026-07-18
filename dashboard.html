@@ -1368,7 +1368,7 @@
         { data: lessons }, { data: prog }, { data: students }, { data: courses },
         { data: enrollments }, { data: anns }, { data: skeys }, { data: orgs },
         { data: allLics }, { data: events }, { data: activity }, { data: lockEvents },
-        cardsRes, { data: pageViews }
+        cardsRes, { data: pageViews }, rtRes, raRes, rsRes
       ] = await Promise.all([
         sb.from("lessons").select("*").order("sort_order").order("created_at"),
         // Every student's progress, joined with names + lesson titles.
@@ -1400,7 +1400,13 @@
         // landing-page visits, last 30 days (needs migration 24)
         sb.from("page_views").select("path, ref, device, created_at")
           .gte("created_at", new Date(Date.now() - 30 * 86400000).toISOString())
-          .order("created_at", { ascending: false }).limit(1000)
+          .order("created_at", { ascending: false }).limit(1000),
+        // reading hub content + access (need migrations 25/26)
+        sb.from("reading_texts")
+          .select("id, title, level, tags, category, tier, audience, published, sort_order, created_at")
+          .order("sort_order").order("level").order("created_at"),
+        sb.from("reading_access").select("*").order("created_at"),
+        sb.from("reading_settings").select("free_limit").eq("id", 1).maybeSingle()
       ]);
       let cards = cardsRes.data || [];
 
@@ -1691,6 +1697,69 @@
             <button id="fc-import" style="margin-top:0.5rem;">Import cards</button>
           </details>
           <div id="fc-list" style="margin-top:0.8rem;"></div>
+        </div>
+        </div>
+
+        <div class="tabpane" data-tab="reading">
+        <div class="card">
+          <h2>📖 Add a reading text</h2>
+          <div class="form-row">
+            <div class="field"><label>Title</label><input id="rt-title" placeholder="我的一天" /></div>
+            <div class="field" style="max-width:110px;"><label>HSK level</label>
+              <select id="rt-level">${[1,2,3,4,5,6].map(n => `<option value="${n}">HSK ${n}</option>`).join("")}</select></div>
+            <div class="field" style="max-width:160px;"><label>Category (optional)</label>
+              <input id="rt-cat" placeholder="Sinh hoạt / Văn hóa…" /></div>
+            <div class="field" style="max-width:180px;"><label>Tags (comma separated)</label>
+              <input id="rt-tags" placeholder="gia đình, ẩm thực" /></div>
+            <div class="field" style="max-width:110px;"><label>Access</label>
+              <select id="rt-tier"><option value="free">Free</option><option value="premium">👑 Premium</option></select></div>
+            <div class="field" style="max-width:150px;"><label>Visible to</label>
+              <select id="rt-aud"><option value="everyone">All students</option><option value="assigned">Assigned only</option></select></div>
+            <div class="field" style="max-width:120px;"><label>Status</label>
+              <label style="font-size:0.85rem; color:var(--muted); cursor:pointer; display:block; padding:0.6rem 0;">
+                <input type="checkbox" id="rt-pub" checked /> published</label></div>
+          </div>
+          <div class="field" style="margin-top:0.5rem;"><label>Chinese text — one paragraph per line</label>
+            <textarea id="rt-content" style="min-height:110px;" placeholder="我早上七点起床。……"></textarea></div>
+          <div class="field"><label>Translation (optional) — one line per paragraph</label>
+            <textarea id="rt-tr" style="min-height:80px;" placeholder="I get up at 7 a.m. …"></textarea></div>
+          <button id="rt-add">Add reading text</button>
+          <p id="rt-msg" class="msg"></p>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Reading texts <span class="kind" id="rt-count"></span></h2>
+            <div class="form-row" style="align-items:center;">
+              <div class="field" style="max-width:110px;"><label>Free limit</label>
+                <input type="number" id="rs-limit" min="0" /></div>
+              <button class="ghost" id="rs-save">Save</button>
+            </div>
+          </div>
+          <p class="kind" style="margin:0 0 0.6rem;">A Free student can open the first N free texts (in the order below); 0 = unlimited. 👑 texts and "Assigned only" texts need Premium or a personal grant. Students never see unpublished drafts.</p>
+          <div id="rt-list"></div>
+        </div>
+
+        <div class="card">
+          <h2>🎟 Student access grants</h2>
+          <p class="kind" style="margin:0 0 0.7rem;">A grant makes "Assigned only" texts visible to that student AND unlocks the granted texts for Free accounts (beyond the free limit, or 👑 texts).</p>
+          <div class="form-row">
+            <div class="field" style="max-width:220px;"><label>Student</label>
+              <select id="ra-student">${onlyStudents.map(s => `<option value="${s.id}">${esc(studentName(s))}</option>`).join("") || `<option value="">— no students —</option>`}</select></div>
+            <div class="field" style="max-width:190px;"><label>Grant</label>
+              <select id="ra-scope">
+                <option value="text">One specific text</option>
+                <option value="level">All texts of a level</option>
+                <option value="all">The entire library</option>
+              </select></div>
+            <div class="field" style="max-width:240px;" id="ra-txt-w"><label>Text</label>
+              <select id="ra-text"></select></div>
+            <div class="field" style="max-width:120px; display:none;" id="ra-lvl-w"><label>Level</label>
+              <select id="ra-level">${[1,2,3,4,5,6].map(n => `<option value="${n}">HSK ${n}</option>`).join("")}</select></div>
+            <button id="ra-add">Grant access</button>
+          </div>
+          <p id="ra-msg" class="msg"></p>
+          <div id="ra-list" style="margin-top:0.5rem;"></div>
         </div>
         </div>
 
@@ -2127,6 +2196,7 @@
           { id: "lessons", label: "Lessons (" + (lessons || []).length + ")", icon: "book-open", group: "Content" },
           { id: "courses", label: "Courses (" + (courses || []).length + ")", icon: "layers", group: "Content" },
           { id: "flash", label: "Flashcards" + (cards.length ? " (" + cards.length + ")" : ""), icon: "wallet-cards", group: "Content" },
+          { id: "reading", label: "Reading" + ((rtRes.data || []).length ? " (" + rtRes.data.length + ")" : ""), icon: "library", group: "Content" },
           { id: "students", label: "Students (" + onlyStudents.length + ")" + (stuWarn ? " ⚠️" : ""), icon: "users", group: "Users" },
           { id: "progress", label: "Analytics", icon: "bar-chart-3", group: "Analytics" },
           { id: "announce", label: "Announce" + ((anns || []).length ? " (" + anns.length + ")" : ""), icon: "megaphone", group: "Community" },
@@ -2365,6 +2435,204 @@
         }
       });
 
+      // ================= READING MANAGEMENT =================
+      (function () {
+        const listEl = document.getElementById("rt-list");
+        if (!listEl) return;
+        let rtexts = rtRes.data || [];
+        let raRows = raRes.data || [];
+        const rtMsg = document.getElementById("rt-msg");
+        const say = (el, txt, err) => { el.textContent = txt; el.className = "msg" + (err ? " err" : ""); };
+        if (rtRes.error) {
+          listEl.innerHTML = `<p class="empty">Run migration25 + migration26 first — then this tab manages the Reading Hub.</p>`;
+        }
+        const limitIn = document.getElementById("rs-limit");
+        limitIn.value = (rsRes.data && typeof rsRes.data.free_limit === "number") ? rsRes.data.free_limit : 5;
+
+        const lvlPill = n => `<span class="pill done" style="flex:none;">HSK ${n}</span>`;
+        const textTitle = id => (rtexts.find(t => t.id === id) || {}).title || "?";
+
+        function renderRt() {
+          document.getElementById("rt-count").textContent = "(" + rtexts.length + ")";
+          const sel = document.getElementById("ra-text");
+          sel.innerHTML = rtexts.map(t => `<option value="${t.id}">${esc(t.title)} (HSK ${t.level})</option>`).join("");
+          if (rtRes.error) return;
+          listEl.innerHTML = rtexts.map(t => `
+            <div class="lesson" style="flex-wrap:wrap;">
+              ${lvlPill(t.level)}
+              <div class="meta">
+                <div class="title">${esc(t.title)}${t.published ? "" : ' <span class="pill off">draft</span>'}${t.audience === "assigned" ? ' <span class="pill todo">assigned only</span>' : ""}</div>
+                <span class="kind">${esc(t.category || "")}${(t.tags || []).length ? " · " + esc((t.tags || []).join(", ")) : ""}</span>
+              </div>
+              <input type="number" class="rt-ord" data-id="${t.id}" value="${t.sort_order ?? 0}" min="0" title="Order (free limit counts in this order)" style="max-width:70px; flex:none;" />
+              <select class="rt-tier2" data-id="${t.id}" style="max-width:95px;" title="Free or Premium">
+                <option value="free" ${t.tier !== "premium" ? "selected" : ""}>Free</option>
+                <option value="premium" ${t.tier === "premium" ? "selected" : ""}>👑</option>
+              </select>
+              <select class="rt-aud2" data-id="${t.id}" style="max-width:135px;" title="Who can see it">
+                <option value="everyone" ${t.audience !== "assigned" ? "selected" : ""}>All students</option>
+                <option value="assigned" ${t.audience === "assigned" ? "selected" : ""}>Assigned only</option>
+              </select>
+              <label style="font-size:0.82rem; color:var(--muted); cursor:pointer; white-space:nowrap;">
+                <input type="checkbox" class="rt-pub2" data-id="${t.id}" ${t.published ? "checked" : ""} /> pub</label>
+              <button class="ghost rt-save" data-id="${t.id}">Save</button>
+              <button class="ghost rt-edit" data-id="${t.id}">✏️ Content</button>
+              <button class="ghost rt-del" data-id="${t.id}" style="color:var(--danger); border-color:var(--danger);">Delete</button>
+            </div>
+            <div class="rt-editrow" data-id="${t.id}" style="display:none; padding:0.7rem 0 1rem; border-bottom:1px solid var(--line);"></div>`).join("")
+            || `<p class="empty">No reading texts yet — add one above.</p>`;
+          wireRt();
+        }
+
+        function wireRt() {
+          listEl.querySelectorAll(".rt-save").forEach(b => b.addEventListener("click", async () => {
+            const id = b.getAttribute("data-id");
+            const patch = {
+              sort_order: parseInt(listEl.querySelector(`.rt-ord[data-id="${id}"]`).value, 10) || 0,
+              tier: listEl.querySelector(`.rt-tier2[data-id="${id}"]`).value,
+              audience: listEl.querySelector(`.rt-aud2[data-id="${id}"]`).value,
+              published: listEl.querySelector(`.rt-pub2[data-id="${id}"]`).checked
+            };
+            b.disabled = true;
+            const { error } = await sb.from("reading_texts").update(patch).eq("id", id);
+            b.disabled = false;
+            if (error) { say(rtMsg, "Could not save: " + error.message, true); return; }
+            Object.assign(rtexts.find(x => x.id === id) || {}, patch);
+            b.textContent = "Saved ✓"; setTimeout(() => (b.textContent = "Save"), 1200);
+            renderRt();
+          }));
+          listEl.querySelectorAll(".rt-del").forEach(b => b.addEventListener("click", async () => {
+            if (!confirm("Delete this reading text? Students' grants for it are removed too.")) return;
+            const id = b.getAttribute("data-id");
+            b.disabled = true;
+            const { error } = await sb.from("reading_texts").delete().eq("id", id);
+            if (error) { b.disabled = false; say(rtMsg, "Could not delete: " + error.message, true); return; }
+            rtexts = rtexts.filter(x => x.id !== id);
+            raRows = raRows.filter(r => r.text_id !== id);
+            renderRt(); renderRa();
+          }));
+          listEl.querySelectorAll(".rt-edit").forEach(b => b.addEventListener("click", async () => {
+            const id = b.getAttribute("data-id");
+            const row = listEl.querySelector(`.rt-editrow[data-id="${id}"]`);
+            if (row.style.display !== "none") { row.style.display = "none"; return; }
+            row.style.display = "block";
+            row.innerHTML = `<p class="kind">Loading…</p>`;
+            const { data: full, error } = await sb.from("reading_texts")
+              .select("title, category, tags, content, translation").eq("id", id).single();
+            if (error) { row.innerHTML = `<p class="msg err">${esc(error.message)}</p>`; return; }
+            row.innerHTML = `
+              <div class="form-row">
+                <div class="field"><label>Title</label><input class="rte2-title" value="${esc(full.title)}" /></div>
+                <div class="field" style="max-width:170px;"><label>Category</label><input class="rte2-cat" value="${esc(full.category || "")}" /></div>
+                <div class="field" style="max-width:200px;"><label>Tags (comma)</label><input class="rte2-tags" value="${esc((full.tags || []).join(", "))}" /></div>
+              </div>
+              <div class="field" style="margin-top:0.5rem;"><label>Chinese text</label>
+                <textarea class="rte2-content" style="min-height:120px;">${esc(full.content)}</textarea></div>
+              <div class="field"><label>Translation</label>
+                <textarea class="rte2-tr" style="min-height:90px;">${esc(full.translation || "")}</textarea></div>
+              <button class="rte2-save">Save content</button>
+              <button class="ghost rte2-cancel">Close</button>`;
+            row.querySelector(".rte2-cancel").addEventListener("click", () => (row.style.display = "none"));
+            row.querySelector(".rte2-save").addEventListener("click", async (ev) => {
+              const btn2 = ev.target;
+              const patch = {
+                title: row.querySelector(".rte2-title").value.trim(),
+                category: row.querySelector(".rte2-cat").value.trim() || null,
+                tags: row.querySelector(".rte2-tags").value.split(",").map(x => x.trim()).filter(Boolean),
+                content: row.querySelector(".rte2-content").value,
+                translation: row.querySelector(".rte2-tr").value
+              };
+              if (!patch.title || !patch.content.trim()) { say(rtMsg, "Title and Chinese text are required.", true); return; }
+              btn2.disabled = true;
+              const { error: e2 } = await sb.from("reading_texts").update(patch).eq("id", id);
+              btn2.disabled = false;
+              if (e2) { say(rtMsg, "Could not save: " + e2.message, true); return; }
+              Object.assign(rtexts.find(x => x.id === id) || {}, { title: patch.title, category: patch.category, tags: patch.tags });
+              row.style.display = "none";
+              renderRt();
+            });
+          }));
+        }
+
+        document.getElementById("rt-add").addEventListener("click", async () => {
+          const title = document.getElementById("rt-title").value.trim();
+          const content = document.getElementById("rt-content").value;
+          if (!title || !content.trim()) { say(rtMsg, "Add a title and the Chinese text.", true); return; }
+          const row = {
+            title, content,
+            level: parseInt(document.getElementById("rt-level").value, 10),
+            category: document.getElementById("rt-cat").value.trim() || null,
+            tags: document.getElementById("rt-tags").value.split(",").map(x => x.trim()).filter(Boolean),
+            tier: document.getElementById("rt-tier").value,
+            audience: document.getElementById("rt-aud").value,
+            published: document.getElementById("rt-pub").checked,
+            translation: document.getElementById("rt-tr").value,
+            sort_order: rtexts.length + 1,
+            created_by: user.id
+          };
+          const { data: ins, error } = await sb.from("reading_texts").insert(row).select().single();
+          if (error) { say(rtMsg, "Could not add: " + error.message + (rtRes.error ? " — run migration25/26 first." : ""), true); return; }
+          rtexts.push(ins);
+          ["rt-title", "rt-cat", "rt-tags", "rt-content", "rt-tr"].forEach(x => (document.getElementById(x).value = ""));
+          say(rtMsg, "Reading text added ✓");
+          renderRt();
+        });
+
+        document.getElementById("rs-save").addEventListener("click", async () => {
+          const v = Math.max(0, parseInt(limitIn.value, 10) || 0);
+          const { error } = await sb.from("reading_settings").update({ free_limit: v }).eq("id", 1);
+          if (error) { say(rtMsg, "Could not save the limit: " + error.message, true); return; }
+          if (window.UI) UI.toast("Free limit saved ✓");
+        });
+
+        // ---- per-student grants ----
+        const raStudent = document.getElementById("ra-student");
+        const raScope = document.getElementById("ra-scope");
+        const raMsg = document.getElementById("ra-msg");
+        raScope.addEventListener("change", () => {
+          document.getElementById("ra-txt-w").style.display = raScope.value === "text" ? "" : "none";
+          document.getElementById("ra-lvl-w").style.display = raScope.value === "level" ? "" : "none";
+        });
+        function describe(g) {
+          if (g.text_id) return "📄 " + textTitle(g.text_id);
+          if (g.level) return "📚 All HSK " + g.level + " texts";
+          return "🌐 The entire reading library";
+        }
+        function renderRa() {
+          const sid = raStudent.value;
+          const mine = raRows.filter(r => r.student_id === sid);
+          document.getElementById("ra-list").innerHTML = mine.map(g => `
+            <div class="lesson">
+              <div class="meta"><div class="title" style="font-weight:500;">${esc(describe(g))}</div>
+                <span class="kind">granted ${new Date(g.created_at).toLocaleDateString()}</span></div>
+              <button class="ghost ra-del" data-id="${g.id}" style="color:var(--danger); border-color:var(--danger);">Remove</button>
+            </div>`).join("") || `<p class="empty">No personal grants for this student — they see "All students" texts, limited by their plan.</p>`;
+          document.querySelectorAll(".ra-del").forEach(b => b.addEventListener("click", async () => {
+            b.disabled = true;
+            const { error } = await sb.from("reading_access").delete().eq("id", b.getAttribute("data-id"));
+            if (error) { b.disabled = false; say(raMsg, "Could not remove: " + error.message, true); return; }
+            raRows = raRows.filter(r => r.id !== b.getAttribute("data-id"));
+            renderRa();
+          }));
+        }
+        raStudent.addEventListener("change", renderRa);
+        document.getElementById("ra-add").addEventListener("click", async () => {
+          if (!raStudent.value) { say(raMsg, "Create a student first.", true); return; }
+          const row = { student_id: raStudent.value, text_id: null, level: null };
+          if (raScope.value === "text") row.text_id = document.getElementById("ra-text").value || null;
+          if (raScope.value === "level") row.level = parseInt(document.getElementById("ra-level").value, 10);
+          const { data: ins, error } = await sb.from("reading_access").insert(row).select().single();
+          if (error) { say(raMsg, "Could not grant: " + error.message + (raRes.error ? " — run migration26 first." : ""), true); return; }
+          raRows.push(ins);
+          say(raMsg, "Access granted ✓");
+          renderRa();
+        });
+
+        renderRt();
+        renderRa();
+      })();
+      // =============== END READING MANAGEMENT ===============
+
       // ================= VISITORS + FULL BACKUP =================
       (function () {
         const stats = document.getElementById("pv-stats");
@@ -2417,7 +2685,9 @@
           "announcements", "announcement_reads", "assignments", "submissions",
           "discussion_threads", "discussion_posts", "sessions", "teacher_materials",
           "share_keys", "lock_events", "flashcards", "flashcard_reviews",
-          "certificates", "page_views"];
+          "certificates", "page_views",
+          "reading_texts", "reading_dict", "reading_settings",
+          "reading_vocab", "reading_days", "reading_progress", "reading_access"];
         const backup = { app: "Learning Ecology", exported_at: new Date().toISOString(), tables: {} };
         const problems = [];
         for (let i = 0; i < TABLES.length; i++) {
