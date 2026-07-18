@@ -1371,7 +1371,7 @@
         { data: lessons }, { data: prog }, { data: students }, { data: courses },
         { data: enrollments }, { data: anns }, { data: skeys }, { data: orgs },
         { data: allLics }, { data: events }, { data: activity }, { data: lockEvents },
-        cardsRes, { data: pageViews }, rtRes, raRes, rsRes, svRes, saRes, ssRes
+        cardsRes, { data: pageViews }, rtRes, raRes, rsRes, svRes, saRes, ssRes, ddRes
       ] = await Promise.all([
         sb.from("lessons").select("*").order("sort_order").order("created_at"),
         // Every student's progress, joined with names + lesson titles.
@@ -1415,7 +1415,10 @@
           .select("id, yt, title, level, tier, published, sort_order, created_by, created_at")
           .order("sort_order").order("created_at"),
         sb.from("shadow_access").select("*").order("created_at"),
-        sb.from("shadow_settings").select("free_limit").eq("id", 1).maybeSingle()
+        sb.from("shadow_settings").select("free_limit").eq("id", 1).maybeSingle(),
+        // dictation daily stats (needs migration 31)
+        sb.from("dict_days").select("user_id, day, sent, ok, total, listen_sec")
+          .order("day", { ascending: false }).limit(5000)
       ]);
       let cards = cardsRes.data || [];
 
@@ -1858,6 +1861,20 @@
         </div>
         </div>
 
+        <div class="tabpane" data-tab="dict">
+        <div class="card">
+          <div class="card-head">
+            <h2>🎧 Listening dictation</h2>
+            <a class="ghost" href="dictation.html" target="_blank" rel="noopener" style="text-decoration:none; padding:0.55rem 0.9rem; border:1px solid var(--line); border-radius:8px;">Open the dictation page ↗</a>
+          </div>
+          <p class="kind" style="margin:0;">Dictation uses the <b>same video library as Shadow Chinese</b> — add, edit, share, lock (👑) and order the videos in the <b>Shadowing</b> tab; the free limit and student/course grants there apply to both pages. This tab shows how your students are practising.</p>
+        </div>
+        <div class="card">
+          <h2>Student dictation progress <span class="kind" id="dd-count"></span></h2>
+          <div id="dd-list"></div>
+        </div>
+        </div>
+
         <div class="tabpane" data-tab="students">
         <div id="stu-alert"></div>
         <div class="card">
@@ -2293,6 +2310,7 @@
           { id: "flash", label: "Flashcards" + (cards.length ? " (" + cards.length + ")" : ""), icon: "wallet-cards", group: "Content" },
           { id: "reading", label: "Reading" + ((rtRes.data || []).length ? " (" + rtRes.data.length + ")" : ""), icon: "library", group: "Content" },
           { id: "shadow", label: "Shadowing" + ((svRes.data || []).length ? " (" + svRes.data.length + ")" : ""), icon: "video", group: "Content" },
+          { id: "dict", label: "Dictation", icon: "headphones", group: "Content" },
           { id: "students", label: "Students (" + onlyStudents.length + ")" + (stuWarn ? " ⚠️" : ""), icon: "users", group: "Users" },
           { id: "progress", label: "Analytics", icon: "bar-chart-3", group: "Analytics" },
           { id: "announce", label: "Announce" + ((anns || []).length ? " (" + anns.length + ")" : ""), icon: "megaphone", group: "Community" },
@@ -2950,6 +2968,37 @@
         renderSa();
       })();
       // =============== END SHADOWING MANAGEMENT ===============
+
+      // ================= DICTATION ANALYTICS =================
+      (function () {
+        const listEl = document.getElementById("dd-list");
+        if (!listEl) return;
+        if (ddRes.error) {
+          listEl.innerHTML = `<p class="empty">Run migration31 first — then your students' dictation progress appears here.</p>`;
+          return;
+        }
+        const agg = {};
+        for (const r of (ddRes.data || [])) {
+          const a = agg[r.user_id] || (agg[r.user_id] = { sent: 0, ok: 0, total: 0, listen: 0, days: 0, last: "" });
+          a.sent += r.sent || 0; a.ok += r.ok || 0; a.total += r.total || 0; a.listen += r.listen_sec || 0;
+          if ((r.sent || 0) > 0) a.days++;
+          if (r.day > a.last) a.last = r.day;
+        }
+        const rows = onlyStudents.map(s => ({ s, a: agg[s.id] }))
+          .filter(x => x.a && x.a.sent > 0)
+          .sort((x, y) => y.a.sent - x.a.sent);
+        document.getElementById("dd-count").textContent = rows.length ? "(" + rows.length + " active)" : "";
+        const fmtMin = sec => sec >= 3600 ? (sec / 3600).toFixed(1) + " h" : Math.round(sec / 60) + " min";
+        listEl.innerHTML = rows.map(({ s, a }) => `
+          <div class="lesson">
+            <div class="meta"><div class="title">${esc(studentName(s))}</div>
+              <span class="kind">last practised ${esc(a.last)}</span></div>
+            <span class="pill done" style="flex:none;">${a.sent} sentences</span>
+            <span class="pill ${a.total && a.ok / a.total >= 0.8 ? "done" : "todo"}" style="flex:none;">${a.total ? Math.round(a.ok / a.total * 100) : 0}% accuracy</span>
+            <span class="kind" style="flex:none;">${fmtMin(a.listen)} listening · ${a.days} day(s)</span>
+          </div>`).join("") || `<p class="empty">No dictation activity yet — it appears as soon as a student submits their first sentence.</p>`;
+      })();
+      // =============== END DICTATION ANALYTICS ===============
 
       // ================= VISITORS + FULL BACKUP =================
       (function () {
