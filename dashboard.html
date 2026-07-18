@@ -907,6 +907,7 @@
           { id: "flash", label: t("flash_tab"), icon: "wallet-cards", group: T("g_learn") },
           { href: "reading.html", label: "Đọc hiểu HSK 阅读", icon: "book-open", group: T("g_learn") },
           { href: "shadow.html", label: "Shadow Chinese 跟读", icon: "video", group: T("g_learn") },
+          { href: "writing.html", label: "Tập viết chữ Hán 写字", icon: "pen-tool", group: T("g_learn") },
           { id: "asgn", label: T("asgn"), icon: "clipboard-list", group: T("g_comm") },
           { id: "community", label: T("disc"), icon: "messages-square", group: T("g_comm") },
           { id: "profile", label: T("profile_tab"), icon: "user", group: T("g_account") },
@@ -1766,10 +1767,17 @@
 
         <div class="card">
           <h2>🎟 Student access grants</h2>
-          <p class="kind" style="margin:0 0 0.7rem;">A grant makes "Assigned only" texts visible to that student AND unlocks the granted texts for Free accounts (beyond the free limit, or 👑 texts).</p>
+          <p class="kind" style="margin:0 0 0.7rem;">A grant makes "Assigned only" texts visible AND unlocks the granted texts for Free accounts (beyond the free limit, or 👑 texts). A <b>course</b> grant covers every student enrolled in that course — including students you enroll later, automatically.</p>
           <div class="form-row">
-            <div class="field" style="max-width:220px;"><label>Student</label>
+            <div class="field" style="max-width:170px;"><label>Grant to</label>
+              <select id="ra-who">
+                <option value="student">One student</option>
+                <option value="course">Everyone in a course</option>
+              </select></div>
+            <div class="field" style="max-width:220px;" id="ra-stu-w"><label>Student</label>
               <select id="ra-student">${onlyStudents.map(s => `<option value="${s.id}">${esc(studentName(s))}</option>`).join("") || `<option value="">— no students —</option>`}</select></div>
+            <div class="field" style="max-width:220px; display:none;" id="ra-crs-w"><label>Course</label>
+              <select id="ra-course">${(courses || []).map(c => `<option value="${c.id}">${esc(c.title)}</option>`).join("") || `<option value="">— no courses —</option>`}</select></div>
             <div class="field" style="max-width:190px;"><label>Grant</label>
               <select id="ra-scope">
                 <option value="text">One specific text</option>
@@ -1821,10 +1829,17 @@
 
         <div class="card">
           <h2>🎟 Student access grants</h2>
-          <p class="kind" style="margin:0 0 0.7rem;">A grant unlocks the granted videos for Free accounts (beyond the free limit, or 👑 videos).</p>
+          <p class="kind" style="margin:0 0 0.7rem;">A grant unlocks the granted videos for Free accounts (beyond the free limit, or 👑 videos). A <b>course</b> grant covers every student enrolled in that course — including students you enroll later, automatically.</p>
           <div class="form-row">
-            <div class="field" style="max-width:220px;"><label>Student</label>
+            <div class="field" style="max-width:170px;"><label>Grant to</label>
+              <select id="sa-who">
+                <option value="student">One student</option>
+                <option value="course">Everyone in a course</option>
+              </select></div>
+            <div class="field" style="max-width:220px;" id="sa-stu-w"><label>Student</label>
               <select id="sa-student">${onlyStudents.map(s => `<option value="${s.id}">${esc(studentName(s))}</option>`).join("") || `<option value="">— no students —</option>`}</select></div>
+            <div class="field" style="max-width:220px; display:none;" id="sa-crs-w"><label>Course</label>
+              <select id="sa-course">${(courses || []).map(c => `<option value="${c.id}">${esc(c.title)}</option>`).join("") || `<option value="">— no courses —</option>`}</select></div>
             <div class="field" style="max-width:190px;"><label>Grant</label>
               <select id="sa-scope">
                 <option value="video">One specific video</option>
@@ -2697,10 +2712,17 @@
           if (window.UI) UI.toast("Free limit saved ✓");
         });
 
-        // ---- per-student grants ----
+        // ---- grants: one student, or everyone in a course ----
         const raStudent = document.getElementById("ra-student");
+        const raCourse = document.getElementById("ra-course");
+        const raWho = document.getElementById("ra-who");
         const raScope = document.getElementById("ra-scope");
         const raMsg = document.getElementById("ra-msg");
+        raWho.addEventListener("change", () => {
+          document.getElementById("ra-stu-w").style.display = raWho.value === "student" ? "" : "none";
+          document.getElementById("ra-crs-w").style.display = raWho.value === "course" ? "" : "none";
+          renderRa();
+        });
         raScope.addEventListener("change", () => {
           document.getElementById("ra-txt-w").style.display = raScope.value === "text" ? "" : "none";
           document.getElementById("ra-lvl-w").style.display = raScope.value === "level" ? "" : "none";
@@ -2711,15 +2733,25 @@
           return "🌐 The entire reading library";
         }
         function renderRa() {
-          const sid = raStudent.value;
-          const mine = raRows.filter(r => r.student_id === sid);
+          let mine;
+          if (raWho.value === "course") {
+            mine = raRows.filter(r => r.course_id === raCourse.value);
+          } else {
+            const sid = raStudent.value;
+            const myCourses = (enrollments || []).filter(e => e.student_id === sid).map(e => e.course_id);
+            mine = raRows.filter(r => r.student_id === sid || (r.course_id && myCourses.includes(r.course_id)));
+          }
           document.getElementById("ra-list").innerHTML = mine.map(g => `
             <div class="lesson">
               <div class="meta"><div class="title" style="font-weight:500;">${esc(describe(g))}</div>
-                <span class="kind">granted ${new Date(g.created_at).toLocaleDateString()}</span></div>
-              <button class="ghost ra-del" data-id="${g.id}" style="color:var(--danger); border-color:var(--danger);">Remove</button>
-            </div>`).join("") || `<p class="empty">No personal grants for this student — they see "All students" texts, limited by their plan.</p>`;
+                <span class="kind">${g.course_id ? "🎓 whole course: " + esc(courseName(g.course_id) || "?") + " · " : ""}granted ${new Date(g.created_at).toLocaleDateString()}</span></div>
+              <button class="ghost ra-del" data-id="${g.id}" data-course="${g.course_id || ""}" style="color:var(--danger); border-color:var(--danger);">Remove</button>
+            </div>`).join("") || (raWho.value === "course"
+              ? `<p class="empty">No grants for this course yet.</p>`
+              : `<p class="empty">No personal grants for this student — they see "All students" texts, limited by their plan.</p>`);
           document.querySelectorAll(".ra-del").forEach(b => b.addEventListener("click", async () => {
+            if (b.getAttribute("data-course") &&
+                !confirm("This is a course-wide grant — removing it removes access for EVERY student in the course. Remove?")) return;
             b.disabled = true;
             const { error } = await sb.from("reading_access").delete().eq("id", b.getAttribute("data-id"));
             if (error) { b.disabled = false; say(raMsg, "Could not remove: " + error.message, true); return; }
@@ -2728,13 +2760,20 @@
           }));
         }
         raStudent.addEventListener("change", renderRa);
+        raCourse.addEventListener("change", renderRa);
         document.getElementById("ra-add").addEventListener("click", async () => {
-          if (!raStudent.value) { say(raMsg, "Create a student first.", true); return; }
-          const row = { student_id: raStudent.value, text_id: null, level: null };
+          const row = { student_id: null, text_id: null, level: null };
+          if (raWho.value === "course") {
+            row.course_id = raCourse.value || null;          // only sent for course grants → student grants still work before migration29
+            if (!row.course_id) { say(raMsg, "Create a course first.", true); return; }
+          } else {
+            row.student_id = raStudent.value || null;
+            if (!row.student_id) { say(raMsg, "Create a student first.", true); return; }
+          }
           if (raScope.value === "text") row.text_id = document.getElementById("ra-text").value || null;
           if (raScope.value === "level") row.level = parseInt(document.getElementById("ra-level").value, 10);
           const { data: ins, error } = await sb.from("reading_access").insert(row).select().single();
-          if (error) { say(raMsg, "Could not grant: " + error.message + (raRes.error ? " — run migration26 first." : ""), true); return; }
+          if (error) { say(raMsg, "Could not grant: " + error.message + (row.course_id ? " — course grants need migration29." : (raRes.error ? " — run migration26 first." : "")), true); return; }
           raRows.push(ins);
           say(raMsg, "Access granted ✓");
           renderRa();
@@ -2838,11 +2877,18 @@
           say("Free limit saved ✓");
         });
 
-        // ---- per-student grants ----
+        // ---- grants: one student, or everyone in a course ----
         const saStudent = document.getElementById("sa-student");
+        const saCourse = document.getElementById("sa-course");
+        const saWho = document.getElementById("sa-who");
         const saScope = document.getElementById("sa-scope");
         const saMsgEl = document.getElementById("sa-msg");
         const saySa = (txt, err) => { saMsgEl.textContent = txt; saMsgEl.className = "msg" + (err ? " err" : ""); };
+        saWho.addEventListener("change", () => {
+          document.getElementById("sa-stu-w").style.display = saWho.value === "student" ? "" : "none";
+          document.getElementById("sa-crs-w").style.display = saWho.value === "course" ? "" : "none";
+          renderSa();
+        });
         saScope.addEventListener("change", () => {
           document.getElementById("sa-vid-w").style.display = saScope.value === "video" ? "" : "none";
           document.getElementById("sa-lvl-w").style.display = saScope.value === "level" ? "" : "none";
@@ -2853,15 +2899,25 @@
           return "🌐 The entire shadowing library";
         }
         function renderSa() {
-          const sid = saStudent.value;
-          const mine = saRows.filter(r => r.student_id === sid);
+          let mine;
+          if (saWho.value === "course") {
+            mine = saRows.filter(r => r.course_id === saCourse.value);
+          } else {
+            const sid = saStudent.value;
+            const myCourses = (enrollments || []).filter(e => e.student_id === sid).map(e => e.course_id);
+            mine = saRows.filter(r => r.student_id === sid || (r.course_id && myCourses.includes(r.course_id)));
+          }
           document.getElementById("sa-list").innerHTML = mine.map(g => `
             <div class="lesson">
               <div class="meta"><div class="title" style="font-weight:500;">${esc(describeSa(g))}</div>
-                <span class="kind">granted ${new Date(g.created_at).toLocaleDateString()}</span></div>
-              <button class="ghost sa-del" data-id="${g.id}" style="color:var(--danger); border-color:var(--danger);">Remove</button>
-            </div>`).join("") || `<p class="empty">No personal grants for this student — they see shared videos, limited by their plan.</p>`;
+                <span class="kind">${g.course_id ? "🎓 whole course: " + esc(courseName(g.course_id) || "?") + " · " : ""}granted ${new Date(g.created_at).toLocaleDateString()}</span></div>
+              <button class="ghost sa-del" data-id="${g.id}" data-course="${g.course_id || ""}" style="color:var(--danger); border-color:var(--danger);">Remove</button>
+            </div>`).join("") || (saWho.value === "course"
+              ? `<p class="empty">No grants for this course yet.</p>`
+              : `<p class="empty">No grants for this student — they see shared videos, limited by their plan.</p>`);
           document.querySelectorAll(".sa-del").forEach(b => b.addEventListener("click", async () => {
+            if (b.getAttribute("data-course") &&
+                !confirm("This is a course-wide grant — removing it removes access for EVERY student in the course. Remove?")) return;
             b.disabled = true;
             const { error } = await sb.from("shadow_access").delete().eq("id", b.getAttribute("data-id"));
             if (error) { b.disabled = false; saySa("Could not remove: " + error.message, true); return; }
@@ -2870,13 +2926,20 @@
           }));
         }
         saStudent.addEventListener("change", renderSa);
+        saCourse.addEventListener("change", renderSa);
         document.getElementById("sa-add").addEventListener("click", async () => {
-          if (!saStudent.value) { saySa("Create a student first.", true); return; }
-          const row = { student_id: saStudent.value, video_id: null, level: null };
+          const row = { student_id: null, video_id: null, level: null };
+          if (saWho.value === "course") {
+            row.course_id = saCourse.value || null;          // only sent for course grants → student grants still work before migration29
+            if (!row.course_id) { saySa("Create a course first.", true); return; }
+          } else {
+            row.student_id = saStudent.value || null;
+            if (!row.student_id) { saySa("Create a student first.", true); return; }
+          }
           if (saScope.value === "video") row.video_id = document.getElementById("sa-video").value || null;
           if (saScope.value === "level") row.level = parseInt(document.getElementById("sa-level").value, 10);
           const { data: ins, error } = await sb.from("shadow_access").insert(row).select().single();
-          if (error) { saySa("Could not grant: " + error.message + (saRes.error ? " — run migration28 first." : ""), true); return; }
+          if (error) { saySa("Could not grant: " + error.message + (row.course_id ? " — course grants need migration29." : (saRes.error ? " — run migration28 first." : "")), true); return; }
           saRows.push(ins);
           saySa("Access granted ✓");
           renderSa();
@@ -2942,7 +3005,8 @@
           "certificates", "page_views",
           "reading_texts", "reading_dict", "reading_settings",
           "reading_vocab", "reading_days", "reading_progress", "reading_access",
-          "shadow_videos", "shadow_progress", "shadow_days", "shadow_profile"];
+          "shadow_videos", "shadow_progress", "shadow_days", "shadow_profile",
+          "shadow_settings", "shadow_access", "hanzi_words", "hanzi_profile"];
         const backup = { app: "Learning Ecology", exported_at: new Date().toISOString(), tables: {} };
         const problems = [];
         for (let i = 0; i < TABLES.length; i++) {

@@ -732,7 +732,9 @@ function segment(line) {
 /* ================= access control (locks + upgrade prompt) ================= */
 async function loadAccess() {
   try {
-    const { data } = await sb.from('reading_access').select('text_id, level').eq('student_id', uid);
+    /* no student filter: RLS returns this student's own grants PLUS
+       course-wide grants for every course they are enrolled in (migration29) */
+    const { data } = await sb.from('reading_access').select('text_id, level');
     GRANTS = data || [];
   } catch (e) { GRANTS = []; }
   try {

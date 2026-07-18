@@ -512,7 +512,9 @@ async function loadVideos() {
 let isPremium = false, ACCESS_READY = false, GRANTS = [], FREE_LIMIT = 0, freeOrderCache = null;
 async function loadAccess() {
   try {
-    const { data } = await sb.from('shadow_access').select('video_id, level').eq('student_id', uid);
+    /* no student filter: RLS returns this student's own grants PLUS
+       course-wide grants for every course they are enrolled in (migration29) */
+    const { data } = await sb.from('shadow_access').select('video_id, level');
     GRANTS = data || [];
   } catch (e) { GRANTS = []; }
   try {
