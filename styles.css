@@ -71,6 +71,13 @@ input, select, textarea {
   color: var(--ink);
   width: 100%;
 }
+/* checkboxes/radios must size to themselves — the width:100% above
+   was stretching them and making their labels overlap buttons */
+input[type="checkbox"], input[type="radio"] {
+  width: auto;
+  padding: 0;
+  accent-color: var(--accent);
+}
 input:focus, select:focus {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
@@ -980,6 +987,25 @@ tr.row-premium + tr.st-panel td { background: var(--prem-row); }
   .course-card.collapsed .course-banner { height: 56px; }
   .course-card.collapsed .cb-title { font-size: 0.95rem; }
 }
+
+/* ---- HSK level pills (same palette as the Reading Hub) ---- */
+.hsk-pill {
+  font-size: 0.72rem; font-weight: 800;
+  padding: 0.2rem 0.6rem; border-radius: 999px;
+  white-space: nowrap; flex: none;
+}
+.hsk-1 { background: #e2f4e9; color: #178a4c; }
+.hsk-2 { background: #e4edfb; color: #1d5fc2; }
+.hsk-3 { background: #faf3d0; color: #9a7b00; }
+.hsk-4 { background: #fdeadc; color: #c05600; }
+.hsk-5 { background: #fde3e3; color: #c62f2f; }
+.hsk-6 { background: #f1e5fb; color: #7c3aad; }
+:root[data-theme="dark"] .hsk-1 { background: #173226; color: #4cc98a; }
+:root[data-theme="dark"] .hsk-2 { background: #1c2b47; color: #6ea8ff; }
+:root[data-theme="dark"] .hsk-3 { background: #33301a; color: #e8c74a; }
+:root[data-theme="dark"] .hsk-4 { background: #38281c; color: #ffa05e; }
+:root[data-theme="dark"] .hsk-5 { background: #3a2020; color: #ff7b7b; }
+:root[data-theme="dark"] .hsk-6 { background: #30203f; color: #cfa0f0; }
 
 /* ---- admin lesson thumbnails ---- */
 .adm-thumb {

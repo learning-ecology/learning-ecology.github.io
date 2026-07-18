@@ -1369,7 +1369,7 @@
         { data: lessons }, { data: prog }, { data: students }, { data: courses },
         { data: enrollments }, { data: anns }, { data: skeys }, { data: orgs },
         { data: allLics }, { data: events }, { data: activity }, { data: lockEvents },
-        cardsRes, { data: pageViews }, rtRes, raRes, rsRes
+        cardsRes, { data: pageViews }, rtRes, raRes, rsRes, svRes, saRes, ssRes
       ] = await Promise.all([
         sb.from("lessons").select("*").order("sort_order").order("created_at"),
         // Every student's progress, joined with names + lesson titles.
@@ -1407,7 +1407,13 @@
           .select("id, title, level, tags, category, tier, audience, published, sort_order, created_at")
           .order("sort_order").order("level").order("created_at"),
         sb.from("reading_access").select("*").order("created_at"),
-        sb.from("reading_settings").select("free_limit").eq("id", 1).maybeSingle()
+        sb.from("reading_settings").select("free_limit").eq("id", 1).maybeSingle(),
+        // shadowing videos + access (need migrations 27/28)
+        sb.from("shadow_videos")
+          .select("id, yt, title, level, tier, published, sort_order, created_by, created_at")
+          .order("sort_order").order("created_at"),
+        sb.from("shadow_access").select("*").order("created_at"),
+        sb.from("shadow_settings").select("free_limit").eq("id", 1).maybeSingle()
       ]);
       let cards = cardsRes.data || [];
 
@@ -1778,6 +1784,61 @@
           </div>
           <p id="ra-msg" class="msg"></p>
           <div id="ra-list" style="margin-top:0.5rem;"></div>
+        </div>
+        </div>
+
+        <div class="tabpane" data-tab="shadow">
+        <div class="card">
+          <div class="card-head">
+            <h2>🎬 Shadowing videos <span class="kind" id="sv-count"></span></h2>
+            <div class="form-row" style="align-items:center;">
+              <div class="field" style="max-width:110px;"><label>Free limit</label>
+                <input type="number" id="ss-limit" min="0" /></div>
+              <button class="ghost" id="ss-save">Save</button>
+              <a class="ghost" href="shadow.html" target="_blank" rel="noopener" style="text-decoration:none; padding:0.55rem 0.9rem; border:1px solid var(--line); border-radius:8px;">+ Import a video ↗</a>
+            </div>
+          </div>
+          <p class="kind" style="margin:0 0 0.6rem;">Import videos (paste a YouTube link + subtitles) on the Shadow Chinese page itself — this tab manages them. A Free student can open the first N free shared videos (in the order below); 0 = unlimited. 👑 videos need Premium or a personal grant. Unshared videos are invisible to students; a student's own imports are never limited.</p>
+          <div class="form-row" style="margin-bottom:0.7rem;">
+            <div class="field"><label>Search</label>
+              <input id="svf-q" placeholder="Title…" autocomplete="off" /></div>
+            <div class="field" style="max-width:130px;"><label>Level</label>
+              <select id="svf-lvl">
+                <option value="-1">All levels</option>
+                ${[1,2,3,4,5,6].map(n => `<option value="${n}">HSK ${n}</option>`).join("")}
+                <option value="0">Unrated</option>
+              </select></div>
+            <div class="field" style="max-width:160px;"><label>Type</label>
+              <select id="svf-type">
+                <option value="all">All videos</option>
+                <option value="free">Free</option>
+                <option value="premium">👑 Premium</option>
+                <option value="private">Not shared</option>
+              </select></div>
+          </div>
+          <div id="sv-list"></div>
+        </div>
+
+        <div class="card">
+          <h2>🎟 Student access grants</h2>
+          <p class="kind" style="margin:0 0 0.7rem;">A grant unlocks the granted videos for Free accounts (beyond the free limit, or 👑 videos).</p>
+          <div class="form-row">
+            <div class="field" style="max-width:220px;"><label>Student</label>
+              <select id="sa-student">${onlyStudents.map(s => `<option value="${s.id}">${esc(studentName(s))}</option>`).join("") || `<option value="">— no students —</option>`}</select></div>
+            <div class="field" style="max-width:190px;"><label>Grant</label>
+              <select id="sa-scope">
+                <option value="video">One specific video</option>
+                <option value="level">All videos of a level</option>
+                <option value="all">The entire library</option>
+              </select></div>
+            <div class="field" style="max-width:240px;" id="sa-vid-w"><label>Video</label>
+              <select id="sa-video"></select></div>
+            <div class="field" style="max-width:120px; display:none;" id="sa-lvl-w"><label>Level</label>
+              <select id="sa-level">${[1,2,3,4,5,6].map(n => `<option value="${n}">HSK ${n}</option>`).join("")}</select></div>
+            <button id="sa-add">Grant access</button>
+          </div>
+          <p id="sa-msg" class="msg"></p>
+          <div id="sa-list" style="margin-top:0.5rem;"></div>
         </div>
         </div>
 
@@ -2215,6 +2276,7 @@
           { id: "courses", label: "Courses (" + (courses || []).length + ")", icon: "layers", group: "Content" },
           { id: "flash", label: "Flashcards" + (cards.length ? " (" + cards.length + ")" : ""), icon: "wallet-cards", group: "Content" },
           { id: "reading", label: "Reading" + ((rtRes.data || []).length ? " (" + rtRes.data.length + ")" : ""), icon: "library", group: "Content" },
+          { id: "shadow", label: "Shadowing" + ((svRes.data || []).length ? " (" + svRes.data.length + ")" : ""), icon: "video", group: "Content" },
           { id: "students", label: "Students (" + onlyStudents.length + ")" + (stuWarn ? " ⚠️" : ""), icon: "users", group: "Users" },
           { id: "progress", label: "Analytics", icon: "bar-chart-3", group: "Analytics" },
           { id: "announce", label: "Announce" + ((anns || []).length ? " (" + anns.length + ")" : ""), icon: "megaphone", group: "Community" },
@@ -2467,15 +2529,42 @@
         const limitIn = document.getElementById("rs-limit");
         limitIn.value = (rsRes.data && typeof rsRes.data.free_limit === "number") ? rsRes.data.free_limit : 5;
 
-        const lvlPill = n => `<span class="pill done" style="flex:none;">HSK ${n}</span>`;
+        const lvlPill = n => `<span class="hsk-pill hsk-${n}">HSK ${n}</span>`;
         const textTitle = id => (rtexts.find(t => t.id === id) || {}).title || "?";
 
+        // ---- search + filters (persisted per device) ----
+        const nrm = s => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        let rtf = { q: "", lvl: 0, type: "all" };
+        try { rtf = Object.assign(rtf, JSON.parse(localStorage.getItem("hub_rtfilter") || "{}")); } catch (e) {}
+        const rtfQ = document.getElementById("rtf-q");
+        const rtfL = document.getElementById("rtf-lvl");
+        const rtfT = document.getElementById("rtf-type");
+        rtfQ.value = rtf.q; rtfL.value = String(rtf.lvl || 0); rtfT.value = rtf.type;
+        if (rtfT.value !== rtf.type) { rtf.type = "all"; rtfT.value = "all"; }
+        function rtView() {
+          const q = nrm(rtf.q.trim());
+          return rtexts.filter(t => {
+            if (rtf.lvl && t.level !== Number(rtf.lvl)) return false;
+            if (rtf.type === "free" && t.tier === "premium") return false;
+            if (rtf.type === "premium" && t.tier !== "premium") return false;
+            if (rtf.type === "assigned" && t.audience !== "assigned") return false;
+            if (rtf.type === "draft" && t.published) return false;
+            if (q) {
+              const hay = nrm(t.title + " " + (t.category || "") + " " + (t.tags || []).join(" "));
+              if (!hay.includes(q)) return false;
+            }
+            return true;
+          });
+        }
+
         function renderRt() {
-          document.getElementById("rt-count").textContent = "(" + rtexts.length + ")";
+          const view = rtView();
+          document.getElementById("rt-count").textContent =
+            "(" + view.length + (view.length !== rtexts.length ? " of " + rtexts.length : "") + ")";
           const sel = document.getElementById("ra-text");
           sel.innerHTML = rtexts.map(t => `<option value="${t.id}">${esc(t.title)} (HSK ${t.level})</option>`).join("");
           if (rtRes.error) return;
-          listEl.innerHTML = rtexts.map(t => `
+          listEl.innerHTML = view.map(t => `
             <div class="lesson" style="flex-wrap:wrap;">
               ${lvlPill(t.level)}
               <div class="meta">
@@ -2491,16 +2580,21 @@
                 <option value="everyone" ${t.audience !== "assigned" ? "selected" : ""}>All students</option>
                 <option value="assigned" ${t.audience === "assigned" ? "selected" : ""}>Assigned only</option>
               </select>
-              <label style="font-size:0.82rem; color:var(--muted); cursor:pointer; white-space:nowrap;">
-                <input type="checkbox" class="rt-pub2" data-id="${t.id}" ${t.published ? "checked" : ""} /> pub</label>
+              <label style="font-size:0.82rem; color:var(--muted); cursor:pointer; white-space:nowrap; flex:none; margin-right:0.2rem;">
+                <input type="checkbox" class="rt-pub2" data-id="${t.id}" ${t.published ? "checked" : ""} /> published</label>
               <button class="ghost rt-save" data-id="${t.id}">Save</button>
               <button class="ghost rt-edit" data-id="${t.id}">✏️ Content</button>
               <button class="ghost rt-del" data-id="${t.id}" style="color:var(--danger); border-color:var(--danger);">Delete</button>
             </div>
             <div class="rt-editrow" data-id="${t.id}" style="display:none; padding:0.7rem 0 1rem; border-bottom:1px solid var(--line);"></div>`).join("")
-            || `<p class="empty">No reading texts yet — add one above.</p>`;
+            || `<p class="empty">${rtexts.length ? "No texts match these filters." : "No reading texts yet — add one above."}</p>`;
           wireRt();
         }
+
+        const saveRtf = () => { try { localStorage.setItem("hub_rtfilter", JSON.stringify(rtf)); } catch (e) {} };
+        rtfQ.addEventListener("input", debounce(() => { rtf.q = rtfQ.value; saveRtf(); renderRt(); }, 180));
+        rtfL.addEventListener("change", () => { rtf.lvl = Number(rtfL.value) || 0; saveRtf(); renderRt(); });
+        rtfT.addEventListener("change", () => { rtf.type = rtfT.value; saveRtf(); renderRt(); });
 
         function wireRt() {
           listEl.querySelectorAll(".rt-save").forEach(b => b.addEventListener("click", async () => {
@@ -2650,6 +2744,148 @@
         renderRa();
       })();
       // =============== END READING MANAGEMENT ===============
+
+      // ================= SHADOWING MANAGEMENT =================
+      (function () {
+        const listEl = document.getElementById("sv-list");
+        if (!listEl) return;
+        let svids = svRes.data || [];
+        let saRows = saRes.data || [];
+        const say = (txt, err) => { if (window.UI) UI.toast(txt); else alert(txt); void err; };
+        if (svRes.error) {
+          listEl.innerHTML = `<p class="empty">Run migration27 + migration28 first — then this tab manages Shadow Chinese.</p>`;
+        }
+        const limitIn = document.getElementById("ss-limit");
+        limitIn.value = (ssRes.data && typeof ssRes.data.free_limit === "number") ? ssRes.data.free_limit : 5;
+
+        const videoTitle = id => (svids.find(v => v.id === id) || {}).title || "?";
+
+        function svFiltered() {
+          const q = (document.getElementById("svf-q").value || "").trim().toLowerCase();
+          const lvl = parseInt(document.getElementById("svf-lvl").value, 10);
+          const type = document.getElementById("svf-type").value;
+          return svids.filter(v =>
+            (!q || (v.title || "").toLowerCase().includes(q)) &&
+            (lvl < 0 || (v.level || 0) === lvl) &&
+            (type === "all" || (type === "free" && v.published && v.tier !== "premium")
+              || (type === "premium" && v.tier === "premium")
+              || (type === "private" && !v.published)));
+        }
+        function renderSv() {
+          document.getElementById("sv-count").textContent = "(" + svids.length + ")";
+          const sel = document.getElementById("sa-video");
+          sel.innerHTML = svids.map(v => `<option value="${v.id}">${esc(v.title)}${v.level ? " (HSK " + v.level + ")" : ""}</option>`).join("");
+          if (svRes.error) return;
+          listEl.innerHTML = svFiltered().map(v => `
+            <div class="lesson" style="flex-wrap:wrap;">
+              <img src="https://img.youtube.com/vi/${esc(v.yt)}/default.jpg" alt="" style="width:64px; border-radius:6px; flex:none;" loading="lazy" />
+              <div class="meta">
+                <input class="sv-title" data-id="${v.id}" value="${esc(v.title)}" style="width:100%; font-weight:500;" />
+                <span class="kind">${v.published ? "shared with students" : "not shared"}${v.tier === "premium" ? " · 👑" : ""}</span>
+              </div>
+              <select class="sv-lvl" data-id="${v.id}" style="max-width:110px;" title="HSK level">
+                ${[0,1,2,3,4,5,6].map(n => `<option value="${n}" ${(v.level || 0) === n ? "selected" : ""}>${n ? "HSK " + n : "Unrated"}</option>`).join("")}
+              </select>
+              <input type="number" class="sv-ord" data-id="${v.id}" value="${v.sort_order ?? 0}" min="0" title="Order (free limit counts in this order)" style="max-width:70px; flex:none;" />
+              <select class="sv-tier" data-id="${v.id}" style="max-width:95px;" title="Free or Premium">
+                <option value="free" ${v.tier !== "premium" ? "selected" : ""}>Free</option>
+                <option value="premium" ${v.tier === "premium" ? "selected" : ""}>👑</option>
+              </select>
+              <label style="font-size:0.82rem; color:var(--muted); cursor:pointer; white-space:nowrap;">
+                <input type="checkbox" class="sv-pub" data-id="${v.id}" ${v.published ? "checked" : ""} /> shared</label>
+              <button class="ghost sv-save" data-id="${v.id}">Save</button>
+              <button class="ghost sv-del" data-id="${v.id}" style="color:var(--danger); border-color:var(--danger);">Delete</button>
+            </div>`).join("")
+            || `<p class="empty">No videos yet — open <a href="shadow.html" target="_blank" rel="noopener">Shadow Chinese</a> and paste a YouTube link.</p>`;
+          wireSv();
+        }
+        function wireSv() {
+          listEl.querySelectorAll(".sv-save").forEach(b => b.addEventListener("click", async () => {
+            const id = b.getAttribute("data-id");
+            const patch = {
+              title: listEl.querySelector(`.sv-title[data-id="${id}"]`).value.trim(),
+              level: parseInt(listEl.querySelector(`.sv-lvl[data-id="${id}"]`).value, 10) || 0,
+              sort_order: parseInt(listEl.querySelector(`.sv-ord[data-id="${id}"]`).value, 10) || 0,
+              tier: listEl.querySelector(`.sv-tier[data-id="${id}"]`).value,
+              published: listEl.querySelector(`.sv-pub[data-id="${id}"]`).checked
+            };
+            b.disabled = true;
+            const { error } = await sb.from("shadow_videos").update(patch).eq("id", id);
+            b.disabled = false;
+            if (error) { say("Could not save: " + error.message, true); return; }
+            Object.assign(svids.find(x => x.id === id) || {}, patch);
+            b.textContent = "Saved ✓"; setTimeout(() => (b.textContent = "Save"), 1200);
+            renderSv();
+          }));
+          listEl.querySelectorAll(".sv-del").forEach(b => b.addEventListener("click", async () => {
+            if (!confirm("Delete this video for ALL students? Their bookmarks and notes in it are removed too.")) return;
+            const id = b.getAttribute("data-id");
+            b.disabled = true;
+            const { error } = await sb.from("shadow_videos").delete().eq("id", id);
+            if (error) { b.disabled = false; say("Could not delete: " + error.message, true); return; }
+            svids = svids.filter(x => x.id !== id);
+            saRows = saRows.filter(r => r.video_id !== id);
+            renderSv(); renderSa();
+          }));
+        }
+        ["svf-q", "svf-lvl", "svf-type"].forEach(id =>
+          document.getElementById(id).addEventListener("input", renderSv));
+
+        document.getElementById("ss-save").addEventListener("click", async () => {
+          const v = Math.max(0, parseInt(limitIn.value, 10) || 0);
+          const { error } = await sb.from("shadow_settings").update({ free_limit: v }).eq("id", 1);
+          if (error) { say("Could not save the limit: " + error.message + (ssRes.error ? " — run migration28 first." : ""), true); return; }
+          say("Free limit saved ✓");
+        });
+
+        // ---- per-student grants ----
+        const saStudent = document.getElementById("sa-student");
+        const saScope = document.getElementById("sa-scope");
+        const saMsgEl = document.getElementById("sa-msg");
+        const saySa = (txt, err) => { saMsgEl.textContent = txt; saMsgEl.className = "msg" + (err ? " err" : ""); };
+        saScope.addEventListener("change", () => {
+          document.getElementById("sa-vid-w").style.display = saScope.value === "video" ? "" : "none";
+          document.getElementById("sa-lvl-w").style.display = saScope.value === "level" ? "" : "none";
+        });
+        function describeSa(g) {
+          if (g.video_id) return "🎬 " + videoTitle(g.video_id);
+          if (g.level) return "📚 All HSK " + g.level + " videos";
+          return "🌐 The entire shadowing library";
+        }
+        function renderSa() {
+          const sid = saStudent.value;
+          const mine = saRows.filter(r => r.student_id === sid);
+          document.getElementById("sa-list").innerHTML = mine.map(g => `
+            <div class="lesson">
+              <div class="meta"><div class="title" style="font-weight:500;">${esc(describeSa(g))}</div>
+                <span class="kind">granted ${new Date(g.created_at).toLocaleDateString()}</span></div>
+              <button class="ghost sa-del" data-id="${g.id}" style="color:var(--danger); border-color:var(--danger);">Remove</button>
+            </div>`).join("") || `<p class="empty">No personal grants for this student — they see shared videos, limited by their plan.</p>`;
+          document.querySelectorAll(".sa-del").forEach(b => b.addEventListener("click", async () => {
+            b.disabled = true;
+            const { error } = await sb.from("shadow_access").delete().eq("id", b.getAttribute("data-id"));
+            if (error) { b.disabled = false; saySa("Could not remove: " + error.message, true); return; }
+            saRows = saRows.filter(r => r.id !== b.getAttribute("data-id"));
+            renderSa();
+          }));
+        }
+        saStudent.addEventListener("change", renderSa);
+        document.getElementById("sa-add").addEventListener("click", async () => {
+          if (!saStudent.value) { saySa("Create a student first.", true); return; }
+          const row = { student_id: saStudent.value, video_id: null, level: null };
+          if (saScope.value === "video") row.video_id = document.getElementById("sa-video").value || null;
+          if (saScope.value === "level") row.level = parseInt(document.getElementById("sa-level").value, 10);
+          const { data: ins, error } = await sb.from("shadow_access").insert(row).select().single();
+          if (error) { saySa("Could not grant: " + error.message + (saRes.error ? " — run migration28 first." : ""), true); return; }
+          saRows.push(ins);
+          saySa("Access granted ✓");
+          renderSa();
+        });
+
+        renderSv();
+        renderSa();
+      })();
+      // =============== END SHADOWING MANAGEMENT ===============
 
       // ================= VISITORS + FULL BACKUP =================
       (function () {

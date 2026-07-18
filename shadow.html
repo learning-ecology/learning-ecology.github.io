@@ -76,6 +76,7 @@
   .vcard { background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden;
            cursor:pointer; transition:box-shadow .15s, transform .15s; position:relative; }
   .vcard:hover { box-shadow:0 6px 18px rgba(0,0,0,.12); transform:translateY(-2px); }
+  .vcard.locked { opacity:.68; }
   .vcard img { width:100%; aspect-ratio:16/9; object-fit:cover; display:block; background:#000; }
   .vcard .body { padding:10px 12px; }
   .vcard h3 { margin:0 0 6px; font-size:14.5px; line-height:1.35; }
@@ -257,6 +258,8 @@
             <option value="3">HSK 3</option><option value="4">HSK 4</option><option value="5">HSK 5</option><option value="6">HSK 6</option>
           </select>
           <label class="toggle" id="impPubWrap" hidden><input type="checkbox" id="impPub" checked> Chia sẻ cho mọi học viên</label>
+          <span class="group" id="impTierWrap" hidden><span class="mutetext">Gói:</span>
+            <select id="impTier"><option value="free">Free</option><option value="premium">👑 Premium</option></select></span>
         </div>
       </div>
     </div>
@@ -270,15 +273,16 @@
       </div>
     </div>
     <details id="manualBox" style="margin-top:10px">
-      <summary class="mutetext" style="cursor:pointer">📋 Hoặc dán phụ đề thủ công (SRT / VTT)</summary>
+      <summary class="mutetext" style="cursor:pointer">📋 Hoặc dán phụ đề thủ công (bản chép lời YouTube / SRT / VTT)</summary>
+      <div class="mutetext" style="margin-top:8px">💡 Cách nhanh nhất: trên YouTube mở phần mô tả video → <b>Show transcript / Hiện bản chép lời</b> → bôi đen toàn bộ → copy → dán vào ô dưới (dạng <code>0:07</code> rồi dòng chữ — dán được nguyên văn). Tệp SRT/VTT cũng dùng được.</div>
       <div class="row" style="margin-top:8px;align-items:flex-start">
         <div class="grow">
           <div class="mutetext">Phụ đề tiếng Trung (bắt buộc) — hoặc chọn tệp: <input type="file" id="subFileZh" accept=".srt,.vtt,.txt"></div>
-          <textarea id="subPasteZh" rows="6" placeholder="1&#10;00:00:01,000 --> 00:00:03,500&#10;你好，欢迎来到我的频道！"></textarea>
+          <textarea id="subPasteZh" rows="6" placeholder="0:07&#10;大家好&#10;0:08&#10;欢迎来到我的频道&#10;&#10;— hoặc SRT —&#10;1&#10;00:00:01,000 --> 00:00:03,500&#10;你好！"></textarea>
         </div>
         <div class="grow">
-          <div class="mutetext">Bản dịch (không bắt buộc) — SRT/VTT tiếng Việt hoặc Anh: <input type="file" id="subFileTr" accept=".srt,.vtt,.txt"></div>
-          <textarea id="subPasteTr" rows="6" placeholder="1&#10;00:00:01,000 --> 00:00:03,500&#10;Xin chào, chào mừng đến với kênh của mình!"></textarea>
+          <div class="mutetext">Bản dịch (không bắt buộc) — cùng định dạng, tiếng Việt hoặc Anh: <input type="file" id="subFileTr" accept=".srt,.vtt,.txt"></div>
+          <textarea id="subPasteTr" rows="6" placeholder="0:07&#10;Chào mọi người&#10;0:08&#10;Chào mừng đến với kênh của mình"></textarea>
         </div>
       </div>
       <div class="row" style="margin-top:8px"><button id="btnUseManual">✓ Dùng phụ đề đã dán</button><span id="manualInfo" class="mutetext"></span></div>
@@ -474,7 +478,7 @@ async function requireLogin() {
   let prof = null;
   try {
     const { data } = await sb.from('profiles')
-      .select('full_name, role, active_session, multi_device, suspended').eq('id', user.id).single();
+      .select('full_name, role, active_session, multi_device, suspended, plan, premium_until').eq('id', user.id).single();
     prof = data;
   } catch (e) {}
   if (prof && prof.suspended) { location.href = 'login.html'; return null; }
@@ -484,8 +488,10 @@ async function requireLogin() {
   }
   uid = user.id;
   isStaff = !!prof && (prof.role === 'teacher' || prof.role === 'owner' || prof.role === 'admin');
+  const _td = new Date().toISOString().slice(0, 10);
+  isPremium = isStaff || (!!prof && prof.plan === 'premium' && (!prof.premium_until || prof.premium_until >= _td));
   $('whoami').textContent = (prof && prof.full_name) || user.email || '';
-  if (isStaff) { $('navAdmin').hidden = false; $('impPubWrap').hidden = false; }
+  if (isStaff) { $('navAdmin').hidden = false; $('impPubWrap').hidden = false; $('impTierWrap').hidden = false; }
   return user;
 }
 
@@ -498,6 +504,59 @@ async function loadVideos() {
     VIDS = data;
     store('vids-cache', VIDS.map(v => ({ ...v, subs: (v.subs || []).slice(0, 400) })));
   } catch (e) { VIDS = read('vids-cache', []); }
+  freeOrderCache = null;
+}
+
+/* ================= access control (Free limit + 👑, like the Reading Hub) =================
+   Until migration28 runs, ACCESS_READY stays false and nothing is ever locked. */
+let isPremium = false, ACCESS_READY = false, GRANTS = [], FREE_LIMIT = 0, freeOrderCache = null;
+async function loadAccess() {
+  try {
+    const { data } = await sb.from('shadow_access').select('video_id, level').eq('student_id', uid);
+    GRANTS = data || [];
+  } catch (e) { GRANTS = []; }
+  try {
+    const { data } = await sb.from('shadow_settings').select('free_limit').eq('id', 1).maybeSingle();
+    if (data && typeof data.free_limit === 'number') { FREE_LIMIT = data.free_limit; ACCESS_READY = true; }
+  } catch (e) { /* migration28 not run yet → no locks */ }
+}
+function grantCovers(v) {
+  return GRANTS.some(g => g.video_id === v.id || (!g.video_id && (g.level == null || g.level === (v.level || 0))));
+}
+function freeRank(id) {
+  if (!freeOrderCache) {
+    freeOrderCache = VIDS.filter(x => x.published && x.tier !== 'premium')
+      .sort((a, b) => ((a.sort_order || 0) - (b.sort_order || 0)) || String(a.created_at).localeCompare(String(b.created_at)))
+      .map(x => x.id);
+  }
+  return freeOrderCache.indexOf(id);
+}
+function isLocked(v) {
+  if (!ACCESS_READY || isStaff || isPremium) return false;
+  if (v.created_by === uid) return false;             // own imports are never limited
+  if (grantCovers(v)) return false;
+  if (v.tier === 'premium') return true;
+  if (!FREE_LIMIT) return false;
+  return freeRank(v.id) >= FREE_LIMIT;
+}
+function showUpgrade(v) {
+  const reason = (v && v.tier === 'premium')
+    ? 'Video này thuộc gói Premium. Nâng cấp để mở khóa toàn bộ thư viện luyện nói.'
+    : 'Bạn đã dùng hết ' + FREE_LIMIT + ' video miễn phí. Nâng cấp Premium để luyện không giới hạn — hoặc nhờ giáo viên mở thêm video cho bạn.';
+  let ov = document.getElementById('upgOv');
+  if (ov) ov.remove();
+  ov = document.createElement('div');
+  ov.id = 'upgOv';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:400;background:rgba(10,16,28,.6);display:flex;align-items:center;justify-content:center;padding:16px;';
+  ov.innerHTML = '<div style="max-width:400px;width:100%;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:16px;padding:26px 22px;text-align:center;box-shadow:0 30px 70px -30px rgba(0,0,0,.6);">' +
+    '<div style="font-size:38px;">👑</div>' +
+    '<h3 style="margin:8px 0 6px;font-size:19px;">Nội dung Premium</h3>' +
+    '<p style="color:var(--muted);font-size:14px;line-height:1.55;margin:0 0 16px;">' + reason + '</p>' +
+    '<a href="https://zalo.me/0961923983" target="_blank" rel="noopener" style="display:inline-block;background:linear-gradient(135deg,#f4d68a,#d9a53c);color:#132743;font-weight:800;padding:10px 20px;border-radius:12px;text-decoration:none;">💬 Liên hệ nâng cấp Premium</a>' +
+    '<div style="margin-top:12px;"><button id="upgX" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;">Đóng</button></div></div>';
+  document.body.appendChild(ov);
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  ov.querySelector('#upgX').addEventListener('click', () => ov.remove());
 }
 
 /* ================= cloud: per-video progress (bookmarks, notes, done) ================= */
@@ -997,6 +1056,41 @@ function parseSrt(text) {
   }
   return cues.sort((x, y) => x.a - y.a);
 }
+/* YouTube transcript-panel paste: "0:07" on its own line (or "0:07 大家好"),
+   text on the following line(s); no end times — each cue ends where the next starts */
+function parseTranscript(text) {
+  const TS = /^(?:(\d{1,2}):)?(\d{1,3}):(\d{2})(?:\s+(.*))?$/;
+  const cues = [];
+  let cur = null;
+  for (let line of String(text || '').replace(/\r/g, '').split('\n')) {
+    line = line.trim();
+    if (!line) continue;
+    const m = line.match(TS);
+    if (m && !/-->/.test(line)) {
+      if (cur && cur.zh.length) cues.push(cur);
+      const sec = (+(m[1] || 0)) * 3600 + (+m[2]) * 60 + (+m[3]);
+      cur = { a: sec, zh: [] };
+      if (m[4]) cur.zh.push(m[4].trim());
+    } else if (cur) {
+      cur.zh.push(line);
+    }
+  }
+  if (cur && cur.zh.length) cues.push(cur);
+  return cues.map((c, i) => {
+    const body = c.zh;
+    const zhLines = body.filter(l => CJK.test(l));
+    const trLines = body.filter(l => !CJK.test(l));
+    const out = { a: c.a, b: i + 1 < cues.length ? cues[i + 1].a : c.a + 4,
+                  zh: (zhLines.length ? zhLines : body).join(' ') };
+    if (zhLines.length && trLines.length) out.tr = trLines.join(' ');
+    return out;
+  }).filter(c => c.zh);
+}
+/* accept SRT/VTT first, then the transcript-panel format */
+function parseSubs(text) {
+  const srt = parseSrt(text);
+  return srt.length ? srt : parseTranscript(text);
+}
 /* attach a translation cue list to the Chinese cues by max time-overlap */
 function mergeTr(cues, trCues) {
   if (!trCues || !trCues.length) return;
@@ -1081,9 +1175,9 @@ $('subFileZh').addEventListener('change', () => readFileInto($('subFileZh'), $('
 $('subFileTr').addEventListener('change', () => readFileInto($('subFileTr'), $('subPasteTr')));
 $('btnUseManual').addEventListener('click', () => {
   if (!IMP) return;
-  const cues = parseSrt($('subPasteZh').value);
-  if (!cues.length) { $('manualInfo').textContent = '✗ Chưa đọc được phụ đề — cần định dạng SRT/VTT (có dòng thời gian 00:00:01,000 --> …).'; return; }
-  mergeTr(cues, parseSrt($('subPasteTr').value));
+  const cues = parseSubs($('subPasteZh').value);
+  if (!cues.length) { $('manualInfo').textContent = '✗ Chưa đọc được phụ đề — dán tệp SRT/VTT hoặc bản chép lời của YouTube (dòng "0:07" rồi dòng chữ).'; return; }
+  mergeTr(cues, parseSubs($('subPasteTr').value));
   IMP.cues = normalizeCues(cues);
   $('manualInfo').textContent = '✓ Đã đọc ' + IMP.cues.length + ' câu' + (IMP.cues.some(c => c.tr) ? ' (có bản dịch)' : '') + '.';
   $('btnSaveVideo').disabled = false;
@@ -1095,6 +1189,10 @@ $('btnSaveVideo').addEventListener('click', async () => {
   $('impSaveInfo').textContent = '⏳ Đang lưu…';
   const row = { yt: IMP.yt, title: ($('impTitle').value || IMP.title || 'Video ' + IMP.yt).trim(),
     level: +$('impLevel').value, subs: IMP.cues, published: isStaff ? $('impPub').checked : false, created_by: uid };
+  if (ACCESS_READY) {
+    row.tier = isStaff ? $('impTier').value : 'free';
+    row.sort_order = VIDS.reduce((m, v) => Math.max(m, v.sort_order || 0), 0) + 1;
+  }
   try {
     const { data, error } = await sb.from('shadow_videos').insert(row).select().single();
     if (error) throw error;
@@ -1126,6 +1224,7 @@ function loadYtApi() {
   return ytReadyq;
 }
 async function openVideo(v) {
+  if (isLocked(v)) { showUpgrade(v); return; }
   CUR = v;
   cues = normalizeCues((v.subs || []).map(c => ({ ...c })));
   activeIdx = -1; LOOP = -1;
@@ -1694,9 +1793,15 @@ $('lvChips').addEventListener('click', e => {
   libLvl = +c.dataset.v; renderLibrary();
 });
 $('libSearch').addEventListener('input', renderLibrary);
-function visibleVids() { return VIDS.filter(v => v.published || v.created_by === uid); }
+function visibleVids() {
+  const list = VIDS.filter(v => v.published || v.created_by === uid);
+  if (ACCESS_READY)
+    list.sort((a, b) => ((a.sort_order || 0) - (b.sort_order || 0)) || String(a.created_at).localeCompare(String(b.created_at)));
+  return list;
+}
 function renderLibrary() {
   renderLibChips();
+  freeOrderCache = null;
   const q = $('libSearch').value.trim().toLowerCase();
   let list = visibleVids();
   if (libLvl >= 0) list = list.filter(v => (v.level || 0) === libLvl);
@@ -1705,10 +1810,12 @@ function renderLibrary() {
     const subs = v.subs || [];
     const dur = subs.length ? subs[subs.length - 1].b : 0;
     const p = MYPROG[v.id];
-    return '<div class="vcard" data-id="' + v.id + '">' +
+    const lock = isLocked(v);
+    return '<div class="vcard' + (lock ? ' locked' : '') + '" data-id="' + v.id + '">' +
       '<img loading="lazy" src="https://img.youtube.com/vi/' + escH(v.yt) + '/mqdefault.jpg" alt="">' +
       (dur ? '<span class="dur">' + fmtT(dur) + '</span>' : '') +
-      (p && p.done ? '<span class="done">✓ Xong</span>' : '') +
+      (lock ? '<span class="done" style="background:linear-gradient(135deg,#f4d68a,#d9a53c);color:#713f12;">👑</span>'
+            : (p && p.done ? '<span class="done">✓ Xong</span>' : '')) +
       '<div class="body"><h3>' + escH(v.title) + '</h3>' +
       '<div class="meta"><span class="lv lv' + (v.level || 0) + '">' + (v.level ? 'HSK ' + v.level : 'chưa xếp') + '</span>' +
       '<span>' + subs.length + ' câu</span>' +
@@ -1882,6 +1989,12 @@ function renderAdmin() {
       '<input class="grow admTitle" value="' + escH(v.title) + '" style="min-width:160px">' +
       '<select class="admLvl">' + [0, 1, 2, 3, 4, 5, 6].map(l =>
         '<option value="' + l + '"' + ((v.level || 0) === l ? ' selected' : '') + '>' + (l ? 'HSK ' + l : 'Chưa xếp') + '</option>').join('') + '</select>' +
+      (ACCESS_READY
+        ? '<input type="number" class="admOrd" value="' + (v.sort_order || 0) + '" min="0" style="width:64px" title="Thứ tự hiển thị — giới hạn Free đếm theo thứ tự này">' +
+          '<select class="admTier" title="Free hay Premium">' +
+            '<option value="free"' + (v.tier !== 'premium' ? ' selected' : '') + '>Free</option>' +
+            '<option value="premium"' + (v.tier === 'premium' ? ' selected' : '') + '>👑 Premium</option></select>'
+        : '') +
       '<label class="toggle"><input type="checkbox" class="admPub"' + (v.published ? ' checked' : '') + '> chia sẻ</label>' +
       '<span class="mutetext">' + (v.subs || []).length + ' câu</span>' +
       '<button class="small admSave">💾 Lưu</button>' +
@@ -1894,6 +2007,10 @@ $('admList').addEventListener('click', async e => {
   if (e.target.closest('.admSave')) {
     const patch = { title: row.querySelector('.admTitle').value.trim(),
       level: +row.querySelector('.admLvl').value, published: row.querySelector('.admPub').checked };
+    if (ACCESS_READY) {
+      patch.sort_order = Math.max(0, +row.querySelector('.admOrd').value || 0);
+      patch.tier = row.querySelector('.admTier').value;
+    }
     const { error } = await sb.from('shadow_videos').update(patch).eq('id', id);
     if (error) { toast('✗ ' + error.message); return; }
     const v = VIDS.find(x => x.id === id); Object.assign(v, patch);
@@ -1914,7 +2031,7 @@ $('admList').addEventListener('click', async e => {
   if (!user) return;
   loadPrefs();
   $('impStatus').textContent = '⏳ Đang tải dữ liệu tài khoản…';
-  await Promise.all([loadVideos(), loadCloudDict(), loadSettings(), pullVocab(), pullDays(), pullGoals(), loadMyProgress()]);
+  await Promise.all([loadVideos(), loadCloudDict(), loadSettings(), loadAccess(), pullVocab(), pullDays(), pullGoals(), loadMyProgress()]);
   await loadDict();
   rebuildDictIndex();
   $('impStatus').textContent = '';
