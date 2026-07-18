@@ -1,0 +1,1583 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Đọc hiểu tiếng Trung — 中文阅读 · Learning Ecology</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.26.0/dist/index.min.js"></script>
+<style>
+  :root {
+    --bg:#f4f6fb; --panel:#fff; --ink:#1c2740; --muted:#64708a; --line:#dfe4ef;
+    --accent:#1d5fc2; --accent-soft:#e8f0fe; --ok:#178a4c; --warn:#c05600;
+    --chart:#2a78d6; --chart-grid:#e3e8f2;
+    /* HSK level colors (spec: 1 green, 2 blue, 3 yellow, 4 orange, 5 red, 6 purple) */
+    --l1:#178a4c; --l1bg:#e2f4e9; --l2:#1d5fc2; --l2bg:#e4edfb;
+    --l3:#9a7b00; --l3bg:#faf3d0; --l4:#c05600; --l4bg:#fdeadc;
+    --l5:#c62f2f; --l5bg:#fde3e3; --l6:#7c3aad; --l6bg:#f1e5fb;
+    --hz:26px; --py:14px; --tr:15px;
+    --hz-font:"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#10141f; --panel:#1a2130; --ink:#e8ecf5; --muted:#93a0b8; --line:#2c3549;
+      --accent:#6ea8ff; --accent-soft:#1e2c47; --ok:#4cc98a; --warn:#ffb066;
+      --chart:#3987e5; --chart-grid:#2c3549;
+      --l1:#4cc98a; --l1bg:#173226; --l2:#6ea8ff; --l2bg:#1c2b47;
+      --l3:#e8c74a; --l3bg:#33301a; --l4:#ffa05e; --l4bg:#38281c;
+      --l5:#ff7b7b; --l5bg:#3a2020; --l6:#cfa0f0; --l6bg:#30203f;
+    }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:15px/1.5 -apple-system,"Segoe UI",Roboto,sans-serif; }
+  a { color:var(--accent); }
+  button { border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           border-radius:8px; padding:7px 13px; font-size:14px; cursor:pointer; }
+  button:hover { border-color:var(--accent); color:var(--accent); }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.primary:hover { filter:brightness(1.1); color:#fff; }
+  button.small { padding:4px 9px; font-size:12.5px; border-radius:6px; }
+  input, select, textarea { border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           border-radius:8px; padding:7px 10px; font-size:14px; }
+  input:focus, select:focus, textarea:focus { outline:2px solid var(--accent); border-color:transparent; }
+  textarea { width:100%; resize:vertical; line-height:1.6; }
+
+  header { background:var(--panel); border-bottom:1px solid var(--line); padding:10px 18px;
+           display:flex; align-items:center; gap:14px; flex-wrap:wrap; position:sticky; top:0; z-index:20; }
+  header h1 { margin:0; font-size:18px; white-space:nowrap; }
+  header h1 span { color:var(--accent); }
+  nav { display:flex; gap:4px; flex-wrap:wrap; }
+  nav button { border:none; background:none; padding:7px 12px; border-radius:8px; font-size:14px; color:var(--muted); }
+  nav button.active { background:var(--accent-soft); color:var(--accent); font-weight:600; }
+  nav button .due { background:var(--l5); color:#fff; border-radius:9px; font-size:11px; padding:0 6px; margin-left:4px; }
+
+  main { max-width:1200px; margin:0 auto; padding:16px 18px 70px; }
+  .view { display:none; }
+  .view.active { display:block; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:14px; }
+  .row { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; }
+  .grow { flex:1; }
+  h2 { font-size:17px; margin:4px 0 12px; }
+  h3 { font-size:15px; margin:2px 0 10px; }
+  .mutetext { color:var(--muted); font-size:13px; }
+
+  /* level badges */
+  .lv { display:inline-block; font-size:11.5px; font-weight:700; border-radius:6px; padding:1px 7px; white-space:nowrap; }
+  .lv1 { color:var(--l1); background:var(--l1bg); } .lv2 { color:var(--l2); background:var(--l2bg); }
+  .lv3 { color:var(--l3); background:var(--l3bg); } .lv4 { color:var(--l4); background:var(--l4bg); }
+  .lv5 { color:var(--l5); background:var(--l5bg); } .lv6 { color:var(--l6); background:var(--l6bg); }
+  .lv0 { color:var(--muted); background:var(--bg); }
+
+  /* library */
+  .libgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:12px; }
+  .libcard { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px;
+             cursor:pointer; transition:box-shadow .15s, transform .15s; position:relative; }
+  .libcard:hover { box-shadow:0 6px 18px rgba(0,0,0,.12); transform:translateY(-2px); }
+  .libcard h3 { margin:0 0 6px; font-family:var(--hz-font); font-size:17px; }
+  .libcard .meta { display:flex; gap:6px; flex-wrap:wrap; align-items:center; font-size:12px; color:var(--muted); }
+  .libcard .done { position:absolute; top:10px; right:12px; color:var(--ok); font-weight:700; }
+  .tag { background:var(--bg); border-radius:6px; padding:1px 7px; font-size:11.5px; color:var(--muted); }
+  .chip { border:1px solid var(--line); background:var(--panel); border-radius:16px; padding:4px 12px; font-size:13px; cursor:pointer; }
+  .chip.active { background:var(--accent-soft); border-color:var(--accent); color:var(--accent); font-weight:600; }
+
+  /* reader */
+  #readerStage { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px 20px; }
+  #readerStage.fakefs { position:fixed; inset:0; z-index:999; border:none; border-radius:0; overflow-y:auto; padding:44px 6vw 120px; }
+  #readerStage:fullscreen, #readerStage:-webkit-full-screen { border:none; border-radius:0; overflow-y:auto; padding:44px 6vw 120px; background:var(--panel); }
+  .rtoolbar { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; padding:10px 14px;
+              background:var(--panel); border:1px solid var(--line); border-radius:12px; margin-bottom:12px; font-size:13px; }
+  #readerStage.fakefs .rtoolbar, #readerStage:fullscreen .rtoolbar, #readerStage:-webkit-full-screen .rtoolbar {
+      position:fixed; left:50%; transform:translateX(-50%); bottom:14px; z-index:6; width:max-content; max-width:96vw;
+      box-shadow:0 6px 24px rgba(0,0,0,.3); opacity:.4; transition:opacity .2s; }
+  #readerStage.fakefs .rtoolbar:hover, #readerStage:fullscreen .rtoolbar:hover, #readerStage:-webkit-full-screen .rtoolbar:hover { opacity:1; }
+  .rtoolbar .group { display:inline-flex; align-items:center; gap:6px; color:var(--muted); }
+  .rtoolbar input[type=range] { width:90px; accent-color:var(--accent); }
+  .toggle { display:inline-flex; align-items:center; gap:5px; cursor:pointer; color:var(--muted); font-size:13px; }
+
+  #rTitle { font-family:var(--hz-font); font-size:calc(var(--hz) * 0.85); margin:0 0 4px; }
+  #rMeta { margin-bottom:14px; }
+  .rpara { display:flex; flex-wrap:wrap; align-items:flex-end; row-gap:calc(var(--py) * 1.1);
+           margin:0 0 calc(var(--hz) * 0.5); font-family:var(--hz-font); position:relative; }
+  .rpara.below { align-items:flex-start; }
+  .tok { display:inline-flex; flex-direction:column; align-items:center; border-radius:6px; padding:0 1px; }
+  .rpara.below .tok { flex-direction:column-reverse; }
+  .tok.zh { cursor:pointer; }
+  .tok.zh:hover { background:var(--accent-soft); }
+  body.colors-on .tok.l1 .hz { color:var(--l1); } body.colors-on .tok.l2 .hz { color:var(--l2); }
+  body.colors-on .tok.l3 .hz { color:var(--l3); } body.colors-on .tok.l4 .hz { color:var(--l4); }
+  body.colors-on .tok.l5 .hz { color:var(--l5); } body.colors-on .tok.l6 .hz { color:var(--l6); }
+  body.colors-on .tok.zh { border-bottom:3px solid transparent; }
+  body.colors-on .tok.l1 { border-bottom-color:var(--l1); } body.colors-on .tok.l2 { border-bottom-color:var(--l2); }
+  body.colors-on .tok.l3 { border-bottom-color:var(--l3); } body.colors-on .tok.l4 { border-bottom-color:var(--l4); }
+  body.colors-on .tok.l5 { border-bottom-color:var(--l5); } body.colors-on .tok.l6 { border-bottom-color:var(--l6); }
+  .tok .py { font-size:var(--py); line-height:1.25; color:var(--muted);
+             font-family:"Helvetica Neue",Arial,sans-serif; white-space:nowrap; padding:0 2px; }
+  body.py-hidden .tok .py { display:none; }
+  .tok .hz { font-size:var(--hz); line-height:1.2; white-space:nowrap; }
+  .tok.saved .hz { text-decoration:underline dotted; text-underline-offset:4px; }
+  .rtrans { font-size:var(--tr); color:var(--muted); margin:calc(-1 * var(--hz) * 0.25) 0 calc(var(--hz) * 0.5);
+            border-left:3px solid var(--line); padding-left:10px; }
+  body.tr-hidden .rtrans { display:none; }
+  .pplay { position:absolute; left:-4px; top:-4px; opacity:0; font-size:13px; padding:2px 7px; }
+  .rpara:hover .pplay { opacity:.8; }
+  .legend { display:flex; gap:8px; flex-wrap:wrap; font-size:12px; margin-top:10px; }
+
+  /* word popup */
+  #popup { position:fixed; z-index:1200; background:var(--panel); border:1px solid var(--line); border-radius:12px;
+           box-shadow:0 10px 34px rgba(0,0,0,.25); padding:14px 16px; width:300px; max-width:92vw; display:none; }
+  #popup .w { font-family:var(--hz-font); font-size:30px; margin-right:8px; }
+  #popup .p { color:var(--accent); font-size:16px; }
+  #popup .m { margin:8px 0; font-size:14px; }
+  #popup .ex { font-family:var(--hz-font); font-size:13.5px; color:var(--muted); margin:8px 0;
+               border-left:3px solid var(--line); padding-left:8px; }
+  #popup .row { gap:6px; }
+  #popup .close { position:absolute; top:6px; right:8px; border:none; background:none; font-size:15px; color:var(--muted); padding:2px 6px; }
+
+  /* vocab */
+  .vword { display:flex; gap:12px; align-items:flex-start; padding:12px 4px; border-bottom:1px solid var(--line); }
+  .vword .w { font-family:var(--hz-font); font-size:24px; min-width:86px; }
+  .vword .p { color:var(--accent); font-size:13.5px; }
+  .vword .note { font-size:13px; color:var(--warn); margin-top:3px; }
+  .vword .ex { font-family:var(--hz-font); font-size:13px; color:var(--muted); margin-top:3px; }
+  .status { font-size:11.5px; border-radius:6px; padding:1px 7px; font-weight:600; }
+  .status.learning { color:var(--l4); background:var(--l4bg); }
+  .status.known { color:var(--l1); background:var(--l1bg); }
+  .status.new { color:var(--muted); background:var(--bg); }
+
+  /* flashcards */
+  #card { background:var(--panel); border:1px solid var(--line); border-radius:16px; min-height:280px;
+          display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px;
+          padding:28px; cursor:pointer; text-align:center; }
+  #card .big { font-family:var(--hz-font); font-size:64px; line-height:1.2; }
+  #card .mid { font-size:22px; color:var(--accent); }
+  #card .small { font-size:15px; color:var(--muted); max-width:520px; }
+  #card .exs { font-family:var(--hz-font); font-size:17px; color:var(--muted); }
+  .grades { display:flex; gap:8px; justify-content:center; margin-top:12px; flex-wrap:wrap; }
+  .grades button { min-width:86px; padding:10px 8px; font-size:14px; }
+  .grades .g0 { color:var(--l5); } .grades .g1 { color:var(--l4); }
+  .grades .g2 { color:var(--l2); } .grades .g3 { color:var(--l1); }
+  .grades small { display:block; color:var(--muted); font-size:11px; margin-top:2px; }
+
+  /* dashboard */
+  .tiles { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; margin-bottom:14px; }
+  .tile { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+  .tile .n { font-size:26px; font-weight:700; }
+  .tile .l { font-size:12.5px; color:var(--muted); }
+  .charts { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px; }
+  .chart { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+  .chart h3 { margin:0 0 2px; font-size:14px; }
+  .chart .sub { font-size:12px; color:var(--muted); margin-bottom:6px; }
+  .chart svg { width:100%; height:130px; display:block; }
+  .chart .bar { fill:var(--chart); }
+  .chart .bar:hover { opacity:.75; }
+  .chart .gline { stroke:var(--chart-grid); stroke-width:1; }
+  .chart .lbl { fill:var(--muted); font-size:9.5px; }
+  .chart .vlbl { fill:var(--ink); font-size:10px; font-weight:600; }
+  .chart .area { fill:var(--chart); opacity:.18; }
+  .chart .line { stroke:var(--chart); stroke-width:2; fill:none; }
+  .chart .dot { fill:var(--chart); }
+
+  /* admin */
+  .atable { width:100%; border-collapse:collapse; font-size:13.5px; }
+  .atable th, .atable td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  .atable th { color:var(--muted); font-weight:600; font-size:12px; }
+  .keypanel { margin-top:10px; padding:12px 14px; border:1px dashed var(--accent); border-radius:10px;
+              background:var(--accent-soft); font-size:13.5px; }
+  .keypanel ol { margin:8px 0; padding-left:20px; }
+
+  #toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--ink); color:var(--bg);
+           border-radius:10px; padding:10px 18px; font-size:14px; z-index:1500; opacity:0; transition:opacity .3s; pointer-events:none; }
+  #toast.show { opacity:.95; }
+  .offline { color:var(--l5); font-weight:600; }
+
+  @media (max-width:640px) {
+    main { padding:10px 10px 60px; }
+    header { padding:8px 10px; }
+    .vword .w { min-width:60px; font-size:20px; }
+    #card .big { font-size:44px; }
+  }
+</style>
+</head>
+<body class="colors-on">
+<header>
+  <h1>📖 <span>Đọc hiểu</span> 中文阅读</h1>
+  <nav id="nav">
+    <button data-v="library" class="active">📚 Thư viện</button>
+    <button data-v="reader">📖 Đang đọc</button>
+    <button data-v="vocab">📒 Từ vựng</button>
+    <button data-v="cards">🃏 Thẻ nhớ<span class="due" id="dueBadge" hidden>0</span></button>
+    <button data-v="dash">📊 Tổng quan</button>
+    <button data-v="admin" id="navAdmin" hidden>⚙️ Quản lý</button>
+  </nav>
+  <span style="margin-left:auto" class="mutetext" id="whoami"></span>
+  <a href="dashboard.html" style="font-size:13px;white-space:nowrap">← Bảng điều khiển</a>
+</header>
+<main>
+
+  <!-- ============ LIBRARY ============ -->
+  <section class="view active" id="view-library">
+    <div class="panel row">
+      <div class="row" id="lvlChips">
+        <span class="chip active" data-l="0">Tất cả</span>
+        <span class="chip" data-l="1">HSK 1</span><span class="chip" data-l="2">HSK 2</span>
+        <span class="chip" data-l="3">HSK 3</span><span class="chip" data-l="4">HSK 4</span>
+        <span class="chip" data-l="5">HSK 5</span><span class="chip" data-l="6">HSK 6</span>
+      </div>
+      <input id="libSearch" class="grow" placeholder="Tìm theo tên bài, chủ đề…" style="min-width:180px">
+    </div>
+    <div id="dictStatus" class="mutetext" style="margin-bottom:10px"></div>
+    <div class="libgrid" id="libGrid"></div>
+  </section>
+
+  <!-- ============ READER ============ -->
+  <section class="view" id="view-reader">
+    <div class="rtoolbar" id="rtb">
+      <span class="group">Pinyin:
+        <select id="pyPos">
+          <option value="above">Trên chữ</option>
+          <option value="below">Dưới chữ</option>
+          <option value="hidden">Ẩn</option>
+        </select>
+      </span>
+      <label class="toggle"><input type="checkbox" id="tgTr" checked> Bản dịch</label>
+      <label class="toggle"><input type="checkbox" id="tgColors" checked> Màu HSK</label>
+      <label class="toggle"><input type="checkbox" id="tgTips" checked> Chú thích từ</label>
+      <label class="toggle"><input type="checkbox" id="tgAudio" checked> Âm thanh khi nhấp</label>
+      <span class="group">字 <input type="range" id="szHz" min="16" max="130" value="26"><span id="szHzV">26</span></span>
+      <span class="group">pīn <input type="range" id="szPy" min="9" max="64" value="14"><span id="szPyV">14</span></span>
+      <span class="group">Dịch <input type="range" id="szTr" min="10" max="40" value="15"><span id="szTrV">15</span></span>
+      <span class="group">
+        <select id="preset">
+          <option value="">— Chế độ —</option>
+          <option value="26,14,15">Tự học</option>
+          <option value="40,20,18">Lớp học</option>
+          <option value="64,30,24">Trình chiếu</option>
+          <option value="96,44,30">Máy chiếu lớn</option>
+        </select>
+      </span>
+      <span class="group">Tốc độ đọc <input type="range" id="aRate" min="0.5" max="1.3" step="0.05" value="0.9"></span>
+      <button class="small" id="btnReadAll">🔊 Đọc cả bài</button>
+      <button class="small" id="btnPresent">⛶ Trình chiếu</button>
+    </div>
+    <div id="readerStage">
+      <h2 id="rTitle"></h2>
+      <div id="rMeta" class="row mutetext"></div>
+      <div id="rBody"></div>
+      <div class="row" style="margin-top:16px">
+        <button id="btnPrevText" class="small">← Bài trước</button>
+        <button id="btnComplete" class="primary small">✓ Đã đọc xong</button>
+        <button id="btnNextText" class="small">Bài sau →</button>
+        <span class="mutetext">Phím ← → chuyển bài · Esc thoát trình chiếu</span>
+      </div>
+      <div class="legend" id="rLegend">
+        <span class="lv lv1">HSK 1</span><span class="lv lv2">HSK 2</span><span class="lv lv3">HSK 3</span>
+        <span class="lv lv4">HSK 4</span><span class="lv lv5">HSK 5</span><span class="lv lv6">HSK 6</span>
+        <span class="lv lv0">ngoài HSK</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ VOCAB ============ -->
+  <section class="view" id="view-vocab">
+    <div class="panel row">
+      <input id="vSearch" placeholder="Tìm từ, pinyin, nghĩa…" class="grow" style="min-width:160px">
+      <select id="vLvl">
+        <option value="0">Mọi cấp HSK</option>
+        <option value="1">HSK 1</option><option value="2">HSK 2</option><option value="3">HSK 3</option>
+        <option value="4">HSK 4</option><option value="5">HSK 5</option><option value="6">HSK 6</option>
+        <option value="-1">Ngoài HSK</option>
+      </select>
+      <select id="vStatus">
+        <option value="">Mọi trạng thái</option>
+        <option value="new">Mới lưu</option>
+        <option value="learning">Đang học</option>
+        <option value="known">Đã thuộc</option>
+      </select>
+      <select id="vSort">
+        <option value="date">Mới lưu trước</option>
+        <option value="dateAsc">Cũ nhất trước</option>
+        <option value="level">Theo cấp HSK</option>
+      </select>
+      <span class="mutetext" id="vCount"></span>
+    </div>
+    <div class="panel" id="vList"></div>
+  </section>
+
+  <!-- ============ FLASHCARDS ============ -->
+  <section class="view" id="view-cards">
+    <div class="panel row">
+      <span class="group">Chế độ:
+        <select id="fcMode">
+          <option value="ce">Chữ Hán → Nghĩa</option>
+          <option value="ec">Nghĩa → Chữ Hán</option>
+          <option value="cp">Chữ Hán → Pinyin</option>
+          <option value="listen">👂 Nghe → Từ</option>
+        </select>
+      </span>
+      <span class="mutetext" id="fcInfo"></span>
+      <button id="fcStart" class="primary">Bắt đầu ôn tập</button>
+    </div>
+    <div id="fcArea" hidden>
+      <div id="card"></div>
+      <div class="grades" id="fcGrades" hidden>
+        <button class="g0" data-g="0">Lại<small id="ivl0"></small></button>
+        <button class="g1" data-g="1">Khó<small id="ivl1"></small></button>
+        <button class="g2" data-g="2">Nhớ<small id="ivl2"></small></button>
+        <button class="g3" data-g="3">Dễ<small id="ivl3"></small></button>
+      </div>
+      <p class="mutetext" style="text-align:center" id="fcProgress"></p>
+    </div>
+    <div class="panel" id="fcDone" hidden></div>
+  </section>
+
+  <!-- ============ DASHBOARD ============ -->
+  <section class="view" id="view-dash">
+    <h2>Thống kê đọc</h2>
+    <div class="tiles" id="readTiles"></div>
+    <h2>Thống kê từ vựng</h2>
+    <div class="tiles" id="vocabTiles"></div>
+    <h2>Biểu đồ tiến bộ</h2>
+    <div class="charts" id="chartArea"></div>
+  </section>
+
+  <!-- ============ ADMIN ============ -->
+  <section class="view" id="view-admin">
+    <div class="panel">
+      <h2>➕ Thêm / sửa bài đọc</h2>
+      <input type="hidden" id="aId">
+      <div class="row" style="margin-bottom:8px">
+        <input id="aTitle" placeholder="Tiêu đề (chữ Hán)" class="grow" style="min-width:200px">
+        <select id="aLevel">
+          <option value="1">HSK 1</option><option value="2">HSK 2</option><option value="3">HSK 3</option>
+          <option value="4">HSK 4</option><option value="5">HSK 5</option><option value="6">HSK 6</option>
+        </select>
+        <input id="aTags" placeholder="Chủ đề, cách nhau bởi dấu phẩy" style="min-width:180px">
+      </div>
+      <textarea id="aText" rows="5" placeholder="Nội dung chữ Hán (mỗi đoạn một dòng)" style="font-family:var(--hz-font)"></textarea>
+      <textarea id="aTrans" rows="3" placeholder="Bản dịch tiếng Anh / tiếng Việt (không bắt buộc — mỗi đoạn một dòng, khớp thứ tự)" style="margin-top:8px"></textarea>
+      <div class="row" style="margin-top:8px">
+        <button class="primary" id="aSave">Lưu bài đọc</button>
+        <button id="aCancel" hidden>Hủy sửa</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>📥 Nhập hàng loạt</h2>
+      <p class="mutetext">Dán mảng JSON: <code>[{"title":"…","level":1,"text":"…","translation":"…","tags":["…"]}]</code></p>
+      <textarea id="bulkBox" rows="4" placeholder='[{"title":"我的一天","level":1,"text":"我早上七点起床。","translation":"…","tags":["daily life"]}]'></textarea>
+      <div class="row" style="margin-top:8px">
+        <button class="primary" id="bulkGo">Nhập</button><span id="bulkMsg" class="mutetext"></span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>📄 Danh sách bài đọc</h2>
+      <table class="atable" id="aList"></table>
+    </div>
+
+    <div class="panel">
+      <h2>📕 Từ điển bổ sung</h2>
+      <p class="mutetext">Thêm từ chưa có trong HSK (hoặc ghi đè): dùng cho chú thích, popup và thẻ nhớ.</p>
+      <div class="row">
+        <input id="cdW" placeholder="词 từ" style="width:110px;font-family:var(--hz-font)">
+        <input id="cdP" placeholder="pinyin" style="width:110px">
+        <input id="cdM" placeholder="nghĩa" class="grow" style="min-width:140px">
+        <select id="cdL"><option value="0">Ngoài HSK</option><option value="1">HSK1</option><option value="2">HSK2</option>
+          <option value="3">HSK3</option><option value="4">HSK4</option><option value="5">HSK5</option><option value="6">HSK6</option></select>
+        <input id="cdEx" placeholder="câu ví dụ (tuỳ chọn)" class="grow" style="min-width:160px;font-family:var(--hz-font)">
+        <button class="primary small" id="cdAdd">Thêm</button>
+      </div>
+      <div id="cdList" style="margin-top:10px"></div>
+    </div>
+
+    <div class="panel">
+      <h2>🔊 Giọng đọc</h2>
+      <div class="row">
+        <label class="toggle"><input type="checkbox" id="optNet" checked> Giọng mạng ★ (Azure, tự nhiên)</label>
+        <button id="btnKey" class="small">🔑 Cài đặt khóa</button>
+        <span class="group">Giọng:
+          <select id="voicePick">
+            <option value="">Tự động</option>
+            <optgroup label="★ Qua mạng (cần khóa Azure)">
+              <option value="azure:zh-CN-XiaoxiaoNeural">👩 Xiaoxiao — nữ</option>
+              <option value="azure:zh-CN-YunxiNeural">👨 Yunxi — nam</option>
+              <option value="azure:zh-CN-XiaoshuangNeural">🧒 Xiaoshuang — bé gái</option>
+              <option value="azure:zh-CN-XiaoruiNeural">👵 Xiaorui — cao tuổi</option>
+            </optgroup>
+            <optgroup label="Trên thiết bị" id="devVoicesGroup"></optgroup>
+          </select>
+        </span>
+        <span id="voiceInfo" class="mutetext"></span>
+      </div>
+      <div id="keyPanel" class="keypanel" hidden>
+        <b>Khóa Azure Speech miễn phí (500.000 ký tự/tháng)</b>
+        <ol>
+          <li>Tạo tài khoản tại <a href="https://azure.microsoft.com/free" target="_blank" rel="noopener">azure.microsoft.com/free</a></li>
+          <li><a href="https://portal.azure.com" target="_blank" rel="noopener">portal.azure.com</a> → Create a resource → "<b>Speech</b>" → Create → Pricing tier <b>Free (F0)</b>, Region <b>Southeast Asia</b></li>
+          <li>Resource → <b>Keys and Endpoint</b> → dán <b>KEY 1</b> và Region vào đây:</li>
+        </ol>
+        <div class="row">
+          <input type="password" id="azKey" size="30" placeholder="KEY 1" autocomplete="off">
+          <input id="azRegion" size="13" value="southeastasia" placeholder="region">
+          <button class="primary small" id="btnKeySave">Lưu &amp; thử</button>
+          <span id="keyStatus" class="mutetext"></span>
+        </div>
+        <p class="mutetext" style="margin:8px 0 0">Khóa chỉ lưu trên thiết bị này, không nằm trong file.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>💾 Sao lưu dữ liệu</h2>
+      <p class="mutetext">Từ vựng và tiến độ đã tự động lưu vào tài khoản (Supabase) — học viên đổi thiết bị vẫn còn nguyên dữ liệu. Nút này chỉ tạo thêm một bản sao cục bộ để yên tâm.</p>
+      <div class="row">
+        <button class="primary" id="btnExport">⬇ Tải bản sao lưu (JSON)</button>
+        <label class="toggle" style="cursor:pointer"><input type="file" id="btnImport" accept=".json" hidden><span><button class="small" style="pointer-events:none">⬆ Khôi phục từ file…</button></span></label>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="popup"></div>
+<div id="toast"></div>
+
+<script>
+(function () {
+'use strict';
+const $ = id => document.getElementById(id);
+const DAY = 86400000;
+const todayKey = (d) => { const x = d ? new Date(d) : new Date(); return x.getFullYear() + '-' + String(x.getMonth()+1).padStart(2,'0') + '-' + String(x.getDate()).padStart(2,'0'); };
+/* per-account key namespacing: student data never leaks between accounts on a shared device;
+   the HSK dictionary cache stays shared (same for everyone) */
+let uid = null, isStaff = false;
+const K = k => k === 'crh-dict-v1' ? k : 'crh-' + (uid ? uid.slice(0, 8) : 'anon') + '-' + k;
+function store(key, val) { try { localStorage.setItem(K(key), JSON.stringify(val)); } catch (e) { toast('⚠️ Bộ nhớ đầy — hãy tải sao lưu rồi xoá bớt'); } }
+function read(key, fb) { try { return JSON.parse(localStorage.getItem(K(key))) ?? fb; } catch (e) { return fb; } }
+let toastTimer = null;
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2600); }
+const escH = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+/* ================= hub account & cloud sync ================= */
+async function requireLogin() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { location.href = 'login.html'; return null; }
+  const user = session.user;
+  let prof = null;
+  try {
+    const { data } = await sb.from('profiles')
+      .select('full_name, role, active_session, multi_device, suspended').eq('id', user.id).single();
+    prof = data;
+  } catch (e) {}
+  if (prof && prof.suspended) { location.href = 'login.html'; return null; }
+  const device = localStorage.getItem('hub_device');
+  if (prof && prof.active_session && !prof.multi_device && device && prof.active_session !== device) {
+    location.href = 'login.html?kicked=1'; return null;   // signed in on another device since
+  }
+  uid = user.id;
+  isStaff = !!prof && (prof.role === 'teacher' || prof.role === 'owner');
+  $('whoami').textContent = (prof && prof.full_name) || user.email || '';
+  if (isStaff) $('navAdmin').hidden = false;
+  return user;
+}
+
+/* --- shared content: reading texts + extra dictionary (cloud, cached for offline) --- */
+let TEXTS = [];
+let DICT_CUSTOM = [];
+async function loadTexts() {
+  try {
+    const { data, error } = await sb.from('reading_texts').select('*').order('level').order('created_at');
+    if (error) throw error;
+    TEXTS = data.map(r => ({ id: r.id, title: r.title, level: r.level, text: r.content, tr: r.translation || '', tags: r.tags || [] }));
+    store('texts-cache', TEXTS);
+  } catch (e) { TEXTS = read('texts-cache', []); }
+}
+async function loadCloudDict() {
+  try {
+    const { data, error } = await sb.from('reading_dict').select('*').order('word');
+    if (error) throw error;
+    DICT_CUSTOM = data;
+    store('cdict-cache', DICT_CUSTOM);
+  } catch (e) { DICT_CUSTOM = read('cdict-cache', []); }
+}
+
+/* --- per-student vocabulary: Supabase is the source of truth, localStorage the offline mirror --- */
+function rowToLocal(r) {
+  return { p: r.pinyin, m: r.meaning, lvl: r.level, ex: r.example, note: r.note, status: r.status,
+    added: new Date(r.added_at).getTime(), up: Number(r.up_ms) || 0, pushed: true,
+    srs: { ef: r.ef, ivl: Number(r.ivl_ms), due: new Date(r.due).getTime(),
+           reps: r.reps, lapses: r.lapses, ok: r.ok, total: r.total } };
+}
+function localToRow(w, v) {
+  return { user_id: uid, word: w, pinyin: v.p || '', meaning: v.m || '', level: v.lvl || 0,
+    example: v.ex || '', note: v.note || '', status: v.status || 'new',
+    added_at: new Date(v.added || Date.now()).toISOString(),
+    ef: v.srs.ef, ivl_ms: Math.round(v.srs.ivl || 0), due: new Date(v.srs.due || Date.now()).toISOString(),
+    reps: v.srs.reps, lapses: v.srs.lapses, ok: v.srs.ok, total: v.srs.total,
+    up_ms: v.up || Date.now() };
+}
+const pending = () => read('crh-pending', { up: [], del: [] });
+async function pushVocab(w) {
+  if (!uid) return;
+  const vocab = read('crh-vocab', {});
+  const v = vocab[w]; if (!v) return;
+  try {
+    const { error } = await sb.from('reading_vocab').upsert(localToRow(w, v));
+    if (error) throw error;
+    v.pushed = true; store('crh-vocab', vocab);
+  } catch (e) {
+    const p = pending(); if (!p.up.includes(w)) p.up.push(w); store('crh-pending', p);
+  }
+}
+async function pushVocabDelete(w) {
+  if (!uid) return;
+  try {
+    const { error } = await sb.from('reading_vocab').delete().eq('user_id', uid).eq('word', w);
+    if (error) throw error;
+  } catch (e) {
+    const p = pending(); if (!p.del.includes(w)) p.del.push(w); store('crh-pending', p);
+  }
+}
+async function pullVocab() {
+  try {
+    const { data, error } = await sb.from('reading_vocab').select('*');
+    if (error) throw error;
+    const local = read('crh-vocab', {});
+    const server = {};
+    for (const r of data) server[r.word] = rowToLocal(r);
+    const p = pending();
+    const merged = {}, pushUp = [];
+    for (const w of new Set([...Object.keys(local), ...Object.keys(server)])) {
+      if (p.del.includes(w)) continue;                       // deleted while offline
+      const l = local[w], s = server[w];
+      if (l && s) { if ((l.up || 0) > (s.up || 0)) { merged[w] = l; pushUp.push(w); } else merged[w] = s; }
+      else if (l && !s) { if (!l.pushed) { merged[w] = l; pushUp.push(w); } /* else deleted on another device */ }
+      else merged[w] = s;
+    }
+    store('crh-vocab', merged);
+    for (const w of p.del.splice(0)) { try { await sb.from('reading_vocab').delete().eq('user_id', uid).eq('word', w); } catch (e) {} }
+    const toPush = [...new Set([...p.up.splice(0), ...pushUp])];
+    store('crh-pending', p);
+    for (const w of toPush) await pushVocab(w);
+  } catch (e) { /* offline — keep working from the local mirror */ }
+}
+
+/* --- daily stats + progress (debounced pushes) --- */
+let dayTimer = null, progTimer = null;
+function scheduleDayPush() { clearTimeout(dayTimer); dayTimer = setTimeout(pushDay, 6000); }
+function scheduleProgressPush() { clearTimeout(progTimer); progTimer = setTimeout(pushProgress, 4000); }
+async function pushDay() {
+  if (!uid) return;
+  const k = todayKey(); const d = stats().days[k] || {};
+  try {
+    await sb.from('reading_days').upsert({ user_id: uid, day: k, read_sec: d.read || 0,
+      rev: d.rev || 0, ok: d.ok || 0, saved: d.saved || 0, newc: d.newc || 0 });
+  } catch (e) {}
+}
+async function pullDays() {
+  try {
+    const { data, error } = await sb.from('reading_days').select('*');
+    if (error) throw error;
+    const s = stats(); const tk = todayKey();
+    for (const r of data) {
+      const loc = s.days[r.day] || {};
+      s.days[r.day] = r.day === tk
+        ? { read: Math.max(loc.read || 0, r.read_sec), rev: Math.max(loc.rev || 0, r.rev),
+            ok: Math.max(loc.ok || 0, r.ok), saved: Math.max(loc.saved || 0, r.saved), newc: Math.max(loc.newc || 0, r.newc) }
+        : { read: r.read_sec, rev: r.rev, ok: r.ok, saved: r.saved, newc: r.newc };
+    }
+    s.totalRead = Object.values(s.days).reduce((a, d) => a + (d.read || 0), 0);
+    store('crh-stats', s);
+  } catch (e) {}
+}
+async function pushProgress() {
+  if (!uid) return;
+  const s = stats();
+  try {
+    await sb.from('reading_progress').upsert({ user_id: uid, completed: s.completed, seen: s.seen,
+      updated_at: new Date().toISOString() });
+  } catch (e) {}
+}
+async function pullProgress() {
+  try {
+    const { data, error } = await sb.from('reading_progress').select('*').eq('user_id', uid).maybeSingle();
+    if (error) throw error;
+    if (data) {
+      const s = stats();
+      s.completed = [...new Set([...(s.completed || []), ...(data.completed || [])])];
+      s.seen = [...new Set([...(s.seen || []), ...(data.seen || [])])];
+      store('crh-stats', s);
+    }
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { pushDay(); pushProgress(); }
+});
+
+/* ================= tone utilities (tested in pinyin-tool) ================= */
+const MARK_MAP = (() => {
+  const rows = { a:'āáǎà', e:'ēéěè', i:'īíǐì', o:'ōóǒò', u:'ūúǔù', 'ü':'ǖǘǚǜ' };
+  const map = {};
+  for (const plain in rows) [...rows[plain]].forEach((ch, i) => { map[ch] = [plain, i + 1]; });
+  return map;
+})();
+const TONE_CHARS = { a:'āáǎà', e:'ēéěè', i:'īíǐì', o:'ōóǒò', u:'ūúǔù', 'ü':'ǖǘǚǜ' };
+function stripTone(syl) { let out = ''; for (const ch of String(syl).normalize('NFC')) out += MARK_MAP[ch] ? MARK_MAP[ch][0] : ch; return out; }
+function applyTone(plain, tone) {
+  if (!tone || tone < 1 || tone > 4) return plain;
+  const lower = plain.toLowerCase(); let idx = -1;
+  if (lower.includes('a')) idx = lower.indexOf('a');
+  else if (lower.includes('e')) idx = lower.indexOf('e');
+  else if (lower.includes('ou')) idx = lower.indexOf('o');
+  else for (let i = lower.length - 1; i >= 0; i--) if ('aeiouü'.includes(lower[i])) { idx = i; break; }
+  if (idx === -1) return plain;
+  const ch = plain[idx];
+  return plain.slice(0, idx) + (TONE_CHARS[ch] ? TONE_CHARS[ch][tone - 1] : ch) + plain.slice(idx + 1);
+}
+const CJK = /[〇一-鿿㐀-䶿豈-﫿]/;
+
+/* char-level pinyin with sandhi — same pipeline as pinyin-tool */
+function charAnalyse(line) {
+  if (!window.pinyinPro) return null;
+  const py = window.pinyinPro.pinyin;
+  const base = py(line, { type: 'all', toneSandhi: false });
+  let yibu = null;
+  const s = py(line, { type: 'all', toneSandhi: true });
+  if (s.length === base.length) yibu = s;
+  const items = base.map((b, i) => {
+    const isZh = (typeof b.isZh === 'boolean') ? b.isZh : CJK.test(b.origin);
+    let tone = b.num || 0;
+    if (yibu && isZh) { const t2 = yibu[i].num || 0; if (t2 !== tone) tone = t2; }
+    return { origin: b.origin, plain: isZh ? stripTone(b.pinyin) : '', tone, isZh };
+  });
+  for (let i = 1; i < items.length - 1; i++) {
+    if (items[i].origin === '不' && items[i-1].isZh && items[i+1].isZh &&
+        items[i-1].origin === items[i+1].origin && items[i].tone !== 0) items[i].tone = 0;
+  }
+  let start = -1;
+  const flush = end => { if (start !== -1 && end - start >= 2) for (let i = start; i < end - 1; i++) items[i].tone = 2; start = -1; };
+  items.forEach((it, i) => { if (it.isZh && it.tone === 3) { if (start === -1) start = i; } else flush(i); });
+  flush(items.length);
+  return items.map(it => ({ ...it, mark: it.isZh ? applyTone(it.plain, it.tone) : it.origin }));
+}
+
+/* ================= HSK dictionary ================= */
+const DICT_URL = i => 'https://cdn.jsdelivr.net/gh/clem109/hsk-vocabulary@master/hsk-vocab-json/hsk-level-' + i + '.json';
+let DICT = {};           // hanzi -> [pinyin, meaning, level]
+let MAXW = 1;
+function rebuildDictIndex() {
+  for (const e of DICT_CUSTOM) DICT[e.word] = [e.pinyin, e.meaning, +e.level, e.example || ''];
+  MAXW = 1;
+  for (const w in DICT) if (w.length > MAXW) MAXW = w.length;
+}
+async function loadDict() {
+  const cached = read('crh-dict-v1', null);
+  if (cached && cached.words) {
+    DICT = cached.words; rebuildDictIndex();
+    $('dictStatus').textContent = '📗 Từ điển HSK: ' + Object.keys(DICT).length + ' từ (đã lưu trên máy)';
+    return true;
+  }
+  $('dictStatus').textContent = '⏳ Đang tải từ điển HSK (chỉ lần đầu)…';
+  try {
+    const all = await Promise.all([1,2,3,4,5,6].map(i => fetch(DICT_URL(i)).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })));
+    DICT = {};
+    all.forEach((list, idx) => {
+      for (const e of list) {
+        if (!DICT[e.hanzi]) DICT[e.hanzi] = [String(e.pinyin || '').trim(), (e.translations || []).slice(0, 3).join('; '), idx + 1];
+      }
+    });
+    store('crh-dict-v1', { v: 1, words: DICT });
+    rebuildDictIndex();
+    $('dictStatus').textContent = '📗 Từ điển HSK: ' + Object.keys(DICT).length + ' từ — sẵn sàng';
+    return true;
+  } catch (e) {
+    $('dictStatus').innerHTML = '<span class="offline">Không tải được từ điển HSK — cần Internet cho lần mở đầu tiên, sau đó dùng ngoại tuyến được.</span>';
+    rebuildDictIndex();
+    return false;
+  }
+}
+function lookup(w) { return DICT[w] || null; }
+
+/* greedy longest-match segmentation over the HSK dictionary */
+function segment(line) {
+  const toks = [];
+  let i = 0;
+  while (i < line.length) {
+    const ch = line[i];
+    if (!CJK.test(ch)) { toks.push({ w: ch, lvl: -1, zh: false }); i++; continue; }
+    let hit = null;
+    for (let len = Math.min(MAXW, line.length - i); len >= 2; len--) {
+      const cand = line.substr(i, len);
+      if (DICT[cand]) { hit = cand; break; }
+    }
+    if (!hit) hit = ch;
+    const d = lookup(hit);
+    toks.push({ w: hit, lvl: d ? d[2] : 0, zh: true });
+    i += hit.length;
+  }
+  return toks;
+}
+
+/* ================= reading texts (shared, from Supabase) ================= */
+function getTexts() { return TEXTS; }
+function estMinutes(t) { return Math.max(1, Math.round((t.text.match(CJK_G) || []).length / 180)); }
+const CJK_G = /[〇一-鿿㐀-䶿豈-﫿]/g;
+
+/* ================= stats ================= */
+function stats() { return read('crh-stats', { days: {}, totalRead: 0, completed: [], seen: [] }); }
+function bumpStat(field, n) {
+  const s = stats(); const k = todayKey();
+  s.days[k] = s.days[k] || { read: 0, rev: 0, ok: 0, saved: 0, newc: 0 };
+  s.days[k][field] = (s.days[k][field] || 0) + n;
+  if (field === 'read') s.totalRead += n;
+  store('crh-stats', s);
+  scheduleDayPush();
+  return s;
+}
+
+/* ================= views / routing ================= */
+let currentView = 'library';
+function show(view) {
+  if (view === 'admin' && !isStaff) return;
+  currentView = view;
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + view));
+  document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('active', b.dataset.v === view));
+  hidePopup();
+  if (view === 'library') renderLibrary();
+  if (view === 'vocab') renderVocab();
+  if (view === 'cards') renderCardsHome();
+  if (view === 'dash') renderDash();
+  if (view === 'admin') renderAdmin();
+  updateDueBadge();
+}
+document.querySelectorAll('#nav button').forEach(b => b.addEventListener('click', () => show(b.dataset.v)));
+
+/* ================= library ================= */
+let libLevel = 0;
+$('lvlChips').addEventListener('click', e => {
+  const c = e.target.closest('.chip'); if (!c) return;
+  libLevel = +c.dataset.l;
+  document.querySelectorAll('#lvlChips .chip').forEach(x => x.classList.toggle('active', x === c));
+  renderLibrary();
+});
+$('libSearch').addEventListener('input', () => renderLibrary());
+function renderLibrary() {
+  const q = $('libSearch').value.trim().toLowerCase();
+  const done = stats().completed;
+  const list = getTexts().filter(t => (!libLevel || t.level === libLevel) &&
+    (!q || t.title.toLowerCase().includes(q) || (t.tags || []).join(' ').toLowerCase().includes(q)));
+  $('libGrid').innerHTML = list.map(t =>
+    '<div class="libcard" data-id="' + t.id + '">' +
+      (done.includes(t.id) ? '<span class="done">✓</span>' : '') +
+      '<h3>' + escH(t.title) + '</h3>' +
+      '<div class="meta"><span class="lv lv' + t.level + '">HSK ' + t.level + '</span>' +
+      '<span>⏱ ~' + estMinutes(t) + ' phút</span>' +
+      (t.tags || []).map(g => '<span class="tag">' + escH(g) + '</span>').join('') + '</div>' +
+    '</div>').join('') || '<p class="mutetext">Chưa có bài đọc nào ở mục này.</p>';
+}
+$('libGrid').addEventListener('click', e => {
+  const c = e.target.closest('.libcard'); if (!c) return;
+  openText(c.dataset.id);
+});
+
+/* ================= reader ================= */
+let currentText = null;
+let readTimer = null;
+function textList() { return getTexts().filter(t => !libLevel || t.level === libLevel); }
+function openText(id) {
+  const t = getTexts().find(x => x.id === id);
+  if (!t) return;
+  currentText = t;
+  show('reader');
+  renderReader();
+  markEncountered(t);
+}
+function markEncountered(t) {
+  const s = stats();
+  const seen = new Set(s.seen);
+  let added = 0;
+  for (const line of t.text.split('\n')) for (const tok of segment(line)) {
+    if (tok.zh && tok.lvl > 0 && !seen.has(tok.w)) { seen.add(tok.w); added++; }
+  }
+  if (added) { s.seen = [...seen]; store('crh-stats', s); scheduleProgressPush(); }
+}
+function renderReader() {
+  const t = currentText;
+  if (!t) { $('rBody').innerHTML = '<p class="mutetext">Chọn một bài trong 📚 Thư viện để bắt đầu đọc.</p>'; $('rTitle').textContent = ''; $('rMeta').innerHTML = ''; return; }
+  $('rTitle').textContent = t.title;
+  $('rMeta').innerHTML = '<span class="lv lv' + t.level + '">HSK ' + t.level + '</span>' +
+    '<span>⏱ ~' + estMinutes(t) + ' phút</span>' + (t.tags || []).map(g => '<span class="tag">' + escH(g) + '</span>').join('');
+  const lines = t.text.split('\n');
+  const trs = (t.tr || '').split('\n');
+  const frag = document.createDocumentFragment();
+  const savedWords = read('crh-vocab', {});
+  lines.forEach((line, li) => {
+    if (!line.trim()) return;
+    const p = document.createElement('div');
+    p.className = 'rpara' + (prefs.pyPos === 'below' ? ' below' : '');
+    p.dataset.line = line;
+    const play = document.createElement('button');
+    play.className = 'pplay'; play.textContent = '🔊'; play.title = 'Đọc đoạn này';
+    play.addEventListener('click', ev => { ev.stopPropagation(); speak(line); });
+    p.appendChild(play);
+    const chars = charAnalyse(line) || [...line].map(c => ({ origin: c, mark: '', isZh: CJK.test(c) }));
+    let ci = 0;
+    for (const tok of segment(line)) {
+      const cell = document.createElement('span');
+      cell.className = 'tok' + (tok.zh ? ' zh l' + Math.max(0, tok.lvl) : '');
+      if (tok.zh && savedWords[tok.w]) cell.classList.add('saved');
+      const pyEl = document.createElement('span'); pyEl.className = 'py';
+      const hzEl = document.createElement('span'); hzEl.className = 'hz';
+      const syls = [];
+      for (let k = 0; k < tok.w.length; k++) { const it = chars[ci + k]; if (it && it.isZh) syls.push(it.mark); }
+      ci += tok.w.length;
+      pyEl.textContent = tok.zh ? syls.join('') : ' ';
+      hzEl.textContent = tok.w;
+      cell.appendChild(pyEl); cell.appendChild(hzEl);
+      if (tok.zh) {
+        cell.addEventListener('click', ev => { ev.stopPropagation(); wordClicked(tok.w, line, cell); });
+        if (prefs.tips) {
+          const d = lookup(tok.w);
+          cell.title = d ? (d[0] + ' — ' + d[1] + (d[2] ? '  [HSK ' + d[2] + ']' : '')) : '';
+        }
+      }
+      p.appendChild(cell);
+    }
+    frag.appendChild(p);
+    if (trs[li] && trs[li].trim()) {
+      const tr = document.createElement('div'); tr.className = 'rtrans'; tr.textContent = trs[li];
+      frag.appendChild(tr);
+    }
+  });
+  $('rBody').innerHTML = '';
+  $('rBody').appendChild(frag);
+  $('btnComplete').textContent = stats().completed.includes(t.id) ? '✓ Đã đọc xong (bấm để bỏ)' : '✓ Đã đọc xong';
+}
+$('btnComplete').addEventListener('click', () => {
+  if (!currentText) return;
+  const s = stats();
+  const i = s.completed.indexOf(currentText.id);
+  if (i === -1) { s.completed.push(currentText.id); toast('🎉 Đã hoàn thành bài đọc!'); }
+  else s.completed.splice(i, 1);
+  store('crh-stats', s); scheduleProgressPush(); renderReader();
+});
+function stepText(dir) {
+  const list = textList();
+  if (!currentText || !list.length) return;
+  let i = list.findIndex(t => t.id === currentText.id);
+  i = (i + dir + list.length) % list.length;
+  currentText = list[i]; renderReader(); markEncountered(currentText);
+}
+$('btnPrevText').addEventListener('click', () => stepText(-1));
+$('btnNextText').addEventListener('click', () => stepText(1));
+
+/* reading-time tracking: count seconds while the reader is open and focused */
+setInterval(() => {
+  if (currentView === 'reader' && currentText && document.hasFocus()) bumpStat('read', 5);
+}, 5000);
+
+/* word popup */
+function sentenceOf(line, word) {
+  const parts = line.split(/(?<=[。！？；.!?;])/);
+  return (parts.find(s => s.includes(word)) || line).trim();
+}
+function wordClicked(w, line, cell) {
+  if (prefs.audioClick) speak(w);
+  const d = lookup(w);
+  const items = charAnalyse(w);
+  const pyStr = d ? d[0] : (items ? items.map(x => x.mark).join(' ') : '');
+  const ex = (d && d[3]) ? d[3] : sentenceOf(line, w);
+  const vocab = read('crh-vocab', {});
+  const saved = vocab[w];
+  const pop = $('popup');
+  pop.innerHTML =
+    '<button class="close" id="ppClose">✕</button>' +
+    '<div><span class="w">' + escH(w) + '</span><span class="p">' + escH(pyStr) + '</span> ' +
+    '<span class="lv lv' + (d ? d[2] : 0) + '">' + (d && d[2] ? 'HSK ' + d[2] : 'ngoài HSK') + '</span></div>' +
+    '<div class="m">' + (d ? escH(d[1]) : '<span class="mutetext">Không có trong từ điển HSK — bạn vẫn có thể lưu và tự ghi nghĩa.</span>') + '</div>' +
+    (ex && ex !== w ? '<div class="ex">' + escH(ex) + '</div>' : '') +
+    (saved && saved.note ? '<div class="mutetext">📝 ' + escH(saved.note) + '</div>' : '') +
+    '<div class="row" style="margin-top:10px">' +
+      '<button class="small" id="ppAudio">🔊 Nghe</button>' +
+      '<button class="small primary" id="ppSave">' + (saved ? '✓ Đã lưu' : '💾 Lưu từ') + '</button>' +
+      '<button class="small" id="ppNote">📝 Ghi chú</button>' +
+      '<button class="small" id="ppKnown">' + (saved && saved.status === 'known' ? '↩ Chưa thuộc' : '✓ Đã biết') + '</button>' +
+    '</div>';
+  pop.style.display = 'block';
+  const r = cell.getBoundingClientRect();
+  let x = Math.min(window.innerWidth - pop.offsetWidth - 10, Math.max(10, r.left));
+  let y = r.bottom + 8;
+  if (y + pop.offsetHeight > window.innerHeight - 10) y = Math.max(10, r.top - pop.offsetHeight - 8);
+  pop.style.left = x + 'px'; pop.style.top = y + 'px';
+  $('ppClose').onclick = hidePopup;
+  $('ppAudio').onclick = () => speak(w);
+  $('ppSave').onclick = () => { saveWord(w, pyStr, d ? d[1] : '', d ? d[2] : 0, ex); hidePopup(); renderReader(); };
+  $('ppNote').onclick = () => {
+    const note = prompt('Ghi chú cho từ "' + w + '":', saved ? saved.note || '' : '');
+    if (note === null) return;
+    saveWord(w, pyStr, d ? d[1] : '', d ? d[2] : 0, ex, note);
+    hidePopup(); renderReader();
+  };
+  $('ppKnown').onclick = () => {
+    saveWord(w, pyStr, d ? d[1] : '', d ? d[2] : 0, ex, undefined,
+      saved && saved.status === 'known' ? 'learning' : 'known');
+    hidePopup(); renderReader();
+  };
+}
+function hidePopup() { $('popup').style.display = 'none'; }
+document.addEventListener('click', e => { if (!e.target.closest('#popup') && !e.target.closest('.tok')) hidePopup(); });
+
+/* ================= vocabulary store ================= */
+function saveWord(w, p, m, lvl, ex, note, status) {
+  const vocab = read('crh-vocab', {});
+  const isNew = !vocab[w];
+  const cur = vocab[w] || { added: Date.now(), status: 'new',
+    srs: { ef: 2.5, ivl: 0, due: Date.now(), reps: 0, lapses: 0, ok: 0, total: 0 } };
+  vocab[w] = { ...cur, p, m: m || cur.m || '', lvl, ex: ex || cur.ex || '',
+    note: note !== undefined ? note : cur.note || '', status: status || cur.status,
+    up: Date.now(), pushed: cur.pushed || false };
+  store('crh-vocab', vocab);
+  if (isNew) { bumpStat('saved', 1); toast('💾 Đã lưu "' + w + '"'); }
+  else toast('✓ Đã cập nhật "' + w + '"');
+  updateDueBadge();
+  pushVocab(w);
+}
+
+/* ================= vocab view ================= */
+['vSearch','vLvl','vStatus','vSort'].forEach(id => $(id).addEventListener('input', renderVocab));
+function renderVocab() {
+  const vocab = read('crh-vocab', {});
+  const q = $('vSearch').value.trim().toLowerCase();
+  const lv = +$('vLvl').value, st = $('vStatus').value, sort = $('vSort').value;
+  let list = Object.entries(vocab).map(([w, v]) => ({ w, ...v }));
+  if (q) list = list.filter(v => v.w.includes(q) || (v.p||'').toLowerCase().includes(q) || (v.m||'').toLowerCase().includes(q) || (v.note||'').toLowerCase().includes(q));
+  if (lv > 0) list = list.filter(v => v.lvl === lv);
+  if (lv === -1) list = list.filter(v => !v.lvl);
+  if (st) list = list.filter(v => statusOf(v) === st);
+  if (sort === 'date') list.sort((a,b) => b.added - a.added);
+  if (sort === 'dateAsc') list.sort((a,b) => a.added - b.added);
+  if (sort === 'level') list.sort((a,b) => (a.lvl||9) - (b.lvl||9));
+  $('vCount').textContent = list.length + ' từ';
+  $('vList').innerHTML = list.map(v =>
+    '<div class="vword" data-w="' + escH(v.w) + '">' +
+      '<div class="w">' + escH(v.w) + '</div>' +
+      '<div class="grow"><span class="p">' + escH(v.p||'') + '</span> ' +
+        '<span class="lv lv' + (v.lvl||0) + '">' + (v.lvl ? 'HSK ' + v.lvl : 'ngoài HSK') + '</span> ' +
+        '<span class="status ' + statusOf(v) + '">' + statusLabel(v) + '</span>' +
+        '<div>' + escH(v.m||'') + '</div>' +
+        (v.note ? '<div class="note">📝 ' + escH(v.note) + '</div>' : '') +
+        (v.ex ? '<div class="ex">' + escH(v.ex) + '</div>' : '') +
+        '<div class="mutetext">Lưu ' + todayKey(v.added) + ' · ôn ' + v.srs.reps + ' lần' +
+        (v.srs.total ? ' · đúng ' + Math.round(v.srs.ok / v.srs.total * 100) + '%' : '') + '</div></div>' +
+      '<div style="display:flex;flex-direction:column;gap:5px">' +
+        '<button class="small" data-act="audio">🔊</button>' +
+        '<button class="small" data-act="note">📝</button>' +
+        '<button class="small" data-act="known">' + (v.status === 'known' ? '↩' : '✓') + '</button>' +
+        '<button class="small" data-act="del">🗑</button>' +
+      '</div></div>').join('') ||
+    '<p class="mutetext">Chưa có từ nào — nhấp vào từ trong bài đọc để lưu.</p>';
+}
+function statusOf(v) { return v.status === 'known' || v.srs.ivl >= 21 * DAY ? 'known' : (v.srs.reps > 0 ? 'learning' : 'new'); }
+function statusLabel(v) { return { known: 'Đã thuộc', learning: 'Đang học', new: 'Mới lưu' }[statusOf(v)]; }
+$('vList').addEventListener('click', e => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  const w = e.target.closest('.vword').dataset.w;
+  const vocab = read('crh-vocab', {});
+  const v = vocab[w]; if (!v) return;
+  if (btn.dataset.act === 'audio') speak(w);
+  if (btn.dataset.act === 'note') {
+    const note = prompt('Ghi chú cho "' + w + '":', v.note || '');
+    if (note !== null) { v.note = note; v.up = Date.now(); store('crh-vocab', vocab); renderVocab(); pushVocab(w); }
+  }
+  if (btn.dataset.act === 'known') { v.status = v.status === 'known' ? 'learning' : 'known'; v.up = Date.now(); store('crh-vocab', vocab); renderVocab(); updateDueBadge(); pushVocab(w); }
+  if (btn.dataset.act === 'del') { if (confirm('Xoá từ "' + w + '"?')) { delete vocab[w]; store('crh-vocab', vocab); renderVocab(); updateDueBadge(); pushVocabDelete(w); } }
+});
+
+/* ================= SRS + flashcards ================= */
+const NEW_PER_DAY = 20;
+function dueCards() {
+  const vocab = read('crh-vocab', {});
+  const now = Date.now();
+  const due = [], fresh = [];
+  for (const [w, v] of Object.entries(vocab)) {
+    if (v.status === 'known') continue;
+    if (v.srs.reps === 0) fresh.push(w);
+    else if (v.srs.due <= now) due.push(w);
+  }
+  const s = stats(); const usedNew = (s.days[todayKey()] || {}).newc || 0;
+  return { due, fresh: fresh.slice(0, Math.max(0, NEW_PER_DAY - usedNew)) };
+}
+function updateDueBadge() {
+  const { due, fresh } = dueCards();
+  const n = due.length + fresh.length;
+  $('dueBadge').hidden = !n;
+  $('dueBadge').textContent = n;
+}
+function nextIvl(srs, g) {
+  if (srs.ivl < DAY) return [5 * 60000, 30 * 60000, DAY, 3 * DAY][g];
+  if (g === 0) return 5 * 60000;
+  if (g === 1) return Math.max(DAY, srs.ivl * 1.2);
+  if (g === 2) return srs.ivl * srs.ef;
+  return srs.ivl * srs.ef * 1.3;
+}
+function fmtIvl(ms) { return ms < DAY ? Math.round(ms / 60000) + 'p' : ms < 30 * DAY ? Math.round(ms / DAY) + 'ng' : Math.round(ms / DAY / 30) + 'th'; }
+let session = null;
+function renderCardsHome() {
+  const { due, fresh } = dueCards();
+  $('fcInfo').textContent = due.length + ' từ đến hạn · ' + fresh.length + ' từ mới hôm nay';
+  $('fcArea').hidden = true; $('fcDone').hidden = true;
+  session = null;
+}
+$('fcStart').addEventListener('click', () => {
+  const { due, fresh } = dueCards();
+  const queue = [...due, ...fresh];
+  if (!queue.length) { toast('Không có thẻ nào đến hạn — quay lại sau nhé!'); return; }
+  for (let i = queue.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [queue[i], queue[j]] = [queue[j], queue[i]]; }
+  session = { queue, done: 0, ok: 0, total: queue.length, flipped: false };
+  $('fcArea').hidden = false; $('fcDone').hidden = true;
+  showCard();
+});
+function showCard() {
+  const w = session.queue[0];
+  if (!w) return endSession();
+  const v = read('crh-vocab', {})[w];
+  if (!v) { session.queue.shift(); return showCard(); }
+  session.flipped = false;
+  $('fcGrades').hidden = true;
+  $('fcProgress').textContent = (session.done + 1) + ' / ' + session.total + ' — nhấp thẻ để lật';
+  const mode = $('fcMode').value;
+  const front = {
+    ce: '<div class="big">' + escH(w) + '</div>',
+    ec: '<div class="small" style="font-size:20px">' + escH(v.m || '(chưa có nghĩa — xem ghi chú)') + '</div>' + (v.note ? '<div class="small">📝 ' + escH(v.note) + '</div>' : ''),
+    cp: '<div class="big">' + escH(w) + '</div><div class="small">Đọc pinyin của từ này?</div>',
+    listen: '<div style="font-size:44px">👂</div><div class="small">Nghe và đoán từ (nhấp 🔊 để nghe lại)</div><button class="small" id="fcReplay">🔊 Nghe lại</button>'
+  }[mode];
+  $('card').innerHTML = front;
+  if (mode === 'listen') {
+    speak(w);
+    const rp = $('fcReplay'); if (rp) rp.onclick = ev => { ev.stopPropagation(); speak(w); };
+  }
+}
+function flipCard() {
+  if (!session || session.flipped) return;
+  const w = session.queue[0]; const v = read('crh-vocab', {})[w];
+  session.flipped = true;
+  $('card').innerHTML =
+    '<div class="big">' + escH(w) + '</div>' +
+    '<div class="mid">' + escH(v.p || '') + '</div>' +
+    '<div class="small">' + escH(v.m || '') + ' <span class="lv lv' + (v.lvl||0) + '">' + (v.lvl ? 'HSK ' + v.lvl : 'ngoài HSK') + '</span></div>' +
+    (v.ex ? '<div class="exs">' + escH(v.ex) + '</div>' : '') +
+    (v.note ? '<div class="small">📝 ' + escH(v.note) + '</div>' : '') +
+    '<button class="small" id="fcAudio">🔊 Nghe</button>';
+  const a = $('fcAudio'); if (a) a.onclick = ev => { ev.stopPropagation(); speak(w); };
+  const srs = v.srs;
+  [0,1,2,3].forEach(g => $('ivl' + g).textContent = fmtIvl(nextIvl(srs, g)));
+  $('fcGrades').hidden = false;
+}
+$('card').addEventListener('click', flipCard);
+document.addEventListener('keydown', e => {
+  if (currentView === 'cards' && session && !$('fcArea').hidden) {
+    if (e.key === ' ' && !session.flipped) { e.preventDefault(); flipCard(); }
+    if (session.flipped && '1234'.includes(e.key)) gradeCard(+e.key - 1);
+  }
+});
+$('fcGrades').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (b) gradeCard(+b.dataset.g);
+});
+function gradeCard(g) {
+  if (!session || !session.flipped) return;
+  const w = session.queue.shift();
+  const vocab = read('crh-vocab', {});
+  const v = vocab[w]; if (!v) return showCard();
+  const srs = v.srs;
+  const wasNew = srs.reps === 0;
+  srs.total++; if (g >= 2) { srs.ok++; session.ok++; }
+  if (g === 0) { srs.lapses += wasNew ? 0 : 1; srs.ef = Math.max(1.3, srs.ef - 0.2); }
+  if (g === 1) srs.ef = Math.max(1.3, srs.ef - 0.15);
+  if (g === 3) srs.ef = Math.min(3.0, srs.ef + 0.15);
+  const ivl = nextIvl(srs, g);
+  srs.ivl = g === 0 ? 0 : ivl;
+  srs.due = Date.now() + ivl;
+  srs.reps++;
+  v.up = Date.now();
+  store('crh-vocab', vocab);
+  pushVocab(w);
+  bumpStat('rev', 1); if (g >= 2) bumpStat('ok', 1);
+  if (wasNew) bumpStat('newc', 1);
+  if (g === 0) session.queue.push(w); else session.done++;
+  session.total = session.done + session.queue.length;
+  updateDueBadge();
+  showCard();
+}
+function endSession() {
+  $('fcArea').hidden = true;
+  $('fcDone').hidden = false;
+  $('fcDone').innerHTML = '<h2>🎉 Hoàn thành phiên ôn tập!</h2><p>Đã ôn ' + session.done + ' thẻ · đúng ngay ' +
+    session.ok + ' (' + (session.done ? Math.round(session.ok / session.done * 100) : 0) + '%).</p>' +
+    '<button class="primary" onclick="location.hash=\'\'">Tuyệt!</button>';
+  session = null;
+  renderCardsHome();
+}
+
+/* ================= dashboard ================= */
+function renderDash() {
+  const s = stats();
+  const vocab = read('crh-vocab', {});
+  const vlist = Object.values(vocab);
+  const known = vlist.filter(v => statusOf(v) === 'known').length;
+  const learning = vlist.filter(v => statusOf(v) === 'learning').length;
+  const { due, fresh } = dueCards();
+  const doneTexts = s.completed.length;
+  const lvls = s.completed.map(id => (getTexts().find(t => t.id === id) || {}).level || 0);
+  const curLvl = lvls.length ? Math.max(...lvls) : '—';
+  const mins = Math.round(s.totalRead / 60);
+  $('readTiles').innerHTML =
+    tile(mins >= 60 ? Math.floor(mins/60) + 'g ' + mins%60 + 'p' : mins + ' phút', 'Tổng thời gian đọc') +
+    tile(doneTexts, 'Bài đã đọc xong') +
+    tile(curLvl === '—' ? '—' : 'HSK ' + curLvl, 'Cấp đang đọc') +
+    tile(s.seen.length, 'Từ HSK đã gặp');
+  $('vocabTiles').innerHTML =
+    tile(vlist.length, 'Từ đã lưu') + tile(known, 'Đã thuộc') +
+    tile(learning, 'Đang học') + tile(due.length + fresh.length, 'Đến hạn ôn hôm nay');
+  renderCharts(s, vocab);
+}
+function tile(n, l) { return '<div class="tile"><div class="n">' + n + '</div><div class="l">' + l + '</div></div>'; }
+
+/* small single-series SVG charts (one hue, hover tooltips, no legend needed) */
+function barChart(data, labelEvery, fmt) {
+  const W = 300, H = 130, px = 6, bottom = 16, top = 10;
+  const max = Math.max(1, ...data.map(d => d.v));
+  const bw = (W - px * 2) / data.length;
+  let out = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">';
+  [0.5, 1].forEach(f => { const y = top + (H - top - bottom) * (1 - f);
+    out += '<line class="gline" x1="0" y1="' + y + '" x2="' + W + '" y2="' + y + '"/>'; });
+  data.forEach((d, i) => {
+    const h = (H - top - bottom) * (d.v / max);
+    const x = px + i * bw + bw * 0.18, y = H - bottom - h;
+    out += '<rect class="bar" x="' + x + '" y="' + y + '" width="' + bw * 0.64 + '" height="' + Math.max(h, d.v ? 2 : 0) + '" rx="2"><title>' + d.t + ': ' + (fmt ? fmt(d.v) : d.v) + '</title></rect>';
+    if (i % labelEvery === 0) out += '<text class="lbl" x="' + (px + i * bw + bw / 2) + '" y="' + (H - 4) + '" text-anchor="middle">' + d.t.slice(5) + '</text>';
+  });
+  const peak = data.reduce((a, d, i) => d.v > data[a].v ? i : a, 0);
+  if (data[peak].v) {
+    const lx = Math.min(W - 6, Math.max(14, px + peak * bw + bw / 2));
+    const ly = Math.max(9, top + (H - top - bottom) * (1 - data[peak].v / max) - 3);
+    const anchor = lx > W - 30 ? 'end' : lx < 30 ? 'start' : 'middle';
+    out += '<text class="vlbl" x="' + lx + '" y="' + ly + '" text-anchor="' + anchor + '">' + (fmt ? fmt(data[peak].v) : data[peak].v) + '</text>';
+  }
+  return out + '</svg>';
+}
+function lineChart(data) {
+  const W = 300, H = 130, px = 8, bottom = 16, top = 10;
+  const max = Math.max(1, ...data.map(d => d.v));
+  const step = (W - px * 2) / Math.max(1, data.length - 1);
+  const pt = (d, i) => (px + i * step) + ',' + (top + (H - top - bottom) * (1 - d.v / max));
+  let out = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">';
+  [0.5, 1].forEach(f => { const y = top + (H - top - bottom) * (1 - f);
+    out += '<line class="gline" x1="0" y1="' + y + '" x2="' + W + '" y2="' + y + '"/>'; });
+  out += '<polygon class="area" points="' + px + ',' + (H - bottom) + ' ' + data.map(pt).join(' ') + ' ' + (px + (data.length - 1) * step) + ',' + (H - bottom) + '"/>';
+  out += '<polyline class="line" points="' + data.map(pt).join(' ') + '"/>';
+  data.forEach((d, i) => {
+    out += '<circle class="dot" cx="' + (px + i * step) + '" cy="' + (top + (H - top - bottom) * (1 - d.v / max)) + '" r="3"><title>' + d.t + ': ' + d.v + '</title></circle>';
+    if (i % 7 === 0) out += '<text class="lbl" x="' + (px + i * step) + '" y="' + (H - 4) + '" text-anchor="middle">' + d.t.slice(5) + '</text>';
+  });
+  const last = data[data.length - 1];
+  out += '<text class="vlbl" x="' + (px + (data.length - 1) * step - 2) + '" y="' + Math.max(10, top + (H - top - bottom) * (1 - last.v / max) - 6) + '" text-anchor="end">' + last.v + '</text>';
+  return out + '</svg>';
+}
+function renderCharts(s, vocab) {
+  const days = n => { const out = []; for (let i = n - 1; i >= 0; i--) out.push(todayKey(Date.now() - i * DAY)); return out; };
+  const d7 = days(7).map(k => ({ t: k, v: (s.days[k] || {}).rev || 0 }));
+  const d30 = days(30).map(k => ({ t: k, v: Math.round(((s.days[k] || {}).read || 0) / 60) }));
+  const added = Object.values(vocab).map(v => todayKey(v.added));
+  let cum = Object.values(vocab).filter(v => todayKey(v.added) < days(30)[0]).length;
+  const growth = days(30).map(k => { cum += added.filter(a => a === k).length; return { t: k, v: cum }; });
+  const weeks = [3,2,1,0].map(wk => {
+    let ok = 0, tot = 0;
+    days(28).slice((3 - wk) * 7, (3 - wk) * 7 + 7).forEach(k => { const d = s.days[k] || {}; ok += d.ok || 0; tot += d.rev || 0; });
+    return { t: 'tuần -' + wk, v: tot ? Math.round(ok / tot * 100) : 0, tot };
+  });
+  $('chartArea').innerHTML =
+    chartBox('Ôn tập theo tuần', '7 ngày qua — lượt ôn thẻ/ngày', barChart(d7, 2)) +
+    chartBox('Thời gian đọc theo tháng', '30 ngày qua — phút đọc/ngày', barChart(d30, 7, v => v + ' phút')) +
+    chartBox('Tăng trưởng từ vựng', '30 ngày qua — tổng số từ đã lưu', lineChart(growth)) +
+    chartBox('Tỷ lệ nhớ', '4 tuần qua — % trả lời đúng (Nhớ/Dễ)', barChart(weeks.map(w => ({ t: '     ' + w.t, v: w.v })), 1, v => v + '%'));
+}
+function chartBox(title, sub, svg) { return '<div class="chart"><h3>' + title + '</h3><div class="sub">' + sub + '</div>' + svg + '</div>'; }
+
+/* ================= admin ================= */
+function renderAdmin() {
+  const rows = getTexts().map(t =>
+    '<tr><td style="font-family:var(--hz-font)">' + escH(t.title) + '</td>' +
+    '<td><span class="lv lv' + t.level + '">HSK ' + t.level + '</span></td>' +
+    '<td>' + (t.tags || []).map(g => '<span class="tag">' + escH(g) + '</span>').join(' ') + '</td>' +
+    '<td>' + (t.text.match(CJK_G) || []).length + ' chữ</td>' +
+    '<td><button class="small" data-act="edit" data-id="' + t.id + '">✏️</button> ' +
+    '<button class="small" data-act="del" data-id="' + t.id + '">🗑</button></td></tr>').join('');
+  $('aList').innerHTML = '<tr><th>Tiêu đề</th><th>Cấp</th><th>Chủ đề</th><th>Độ dài</th><th></th></tr>' + rows;
+  renderCustomDict();
+  updateVoiceInfo();
+}
+$('aSave').addEventListener('click', async () => {
+  const title = $('aTitle').value.trim(), text = $('aText').value.trim();
+  if (!title || !text) { toast('Cần có tiêu đề và nội dung'); return; }
+  const row = { title, level: +$('aLevel').value, content: text,
+    translation: $('aTrans').value.trim(),
+    tags: $('aTags').value.split(',').map(s => s.trim()).filter(Boolean) };
+  try {
+    const id = $('aId').value;
+    if (id) { const { error } = await sb.from('reading_texts').update(row).eq('id', id); if (error) throw error; }
+    else { const { error } = await sb.from('reading_texts').insert({ ...row, created_by: uid }); if (error) throw error; }
+    await loadTexts();
+    ['aId','aTitle','aText','aTrans','aTags'].forEach(id => $(id).value = '');
+    $('aCancel').hidden = true;
+    toast('✓ Đã lưu bài đọc'); renderAdmin();
+  } catch (e) { toast('✗ Không lưu được: ' + (e.message || e)); }
+});
+$('aCancel').addEventListener('click', () => { ['aId','aTitle','aText','aTrans','aTags'].forEach(id => $(id).value = ''); $('aCancel').hidden = true; });
+$('aList').addEventListener('click', async e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const t = getTexts().find(x => x.id === b.dataset.id); if (!t) return;
+  if (b.dataset.act === 'edit') {
+    $('aId').value = t.id; $('aTitle').value = t.title; $('aLevel').value = t.level;
+    $('aText').value = t.text; $('aTrans').value = t.tr || ''; $('aTags').value = (t.tags || []).join(', ');
+    $('aCancel').hidden = false;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  if (b.dataset.act === 'del') {
+    if (!confirm('Xoá bài "' + t.title + '" cho tất cả học viên?')) return;
+    try {
+      const { error } = await sb.from('reading_texts').delete().eq('id', t.id);
+      if (error) throw error;
+      await loadTexts(); renderAdmin();
+    } catch (e2) { toast('✗ Không xoá được: ' + (e2.message || e2)); }
+  }
+});
+$('bulkGo').addEventListener('click', async () => {
+  let arr;
+  try { arr = JSON.parse($('bulkBox').value); if (!Array.isArray(arr)) throw 0; }
+  catch (e) { $('bulkMsg').textContent = '✗ JSON không hợp lệ — cần một mảng [ … ]'; return; }
+  const rows = arr.filter(t => t.title && t.text).map(t => ({
+    title: String(t.title), level: Math.min(6, Math.max(1, +t.level || 1)),
+    content: String(t.text), translation: String(t.translation || t.tr || ''),
+    tags: Array.isArray(t.tags) ? t.tags.map(String) : [], created_by: uid }));
+  if (!rows.length) { $('bulkMsg').textContent = '✗ Không có bài hợp lệ (cần title + text)'; return; }
+  try {
+    const { error } = await sb.from('reading_texts').insert(rows);
+    if (error) throw error;
+    await loadTexts();
+    $('bulkMsg').textContent = '✓ Đã nhập ' + rows.length + ' bài'; $('bulkBox').value = '';
+    renderAdmin();
+  } catch (e) { $('bulkMsg').textContent = '✗ Không nhập được: ' + (e.message || e); }
+});
+/* custom dictionary (shared, in Supabase) */
+function renderCustomDict() {
+  $('cdList').innerHTML = DICT_CUSTOM.length ? '<table class="atable">' + DICT_CUSTOM.map(e =>
+    '<tr><td style="font-family:var(--hz-font)">' + escH(e.word) + '</td><td>' + escH(e.pinyin) + '</td><td>' + escH(e.meaning) + '</td>' +
+    '<td><span class="lv lv' + e.level + '">' + (+e.level ? 'HSK ' + e.level : 'ngoài') + '</span></td>' +
+    '<td style="font-family:var(--hz-font)">' + escH(e.example || '') + '</td>' +
+    '<td><button class="small" data-id="' + e.id + '">🗑</button></td></tr>').join('') + '</table>'
+    : '<p class="mutetext">Chưa có từ bổ sung.</p>';
+}
+$('cdAdd').addEventListener('click', async () => {
+  const w = $('cdW').value.trim(); if (!w) return;
+  const items = charAnalyse(w);
+  const p = $('cdP').value.trim() || (items ? items.map(x => x.mark).join(' ') : '');
+  try {
+    const { error } = await sb.from('reading_dict').upsert(
+      { word: w, pinyin: p, meaning: $('cdM').value.trim(), level: +$('cdL').value, example: $('cdEx').value.trim() },
+      { onConflict: 'word' });
+    if (error) throw error;
+    await loadCloudDict();
+    ['cdW','cdP','cdM','cdEx'].forEach(id => $(id).value = '');
+    rebuildDictIndex(); renderCustomDict(); toast('✓ Đã thêm vào từ điển');
+  } catch (e) { toast('✗ Không thêm được: ' + (e.message || e)); }
+});
+$('cdList').addEventListener('click', async e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const entry = DICT_CUSTOM.find(x => x.id === b.dataset.id);
+  try {
+    const { error } = await sb.from('reading_dict').delete().eq('id', b.dataset.id);
+    if (error) throw error;
+    await loadCloudDict();
+    if (entry) delete DICT[entry.word];
+    const cached = read('crh-dict-v1', null);          // restore HSK entry if it was an override
+    if (entry && cached && cached.words && cached.words[entry.word]) DICT[entry.word] = cached.words[entry.word];
+    rebuildDictIndex(); renderCustomDict();
+  } catch (e2) { toast('✗ Không xoá được: ' + (e2.message || e2)); }
+});
+/* backup */
+$('btnExport').addEventListener('click', () => {
+  const data = {};
+  ['crh-vocab','crh-stats','crh-prefs'].forEach(k => data[k] = read(k, null));
+  const blob = new Blob([JSON.stringify({ app: 'reading-hub', v: 1, date: todayKey(), data }, null, 1)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'reading-hub-backup-' + todayKey() + '.json';
+  a.click(); URL.revokeObjectURL(a.href);
+});
+$('btnImport').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const fr = new FileReader();
+  fr.onload = () => {
+    try {
+      const j = JSON.parse(fr.result);
+      if (j.app !== 'reading-hub') throw 0;
+      if (!confirm('Khôi phục sẽ thay thế dữ liệu hiện tại trên thiết bị này. Tiếp tục?')) return;
+      for (const [k, v] of Object.entries(j.data)) if (v !== null) store(k, v);
+      toast('✓ Đã khôi phục — tải lại trang');
+      setTimeout(() => location.reload(), 800);
+    } catch (err) { toast('✗ File sao lưu không hợp lệ'); }
+  };
+  fr.readAsText(f);
+});
+
+/* ================= preferences ================= */
+let prefs = { pyPos: 'above', tr: true, colors: true, tips: true, audioClick: true,
+  hz: 26, py: 14, trS: 15, rate: 0.9, net: true, voice: '', azKey: '', azRegion: 'southeastasia' };
+function applyPrefs() {
+  document.documentElement.style.setProperty('--hz', prefs.hz + 'px');
+  document.documentElement.style.setProperty('--py', prefs.py + 'px');
+  document.documentElement.style.setProperty('--tr', prefs.trS + 'px');
+  $('szHz').value = prefs.hz; $('szHzV').textContent = prefs.hz;
+  $('szPy').value = prefs.py; $('szPyV').textContent = prefs.py;
+  $('szTr').value = prefs.trS; $('szTrV').textContent = prefs.trS;
+  $('pyPos').value = prefs.pyPos;
+  $('tgTr').checked = prefs.tr; $('tgColors').checked = prefs.colors;
+  $('tgTips').checked = prefs.tips; $('tgAudio').checked = prefs.audioClick;
+  $('aRate').value = prefs.rate;
+  $('optNet').checked = prefs.net;
+  $('voicePick').value = prefs.voice || '';
+  if (prefs.azKey) $('azKey').value = prefs.azKey;
+  if (prefs.azRegion) $('azRegion').value = prefs.azRegion;
+  document.body.classList.toggle('py-hidden', prefs.pyPos === 'hidden');
+  document.body.classList.toggle('tr-hidden', !prefs.tr);
+  document.body.classList.toggle('colors-on', prefs.colors);
+  document.querySelectorAll('.rpara').forEach(p => p.classList.toggle('below', prefs.pyPos === 'below'));
+}
+function savePrefs() { store('crh-prefs', prefs); }
+function loadPrefs() { prefs = { ...prefs, ...read('crh-prefs', {}) }; applyPrefs(); }
+$('pyPos').addEventListener('change', () => { prefs.pyPos = $('pyPos').value; applyPrefs(); savePrefs(); });
+$('tgTr').addEventListener('change', () => { prefs.tr = $('tgTr').checked; applyPrefs(); savePrefs(); });
+$('tgColors').addEventListener('change', () => { prefs.colors = $('tgColors').checked; applyPrefs(); savePrefs(); });
+$('tgTips').addEventListener('change', () => { prefs.tips = $('tgTips').checked; savePrefs(); renderReader(); });
+$('tgAudio').addEventListener('change', () => { prefs.audioClick = $('tgAudio').checked; savePrefs(); });
+$('szHz').addEventListener('input', () => { prefs.hz = +$('szHz').value; applyPrefs(); savePrefs(); });
+$('szPy').addEventListener('input', () => { prefs.py = +$('szPy').value; applyPrefs(); savePrefs(); });
+$('szTr').addEventListener('input', () => { prefs.trS = +$('szTr').value; applyPrefs(); savePrefs(); });
+$('preset').addEventListener('change', () => {
+  if (!$('preset').value) return;
+  const [hz, py, tr] = $('preset').value.split(',').map(Number);
+  prefs.hz = hz; prefs.py = py; prefs.trS = tr;
+  applyPrefs(); savePrefs();
+  $('preset').value = '';
+});
+$('aRate').addEventListener('input', () => { prefs.rate = +$('aRate').value; savePrefs(); });
+
+/* ================= presentation mode ================= */
+const stage = $('readerStage');
+function fsActive() { return !!(document.fullscreenElement || document.webkitFullscreenElement) || stage.classList.contains('fakefs'); }
+async function exitFs() {
+  stage.classList.remove('fakefs');
+  const el = document.fullscreenElement || document.webkitFullscreenElement;
+  if (el) { try { await (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch (e) {} }
+}
+$('btnPresent').addEventListener('click', async () => {
+  if (fsActive()) { exitFs(); return; }
+  if (prefs.hz < 60) { prefs.hz = 64; prefs.py = 30; prefs.trS = 24; applyPrefs(); savePrefs(); }
+  try { await (stage.requestFullscreen || stage.webkitRequestFullscreen).call(stage); }
+  catch (e) { stage.classList.add('fakefs'); }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && stage.classList.contains('fakefs')) exitFs();
+  if (currentView === 'reader' && !(e.target.matches && e.target.matches('input,textarea,select'))) {
+    if (e.key === 'ArrowRight') stepText(1);
+    if (e.key === 'ArrowLeft') stepText(-1);
+  }
+});
+
+/* ================= speech engine (Azure + device, from pinyin-tool) ================= */
+const fmtPct = n => (n >= 0 ? '+' : '') + Math.round(n) + '%';
+const escXml = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+let netOk = true;
+const netCache = new Map();
+let AZ_SHARED = { key: '', region: 'southeastasia' };   // the teacher's key, from reading_settings
+async function loadSettings() {
+  try {
+    const { data } = await sb.from('reading_settings').select('*').eq('id', 1).maybeSingle();
+    if (data && data.az_key) AZ_SHARED = { key: data.az_key, region: data.az_region || 'southeastasia' };
+  } catch (e) {}
+}
+const azConf = () => {
+  const k = ($('azKey').value || '').trim();
+  return k ? { key: k, region: ($('azRegion').value || '').trim().toLowerCase() || 'southeastasia' } : AZ_SHARED;
+};
+const hasKey = () => { const c = azConf(); return !!(c.key && c.region); };
+async function azureSynth(text, voiceName, ratePct) {
+  const { key, region } = azConf();
+  const res = await fetch('https://' + region + '.tts.speech.microsoft.com/cognitiveservices/v1', {
+    method: 'POST',
+    headers: { 'Ocp-Apim-Subscription-Key': key, 'Content-Type': 'application/ssml+xml',
+      'X-Microsoft-OutputFormat': 'audio-24khz-48kbitrate-mono-mp3' },
+    body: '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="zh-CN">' +
+      '<voice name="' + voiceName + '"><prosody rate="' + fmtPct(ratePct) + '">' + escXml(text) + '</prosody></voice></speak>'
+  });
+  if (!res.ok) { const e = new Error('HTTP ' + res.status); e.status = res.status; throw e; }
+  return new Blob([await res.arrayBuffer()], { type: 'audio/mpeg' });
+}
+function netGet(text, voiceName, ratePct) {
+  const k = voiceName + '|' + ratePct + '|' + text;
+  if (!netCache.has(k)) {
+    if (netCache.size > 80) netCache.delete(netCache.keys().next().value);
+    const p = azureSynth(text, voiceName, ratePct);
+    p.catch(() => netCache.delete(k));
+    netCache.set(k, p);
+  }
+  return netCache.get(k);
+}
+const VOICE_DB = [
+  { m:'xiaoshuang', g:'f' }, { m:'xiaorui', g:'f' }, { m:'xiaoxiao', g:'f' }, { m:'xiaoyi', g:'f' },
+  { m:'yunxi', g:'m' }, { m:'yunjian', g:'m' }, { m:'yunyang', g:'m' }, { m:'yunxia', g:'m' },
+  { m:'huihui', g:'f' }, { m:'yaoyao', g:'f' }, { m:'kangkang', g:'m' },
+  { m:'tingting', g:'f' }, { m:'ting-ting', g:'f' }, { m:'meijia', g:'f' }, { m:'mei-jia', g:'f' },
+  { m:'google', g:'f' }
+];
+function voiceQuality(v) {
+  const n = (v.name + ' ' + v.voiceURI).toLowerCase();
+  if (n.includes('natural') || n.includes('neural')) return 4;
+  if (n.includes('siri') || n.includes('premium') || n.includes('enhanced')) return 3;
+  if (n.includes('google')) return 2.5;
+  if (/flo|sandy|shelley|eddy|reed|rocko|grandma|grandpa/.test(n)) return 0.5;
+  return 1;
+}
+function mandarinVoices() {
+  if (!('speechSynthesis' in window)) return [];
+  return speechSynthesis.getVoices()
+    .filter(v => /^zh[-_](cn|tw)/i.test(v.lang) || /^zh$/i.test(v.lang))
+    .filter(v => !/hk|cantonese|sinji|aasing/i.test(v.lang + ' ' + v.name) && !/^yue/i.test(v.lang))
+    .sort((a, b) => (voiceQuality(b) - voiceQuality(a)) || (/^zh[-_]cn/i.test(b.lang) - /^zh[-_]cn/i.test(a.lang)));
+}
+function populateVoicePick() {
+  const group = $('devVoicesGroup'), sel = $('voicePick');
+  const want = prefs.voice;
+  group.innerHTML = '';
+  for (const v of mandarinVoices()) {
+    const o = document.createElement('option');
+    o.value = v.voiceURI;
+    o.textContent = v.name + (voiceQuality(v) >= 3 ? ' ★' : '');
+    group.appendChild(o);
+  }
+  if (want && [...sel.options].some(o => o.value === want)) sel.value = want;
+  updateVoiceInfo();
+}
+if ('speechSynthesis' in window) speechSynthesis.addEventListener('voiceschanged', populateVoicePick);
+function resolveVoice() {
+  const pick = $('voicePick').value;
+  if (pick.startsWith('azure:') && hasKey() && netOk) return { engine: 'azure', v: pick.slice(6) };
+  if (pick && !pick.startsWith('azure:')) {
+    const voice = mandarinVoices().find(v => v.voiceURI === pick);
+    if (voice) return { engine: 'device', voice };
+  }
+  if ($('optNet').checked && hasKey() && netOk && navigator.onLine !== false)
+    return { engine: 'azure', v: 'zh-CN-XiaoxiaoNeural' };
+  return { engine: 'device', voice: mandarinVoices()[0] || null };
+}
+function updateVoiceInfo() {
+  const r = resolveVoice();
+  $('voiceInfo').textContent = r.engine === 'azure' ? '→ giọng tự nhiên qua mạng ★'
+    : r.voice ? '→ ' + r.voice.name + ($('optNet').checked && !hasKey() ? ' (bấm 🔑 để có giọng tự nhiên hơn)' : '')
+    : 'Không có giọng tiếng Trung trên thiết bị — bấm 🔑';
+}
+let speakToken = 0, currentAudio = null;
+function stopSpeak() {
+  speakToken++;
+  if (currentAudio) { try { currentAudio.pause(); } catch (e) {} currentAudio = null; }
+  try { speechSynthesis.cancel(); } catch (e) {}
+}
+async function speak(text) {
+  stopSpeak();
+  const my = speakToken;
+  const r = resolveVoice();
+  const sentences = text.split(/(?<=[。！？；.!?;\n])/).map(s => s.trim()).filter(Boolean);
+  if (!sentences.length) return;
+  if (r.engine === 'azure') {
+    const ratePct = Math.round((prefs.rate - 1) * 100);
+    for (let i = 0; i < sentences.length; i++) {
+      if (speakToken !== my) return;
+      let blob;
+      try {
+        const p = netGet(sentences[i], r.v, ratePct);
+        if (i + 1 < sentences.length) netGet(sentences[i + 1], r.v, ratePct).catch(() => {});
+        blob = await p;
+      } catch (e) {
+        netOk = false; updateVoiceInfo();
+        return speakDevice(sentences.slice(i).join(''), my);
+      }
+      if (speakToken !== my) return;
+      await new Promise(res => {
+        const url = URL.createObjectURL(blob);
+        const a = new Audio(url); currentAudio = a;
+        a.onended = () => { URL.revokeObjectURL(url); res(); };
+        a.onerror = () => { URL.revokeObjectURL(url); res(); };
+        a.play().catch(res);
+      });
+    }
+  } else speakDevice(text, my);
+}
+function speakDevice(text, my) {
+  if (!('speechSynthesis' in window)) return;
+  const r = resolveVoice();
+  const voice = r.engine === 'device' ? r.voice : (mandarinVoices()[0] || null);
+  const parts = text.split(/(?<=[。！？；.!?;\n])/).map(s => s.trim()).filter(Boolean);
+  const next = () => {
+    if (speakToken !== my || !parts.length) return;
+    const u = new SpeechSynthesisUtterance(parts.shift());
+    u.lang = (voice && voice.lang) || 'zh-CN';
+    if (voice) u.voice = voice;
+    u.rate = prefs.rate;
+    u.onend = next;
+    speechSynthesis.speak(u);
+  };
+  next();
+}
+$('btnReadAll').addEventListener('click', () => { if (currentText) speak(currentText.text); });
+$('optNet').addEventListener('change', () => { prefs.net = $('optNet').checked; if (prefs.net) netOk = true; savePrefs(); updateVoiceInfo(); if (prefs.net && !hasKey()) $('keyPanel').hidden = false; });
+$('voicePick').addEventListener('change', () => { prefs.voice = $('voicePick').value; savePrefs(); updateVoiceInfo(); });
+$('btnKey').addEventListener('click', () => { $('keyPanel').hidden = !$('keyPanel').hidden; });
+$('btnKeySave').addEventListener('click', async () => {
+  const st = $('keyStatus');
+  if (!hasKey()) { st.textContent = '✗ Cần dán KEY 1 và Region.'; return; }
+  st.textContent = 'Đang thử…'; netOk = true; netCache.clear();
+  try {
+    const blob = await azureSynth('你好！欢迎来读中文。', 'zh-CN-XiaoxiaoNeural', 0);
+    prefs.azKey = azConf().key; prefs.azRegion = azConf().region; savePrefs(); updateVoiceInfo();
+    if (isStaff) {
+      // publish the key for the whole school: every signed-in student gets natural voices
+      const { error } = await sb.from('reading_settings')
+        .upsert({ id: 1, az_key: azConf().key, az_region: azConf().region });
+      st.textContent = error ? '✓ Hoạt động trên máy này (✗ chưa lưu cho học viên: ' + error.message + ')'
+                             : '✓ Hoạt động! Đã lưu cho toàn bộ học viên.';
+      if (!error) AZ_SHARED = { key: azConf().key, region: azConf().region };
+    } else st.textContent = '✓ Hoạt động trên thiết bị này!';
+    const a = new Audio(URL.createObjectURL(blob)); a.play().catch(() => {});
+  } catch (e) {
+    st.textContent = '✗ ' + ((e.status === 401 || e.status === 403) ? 'Khóa hoặc Region chưa đúng.' : 'Không kết nối được.');
+  }
+});
+
+/* ================= init: sign-in first, then cloud pull, then render ================= */
+(async function boot() {
+  const user = await requireLogin();
+  if (!user) return;
+  loadPrefs();
+  if ('speechSynthesis' in window) populateVoicePick();
+  $('dictStatus').textContent = '⏳ Đang tải dữ liệu tài khoản…';
+  await Promise.all([loadTexts(), loadCloudDict(), loadSettings(), pullVocab(), pullDays(), pullProgress()]);
+  await loadDict();          // HSK dictionary from CDN (cached on the device after first load)
+  rebuildDictIndex();
+  renderLibrary();
+  updateDueBadge();
+})();
+})();
+</script>
+</body>
+</html>
