@@ -2670,16 +2670,31 @@
         }
 
         // ---- bulk import of reading texts ----
-        document.getElementById("rti-template").addEventListener("click", () => {
-          const tpl = [
-            "title,level,category,tags,tier,audience,published,content,translation",
-            '我的周末,1,Sinh hoạt,cuối tuần; gia đình,free,everyone,yes,"周末我不上学。我和妈妈去公园。||公园里人很多。我们很高兴。","On weekends I don\'t go to school. I go to the park with mom.||There are many people in the park. We are very happy."',
-            '去饭馆吃饭,2,Ẩm thực,ẩm thực,premium,everyone,yes,"今天是我的生日，我们去饭馆吃饭。||我点了鱼和米饭，很好吃。","Today is my birthday; we eat at a restaurant.||I ordered fish and rice — delicious."'
-          ].join("\r\n");
-          const blob = new Blob(["﻿" + tpl], { type: "text/csv;charset=utf-8" });
-          const a = document.createElement("a");
-          a.href = URL.createObjectURL(blob); a.download = "reading-import-template.csv"; a.click();
-          setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        // The template is a real .xlsx: CSV templates opened as one long
+        // column on Excel installs whose locale expects semicolons.
+        document.getElementById("rti-template").addEventListener("click", async (ev) => {
+          const b = ev.target; b.disabled = true;
+          try {
+            const X = await loadXLSX();
+            const rows = [
+              ["title", "level", "category", "tags", "tier", "audience", "published", "content", "translation"],
+              ["我的周末", 1, "Sinh hoạt", "cuối tuần; gia đình", "free", "everyone", "yes",
+               "周末我不上学。我和妈妈去公园。||公园里人很多。我们很高兴。",
+               "On weekends I don't go to school. I go to the park with mom.||There are many people in the park. We are very happy."],
+              ["去饭馆吃饭", 2, "Ẩm thực", "ẩm thực", "premium", "everyone", "yes",
+               "今天是我的生日，我们去饭馆吃饭。||我点了鱼和米饭，很好吃。",
+               "Today is my birthday; we eat at a restaurant.||I ordered fish and rice — delicious."]
+            ];
+            const ws = X.utils.aoa_to_sheet(rows);
+            ws["!cols"] = [{ wch: 16 }, { wch: 7 }, { wch: 13 }, { wch: 20 }, { wch: 9 },
+                           { wch: 11 }, { wch: 10 }, { wch: 60 }, { wch: 60 }];
+            const wb = X.utils.book_new();
+            X.utils.book_append_sheet(wb, ws, "Reading texts");
+            X.writeFile(wb, "reading-import-template.xlsx");
+          } catch (err) {
+            if (window.UI) UI.toast(err.message, "err"); else alert(err.message);
+          }
+          b.disabled = false;
         });
 
         const rtiFile = document.getElementById("rti-file");
@@ -3283,18 +3298,27 @@
         if (!fileIn) return;
         const box = document.getElementById("bi-preview");
 
-        // template download (UTF-8 BOM so Vietnamese opens correctly in Excel)
-        document.getElementById("bi-template").addEventListener("click", () => {
-          const tpl = [
-            "full_name,email,password,role,organization,courses,access_expires",
-            'Nguyễn Văn A,vana@example.com,,student,,"' + String((courses || [])[0]?.title || "Course title").replace(/"/g, '""') + '",2027-01-31',
-            "Trần Thị B,thib@example.com,Matkhau123,student,,,",
-            "Ms Lan,lan@example.com,,teacher,,,"
-          ].join("\r\n");
-          const blob = new Blob(["﻿" + tpl], { type: "text/csv;charset=utf-8" });
-          const a = document.createElement("a");
-          a.href = URL.createObjectURL(blob); a.download = "account-import-template.csv"; a.click();
-          setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        // template download — a real .xlsx, so Excel always shows proper
+        // columns regardless of the computer's CSV separator locale
+        document.getElementById("bi-template").addEventListener("click", async (ev) => {
+          const b = ev.target; b.disabled = true;
+          try {
+            const X = await loadXLSX();
+            const rows = [
+              ["full_name", "email", "password", "role", "organization", "courses", "access_expires"],
+              ["Nguyễn Văn A", "vana@example.com", "", "student", "", (courses || [])[0]?.title || "Course title", "2027-01-31"],
+              ["Trần Thị B", "thib@example.com", "Matkhau123", "student", "", "", ""],
+              ["Ms Lan", "lan@example.com", "", "teacher", "", "", ""]
+            ];
+            const ws = X.utils.aoa_to_sheet(rows);
+            ws["!cols"] = [{ wch: 18 }, { wch: 24 }, { wch: 14 }, { wch: 10 }, { wch: 16 }, { wch: 28 }, { wch: 15 }];
+            const wb = X.utils.book_new();
+            X.utils.book_append_sheet(wb, ws, "Accounts");
+            X.writeFile(wb, "account-import-template.xlsx");
+          } catch (err) {
+            if (window.UI) UI.toast(err.message, "err"); else alert(err.message);
+          }
+          b.disabled = false;
         });
 
         const normH = s => String(s || "").toLowerCase().normalize("NFD")
