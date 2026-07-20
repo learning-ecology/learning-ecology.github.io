@@ -107,6 +107,13 @@
   .lc-body { padding:11px 14px 13px; }
   .lc-path { font-size:11.5px; color:var(--accent); margin:0 0 4px; }
   .lc-vi { font-size:12.5px; color:var(--muted); margin:-3px 0 6px; }
+  /* cover drop zone (admin form) */
+  #coverDrop { border:2px dashed var(--line); border-radius:10px; padding:10px 12px; width:100%;
+               display:flex; align-items:center; gap:12px; flex-wrap:wrap; cursor:pointer; }
+  #coverDrop.drag { border-color:var(--accent); background:var(--accent-soft); }
+  #coverDrop img { width:150px; aspect-ratio:16/9; object-fit:cover; border-radius:8px; border:1px solid var(--line); }
+  #coverDrop .cd-hint { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:13px; }
+  #coverErr { color:var(--l5); font-size:13px; margin-top:4px; }
   #rTitleVi { color:var(--muted); font-size:calc(var(--tr) * 1.05); margin:-2px 0 8px; }
   #activeFilters[hidden] { display:none; }
   /* access badge: always text, solid background so it stays readable over any image */
@@ -474,12 +481,20 @@
         <select id="aTheme" aria-label="Chủ đề lớn" style="min-width:190px"><option value="">— Chủ đề lớn —</option></select>
         <span class="row" id="aSubs" style="gap:4px 10px"></span>
       </div>
-      <div class="row" style="margin-bottom:8px" id="aCoverRow" hidden>
-        <img id="aCoverPrev" alt="Xem trước ảnh bìa" style="width:128px;aspect-ratio:16/9;object-fit:cover;border-radius:8px;border:1px solid var(--line);display:none">
+      <div style="margin-bottom:8px" id="aCoverRow" hidden>
+        <div id="coverDrop" role="button" tabindex="0" aria-label="Kéo–thả ảnh vào đây hoặc bấm để chọn ảnh bìa">
+          <img id="aCoverPrev" alt="Xem trước ảnh bìa" style="display:none">
+          <div class="cd-hint">
+            <b>🖼 Kéo–thả ảnh bìa vào đây</b>
+            <span class="mutetext">hoặc</span>
+            <button class="small" id="aCoverPick" type="button">Chọn file…</button>
+            <span class="mutetext">JPG / PNG / WebP, tối đa 10 MB — tự cắt về 16:9</span>
+            <button class="small" id="aCoverDel" type="button" hidden>✕ Bỏ ảnh</button>
+          </div>
+        </div>
+        <div id="coverErr" role="alert" hidden></div>
         <input type="file" id="aCoverFile" accept="image/*" hidden>
-        <button class="small" id="aCoverPick" type="button">🖼 Chọn ảnh bìa (16:9)</button>
-        <button class="small" id="aCoverDel" type="button" hidden>✕ Bỏ ảnh</button>
-        <input id="aCoverAlt" placeholder="Mô tả ảnh cho người khiếm thị (alt)" class="grow" style="min-width:180px">
+        <input id="aCoverAlt" placeholder="Mô tả ảnh cho người khiếm thị (alt)" style="width:100%;margin-top:6px">
       </div>
       <textarea id="aText" rows="5" placeholder="Nội dung chữ Hán (mỗi đoạn một dòng)" style="font-family:var(--hz-font)"></textarea>
       <textarea id="aTrans" rows="3" placeholder="Bản dịch tiếng Anh / tiếng Việt (không bắt buộc — mỗi đoạn một dòng, khớp thứ tự)" style="margin-top:8px"></textarea>
@@ -1703,6 +1718,7 @@ function setCoverPreview(src) {
 }
 function resetCoverForm(t) {
   aCoverBlob = null; aCoverRemoved = false;
+  coverError('');
   $('aCoverFile').value = '';
   $('aCoverAlt').value = t ? (t.coverAlt || '') : '';
   setCoverPreview(t && t.cover ? t.cover : '');
@@ -1724,9 +1740,21 @@ function cropTo169(file) {
     img.src = url;
   });
 }
-$('aCoverPick').addEventListener('click', () => $('aCoverFile').click());
-$('aCoverFile').addEventListener('change', async e => {
-  const f = e.target.files[0]; if (!f) return;
+const COVER_MAX_MB = 10;
+function coverError(msg) {
+  const e = $('coverErr');
+  if (!msg) { e.hidden = true; e.textContent = ''; return; }
+  e.textContent = '✗ ' + msg; e.hidden = false;
+}
+/* one path for both the file picker and drag-and-drop */
+async function handleCoverFile(f) {
+  coverError('');
+  if (!f) return;
+  const isImage = /^image\//i.test(f.type || '') || /\.(jpe?g|png|webp|gif|bmp|avif|heic)$/i.test(f.name || '');
+  if (!isImage) { coverError('File "' + (f.name || '?') + '" không phải ảnh — hãy dùng JPG, PNG hoặc WebP.'); return; }
+  if (f.size > COVER_MAX_MB * 1024 * 1024) {
+    coverError('Ảnh quá lớn (' + (f.size / 1048576).toFixed(1) + ' MB) — tối đa ' + COVER_MAX_MB + ' MB.'); return;
+  }
   try {
     aCoverBlob = await cropTo169(f);
     aCoverRemoved = false;
@@ -1734,12 +1762,41 @@ $('aCoverFile').addEventListener('change', async e => {
     const img = $('aCoverPrev');
     img.src = aCoverPrevUrl; img.style.display = 'block';
     $('aCoverDel').hidden = false;
-  } catch (err) { toast('✗ ' + (err.message || err)); }
-});
+  } catch (err) {
+    coverError('Không đọc được ảnh này (' + (f.name || '?') + ') — hãy thử một ảnh JPG hoặc PNG khác.');
+  }
+}
+$('aCoverPick').addEventListener('click', () => $('aCoverFile').click());
+$('aCoverFile').addEventListener('change', e => handleCoverFile(e.target.files[0]));
 $('aCoverDel').addEventListener('click', () => {
   aCoverBlob = null; aCoverRemoved = true; $('aCoverFile').value = '';
+  coverError('');
   setCoverPreview('');
 });
+/* drag & drop onto the zone; clicking anywhere in it opens the picker */
+const coverDropEl = $('coverDrop');
+['dragenter', 'dragover'].forEach(ev => coverDropEl.addEventListener(ev, e => {
+  e.preventDefault(); e.stopPropagation(); coverDropEl.classList.add('drag');
+}));
+coverDropEl.addEventListener('dragleave', e => {
+  e.preventDefault(); coverDropEl.classList.remove('drag');
+});
+coverDropEl.addEventListener('drop', e => {
+  e.preventDefault(); e.stopPropagation(); coverDropEl.classList.remove('drag');
+  const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (!f) { coverError('Không nhận được file nào — hãy kéo một file ảnh từ máy của bạn.'); return; }
+  handleCoverFile(f);
+});
+coverDropEl.addEventListener('click', e => {
+  if (e.target.closest('#aCoverPick') || e.target.closest('#aCoverDel')) return;
+  $('aCoverFile').click();
+});
+coverDropEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('aCoverFile').click(); }
+});
+/* a stray drop outside the zone must not navigate the page away */
+document.addEventListener('dragover', e => { if (currentView === 'admin') e.preventDefault(); });
+document.addEventListener('drop', e => { if (currentView === 'admin' && !e.target.closest('#coverDrop')) e.preventDefault(); });
 
 /* ---- theme & subtopic manager (create / rename / reorder / delete) ---- */
 async function themeOp(fn) {

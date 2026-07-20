@@ -1773,7 +1773,7 @@
           <p id="rt-msg" class="msg"></p>
           <details style="margin-top:0.5rem;">
             <summary style="cursor:pointer; font-size:0.88rem; color:var(--accent-ink); font-weight:600;">⬆ Bulk import — many texts from one file</summary>
-            <p class="kind" style="margin:0.5rem 0;">Columns: <b>title, level (1–6), category, tags, tier (free/premium), audience (everyone/assigned), published (yes/no), content, translation</b>. Inside the content cell, separate paragraphs with <b>||</b> — or press Option+Enter (Alt+Enter) in Excel for a real line break. Tags separated by ; </p>
+            <p class="kind" style="margin:0.5rem 0;">Columns: <b>title, vietnameseTitle, level (1–9), theme, subtopics, category, tags, tier (free/premium), audience (everyone/assigned), published (yes/no), content, translation, coverAlt, coverUrl</b>. Only <b>title</b> and <b>content</b> are required — old files with fewer columns still import. <b>theme</b> and <b>subtopics</b> must match names that already exist (manage them in reading.html → ⚙️ Quản lý → 🗂); subtopics and tags separated by ; — if theme is empty, it is taken from the first subtopic. Inside content/translation, separate paragraphs with <b>||</b> or press Option+Enter (Alt+Enter) in Excel for a real line break. <b>coverUrl</b> is an optional https image link; cover uploads are done per text in the editor.</p>
             <div class="form-row">
               <button class="ghost" id="rti-template" style="flex:none;">⬇ Download template</button>
               <div class="field" style="max-width:280px;"><label>File (.csv or .xlsx)</label>
@@ -2677,17 +2677,23 @@
           try {
             const X = await loadXLSX();
             const rows = [
-              ["title", "level", "category", "tags", "tier", "audience", "published", "content", "translation"],
-              ["我的周末", 1, "Sinh hoạt", "cuối tuần; gia đình", "free", "everyone", "yes",
+              ["title", "vietnameseTitle", "level", "theme", "subtopics", "category", "tags",
+               "tier", "audience", "published", "content", "translation", "coverAlt", "coverUrl"],
+              ["我的周末", "Cuối tuần của tôi", 1, "Gia đình & Cuộc sống", "Sinh hoạt; Gia đình",
+               "Sinh hoạt", "cuối tuần; gia đình", "free", "everyone", "yes",
                "周末我不上学。我和妈妈去公园。||公园里人很多。我们很高兴。",
-               "On weekends I don't go to school. I go to the park with mom.||There are many people in the park. We are very happy."],
-              ["去饭馆吃饭", 2, "Ẩm thực", "ẩm thực", "premium", "everyone", "yes",
+               "On weekends I don't go to school. I go to the park with mom.||There are many people in the park. We are very happy.",
+               "Hai mẹ con đi dạo trong công viên", ""],
+              ["去饭馆吃饭", "Đi nhà hàng ăn cơm", 2, "Ẩm thực & Du lịch", "Ẩm thực",
+               "Ẩm thực", "ẩm thực", "premium", "everyone", "yes",
                "今天是我的生日，我们去饭馆吃饭。||我点了鱼和米饭，很好吃。",
-               "Today is my birthday; we eat at a restaurant.||I ordered fish and rice — delicious."]
+               "Today is my birthday; we eat at a restaurant.||I ordered fish and rice — delicious.",
+               "", ""]
             ];
             const ws = X.utils.aoa_to_sheet(rows);
-            ws["!cols"] = [{ wch: 16 }, { wch: 7 }, { wch: 13 }, { wch: 20 }, { wch: 9 },
-                           { wch: 11 }, { wch: 10 }, { wch: 60 }, { wch: 60 }];
+            ws["!cols"] = [{ wch: 16 }, { wch: 20 }, { wch: 7 }, { wch: 20 }, { wch: 20 }, { wch: 13 },
+                           { wch: 20 }, { wch: 9 }, { wch: 11 }, { wch: 10 }, { wch: 60 }, { wch: 60 },
+                           { wch: 26 }, { wch: 26 }];
             const wb = X.utils.book_new();
             X.utils.book_append_sheet(wb, ws, "Reading texts");
             X.writeFile(wb, "reading-import-template.xlsx");
@@ -2701,17 +2707,29 @@
         const rtiBox = document.getElementById("rti-preview");
         const RTI_HEADS = {
           title: "title", tieude: "title",
+          vietnamesetitle: "title_vi", titlevi: "title_vi", title_vi: "title_vi", tieudetiengviet: "title_vi",
           level: "level", hsklevel: "level", capdo: "level", hsk: "level",
+          theme: "theme", chudelon: "theme",
+          subtopics: "subtopics", subtopic: "subtopics", chudenho: "subtopics",
           category: "category", chude: "category",
           tags: "tags", the: "tags",
           tier: "tier", access: "tier",
           audience: "audience", visibleto: "audience", visible: "audience",
           published: "published", status: "published", trangthai: "published",
           content: "content", text: "content", chinesetext: "content", noidung: "content",
-          translation: "translation", dich: "translation", bandich: "translation"
+          translation: "translation", dich: "translation", bandich: "translation",
+          coveralt: "cover_alt", cover_alt: "cover_alt", motaanh: "cover_alt", alt: "cover_alt",
+          coverurl: "cover_url", cover_url: "cover_url", anhbia: "cover_url", cover: "cover_url"
         };
         const paras = v => String(v || "")
           .replace(/\s*\|\|\s*/g, "\n").replace(/\\n/g, "\n").trim();
+        // themes + subtopics for validating the new columns (migration33/34);
+        // fetched once, on demand — on an older database this simply stays empty
+        let _themesP = null;
+        const loadThemesSubs = () => _themesP || (_themesP = Promise.all([
+          sb.from("reading_themes").select("id, name, sort_order").order("sort_order").order("name"),
+          sb.from("reading_subtopics").select("id, theme_id, name, sort_order").order("sort_order").order("name")
+        ]).then(([t, s]) => ({ themes: t.data || [], subs: s.data || [], ok: !t.error && !s.error })));
 
         rtiFile.addEventListener("change", async () => {
           const f = rtiFile.files[0];
@@ -2740,6 +2758,12 @@
             rtiBox.innerHTML = `<p class="msg err">Columns "title" and "content" are required — the first row must be column names (use the template).</p>`;
             return;
           }
+          // theme/subtopic names → ids (only needed when the file has those columns)
+          const wantsThemes = cols.includes("theme") || cols.includes("subtopics");
+          const TS = wantsThemes ? await loadThemesSubs() : { themes: [], subs: [], ok: true };
+          const tnrm = s => nrm(s).replace(/\s+/g, " ").trim();
+          const themeByName = n => TS.themes.find(t => tnrm(t.name) === tnrm(n));
+          const subByName = n => TS.subs.find(s => tnrm(s.name) === tnrm(n));
           const parsedR = grid.slice(1).map((r, ix) => {
             const rec = {};
             cols.forEach((k, i) => { if (k) rec[k] = String(r[i] ?? "").trim(); });
@@ -2748,7 +2772,7 @@
             const content = paras(rec.content);
             if (!content) errors.push("missing content");
             const level = parseInt(rec.level, 10);
-            if (!(level >= 1 && level <= 6)) errors.push('level must be 1–6 (got "' + (rec.level || "") + '")');
+            if (!(level >= 1 && level <= 9)) errors.push('level must be 1–9 (got "' + (rec.level || "") + '")');
             const tierRaw = nrm(rec.tier || "free");
             const tier = ["premium", "prem", "👑"].includes(rec.tier) || tierRaw === "premium" ? "premium"
                        : (tierRaw === "free" || tierRaw === "" ? "free" : null);
@@ -2759,13 +2783,42 @@
             if (!audience) errors.push('audience must be everyone or assigned (got "' + rec.audience + '")');
             const pubRaw = nrm(rec.published || "yes");
             const published = !["no", "false", "0", "draft", "nhap", "khong"].includes(pubRaw);
-            return {
-              line: ix + 2, errors,
-              row: { title: rec.title, level: level || 1, category: rec.category || null,
+            // ---- new fields (Phase 20/21) — only validated when the file provides them ----
+            let themeId = null, subIds = null;
+            if (wantsThemes && ((rec.theme || "") + (rec.subtopics || "")).trim()) {
+              if (!TS.ok) errors.push("theme/subtopics need migration33 + 34 on the database first");
+              else {
+                if (rec.subtopics) {
+                  const names = rec.subtopics.split(/[;,]/).map(x => x.trim()).filter(Boolean);
+                  const missing = names.filter(n => !subByName(n));
+                  if (missing.length) errors.push('unknown subtopic(s): "' + missing.join('", "')
+                    + '" — create them in reading.html ⚙️ Quản lý → 🗂 first');
+                  else subIds = names.map(n => subByName(n).id);
+                }
+                if (rec.theme) {
+                  const th = themeByName(rec.theme);
+                  if (!th) errors.push('unknown theme "' + rec.theme + '" — existing: '
+                    + (TS.themes.map(t => t.name).join(", ") || "(none yet)"));
+                  else themeId = th.id;
+                } else if (subIds && subIds.length) {
+                  themeId = TS.subs.find(s => s.id === subIds[0]).theme_id;   // theme from first subtopic
+                }
+              }
+            }
+            if (rec.cover_url && !/^https?:\/\//i.test(rec.cover_url))
+              errors.push('coverUrl must be a full http(s) link (got "' + rec.cover_url + '")');
+            const row = { title: rec.title, level: level || 1, category: rec.category || null,
                      tags: (rec.tags || "").split(/[;,]/).map(x => x.trim()).filter(Boolean),
                      tier: tier || "free", audience: audience || "everyone", published,
-                     content, translation: paras(rec.translation) }
-            };
+                     content, translation: paras(rec.translation) };
+            // include the new columns only when the file has them, so files made from
+            // the old template still import on a database without migration33/34
+            if (cols.includes("title_vi")) row.title_vi = rec.title_vi || "";
+            if (cols.includes("theme")) row.theme_id = themeId;
+            if (cols.includes("subtopics")) row.subtopics = subIds || [];
+            if (cols.includes("cover_alt")) row.cover_alt = rec.cover_alt || "";
+            if (cols.includes("cover_url")) row.cover_url = rec.cover_url || null;
+            return { line: ix + 2, errors, row };
           });
           const okR = parsedR.filter(x => !x.errors.length);
           const badR = parsedR.filter(x => x.errors.length);
@@ -2779,7 +2832,7 @@
               <table><thead><tr><th>#</th><th>Title</th><th>Level</th><th>¶</th><th>Status</th></tr></thead>
               <tbody>${parsedR.slice(0, 200).map(x => `
                 <tr class="${x.errors.length ? "row-off" : ""}">
-                  <td>${x.line}</td><td>${esc(x.row.title || "—")}</td>
+                  <td>${x.line}</td><td>${esc(x.row.title || "—")}${x.row.title_vi ? `<div class="kind" style="text-transform:none; letter-spacing:0;">${esc(x.row.title_vi)}</div>` : ""}</td>
                   <td>${x.errors.some(e => e.startsWith("level")) ? "?" : `<span class="hsk-pill hsk-${x.row.level}">HSK ${x.row.level}</span>`}</td>
                   <td>${x.row.content ? x.row.content.split("\n").length : 0}</td>
                   <td>${x.errors.length
@@ -2814,7 +2867,9 @@
               const { data: ins, error } = await sb.from("reading_texts").insert(rowsIn.slice(i, i + 50)).select();
               if (error) {
                 runEl.className = "msg err";
-                runEl.textContent = "Import stopped after " + doneN + " texts: " + error.message + (rtRes.error ? " — run migration25/26 first." : "");
+                runEl.textContent = "Import stopped after " + doneN + " texts: " + error.message
+                  + (rtRes.error ? " — run migration25/26 first."
+                     : (/title_vi|theme_id|subtopics|cover_/.test(error.message) ? " — run migration33 + 34 first (new columns)." : ""));
                 renderRt();
                 return;
               }
