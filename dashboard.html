@@ -1534,6 +1534,7 @@
           <span style="width:14px;height:14px;border-radius:50%;background:${esc(c.color || "#1e4f8f")};flex:none;"></span>
           <div class="meta"><div class="title">${c.icon ? esc(c.icon) + " " : ""}${esc(c.title)}</div>
             <span class="kind">${(lessons || []).filter(l => l.course_id === c.id).length} lessons${c.category ? " · " + esc(c.category) : ""}${c.sequential ? " · in order" : ""}${c.description ? " · " + esc(c.description) : ""}</span></div>
+          <button class="ghost c-students" data-id="${c.id}" title="See, enroll or remove this course's students">🎓 Students</button>
           <button class="ghost c-edit" data-id="${c.id}">✏️ Edit</button>
         </div>
         <div class="c-editrow" data-id="${c.id}" style="display:none; padding:0.7rem 0 1rem; border-bottom:1px solid var(--line);">
@@ -1617,8 +1618,8 @@
           <div style="margin-top:0.75rem;">${courseList || `<p class="empty">No courses yet. Lessons without a course are visible to all students.</p>`}</div>
         </div>
 
-        <div class="card">
-          <h2>Enroll a student</h2>
+        <div class="card" id="e-card">
+          <h2>Enroll &amp; remove students</h2>
           <div class="form-row">
             <div class="field"><label>Student</label>
               <select id="e-student">${studentOptions || `<option value="">No students yet</option>`}</select></div>
@@ -3683,6 +3684,19 @@
           }
           if (window.UI) UI.toast(`${en?.profiles?.full_name || "Student"} removed from “${en?.courses?.title || "course"}”`);
           renderAdmin();
+        });
+      });
+
+      // ---- 🎓 jump from a course row to its student list (pre-filtered) ----
+      app.querySelectorAll(".c-students").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const id = btn.getAttribute("data-id");
+          const sel = document.getElementById("ef-course");
+          if (sel) { sel.value = id; sel.dispatchEvent(new Event("change")); }
+          const card = document.getElementById("e-card");
+          if (card) card.scrollIntoView({ behavior: "smooth", block: "start" });
+          const q = document.getElementById("ef-q");
+          if (q) q.focus({ preventScroll: true });
         });
       });
 
