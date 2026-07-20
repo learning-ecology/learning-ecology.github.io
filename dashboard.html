@@ -1558,15 +1558,19 @@
               </label></div>
             <button class="ce-save" data-id="${c.id}">Save</button>
             <button class="ghost ce-cancel" data-id="${c.id}">Cancel</button>
+            <button class="ghost ce-del" data-id="${c.id}"
+                    style="color:var(--danger); border-color:var(--danger);">🗑 Delete course</button>
           </div>
           <p class="msg ce-msg" data-id="${c.id}"></p>
         </div>`).join("");
 
       const enrollmentRows = (enrollments || []).map(e => `
-        <tr>
+        <tr class="en-row" data-course="${esc(e.course_id || "")}"
+            data-q="${esc(((e.profiles?.full_name || "") + " " + (e.profiles?.email || "")).toLowerCase())}">
           <td>${esc(e.profiles?.full_name || e.profiles?.email || "—")}</td>
           <td>${esc(e.courses?.title || "—")}</td>
-          <td><button class="ghost e-remove" data-id="${e.id}">Remove</button></td>
+          <td><button class="ghost e-remove" data-id="${e.id}"
+                style="color:var(--danger); border-color:var(--danger);">Remove from course</button></td>
         </tr>`).join("");
 
 
@@ -1624,8 +1628,15 @@
           </div>
           <p id="e-msg" class="msg"></p>
           ${enrollmentRows
-            ? `<table style="margin-top:0.75rem;"><thead><tr><th>Student</th><th>Course</th><th></th></tr></thead>
-               <tbody>${enrollmentRows}</tbody></table>`
+            ? `<div class="form-row" style="margin-top:0.75rem;">
+                 <div class="field" style="max-width:230px;"><label>Show course</label>
+                   <select id="ef-course"><option value="">All courses</option>${courseOptions}</select></div>
+                 <div class="field" style="max-width:230px;"><label>Find student</label>
+                   <input id="ef-q" placeholder="Name or email…" autocomplete="off" /></div>
+                 <span class="kind" id="ef-count" style="align-self:center;"></span>
+               </div>
+               <table style="margin-top:0.5rem;"><thead><tr><th>Student</th><th>Course</th><th></th></tr></thead>
+               <tbody id="e-list">${enrollmentRows}</tbody></table>`
             : `<p class="empty" style="margin-top:0.75rem;">No enrollments yet.</p>`}
         </div>
 
@@ -3622,13 +3633,106 @@
         renderAdmin();
       });
 
+      // ---- enrollment list: filter by course / search by student ----
+      const efCourse = document.getElementById("ef-course");
+      const efQ = document.getElementById("ef-q");
+      if (efCourse && efQ) {
+        const applyEf = () => {
+          const cid = efCourse.value, q = efQ.value.trim().toLowerCase();
+          let shown = 0;
+          app.querySelectorAll("#e-list .en-row").forEach(tr => {
+            const hit = (!cid || tr.getAttribute("data-course") === cid)
+                     && (!q || (tr.getAttribute("data-q") || "").includes(q));
+            tr.style.display = hit ? "" : "none";
+            if (hit) shown++;
+          });
+          document.getElementById("ef-count").textContent =
+            shown + " / " + (enrollments || []).length + " enrollment(s)";
+        };
+        efCourse.addEventListener("change", applyEf);
+        efQ.addEventListener("input", applyEf);
+        applyEf();
+      }
+
       app.querySelectorAll(".e-remove").forEach(btn => {
         btn.addEventListener("click", async () => {
-          if (!confirm("Remove this enrollment? The student will no longer see that course's lessons.")) return;
+          const id = btn.getAttribute("data-id");
+          const en = (enrollments || []).find(x => x.id === id);
+          const who = esc(en?.profiles?.full_name || en?.profiles?.email || "This student");
+          const what = esc(en?.courses?.title || "this course");
+          const ok = window.UI
+            ? await UI.confirmDialog({
+                title: `Remove ${who} from “${what}”?`,
+                danger: true, okText: "Remove from course",
+                body: `<b>${who}</b> immediately loses access to this course's lessons, assignments,
+                       discussions and flashcards on their dashboard.<br><br>
+                       Their <b>account is kept</b>, other courses are untouched, and their progress
+                       records stay — everything re-appears if you enroll them again later.`
+              })
+            : confirm("Remove this enrollment? The student will no longer see that course's lessons.");
+          if (!ok) return;
           btn.disabled = true;
-          const { error } = await sb.from("enrollments").delete().eq("id", btn.getAttribute("data-id"));
-          if (error) { btn.disabled = false; alert("Could not remove: " + error.message); return; }
+          // .select() returns the deleted rows — 0 rows means the database refused
+          // (only authorized staff may unenroll), not a silent success
+          const { data: gone, error } = await sb.from("enrollments").delete().eq("id", id).select();
+          if (error || !(gone || []).length) {
+            btn.disabled = false;
+            const msg = error ? error.message : "the database did not allow it — only the owner, the enrolling teacher, or the org admin can remove this enrollment.";
+            if (window.UI) UI.toast("Could not remove: " + msg, "err"); else alert("Could not remove: " + msg);
+            return;
+          }
+          if (window.UI) UI.toast(`${en?.profiles?.full_name || "Student"} removed from “${en?.courses?.title || "course"}”`);
           renderAdmin();
+        });
+      });
+
+      // ---- delete a whole course (owner only — enforced by RLS in the database) ----
+      app.querySelectorAll(".ce-del").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const id = btn.getAttribute("data-id");
+          const c = (courses || []).find(x => x.id === id);
+          if (!c) return;
+          const cls = (lessons || []).filter(l => l.course_id === id);
+          const withFiles = cls.filter(l => l.storage_path);
+          const ens = (enrollments || []).filter(e => e.course_id === id);
+          const ok = await UI.confirmDialog({
+            title: `Delete course “${esc(c.title)}” permanently?`,
+            danger: true, okText: "Yes, delete this course",
+            body: `This removes, permanently:<br>
+              • <b>${cls.length}</b> lesson(s)${withFiles.length ? ` — including <b>${withFiles.length}</b> uploaded file(s)` : ""}, and every student's progress in them<br>
+              • <b>${ens.length}</b> enrollment(s) — the students keep their accounts and all other courses<br>
+              • this course's assignments &amp; submissions, discussions, flashcard decks &amp; review history,
+                schedule sessions, certificates, organization licenses and teacher assignments<br><br>
+              <b>This cannot be undone.</b> If you are unsure, download a full backup first
+              (Analytics tab) — or simply unenroll the students instead of deleting.`
+          });
+          if (!ok) return;
+          btn.disabled = true;
+          const m = app.querySelector(`.ce-msg[data-id="${id}"]`);
+          const fail = msg => { btn.disabled = false; if (m) { m.textContent = "Could not delete: " + msg; m.className = "msg err"; } };
+          try {
+            // 1. best-effort: clean up this course's uploaded lesson files + cover images
+            if (withFiles.length) {
+              try { await sb.storage.from("materials").remove(withFiles.map(l => l.storage_path)); } catch (e) {}
+            }
+            const imgPaths = cls.map(l => (l.image_url || "").split("/lesson-images/")[1]).filter(Boolean);
+            if (imgPaths.length) {
+              try { await sb.storage.from("lesson-images").remove(imgPaths); } catch (e) {}
+            }
+            // 2. delete the lessons FIRST — their course link is "set null" in the
+            //    database, so orphaned lessons would become visible to every student
+            if (cls.length) {
+              const { error: lErr } = await sb.from("lessons").delete().eq("course_id", id);
+              if (lErr) return fail(lErr.message);
+            }
+            // 3. delete the course; enrollments, assignments, discussions, flashcards,
+            //    sessions, certificates, licenses and grants cascade in the database
+            const { data: gone, error } = await sb.from("courses").delete().eq("id", id).select();
+            if (error) return fail(error.message);
+            if (!(gone || []).length) return fail("the database did not allow it — only the owner account can delete courses.");
+            if (window.UI) UI.toast(`Course “${c.title}” deleted`);
+            renderAdmin();
+          } catch (err) { fail(err.message || String(err)); }
         });
       });
 
