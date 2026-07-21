@@ -46,7 +46,10 @@
     .lp-header img { width: 34px; height: 34px; border-radius: 8px; }
     .lp-header .name { font-family: var(--serif); font-size: 1.15rem; font-weight: 700; flex: 1; }
     .lp-hero {
-      background: linear-gradient(135deg, #1e4f8f, #132743);
+      /* translucent so the background artwork shows through, but kept dense
+         enough that white/pale-blue hero text stays above 4.5:1 contrast
+         even where the artwork behind is at its brightest (ivory) */
+      background: linear-gradient(135deg, rgba(30,79,143,.91), rgba(19,39,67,.95));
       color: #fff;
       padding: clamp(3rem, 9vw, 5.5rem) 1.25rem clamp(3.2rem, 9vw, 6rem);
       text-align: center;
