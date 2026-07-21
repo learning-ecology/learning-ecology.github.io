@@ -3641,7 +3641,7 @@
         const T = { trials: "landing_trials", courses: "landing_courses",
                     ach: "landing_achievements", fb: "landing_feedback", gal: "landing_gallery" };
         const NAMES = { trials: "Học thử miễn phí", courses: "Khóa học", ach: "Thành tựu",
-                        fb: "Phản hồi học viên", gal: "Thư viện hình ảnh", settings: "Cài đặt hiển thị" };
+                        fb: "Phản hồi học viên", gal: "Thư viện hình ảnh", teacher: "Giáo viên", settings: "Cài đặt hiển thị" };
         const TITLE_OF = { trials: r => r.title, courses: r => r.title, ach: r => r.title,
                            fb: r => r.student_name, gal: r => r.caption || r.image_alt || "(ảnh)" };
         const D = { trials: [], courses: [], ach: [], fb: [], gal: [], cfg: null };
@@ -3890,8 +3890,47 @@
               ${Object.keys(NAMES).map(k =>
                 `<button class="${k === cur ? "" : "ghost"}" data-lpmtab="${k}">${NAMES[k]}${T[k] ? " (" + D[k].length + ")" : ""}</button>`).join("")}
             </div>
-            ${cur === "settings" ? settingsPanel() : listPanel(cur)}`;
+            ${cur === "settings" ? settingsPanel() : cur === "teacher" ? teacherPanel() : listPanel(cur)}`;
           wireImages();
+        }
+        function teacherPanel() {
+          const T = (D.cfg || {}).teacher || {};
+          const t = (D.cfg || {}).titles || {};
+          return `
+            <div class="lpm-form" data-coll="teacher">
+            <p class="kind" style="text-transform:none; margin:0.5rem 0;">Khối "Giáo viên của bạn" trên trang chủ. Ô nào để trống sẽ giữ nguyên nội dung mặc định hiện tại — điền vào là ghi đè, không cần điền hết.</p>
+            <div class="form-row">
+              <div class="field"><label>Tiêu đề phần</label><input data-cfg="titles.teacher" value="${esc(t.teacher || "")}" placeholder="Giáo viên của bạn"></div>
+              <div class="field"><label>Mô tả dưới tiêu đề</label><input data-cfg="titles.teacher_lead" value="${esc(t.teacher_lead || "")}" placeholder="Một giáo viên trực tiếp thiết kế…"></div>
+              <div class="field"><label>Họ tên hiển thị</label><input data-cfg="teacher.name" value="${esc(T.name || "")}" placeholder="Thầy Lê Quốc Thông"></div>
+              <div class="field"><label>Chức danh</label><input data-cfg="teacher.role" value="${esc(T.role || "")}" placeholder="Giáo viên tiếng Anh &amp; tiếng Trung"></div>
+              <div class="field" style="min-width:260px; flex-basis:100%;"><label>Ảnh chân dung (dọc 4:5) — JPG/PNG/WebP ≤ 10 MB</label>
+                <div class="lpm-drop" tabindex="0" role="button"
+                     style="border:2px dashed var(--line); border-radius:10px; padding:0.6rem 0.8rem; display:flex; gap:0.8rem; align-items:center; flex-wrap:wrap; cursor:pointer;">
+                  <img src="${esc(T.photo_url || "")}" alt="" style="${T.photo_url ? "" : "display:none;"} width:96px; aspect-ratio:4/5; object-fit:cover; border-radius:8px; border:1px solid var(--line);">
+                  <span class="kind" style="text-transform:none; letter-spacing:0;">Kéo–thả ảnh vào đây hoặc bấm để chọn (trống = dùng profile.jpg hiện tại)</span>
+                  <button type="button" class="ghost" data-imgdel ${T.photo_url ? "" : "hidden"} style="flex:none;">✕ Bỏ ảnh</button>
+                  <span class="msg" data-imgmsg style="flex-basis:100%; margin:0;"></span>
+                  <input type="hidden" data-cfg="teacher.photo_url" value="${esc(T.photo_url || "")}">
+                  <input type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden>
+                </div></div>
+              <div class="field"><label>Mô tả ảnh (alt)</label><input data-cfg="teacher.photo_alt" value="${esc(T.photo_alt || "")}" placeholder="Thầy Lê Quốc Thông"></div>
+              <div class="field" style="max-width:170px;"><label>Tâm ảnh (vd 50% 18%)</label><input data-cfg="teacher.photo_pos" value="${esc(T.photo_pos || "")}" placeholder="50% 18%"></div>
+              <div class="field" style="flex-basis:100%;"><label>Huy hiệu bằng cấp (mỗi dòng một huy hiệu)</label>
+                <textarea data-cfg="teacher.badges" style="min-height:74px;" placeholder="🎓 Master of TESOL&#10;VSTEP C1 (9.0)&#10;IELTS 7.5&#10;HSK 5 (276/300)">${esc(T.badges || "")}</textarea></div>
+              <div class="field" style="flex-basis:100%;"><label>Giới thiệu / phương châm — bọc **hai dấu sao** quanh đoạn cần in đậm</label>
+                <textarea data-cfg="teacher.bio" style="min-height:74px;" placeholder="Phương châm của lớp học: **học có lộ trình — tiến bộ đo được**. …">${esc(T.bio || "")}</textarea></div>
+              <div class="field"><label>Nút 1 — nhãn</label><input data-cfg="teacher.b1_label" value="${esc(T.b1_label || "")}" placeholder="💬 Zalo: 0961 923 983"></div>
+              <div class="field"><label>Nút 1 — liên kết</label><input data-cfg="teacher.b1_url" value="${esc(T.b1_url || "")}" placeholder="https://zalo.me/…"></div>
+              <div class="field"><label>Nút 2 — nhãn</label><input data-cfg="teacher.b2_label" value="${esc(T.b2_label || "")}" placeholder="👤 Facebook"></div>
+              <div class="field"><label>Nút 2 — liên kết</label><input data-cfg="teacher.b2_url" value="${esc(T.b2_url || "")}" placeholder="https://www.facebook.com/…"></div>
+            </div>
+            <div class="form-row" style="margin-top:0.6rem;">
+              <button data-act="cfgsave">💾 Lưu</button>
+              <a class="ghost btn" style="text-decoration:none;" href="index.html?preview=1" target="_blank" rel="noopener">👁 Xem trước</a>
+            </div>
+            <p class="msg" id="lpm-cfgmsg"></p>
+            </div>`;
         }
 
         /* ---------- image upload (drag-drop + picker, validated) ---------- */
@@ -4016,10 +4055,11 @@
           const cfg = JSON.parse(JSON.stringify(D.cfg || {}));
           cfg.trial = cfg.trial || {}; cfg.titles = cfg.titles || {};
           const secEls = [...root.querySelectorAll("#lpm-secs .lesson")];
-          cfg.sections = secEls.map(el => ({
-            id: el.getAttribute("data-sec"),
-            show: el.querySelector("input[type=checkbox]").checked
-          }));
+          if (secEls.length)                      /* saving from another panel must not wipe the section list */
+            cfg.sections = secEls.map(el => ({
+              id: el.getAttribute("data-sec"),
+              show: el.querySelector("input[type=checkbox]").checked
+            }));
           let bad = null;
           root.querySelectorAll("[data-cfg]").forEach(el => {
             const path = el.getAttribute("data-cfg").split(".");
