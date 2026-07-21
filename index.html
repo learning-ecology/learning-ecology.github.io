@@ -545,13 +545,16 @@
        that is enforced by the database, not by this flag. */
     const PREVIEW = new URLSearchParams(location.search).has("preview");
 
+    /* NOTE: supabase-js query builders are thenables with .then() ONLY —
+       they have no .catch(), so errors must be handled via then's second
+       argument (calling .catch on the builder throws a TypeError). */
     const q = table => sb.from(table).select("*").order("sort_order").order("updated_at")
-      .then(r => (r.data || []).filter(x => x.status === "published" || (PREVIEW && x.status === "draft")))
-      .catch(() => []);
+      .then(r => (r.data || []).filter(x => x.status === "published" || (PREVIEW && x.status === "draft")),
+            () => []);
 
     async function boot() {
       const [settingsRes, courses, trials, achievements, feedback, gallery] = await Promise.all([
-        sb.from("landing_settings").select("config").eq("id", 1).maybeSingle().catch(() => ({ data: null })),
+        sb.from("landing_settings").select("config").eq("id", 1).maybeSingle().then(r => r, () => ({ data: null })),
         q("landing_courses"), q("landing_trials"),
         q("landing_achievements"), q("landing_feedback"), q("landing_gallery")
       ]);
