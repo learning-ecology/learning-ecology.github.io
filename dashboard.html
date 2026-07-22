@@ -3640,7 +3640,7 @@
         if (!root) return;
         const T = { trials: "landing_trials", courses: "landing_courses", teachers: "landing_teachers",
                     ach: "landing_achievements", fb: "landing_feedback", gal: "landing_gallery" };
-        const NAMES = { trials: "Học thử miễn phí", courses: "Khóa học", teachers: "Đội ngũ giáo viên",
+        const NAMES = { hero: "Hero (đầu trang)", trials: "Học thử miễn phí", courses: "Khóa học", teachers: "Đội ngũ giáo viên",
                         ach: "Thành tựu", fb: "Phản hồi học viên", gal: "Thư viện hình ảnh", settings: "Bố cục & hiển thị" };
         const TITLE_OF = { trials: r => r.title, courses: r => r.title, teachers: r => r.name, ach: r => r.title,
                            fb: r => r.student_name, gal: r => r.caption || r.image_alt || "(ảnh)" };
@@ -3813,6 +3813,40 @@
         }
 
         /* ---------- panels ---------- */
+        /* hero = the very top of the landing page (always visible, always first) */
+        function heroPanel() {
+          const H = (D.cfg || {}).hero || {};
+          return `
+            <div class="lpm-form" data-coll="hero">
+            <p class="kind" style="text-transform:none; margin:.5rem 0;">Phần đầu trang: tiêu đề lớn, mô tả, hai nút và các thẻ nhỏ bên dưới. Ô nào để trống sẽ giữ nguyên nội dung đang hiển thị — không cần điền hết. Hero luôn ở đầu trang và luôn hiển thị.</p>
+            <div class="form-row">
+              <div class="field" style="flex-basis:100%;"><label>Tiêu đề lớn — xuống dòng ở đâu thì Enter ở đó</label>
+                <textarea data-cfg="hero.title" style="min-height:70px;" placeholder="Học tiếng Anh &amp; tiếng Trung theo lộ trình,&#10;tiến bộ đo được mỗi ngày">${esc(H.title || "")}</textarea></div>
+              <div class="field" style="flex-basis:100%;"><label>Mô tả ngắn dưới tiêu đề</label>
+                <textarea data-cfg="hero.sub" style="min-height:60px;" placeholder="Lớp học trực tuyến của Thầy Lê Quốc Thông — …">${esc(H.sub || "")}</textarea></div>
+              <div class="field"><label>Nút vàng — nhãn (khách chưa đăng nhập)</label>
+                <input data-cfg="hero.p_label" value="${esc(H.p_label || "")}" placeholder="Bắt đầu học →"></div>
+              <div class="field"><label>Nút vàng — liên kết</label>
+                <input data-cfg="hero.p_url" value="${esc(H.p_url || "")}" placeholder="login.html"></div>
+              <div class="field"><label>Nút vàng — nhãn khi học viên ĐÃ đăng nhập</label>
+                <input data-cfg="hero.signed_label" value="${esc(H.signed_label || "")}" placeholder="Vào học ngay →"></div>
+              <div class="field"><label>Nút viền — nhãn</label>
+                <input data-cfg="hero.s_label" value="${esc(H.s_label || "")}" placeholder="Học thử miễn phí"></div>
+              <div class="field"><label>Nút viền — liên kết</label>
+                <input data-cfg="hero.s_url" value="${esc(H.s_url || "")}" placeholder="#hoc-thu"></div>
+              <label style="font-size:.85rem; color:var(--muted); align-self:center; white-space:nowrap;">
+                <input type="checkbox" data-cfg="hero.s_new" ${H.s_new ? "checked" : ""}> mở tab mới</label>
+              <div class="field" style="flex-basis:100%;"><label>Thẻ nhỏ dưới nút — mỗi dòng một thẻ</label>
+                <textarea data-cfg="hero.chips" style="min-height:80px;" placeholder="🀄 Tiếng Trung HSK 3.0&#10;🎓 IELTS · VSTEP&#10;📊 Theo dõi tiến độ&#10;📲 Học như ứng dụng trên điện thoại">${esc(H.chips || "")}</textarea></div>
+            </div>
+            <div class="form-row" style="margin-top:.6rem;">
+              <button data-act="cfgsave">💾 Lưu</button>
+              <a class="ghost btn" style="text-decoration:none;" href="index.html?preview=1" target="_blank" rel="noopener">👁 Xem trước</a>
+            </div>
+            <p class="msg" id="lpm-cfgmsg"></p>
+            </div>`;
+        }
+
         /* header shown above the teacher list: section heading + carousel option */
         function teachersHeader() {
           const c = D.cfg || {}, t = c.titles || {};
@@ -3877,7 +3911,7 @@
               ${SEC_LOCKED.map(s => `
               <div class="lesson" style="opacity:.72;">
                 <div class="meta"><div class="title">🔒 ${esc(s.name)}</div>
-                  <span class="kind">Luôn ở đầu trang và luôn hiển thị — không thể ẩn hoặc di chuyển</span></div>
+                  <span class="kind">Luôn ở đầu trang và luôn hiển thị — sửa nội dung ở tab "Hero (đầu trang)"</span></div>
                 <label style="font-size:0.85rem; color:var(--muted);"><input type="checkbox" checked disabled/> hiện</label>
                 <button class="ghost" disabled>↑</button><button class="ghost" disabled>↓</button>
               </div>`).join("")}
@@ -3950,7 +3984,7 @@
               ${Object.keys(NAMES).map(k =>
                 `<button class="${k === cur ? "" : "ghost"}" data-lpmtab="${k}">${NAMES[k]}${T[k] ? " (" + D[k].length + ")" : ""}</button>`).join("")}
             </div>
-            ${cur === "settings" ? settingsPanel() : listPanel(cur)}`;
+            ${cur === "settings" ? settingsPanel() : cur === "hero" ? heroPanel() : listPanel(cur)}`;
           wireImages();
           wireSectionDnD();
         }

@@ -558,14 +558,14 @@
 
   <!-- ================= HERO ================= -->
   <section class="lp-hero">
-    <h1>Học tiếng Anh &amp; tiếng Trung theo lộ trình,<br />tiến bộ đo được mỗi ngày</h1>
-    <p class="sub">Lớp học trực tuyến của Thầy Lê Quốc Thông — mỗi bài học nằm trong một lộ trình rõ ràng,
+    <h1 id="heroTitle">Học tiếng Anh &amp; tiếng Trung theo lộ trình,<br />tiến bộ đo được mỗi ngày</h1>
+    <p class="sub" id="heroSub">Lớp học trực tuyến của Thầy Lê Quốc Thông — mỗi bài học nằm trong một lộ trình rõ ràng,
       có quiz, bài tập, theo dõi thời gian học và chứng nhận khi hoàn thành khóa.</p>
-    <div class="lp-cta">
+    <div class="lp-cta" id="heroCta">
       <a id="hero-start" class="btn gold" href="login.html">Bắt đầu học →</a>
       <a class="btn ghost" href="#hoc-thu" data-hit="cta-trial" style="color:#fff; border-color:rgba(255,255,255,0.5);">Học thử miễn phí</a>
     </div>
-    <div class="lp-chips">
+    <div class="lp-chips" id="heroChips">
       <span>🀄 Tiếng Trung HSK 3.0</span>
       <span>🎓 IELTS · VSTEP</span>
       <span>📊 Theo dõi tiến độ</span>
@@ -687,12 +687,21 @@
     })();
 
     // Already signed in? Turn the login buttons into "go to my lessons".
+    // Kept in a re-runnable function because the hero is rendered from the
+    // database a moment later — it must not overwrite the signed-in label.
+    window.__lpAuth = { signedIn: false, label: "Vào học ngay →" };
+    window.applyAuthCta = function () {
+      if (!window.__lpAuth.signedIn) return;
+      const label = window.__lpAuth.label || "Vào học ngay →";
+      ["hd-login", "hero-start"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.textContent = label; el.href = "dashboard.html"; }
+      });
+    };
     sb.auth.getSession().then(({ data }) => {
       if (!data.session) return;
-      const hd = document.getElementById("hd-login");
-      const hero = document.getElementById("hero-start");
-      hd.textContent = "Vào học ngay →"; hd.href = "dashboard.html";
-      hero.textContent = "Vào học ngay →"; hero.href = "dashboard.html";
+      window.__lpAuth.signedIn = true;
+      window.applyAuthCta();
     }).catch(() => {});
   </script>
   <script>
@@ -766,6 +775,7 @@
         q("landing_achievements"), q("landing_feedback"), q("landing_gallery")
       ]);
       const cfg = (settingsRes && settingsRes.data && settingsRes.data.config) || {};
+      renderHero(cfg);
       applySections(cfg);
       renderTrial(cfg, trials);
       renderCourses(cfg, courses);
@@ -910,6 +920,31 @@
       stage.addEventListener("pointerup", endDrag);
       stage.addEventListener("pointercancel", () => { px = null; stage.classList.remove("drag"); });
       layout();
+    }
+
+    /* ================= hero (owner-editable; every field left blank in the
+       dashboard keeps the wording currently on the page) ==================== */
+    function renderHero(cfg) {
+      const H = cfg.hero || {};
+      if (H.signed_label) window.__lpAuth.label = H.signed_label;
+      if (H.title) $("heroTitle").innerHTML = esc(H.title).replace(/\n/g, "<br>");
+      if (H.sub) $("heroSub").textContent = H.sub;
+      if (H.p_label || H.p_url || H.s_label || H.s_url) {
+        const pLabel = H.p_label || "Bắt đầu học →";
+        const pUrl = safeUrl(H.p_url) || "login.html";
+        const sLabel = H.s_label || "Học thử miễn phí";
+        const sUrl = safeUrl(H.s_url) || "#hoc-thu";
+        $("heroCta").innerHTML =
+          `<a id="hero-start" class="btn gold" href="${esc(pUrl)}">${esc(pLabel)}</a>
+           <a class="btn ghost" href="${esc(sUrl)}" data-hit="cta-trial"
+              ${H.s_new ? 'target="_blank" rel="noopener"' : ""}
+              style="color:#fff; border-color:rgba(255,255,255,0.5);">${esc(sLabel)}</a>`;
+      }
+      const chips = String(H.chips || "").split("\n").map(x => x.trim()).filter(Boolean);
+      if (chips.length)
+        $("heroChips").innerHTML = chips.map(c => `<span>${esc(c)}</span>`).join("");
+      /* re-apply the "Vào học ngay →" swap in case sign-in resolved first */
+      if (window.applyAuthCta) window.applyAuthCta();
     }
 
     /* ---- section order + visibility from the owner's settings ---- */
