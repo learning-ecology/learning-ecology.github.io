@@ -222,6 +222,45 @@
                overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
     @media (max-width: 900px) { .lpx-tstage { height: 372px; } }
 
+    /* ============ teaching-team 3D carousel ============
+       Reuses the existing .lp-teacher card verbatim — the carousel only
+       positions it in 3D, so the premium card design is untouched. */
+    .tf-wrap { position: relative; }
+    .tf-stage {
+      position: relative; height: 430px; perspective: 1400px;
+      outline: none; touch-action: pan-y; cursor: grab;
+    }
+    .tf-stage.drag { cursor: grabbing; }
+    .tf-card {
+      position: absolute; top: 0; left: 50%;
+      width: min(760px, 90vw); margin-left: calc(min(760px, 90vw) / -2); height: 100%;
+      transition: transform .5s cubic-bezier(.22,.8,.3,1), opacity .5s ease;
+      will-change: transform;
+    }
+    .tf-card[aria-hidden="true"] { pointer-events: none; }
+    .tf-card .lp-teacher { height: 100%; margin: 0; overflow: hidden; }
+    .tf-card:not(.on) .lp-teacher { box-shadow: 0 10px 26px -18px rgba(23,38,62,.4); }
+    .tf-card.on .lp-teacher { box-shadow: 0 30px 70px -28px rgba(23,38,62,.6); }
+    /* side cards must never steal a click meant for the active card */
+    .tf-card:not(.on) a { pointer-events: none; }
+    /* keep the original 260px wrap threshold (so the text column drops below
+       the portrait on phones) but never let it exceed a narrow card */
+    .tf-card .info { min-width: min(260px, 100%); }
+    /* keeps every card the same height however long the biography is */
+    .tf-bio {
+      font-size: .95rem; margin: 0 0 1rem;
+      display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .tf-links { display: flex; flex-wrap: wrap; gap: .5rem; }
+    /* buttons wrap to a new line instead of being squeezed thin on phones */
+    .tf-links a { text-decoration: none; display: inline-block; flex: 0 0 auto; max-width: 100%; }
+    @media (max-width: 900px) { .tf-stage { height: 470px; } }
+    @media (max-width: 640px) {
+      .tf-stage { height: 640px; }
+      .tf-card { width: 92vw; margin-left: -46vw; }
+      .tf-bio { -webkit-line-clamp: 5; }
+    }
+
     /* ============ new: course cover-flow carousel ============ */
     .lpx-cwrap { position: relative; }
     .lpx-stage {
@@ -410,7 +449,7 @@
       .lpx-trc { width: 78vw; margin-left: -39vw; }
     }
     @media (prefers-reduced-motion: reduce) {
-      .lpx-card, .lpx-info, .lpx-trc, .lpx-acard, .btn, .lp-feat .f { transition: none !important; }
+      .lpx-card, .lpx-info, .lpx-trc, .tf-card, .lpx-acard, .btn, .lp-feat .f { transition: none !important; }
       .lpx-skel::after { animation: none; }
       /* static background only: artwork stays, every motion stops */
       #lpBg .sw, #lpBg path, #lpBg .bgx-dust i { animation: none !important; }
@@ -550,32 +589,10 @@
     </section>
 
     <!-- ================= TEACHER ================= -->
-    <section class="lp-section" data-sec="teacher" id="giao-vien" style="padding-top:0;">
-      <h2 id="tchTitle">Giáo viên của bạn</h2>
-      <p class="lead" id="tchLead">Một giáo viên trực tiếp thiết kế, giảng dạy và đồng hành trong toàn bộ lộ trình.</p>
-      <div class="lp-teacher">
-        <img class="photo" id="tchPhoto" src="profile.jpg" alt="Thầy Lê Quốc Thông" loading="lazy" decoding="async"
-             onerror="this.style.display='none'; document.getElementById('photo-fb').style.display='grid';" />
-        <div class="photo-fb" id="photo-fb">T</div>
-        <div class="info">
-          <h3 id="tchName">Thầy Lê Quốc Thông</h3>
-          <p id="tchRole" style="color:var(--muted); margin:0 0 0.7rem;">Giáo viên tiếng Anh &amp; tiếng Trung</p>
-          <div class="creds" id="tchCreds" style="margin:0 0 0.9rem;">
-            <span class="cred-badge">🎓 Master of TESOL</span>
-            <span class="cred-badge">VSTEP C1 (9.0)</span>
-            <span class="cred-badge">IELTS 7.5</span>
-            <span class="cred-badge">HSK 5 (276/300)</span>
-          </div>
-          <p id="tchBio" style="font-size:0.95rem; margin:0 0 1rem;">Phương châm của lớp học: <b>học có lộ trình — tiến bộ đo được</b>.
-            Mỗi học viên biết chính xác mình đang ở đâu, cần học gì tiếp theo, và đã tiến bộ bao nhiêu sau mỗi tuần.</p>
-          <div id="tchBtns">
-            <a class="btn" href="https://zalo.me/0961923983" target="_blank" rel="noopener"
-               style="text-decoration:none; display:inline-block; margin-right:0.5rem;">💬 Zalo: 0961 923 983</a>
-            <a class="btn ghost" href="https://www.facebook.com/lqt248" target="_blank" rel="noopener"
-               style="text-decoration:none; display:inline-block;">👤 Facebook</a>
-          </div>
-        </div>
-      </div>
+    <section class="lp-section" data-sec="teacher" id="giao-vien" style="padding-top:0;" hidden>
+      <h2 id="tchTitle">Đội ngũ giáo viên</h2>
+      <p class="lead" id="tchLead">Những người trực tiếp thiết kế, giảng dạy và đồng hành trong toàn bộ lộ trình.</p>
+      <div id="teacherBox"></div>
     </section>
 
     <!-- ================= ACHIEVEMENTS & FEEDBACK (dynamic) ================= -->
@@ -743,53 +760,166 @@
             () => []);
 
     async function boot() {
-      const [settingsRes, courses, trials, achievements, feedback, gallery] = await Promise.all([
+      const [settingsRes, courses, trials, teachers, achievements, feedback, gallery] = await Promise.all([
         sb.from("landing_settings").select("config").eq("id", 1).maybeSingle().then(r => r, () => ({ data: null })),
-        q("landing_courses"), q("landing_trials"),
+        q("landing_courses"), q("landing_trials"), q("landing_teachers"),
         q("landing_achievements"), q("landing_feedback"), q("landing_gallery")
       ]);
       const cfg = (settingsRes && settingsRes.data && settingsRes.data.config) || {};
       applySections(cfg);
       renderTrial(cfg, trials);
       renderCourses(cfg, courses);
-      renderTeacher(cfg);
+      renderTeachers(cfg, teachers);
       renderAchievements(cfg, achievements, feedback, gallery);
     }
 
-    /* ================= teacher profile (owner-editable; the static markup
-       stays as the default until the owner saves their own content) ========= */
-    function renderTeacher(cfg) {
-      const T = cfg.teacher || {};
+    /* ================= teaching team (3D carousel, all data from the
+       landing_teachers table — nothing about a teacher is hard-coded) ====== */
+    function renderTeachers(cfg, teachers) {
+      const sec = document.querySelector('[data-sec="teacher"]');
+      if (!teachers.length) { sec.hidden = true; return; }   // nothing published → hide cleanly
+      sec.hidden = false;
       const t = cfg.titles || {};
-      const set = (id, v) => { if (v) $(id).textContent = v; };
-      set("tchTitle", t.teacher); set("tchLead", t.teacher_lead);
-      set("tchName", T.name); set("tchRole", T.role);
-      const photo = $("tchPhoto");
-      if (safeUrl(T.photo_url)) photo.src = T.photo_url;
-      if (T.photo_alt || T.name) photo.alt = T.photo_alt || T.name;
-      if (T.photo_pos && /^\d{1,3}% \d{1,3}%$/.test(T.photo_pos.trim()))
-        photo.style.objectPosition = T.photo_pos.trim();
-      if (T.name) $("photo-fb").textContent = T.name.trim().charAt(0).toUpperCase() || "T";
-      const badges = String(T.badges || "").split("\n").map(x => x.trim()).filter(Boolean);
-      if (badges.length)
-        $("tchCreds").innerHTML = badges.map(b => `<span class="cred-badge">${esc(b)}</span>`).join(" ");
-      if (T.bio)   /* **đoạn in đậm** renders bold; everything is escaped first */
-        $("tchBio").innerHTML = esc(T.bio).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
-      const btn = (label, url, ghost) => {
+      if (t.teacher) $("tchTitle").textContent = t.teacher;
+      if (t.teacher_lead) $("tchLead").textContent = t.teacher_lead;
+      const n = teachers.length;
+
+      const link = (label, url, ghost) => {
         const u = safeUrl(url);
-        return u ? `<a class="btn${ghost ? " ghost" : ""}" href="${esc(u)}" target="_blank" rel="noopener"
-          style="text-decoration:none; display:inline-block; margin:0 0.5rem 0.5rem 0;">${esc(label)}</a>` : "";
+        return (u && label) ? `<a class="btn${ghost ? " ghost" : ""}" href="${esc(u)}"
+          target="_blank" rel="noopener">${esc(label)}</a>` : "";
       };
-      if (T.b1_label || T.b2_label) {
-        const html = btn(T.b1_label, T.b1_url) + btn(T.b2_label, T.b2_url, true);
-        if (html) $("tchBtns").innerHTML = html;
+      const card = (T, i) => {
+        const initial = (T.name || "?").trim().charAt(0).toUpperCase();
+        const pos = /^\d{1,3}% \d{1,3}%$/.test(String(T.photo_pos || "").trim())
+          ? T.photo_pos.trim() : "50% 18%";
+        const photo = safeUrl(T.photo_url)
+          ? `<img class="photo" src="${esc(T.photo_url)}" alt="${esc(T.photo_alt || T.name)}"
+                  loading="lazy" decoding="async" style="object-position:${esc(pos)};"
+                  onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';">
+             <div class="photo-fb">${esc(initial)}</div>`
+          : `<div class="photo-fb" style="display:grid">${esc(initial)}</div>`;
+        const badges = String(T.badges || "").split("\n").map(x => x.trim()).filter(Boolean);
+        return `
+          <div class="tf-card" data-i="${i}" role="group"
+               aria-label="${esc(T.name)}, mục ${i + 1} trên ${n}">
+            <div class="lp-teacher">
+              ${photo}
+              <div class="info">
+                ${T.status === "draft" ? '<span class="lpx-draft" style="position:static;display:inline-block;margin-bottom:.4rem;">DRAFT</span>' : ""}
+                <h3>${esc(T.name)}</h3>
+                ${T.role_label ? `<p style="color:var(--muted); margin:0 0 .7rem;">${esc(T.role_label)}</p>` : ""}
+                ${badges.length ? `<div class="creds" style="margin:0 0 .9rem;">${
+                  badges.map(b => `<span class="cred-badge">${esc(b)}</span>`).join(" ")}</div>` : ""}
+                ${T.bio ? `<p class="tf-bio">${esc(T.bio).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")}</p>` : ""}
+                <div class="tf-links">
+                  ${link(T.zalo_label, T.zalo_url)}
+                  ${link(T.fb_label, T.fb_url, true)}
+                  ${link(T.x3_label, T.x3_url, true)}
+                </div>
+              </div>
+            </div>
+          </div>`;
+      };
+
+      $("teacherBox").innerHTML =
+        `<div class="tf-wrap">
+          <div class="tf-stage" id="twStage" tabindex="0" role="group" aria-roledescription="băng chuyền"
+               aria-label="Đội ngũ giáo viên — dùng phím mũi tên để chuyển">${teachers.map(card).join("")}</div>
+          ${n > 1 ? `
+          <div class="lpx-nav">
+            <button id="twPrev" aria-label="Giáo viên trước">‹</button>
+            <div class="lpx-dots" id="twDots" role="tablist" aria-label="Chọn giáo viên">${teachers.map((T, i) =>
+              `<button role="tab" data-i="${i}" aria-label="Giáo viên ${i + 1}: ${esc(T.name)}"></button>`).join("")}</div>
+            <button id="twNext" aria-label="Giáo viên tiếp theo">›</button>
+          </div>` : ""}
+          <span class="sr-only" id="twLive" aria-live="polite"></span>
+        </div>`;
+      if (n > 1) teacherFlow(teachers, cfg);
+      else $("teacherBox").querySelector(".tf-card").classList.add("on");
+    }
+
+    /* never autoplays — it moves only when the visitor asks it to */
+    function teacherFlow(items, cfg) {
+      const n = items.length;
+      const loop = cfg.teachers_loop !== false;
+      const stage = $("twStage"), cards = [...stage.children], dots = [...$("twDots").children];
+      const prevBtn = $("twPrev"), nextBtn = $("twNext");
+      let idx = 0, busy = false;
+
+      function layout() {
+        cards.forEach((card, i) => {
+          let o = i - idx;
+          if (loop) {                                  /* shortest way round the ring */
+            if (o > n / 2) o -= n;
+            if (o < -n / 2) o += n;
+          }
+          const abs = Math.abs(o);
+          const vis = abs <= 1 || (abs <= 2 && n > 3);
+          card.style.transform = REDUCED
+            ? `translateX(${o * 102}%)`
+            : `translateX(${o * 58}%) scale(${o === 0 ? 1 : Math.max(.8, .87 - (abs - 1) * .07)})
+               rotateY(${o === 0 ? 0 : (o < 0 ? 26 : -26)}deg)`;
+          card.style.zIndex = 10 - abs;
+          card.style.opacity = vis ? String(o === 0 ? 1 : Math.max(.35, .7 - (abs - 1) * .3)) : "0";
+          card.classList.toggle("on", o === 0);
+          card.setAttribute("aria-hidden", vis ? "false" : "true");
+          /* only the readable card keeps its links in the tab order */
+          card.querySelectorAll("a").forEach(a => { a.tabIndex = o === 0 ? 0 : -1; });
+          if (dots[i]) dots[i].classList.toggle("on", i === idx);
+        });
+        $("twLive").textContent = items[idx].name + ", mục " + (idx + 1) + " trên " + n;
+        if (!loop) {
+          prevBtn.disabled = idx === 0;
+          nextBtn.disabled = idx === n - 1;
+        }
       }
+      /* one move per gesture: input is ignored while a transition runs */
+      function goTo(i) {
+        if (busy) return;
+        if (loop) i = (i + n) % n;
+        else if (i < 0 || i > n - 1) return;
+        if (i === idx) return;
+        busy = true; idx = i; layout();
+        setTimeout(() => { busy = false; }, REDUCED ? 0 : 520);
+      }
+      const go = d => goTo(idx + d);
+
+      prevBtn.addEventListener("click", () => go(-1));
+      nextBtn.addEventListener("click", () => go(1));
+      dots.forEach(d => d.addEventListener("click", () => goTo(+d.dataset.i)));
+      cards.forEach(c => c.addEventListener("click", e => {
+        if (e.target.closest("a")) return;             /* contact links stay clickable */
+        const i = +c.dataset.i; if (i !== idx) goTo(i);
+      }));
+      stage.addEventListener("keydown", e => {
+        if (e.key === "ArrowLeft") { e.preventDefault(); go(-1); }
+        if (e.key === "ArrowRight") { e.preventDefault(); go(1); }
+      });
+      /* mouse / trackpad drag and touch swipe */
+      let px = null;
+      stage.addEventListener("pointerdown", e => {
+        if (e.target.closest("a")) return;
+        px = e.clientX; stage.classList.add("drag");
+      });
+      const endDrag = e => {
+        if (px === null) return;
+        const dx = e.clientX - px; px = null; stage.classList.remove("drag");
+        if (Math.abs(dx) > 45) go(dx < 0 ? 1 : -1);
+      };
+      stage.addEventListener("pointerup", endDrag);
+      stage.addEventListener("pointercancel", () => { px = null; stage.classList.remove("drag"); });
+      layout();
     }
 
     /* ---- section order + visibility from the owner's settings ---- */
     function applySections(cfg) {
       const main = $("lp-main");
-      const list = Array.isArray(cfg.sections) && cfg.sections.length ? cfg.sections : null;
+      /* visitors always get the PUBLISHED order; the owner's unpublished
+         draft is only applied in preview mode (index.html?preview=1) */
+      const draft = PREVIEW && Array.isArray(cfg.sections_draft) && cfg.sections_draft.length
+        ? cfg.sections_draft : null;
+      const list = draft || (Array.isArray(cfg.sections) && cfg.sections.length ? cfg.sections : null);
       if (!list) return;
       for (const s of list) {
         const el = main.querySelector(`[data-sec="${s.id}"]`);

@@ -3638,13 +3638,13 @@
       (function () {
         const root = document.getElementById("lpm-root");
         if (!root) return;
-        const T = { trials: "landing_trials", courses: "landing_courses",
+        const T = { trials: "landing_trials", courses: "landing_courses", teachers: "landing_teachers",
                     ach: "landing_achievements", fb: "landing_feedback", gal: "landing_gallery" };
-        const NAMES = { trials: "Học thử miễn phí", courses: "Khóa học", ach: "Thành tựu",
-                        fb: "Phản hồi học viên", gal: "Thư viện hình ảnh", teacher: "Giáo viên", settings: "Cài đặt hiển thị" };
-        const TITLE_OF = { trials: r => r.title, courses: r => r.title, ach: r => r.title,
+        const NAMES = { trials: "Học thử miễn phí", courses: "Khóa học", teachers: "Đội ngũ giáo viên",
+                        ach: "Thành tựu", fb: "Phản hồi học viên", gal: "Thư viện hình ảnh", settings: "Bố cục & hiển thị" };
+        const TITLE_OF = { trials: r => r.title, courses: r => r.title, teachers: r => r.name, ach: r => r.title,
                            fb: r => r.student_name, gal: r => r.caption || r.image_alt || "(ảnh)" };
-        const D = { trials: [], courses: [], ach: [], fb: [], gal: [], cfg: null };
+        const D = { trials: [], courses: [], teachers: [], ach: [], fb: [], gal: [], cfg: null };
         let loaded = false, failed = false, cur = "trials", editing = null, dirty = false;
 
         const FOCAL_OPTS = [["center","Giữa"],["top","Trên"],["bottom","Dưới"],["left","Trái"],["right","Phải"],["custom","Tùy chỉnh…"]];
@@ -3684,6 +3684,22 @@
             { k: "new_tab", l: "Mở liên kết trong tab mới", t: "check" },
             { k: "featured", l: "Nổi bật", t: "check" }
           ],
+          teachers: [
+            { k: "name", l: "Họ tên *", req: 1 },
+            { k: "role_label", l: "Chức danh / môn dạy" },
+            { k: "photo_url", l: "Ảnh chân dung (dọc 4:5)", t: "img" },
+            { k: "photo_alt", l: "Mô tả ảnh (alt)" },
+            { k: "photo_pos", l: "Tâm ảnh (vd 50% 18%)", t: "sel",
+              o: [["50% 18%","Mặt (mặc định)"],["50% 0%","Trên"],["50% 50%","Giữa"],["50% 100%","Dưới"],["custom","Tùy chỉnh…"]] },
+            { k: "badges", l: "Bằng cấp / thành tích — mỗi dòng một huy hiệu", t: "area" },
+            { k: "bio", l: "Giới thiệu / phương châm — bọc **hai dấu sao** để in đậm", t: "area" },
+            { k: "zalo_label", l: "Zalo — nhãn nút" },
+            { k: "zalo_url", l: "Zalo — liên kết", t: "url" },
+            { k: "fb_label", l: "Facebook — nhãn nút" },
+            { k: "fb_url", l: "Facebook — liên kết", t: "url" },
+            { k: "x3_label", l: "Liên kết khác — nhãn (tùy chọn)" },
+            { k: "x3_url", l: "Liên kết khác — địa chỉ", t: "url" }
+          ],
           ach: [
             { k: "title", l: "Tiêu đề *", req: 1 },
             { k: "category", l: "Nhóm", t: "sel",
@@ -3715,8 +3731,11 @@
             { k: "date_text", l: "Ngày / năm" }
           ]
         };
-        const SEC_NAMES = { trial: "Học thử miễn phí", courses: "Khóa học", teacher: "Giáo viên",
+        const SEC_NAMES = { trial: "Học thử miễn phí", courses: "Khóa học", teacher: "Đội ngũ giáo viên",
                             achieve: "Thành tựu & Cảm nhận", feats: "Tính năng", quote: "Câu trích dẫn", contact: "Liên hệ / Học phí" };
+        const SEC_DEFAULT = ["trial", "courses", "teacher", "achieve", "feats", "quote", "contact"];
+        /* the hero is always first and always visible — shown in the list as locked */
+        const SEC_LOCKED = [{ id: "hero", name: "Hero (tiêu đề chính + nút Bắt đầu học)" }];
         const okUrl = u => !u || /^(https?:\/\/|\/|#|[a-z0-9_-]+\.html)/i.test(String(u).trim());
         const statusPill = s => s === "published"
           ? '<span class="pill done">Published</span>'
@@ -3794,9 +3813,27 @@
         }
 
         /* ---------- panels ---------- */
+        /* header shown above the teacher list: section heading + carousel option */
+        function teachersHeader() {
+          const c = D.cfg || {}, t = c.titles || {};
+          return `
+            <p class="kind" style="text-transform:none; margin:.5rem 0;">Mỗi giáo viên là một thẻ trong băng chuyền 3D ở trang chủ. Chỉ hồ sơ <b>Published</b> mới hiện với khách; Draft chỉ thấy trong 👁 Xem trước.</p>
+            <div class="form-row">
+              <div class="field"><label>Tiêu đề phần</label>
+                <input data-cfg="titles.teacher" value="${esc(t.teacher || "")}" placeholder="Đội ngũ giáo viên"></div>
+              <div class="field"><label>Mô tả dưới tiêu đề</label>
+                <input data-cfg="titles.teacher_lead" value="${esc(t.teacher_lead || "")}" placeholder="Những người trực tiếp giảng dạy…"></div>
+              <label style="font-size:.85rem; color:var(--muted); align-self:center; white-space:nowrap;">
+                <input type="checkbox" data-cfg="teachers_loop" ${c.teachers_loop !== false ? "checked" : ""}> băng chuyền chạy vòng tròn</label>
+              <button data-act="cfgsave">💾 Lưu mục này</button>
+            </div>
+            <p class="msg" id="lpm-cfgmsg"></p>
+            <hr style="border:none; border-top:1px solid var(--line); margin:.8rem 0;">`;
+        }
         function listPanel(coll) {
           const rows = D[coll];
           return `
+            ${coll === "teachers" ? teachersHeader() : ""}
             <div class="form-row" style="margin:0.4rem 0 0.6rem;">
               <button data-act="add" data-coll="${coll}">+ Thêm mới</button>
               ${coll === "gal" ? `<button class="ghost" data-act="multi">⬆ Tải nhiều ảnh cùng lúc</button>
@@ -3825,18 +3862,41 @@
         }
         function settingsPanel() {
           const c = D.cfg || {}; const t = c.trial || {};
-          const secs = Array.isArray(c.sections) && c.sections.length ? c.sections
-            : ["trial","courses","teacher","achieve","feats","quote","contact"].map(id => ({ id, show: true }));
+          /* the editor works on the draft when one exists, otherwise on the
+             published order; brand-new sections are appended automatically */
+          const hasDraft = Array.isArray(c.sections_draft) && c.sections_draft.length > 0;
+          const saved = hasDraft ? c.sections_draft
+            : (Array.isArray(c.sections) && c.sections.length ? c.sections : []);
+          const secs = saved.filter(s => SEC_DEFAULT.includes(s.id))
+            .concat(SEC_DEFAULT.filter(id => !saved.some(s => s.id === id)).map(id => ({ id, show: true })));
           return `
             <h3 style="margin:0.6rem 0 0.3rem;">Thứ tự &amp; hiển thị các phần</h3>
-            <p class="kind" style="text-transform:none;">"Học thử miễn phí" nên luôn đứng đầu — sẽ có cảnh báo nếu bạn chuyển nó xuống.</p>
-            <div id="lpm-secs">${secs.map((s, i) => `
-              <div class="lesson" data-sec="${s.id}">
-                <div class="meta"><div class="title">${esc(SEC_NAMES[s.id] || s.id)}</div></div>
+            <p class="kind" style="text-transform:none;">Kéo–thả để đổi thứ tự (hoặc dùng ↑ ↓ trên điện thoại). Thay đổi được lưu thành <b>nháp</b> — khách chỉ thấy sau khi bạn bấm <b>Publish</b>.
+              ${hasDraft ? '<b style="color:var(--warning);"> • Đang có bản nháp chưa publish.</b>' : ""}</p>
+            <div id="lpm-secs">
+              ${SEC_LOCKED.map(s => `
+              <div class="lesson" style="opacity:.72;">
+                <div class="meta"><div class="title">🔒 ${esc(s.name)}</div>
+                  <span class="kind">Luôn ở đầu trang và luôn hiển thị — không thể ẩn hoặc di chuyển</span></div>
+                <label style="font-size:0.85rem; color:var(--muted);"><input type="checkbox" checked disabled/> hiện</label>
+                <button class="ghost" disabled>↑</button><button class="ghost" disabled>↓</button>
+              </div>`).join("")}
+              ${secs.map((s, i) => `
+              <div class="lesson lpm-sec" draggable="true" data-sec="${s.id}"
+                   style="cursor:grab;">
+                <div class="meta"><div class="title">⠿ ${esc(SEC_NAMES[s.id] || s.id)}</div></div>
                 <label style="font-size:0.85rem; color:var(--muted);"><input type="checkbox" data-secshow="${s.id}" ${s.show !== false ? "checked" : ""}/> hiện</label>
-                <button class="ghost" data-act="secup" data-i="${i}" ${i === 0 ? "disabled" : ""}>↑</button>
-                <button class="ghost" data-act="secdown" data-i="${i}" ${i === secs.length - 1 ? "disabled" : ""}>↓</button>
-              </div>`).join("")}</div>
+                <button class="ghost" data-act="secup" data-i="${i}" ${i === 0 ? "disabled" : ""} aria-label="Chuyển lên">↑</button>
+                <button class="ghost" data-act="secdown" data-i="${i}" ${i === secs.length - 1 ? "disabled" : ""} aria-label="Chuyển xuống">↓</button>
+              </div>`).join("")}
+            </div>
+            <div class="form-row" style="margin-top:0.6rem;">
+              <button data-act="secdraft">💾 Lưu nháp</button>
+              <button data-act="secpublish">🚀 Publish bố cục</button>
+              <a class="ghost btn" style="text-decoration:none;" href="index.html?preview=1" target="_blank" rel="noopener">👁 Xem trước bản nháp</a>
+              <button class="ghost" data-act="seccancel" ${hasDraft ? "" : "disabled"}>↩ Hủy thay đổi chưa publish</button>
+            </div>
+            <p class="msg" id="lpm-secmsg"></p>
             <h3 style="margin:1rem 0 0.3rem;">Khối "Học thử miễn phí"</h3>
             <div class="form-row">
               <div class="field"><label>Tiêu đề</label><input data-cfg="trial.title" value="${esc(t.title || "Học thử miễn phí")}"></div>
@@ -3890,47 +3950,9 @@
               ${Object.keys(NAMES).map(k =>
                 `<button class="${k === cur ? "" : "ghost"}" data-lpmtab="${k}">${NAMES[k]}${T[k] ? " (" + D[k].length + ")" : ""}</button>`).join("")}
             </div>
-            ${cur === "settings" ? settingsPanel() : cur === "teacher" ? teacherPanel() : listPanel(cur)}`;
+            ${cur === "settings" ? settingsPanel() : listPanel(cur)}`;
           wireImages();
-        }
-        function teacherPanel() {
-          const T = (D.cfg || {}).teacher || {};
-          const t = (D.cfg || {}).titles || {};
-          return `
-            <div class="lpm-form" data-coll="teacher">
-            <p class="kind" style="text-transform:none; margin:0.5rem 0;">Khối "Giáo viên của bạn" trên trang chủ. Ô nào để trống sẽ giữ nguyên nội dung mặc định hiện tại — điền vào là ghi đè, không cần điền hết.</p>
-            <div class="form-row">
-              <div class="field"><label>Tiêu đề phần</label><input data-cfg="titles.teacher" value="${esc(t.teacher || "")}" placeholder="Giáo viên của bạn"></div>
-              <div class="field"><label>Mô tả dưới tiêu đề</label><input data-cfg="titles.teacher_lead" value="${esc(t.teacher_lead || "")}" placeholder="Một giáo viên trực tiếp thiết kế…"></div>
-              <div class="field"><label>Họ tên hiển thị</label><input data-cfg="teacher.name" value="${esc(T.name || "")}" placeholder="Thầy Lê Quốc Thông"></div>
-              <div class="field"><label>Chức danh</label><input data-cfg="teacher.role" value="${esc(T.role || "")}" placeholder="Giáo viên tiếng Anh &amp; tiếng Trung"></div>
-              <div class="field" style="min-width:260px; flex-basis:100%;"><label>Ảnh chân dung (dọc 4:5) — JPG/PNG/WebP ≤ 10 MB</label>
-                <div class="lpm-drop" tabindex="0" role="button"
-                     style="border:2px dashed var(--line); border-radius:10px; padding:0.6rem 0.8rem; display:flex; gap:0.8rem; align-items:center; flex-wrap:wrap; cursor:pointer;">
-                  <img src="${esc(T.photo_url || "")}" alt="" style="${T.photo_url ? "" : "display:none;"} width:96px; aspect-ratio:4/5; object-fit:cover; border-radius:8px; border:1px solid var(--line);">
-                  <span class="kind" style="text-transform:none; letter-spacing:0;">Kéo–thả ảnh vào đây hoặc bấm để chọn (trống = dùng profile.jpg hiện tại)</span>
-                  <button type="button" class="ghost" data-imgdel ${T.photo_url ? "" : "hidden"} style="flex:none;">✕ Bỏ ảnh</button>
-                  <span class="msg" data-imgmsg style="flex-basis:100%; margin:0;"></span>
-                  <input type="hidden" data-cfg="teacher.photo_url" value="${esc(T.photo_url || "")}">
-                  <input type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden>
-                </div></div>
-              <div class="field"><label>Mô tả ảnh (alt)</label><input data-cfg="teacher.photo_alt" value="${esc(T.photo_alt || "")}" placeholder="Thầy Lê Quốc Thông"></div>
-              <div class="field" style="max-width:170px;"><label>Tâm ảnh (vd 50% 18%)</label><input data-cfg="teacher.photo_pos" value="${esc(T.photo_pos || "")}" placeholder="50% 18%"></div>
-              <div class="field" style="flex-basis:100%;"><label>Huy hiệu bằng cấp (mỗi dòng một huy hiệu)</label>
-                <textarea data-cfg="teacher.badges" style="min-height:74px;" placeholder="🎓 Master of TESOL&#10;VSTEP C1 (9.0)&#10;IELTS 7.5&#10;HSK 5 (276/300)">${esc(T.badges || "")}</textarea></div>
-              <div class="field" style="flex-basis:100%;"><label>Giới thiệu / phương châm — bọc **hai dấu sao** quanh đoạn cần in đậm</label>
-                <textarea data-cfg="teacher.bio" style="min-height:74px;" placeholder="Phương châm của lớp học: **học có lộ trình — tiến bộ đo được**. …">${esc(T.bio || "")}</textarea></div>
-              <div class="field"><label>Nút 1 — nhãn</label><input data-cfg="teacher.b1_label" value="${esc(T.b1_label || "")}" placeholder="💬 Zalo: 0961 923 983"></div>
-              <div class="field"><label>Nút 1 — liên kết</label><input data-cfg="teacher.b1_url" value="${esc(T.b1_url || "")}" placeholder="https://zalo.me/…"></div>
-              <div class="field"><label>Nút 2 — nhãn</label><input data-cfg="teacher.b2_label" value="${esc(T.b2_label || "")}" placeholder="👤 Facebook"></div>
-              <div class="field"><label>Nút 2 — liên kết</label><input data-cfg="teacher.b2_url" value="${esc(T.b2_url || "")}" placeholder="https://www.facebook.com/…"></div>
-            </div>
-            <div class="form-row" style="margin-top:0.6rem;">
-              <button data-act="cfgsave">💾 Lưu</button>
-              <a class="ghost btn" style="text-decoration:none;" href="index.html?preview=1" target="_blank" rel="noopener">👁 Xem trước</a>
-            </div>
-            <p class="msg" id="lpm-cfgmsg"></p>
-            </div>`;
+          wireSectionDnD();
         }
 
         /* ---------- image upload (drag-drop + picker, validated) ---------- */
@@ -3981,7 +4003,7 @@
           root.querySelectorAll(".lpm-form input, .lpm-form textarea, .lpm-form select")
             .forEach(el => el.addEventListener("input", () => { dirty = true; }));
           /* "custom" focal point asks for an explicit "x% y%" position */
-          root.querySelectorAll('select[data-k="focal"]').forEach(sel =>
+          root.querySelectorAll('select[data-k="focal"], select[data-k="photo_pos"]').forEach(sel =>
             sel.addEventListener("change", async () => {
               if (sel.value !== "custom") return;
               const v = await UI.promptDialog({ title: "Tâm ảnh tùy chỉnh",
@@ -4054,12 +4076,7 @@
           const msgEl = document.getElementById("lpm-cfgmsg");
           const cfg = JSON.parse(JSON.stringify(D.cfg || {}));
           cfg.trial = cfg.trial || {}; cfg.titles = cfg.titles || {};
-          const secEls = [...root.querySelectorAll("#lpm-secs .lesson")];
-          if (secEls.length)                      /* saving from another panel must not wipe the section list */
-            cfg.sections = secEls.map(el => ({
-              id: el.getAttribute("data-sec"),
-              show: el.querySelector("input[type=checkbox]").checked
-            }));
+          /* section order has its own draft/publish flow — never touched here */
           let bad = null;
           root.querySelectorAll("[data-cfg]").forEach(el => {
             const path = el.getAttribute("data-cfg").split(".");
@@ -4076,6 +4093,68 @@
             D.cfg = cfg; dirty = false;
             msgEl.textContent = "✓ Đã lưu — trang chủ cập nhật ngay lần tải tiếp theo."; msgEl.className = "msg";
           } catch (err) { msgEl.textContent = "Không lưu được: " + (err.message || err); msgEl.className = "msg err"; }
+        }
+
+        /* ---------- section order: draft → publish ---------- */
+        function reindexSecs() {
+          const rows = [...root.querySelectorAll("#lpm-secs .lpm-sec")];
+          rows.forEach((el, k) => {
+            const u = el.querySelector('[data-act="secup"]'), d = el.querySelector('[data-act="secdown"]');
+            if (u) { u.setAttribute("data-i", k); u.disabled = k === 0; }
+            if (d) { d.setAttribute("data-i", k); d.disabled = k === rows.length - 1; }
+          });
+        }
+        /* drag-and-drop on desktop; the ↑ ↓ buttons stay for phones */
+        function wireSectionDnD() {
+          const box = document.getElementById("lpm-secs");
+          if (!box) return;
+          let dragEl = null;
+          box.querySelectorAll(".lpm-sec").forEach(row => {
+            row.addEventListener("dragstart", e => {
+              dragEl = row; row.style.opacity = ".45";
+              e.dataTransfer.effectAllowed = "move";
+              try { e.dataTransfer.setData("text/plain", row.getAttribute("data-sec")); } catch (err) {}
+            });
+            row.addEventListener("dragend", () => {
+              if (dragEl) dragEl.style.opacity = "";
+              dragEl = null; reindexSecs(); dirty = true;
+            });
+            row.addEventListener("dragover", e => {
+              e.preventDefault();
+              if (!dragEl || dragEl === row) return;
+              const rect = row.getBoundingClientRect();
+              const after = (e.clientY - rect.top) > rect.height / 2;
+              /* only ever reposition among the movable rows, so the locked
+                 hero row can never be pushed out of first place */
+              row.parentElement.insertBefore(dragEl, after ? row.nextSibling : row);
+            });
+          });
+          box.addEventListener("dragover", e => e.preventDefault());
+          box.addEventListener("drop", e => e.preventDefault());
+        }
+        async function saveSections(mode) {
+          const msgEl = document.getElementById("lpm-secmsg");
+          const say = (t, err) => { if (msgEl) { msgEl.textContent = t; msgEl.className = "msg" + (err ? " err" : ""); } };
+          const cfg = JSON.parse(JSON.stringify(D.cfg || {}));
+          if (mode === "cancel") {
+            delete cfg.sections_draft;                    // fall back to the published order
+          } else {
+            const list = [...root.querySelectorAll("#lpm-secs .lpm-sec")].map(el => ({
+              id: el.getAttribute("data-sec"),
+              show: el.querySelector('input[type="checkbox"]').checked
+            }));
+            if (!list.length) return say("Không đọc được danh sách phần.", 1);
+            if (mode === "draft") cfg.sections_draft = list;
+            else { cfg.sections = list; delete cfg.sections_draft; }
+          }
+          try {
+            const { error } = await sb.from("landing_settings").upsert({ id: 1, config: cfg });
+            if (error) throw error;
+            D.cfg = cfg; dirty = false; paint();
+            UI.toast(mode === "publish" ? "🚀 Đã publish bố cục — khách thấy ngay"
+                   : mode === "draft"   ? "💾 Đã lưu nháp — bấm Publish khi sẵn sàng"
+                                        : "↩ Đã khôi phục bố cục đang publish");
+          } catch (err) { say("Không lưu được: " + (err.message || err), 1); }
         }
 
         /* ---------- events ---------- */
@@ -4127,7 +4206,7 @@
             return;
           }
           if (act === "secup" || act === "secdown") {
-            const list = [...root.querySelectorAll("#lpm-secs .lesson")];
+            const list = [...root.querySelectorAll("#lpm-secs .lpm-sec")];
             const i = +b.getAttribute("data-i");
             const j = act === "secup" ? i - 1 : i + 1;
             if (j < 0 || j >= list.length) return;
@@ -4135,12 +4214,7 @@
               const parent = list[0].parentElement;
               if (act === "secup") parent.insertBefore(list[i], list[j]);
               else parent.insertBefore(list[j], list[i]);
-              [...parent.children].forEach((el, k2) => {
-                const u = el.querySelector('[data-act="secup"]'), d = el.querySelector('[data-act="secdown"]');
-                u.setAttribute("data-i", k2); d.setAttribute("data-i", k2);
-                u.disabled = k2 === 0; d.disabled = k2 === parent.children.length - 1;
-              });
-              dirty = true;
+              reindexSecs(); dirty = true;
             };
             if (list[i].getAttribute("data-sec") === "trial" && act === "secdown")
               UI.confirmDialog({ title: "Chuyển 'Học thử miễn phí' khỏi vị trí đầu?", danger: true,
@@ -4149,6 +4223,9 @@
             else doSwap();
             return;
           }
+          if (act === "secdraft") return saveSections("draft");
+          if (act === "secpublish") return saveSections("publish");
+          if (act === "seccancel") return saveSections("cancel");
           if (act === "cfgsave") return saveConfig();
           if (act === "multi") return document.getElementById("lpm-multi").click();
         });
