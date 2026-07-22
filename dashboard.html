@@ -212,6 +212,14 @@
           .then(({ data }) => { if (data && data[0] && data[0].brand_color) UI.applyBrand(data[0].brand_color); });
       }
 
+      // which optional modules are switched on for this installation
+      // (migration38; if the table is absent everything stays enabled)
+      try {
+        const mr = await sb.from("app_modules").select("*").eq("id", 1).maybeSingle()
+          .then(r => r, () => null);
+        if (mr && !mr.error && mr.data) window.__modules = mr.data;
+      } catch (e) { /* fail open */ }
+
       if (profile?.role === "owner") renderAdmin();
       else if (profile?.role === "admin") { window.location.href = "admin.html"; return; }
       else if (profile?.role === "teacher") { window.location.href = "teacher.html"; return; }
@@ -935,14 +943,19 @@
           return;
         }
         const T = UI.t2;
+        /* Chinese modules can be switched off per installation (migration38).
+           MODULES is filled in by the loader below; if the table is absent
+           everything stays visible, exactly as before. */
+        const MOD = window.__modules || {};
+        const on = k => MOD[k] !== false;
         const items = [
           { id: "home", label: T("nav_home"), icon: "home", group: T("g_learn") },
           { id: "courses", label: T("my_courses"), icon: "book-open", group: T("g_learn") },
           { id: "flash", label: t("flash_tab"), icon: "wallet-cards", group: T("g_learn") },
-          { href: "reading.html", label: "Đọc hiểu HSK 阅读", icon: "book-open", group: T("g_learn") },
-          { href: "shadow.html", label: "Shadow Chinese 跟读", icon: "video", group: T("g_learn") },
-          { href: "writing.html", label: "Tập viết chữ Hán 写字", icon: "pen-tool", group: T("g_learn") },
-          { href: "dictation.html", label: "Nghe chép chính tả 听写", icon: "headphones", group: T("g_learn") },
+          ...(on("reading") ? [{ href: "reading.html", label: "Đọc hiểu HSK 阅读", icon: "book-open", group: T("g_learn") }] : []),
+          ...(on("shadow") ? [{ href: "shadow.html", label: "Shadow Chinese 跟读", icon: "video", group: T("g_learn") }] : []),
+          ...(on("writing") ? [{ href: "writing.html", label: "Tập viết chữ Hán 写字", icon: "pen-tool", group: T("g_learn") }] : []),
+          ...(on("dictation") ? [{ href: "dictation.html", label: "Nghe chép chính tả 听写", icon: "headphones", group: T("g_learn") }] : []),
           { id: "asgn", label: T("asgn"), icon: "clipboard-list", group: T("g_comm") },
           { id: "community", label: T("disc"), icon: "messages-square", group: T("g_comm") },
           { id: "profile", label: T("profile_tab"), icon: "user", group: T("g_account") },
@@ -1934,6 +1947,14 @@
         </div>
         </div>
 
+        <div class="tabpane" data-tab="modules">
+          <div class="card">
+            <h2>🧩 Tính năng bật/tắt</h2>
+            <p class="kind" style="margin:0 0 0.7rem;">Tắt một phân hệ sẽ <b>ẩn nó khỏi thanh bên của học viên</b> và <b>chặn mở thẳng bằng đường dẫn</b>. Dùng khi cho trung tâm thuê LMS mà chưa bán kèm bộ công cụ tiếng Trung. Bạn (chủ sở hữu) vẫn xem được để kiểm tra.</p>
+            <div id="mod-box"><p class="empty">Đang tải…</p></div>
+          </div>
+        </div>
+
         <div class="tabpane" data-tab="landing">
           <div class="card">
             <div class="card-head"><h2>🌐 Landing Page</h2>
@@ -2365,6 +2386,7 @@
       function showTab(t) {
         adminTab = t;
         if (t === "landing" && window.__lpmInit) window.__lpmInit();
+        if (t === "modules" && window.__modInit) window.__modInit();
         app.querySelectorAll(".tabpane").forEach(p =>
           p.classList.toggle("show", p.getAttribute("data-tab") === t));
         document.querySelectorAll("#subnav .sn-item[data-id]").forEach(b =>
@@ -2382,6 +2404,7 @@
           { id: "shadow", label: "Shadowing" + ((svRes.data || []).length ? " (" + svRes.data.length + ")" : ""), icon: "video", group: "Content" },
           { id: "dict", label: "Dictation", icon: "headphones", group: "Content" },
           { id: "landing", label: "Landing Page", icon: "globe", group: "Content" },
+          { id: "modules", label: "Tính năng", icon: "toggle-right", group: "Settings" },
           { id: "students", label: "Students (" + onlyStudents.length + ")" + (stuWarn ? " ⚠️" : ""), icon: "users", group: "Users" },
           { id: "progress", label: "Analytics", icon: "bar-chart-3", group: "Analytics" },
           { id: "announce", label: "Announce" + ((anns || []).length ? " (" + anns.length + ")" : ""), icon: "megaphone", group: "Community" },
@@ -3631,6 +3654,66 @@
         }
       })();
       // =============== END BULK ACCOUNT IMPORT ===============
+
+      // ================= MODULE SWITCHES =================
+      // Owner-only (enforced by RLS in migration38, not just by this UI).
+      (function () {
+        const box = document.getElementById("mod-box");
+        if (!box) return;
+        const MODS = [
+          ["reading",   "📖 Đọc hiểu HSK",        "reading.html",   "Kho bài đọc, tách từ, pinyin, sổ từ vựng"],
+          ["shadow",    "🎬 Shadow Chinese",       "shadow.html",    "Luyện nói theo video có phụ đề"],
+          ["dictation", "🎧 Nghe chép chính tả",   "dictation.html", "Chấm điểm tới từng chữ Hán"],
+          ["writing",   "✍️ Tập viết chữ Hán",     "writing.html",   "Luyện viết chữ với thẻ ghi nhớ"],
+        ];
+        let cur = null;
+
+        function paint() {
+          if (!cur) {
+            box.innerHTML = `<p class="empty">Chạy <b>migration38_modules.sql</b> trong Supabase trước, rồi mở lại tab này.</p>`;
+            return;
+          }
+          box.innerHTML = MODS.map(([k, label, page, desc]) => `
+            <div class="lesson">
+              <div class="meta"><div class="title">${label}</div>
+                <span class="kind">${esc(desc)} · ${page}</span></div>
+              <label style="font-size:0.9rem; color:var(--muted); cursor:pointer; white-space:nowrap;">
+                <input type="checkbox" data-mod="${k}" ${cur[k] !== false ? "checked" : ""}/>
+                ${cur[k] !== false ? "đang bật" : "đang tắt"}</label>
+            </div>`).join("")
+            + `<p class="msg" id="mod-msg" style="margin-top:0.6rem;"></p>`;
+        }
+
+        async function load() {
+          const r = await sb.from("app_modules").select("*").eq("id", 1).maybeSingle()
+            .then(x => x, () => null);
+          cur = (r && !r.error && r.data) ? r.data : null;
+          paint();
+        }
+
+        box.addEventListener("change", async e => {
+          const cb = e.target.closest("input[data-mod]");
+          if (!cb || !cur) return;
+          const key = cb.getAttribute("data-mod");
+          const want = cb.checked;
+          const msg = document.getElementById("mod-msg");
+          cb.disabled = true;
+          const { error } = await sb.from("app_modules").update({ [key]: want }).eq("id", 1);
+          cb.disabled = false;
+          if (error) {
+            cb.checked = !want;
+            if (msg) { msg.textContent = "Không lưu được: " + error.message; msg.className = "msg err"; }
+            return;
+          }
+          cur[key] = want;
+          paint();
+          if (window.UI) UI.toast(want ? "✅ Đã bật — học viên sẽ thấy sau khi tải lại trang"
+                                       : "⛔ Đã tắt — đã ẩn khỏi thanh bên của học viên");
+        });
+
+        window.__modInit = load;   // called when the tab is opened
+      })();
+      // =============== END MODULE SWITCHES ===============
 
       // ================= LANDING PAGE CMS =================
       // Owner-only by RLS (migration35). One generic list+form engine drives
