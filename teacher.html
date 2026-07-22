@@ -454,6 +454,8 @@
           </div>
         </div>
 
+        <div class="tabpane" data-tab="myclasses"><div id="tcls-root"></div></div>
+
         <div class="tabpane" data-tab="sched">
           <div class="card">
             <div class="card-head"><h2>${icon("calendar-plus", 18)} ${t2("new_session")}</h2></div>
@@ -525,6 +527,7 @@
       // ---- tabs ----
       function showTab(k) {
         tab = k;
+        if (k === "myclasses" && window.__tclsInit) window.__tclsInit();
         try { localStorage.setItem("hub_teacher_tab", k); } catch (e) {}
         app.querySelectorAll(".tabpane").forEach(p =>
           p.classList.toggle("show", p.getAttribute("data-tab") === k));
@@ -537,6 +540,7 @@
       window.UI.initNav({
         items: [
           { id: "overview", label: t2("overview"), icon: "layout-dashboard", group: t2("dashboard") },
+          { id: "myclasses", label: "Lớp của tôi", icon: "layers", group: t2("g_people") },
           { id: "students", label: t2("students"), icon: "users", group: t2("g_people") },
           { id: "progress", label: t2("progress"), icon: "bar-chart-3", group: t2("g_analytics") },
           { id: "asgn", label: t2("asgn"), icon: "clipboard-list", group: t2("g_content") },
@@ -944,6 +948,214 @@
         renderDisc();
       });
       renderDisc();
+
+
+      // ================= LỚP CỦA TÔI (Phase 29) =================
+      // Giáo viên chỉ thấy lớp mình phụ trách. RLS (migration39) mới là
+      // ranh giới thật: policy "classes teacher update" chỉ cho sửa lớp
+      // của chính mình, và giáo viên KHÔNG tạo/xoá lớp được — việc đó
+      // thuộc về quản trị viên trung tâm.
+      (function () {
+        const root = document.getElementById("tcls-root");
+        if (!root) return;
+
+        const D = { classes: [], members: [], courses: [], students: [] };
+        let loaded = false, failed = false;
+        let open = null, editing = null;
+
+        const STATUS = { upcoming: "Sắp mở", active: "Đang học",
+                         completed: "Kết thúc", archived: "Lưu trữ" };
+        const STATUS_PILL = { upcoming: "todo", active: "done", completed: "off", archived: "bad" };
+        const courseTitle = id => (D.courses.find(c => c.id === id) || {}).title || "—";
+        const clsOf = id => D.classes.find(c => c.id === id);
+        const membersOf = id => D.members.filter(m => m.class_id === id);
+
+        async function load() {
+          // RLS already limits `classes` to this teacher's own classes,
+          // but filtering here too keeps the intent obvious.
+          const cl = await sb.from("classes").select("*")
+                       .eq("teacher_id", user.id).order("starts_on");
+          if (cl.error) { failed = true; return; }
+          D.classes = cl.data || [];
+          const ids = D.classes.map(c => c.id);
+          const [cs, co, pe] = await Promise.all([
+            ids.length ? sb.from("class_students").select("*").in("class_id", ids)
+                       : Promise.resolve({ data: [] }),
+            sb.from("courses").select("id, title"),
+            sb.from("profiles").select("id, full_name, email, role").eq("role", "student")
+          ]);
+          D.members = cs.data || [];
+          D.courses = co.data || [];
+          D.students = pe.data || [];
+          loaded = true;
+        }
+
+        function editForm(c) {
+          return `
+            <div class="card" style="border-color:var(--accent); margin-top:.6rem;">
+              <div class="card-head"><h2>✏️ Cập nhật thông tin lớp</h2></div>
+              <p style="margin:0 0 .6rem; color:var(--muted); font-size:.85rem;">
+                Giáo viên có thể cập nhật lịch học, trạng thái và ghi chú.
+                Tên lớp, khóa học và sĩ số tối đa do quản trị viên trung tâm quản lý.</p>
+              <div class="form-row">
+                <div class="field" style="max-width:150px;"><label>Trạng thái</label>
+                  <select id="tf-status">${Object.entries(STATUS).map(([k, v]) =>
+                    `<option value="${k}" ${c.status === k ? "selected" : ""}>${v}</option>`).join("")}</select></div>
+                <div class="field"><label>Lịch học</label>
+                  <input id="tf-sched" value="${esc(c.schedule || "")}" placeholder="T2-4-6 · 18:00–19:30"></div>
+                <div class="field"><label>Ghi chú</label>
+                  <input id="tf-note" value="${esc(c.note || "")}" placeholder="Ghi chú nội bộ"></div>
+              </div>
+              <div class="form-row" style="margin-top:.5rem;">
+                <button data-act="tsave" data-id="${c.id}">💾 Lưu</button>
+                <button class="ghost" data-act="tcancel">Hủy</button>
+              </div>
+              <p class="msg" id="tf-msg"></p>
+            </div>`;
+        }
+
+        function studentPanel(c) {
+          const mem = membersOf(c.id);
+          const memIds = new Set(mem.map(m => m.student_id));
+          const free = D.students.filter(s => !memIds.has(s.id));
+          const cap = c.max_students;
+          const room = cap == null ? Infinity : cap - mem.length;
+          return `
+            <hr style="border:none; border-top:1px solid var(--line); margin:.9rem 0;">
+            <div class="form-row" style="align-items:flex-end;">
+              <div class="field" style="min-width:240px;"><label>Thêm học viên (giữ Ctrl/Cmd để chọn nhiều)</label>
+                <select id="tcs-pick" multiple size="5" style="min-height:120px;">
+                  ${free.map(s => `<option value="${s.id}">${esc(s.full_name || s.email)}</option>`).join("")
+                    || `<option disabled>Không còn học viên nào để thêm</option>`}
+                </select></div>
+              <button data-act="tadd" data-id="${c.id}" ${room > 0 ? "" : "disabled"}>➕ Thêm vào lớp</button>
+              <span style="align-self:center; color:var(--muted); font-size:.85rem;">
+                Sĩ số: <b>${mem.length}${cap != null ? " / " + cap : ""}</b>${
+                  cap != null ? (room > 0 ? ` · còn ${room} chỗ` : " · đã đầy") : ""}</span>
+            </div>
+            <p class="msg" id="tcs-msg"></p>
+            ${mem.length ? `
+            <table class="stackable" style="margin-top:.6rem;">
+              <thead><tr><th>Học viên</th><th>Email</th><th>Ngày thêm</th><th></th></tr></thead>
+              <tbody>${mem.map(m => {
+                const s = D.students.find(x => x.id === m.student_id) || {};
+                return `<tr>
+                  <td data-th="Học viên">${esc(s.full_name || "—")}</td>
+                  <td data-th="Email">${esc(s.email || "—")}</td>
+                  <td data-th="Ngày thêm">${(m.added_at || "").slice(0, 10)}</td>
+                  <td><button class="ghost" data-act="trm" data-id="${c.id}" data-student="${m.student_id}"
+                        style="color:var(--danger); border-color:var(--danger);">Gỡ khỏi lớp</button></td>
+                </tr>`;
+              }).join("")}</tbody>
+            </table>` : `<p class="empty" style="margin-top:.6rem;">Lớp chưa có học viên nào.</p>`}`;
+        }
+
+        function paint() {
+          if (failed) {
+            root.innerHTML = `<p class="empty">Chức năng lớp học chưa được bật. Nhờ quản trị viên chạy <b>migration39_classes.sql</b>.</p>`;
+            return;
+          }
+          if (!loaded) { root.innerHTML = `<p class="empty">Đang tải…</p>`; return; }
+          if (!D.classes.length) {
+            root.innerHTML = `<p class="empty">Bạn chưa được phân công lớp nào. Quản trị viên trung tâm sẽ phân lớp cho bạn.</p>`;
+            return;
+          }
+          root.innerHTML = D.classes.map(c => {
+            const n = membersOf(c.id).length;
+            const cap = c.max_students;
+            return `
+            <div class="card">
+              <div class="card-head">
+                <h2>${esc(c.name)} <span class="pill ${STATUS_PILL[c.status] || ""}">${STATUS[c.status]}</span></h2>
+                <div class="form-row" style="gap:.35rem;">
+                  <button class="ghost" data-act="topen" data-id="${c.id}">
+                    👥 Học viên (${n}${cap != null ? "/" + cap : ""})</button>
+                  <button class="ghost" data-act="tedit" data-id="${c.id}">✏️ Sửa</button>
+                </div>
+              </div>
+              <p style="margin:0; color:var(--muted); font-size:.85rem;">
+                📘 ${esc(courseTitle(c.course_id))}
+                ${c.schedule ? " · 🗓 " + esc(c.schedule) : ""}
+                ${c.starts_on ? " · từ " + esc(c.starts_on) : ""}${c.ends_on ? " → " + esc(c.ends_on) : ""}
+                ${c.note ? "<br>📝 " + esc(c.note) : ""}
+              </p>
+              ${editing === c.id ? editForm(c) : ""}
+              ${open === c.id ? studentPanel(c) : ""}
+            </div>`;
+          }).join("");
+          refreshIcons();
+        }
+
+        async function reload() { await load(); paint(); }
+
+        root.addEventListener("click", async e => {
+          const b = e.target.closest("[data-act]");
+          if (!b) return;
+          const act = b.getAttribute("data-act"), id = b.getAttribute("data-id");
+
+          if (act === "topen") { open = open === id ? null : id; return paint(); }
+          if (act === "tedit") { editing = editing === id ? null : id; return paint(); }
+          if (act === "tcancel") { editing = null; return paint(); }
+
+          if (act === "tsave") {
+            const msg = document.getElementById("tf-msg");
+            b.disabled = true;
+            const { error } = await sb.from("classes").update({
+              status: document.getElementById("tf-status").value,
+              schedule: document.getElementById("tf-sched").value.trim(),
+              note: document.getElementById("tf-note").value.trim()
+            }).eq("id", id);
+            b.disabled = false;
+            if (error) { msg.textContent = "Không lưu được: " + error.message; msg.className = "msg err"; return; }
+            editing = null;
+            await reload();
+            toast("✓ Đã cập nhật lớp");
+            return;
+          }
+
+          if (act === "tadd") {
+            const sel = document.getElementById("tcs-pick");
+            const ids = [...sel.selectedOptions].map(o => o.value).filter(Boolean);
+            const msg = document.getElementById("tcs-msg");
+            if (!ids.length) { msg.textContent = "Hãy chọn ít nhất một học viên."; msg.className = "msg err"; return; }
+            b.disabled = true;
+            const { error } = await sb.from("class_students")
+              .insert(ids.map(sid => ({ class_id: id, student_id: sid })));
+            b.disabled = false;
+            if (error) { msg.textContent = "Không thêm được: " + error.message; msg.className = "msg err"; return; }
+            await reload();
+            toast(`✓ Đã thêm ${ids.length} học viên`);
+            return;
+          }
+
+          if (act === "trm") {
+            const sid = b.getAttribute("data-student");
+            const ok = await confirmDialog({
+              title: "Gỡ học viên khỏi lớp?", danger: true, okText: "Gỡ khỏi lớp",
+              body: `Học viên sẽ rời lớp này. Nếu đây là lớp cuối cùng của khóa,
+                     họ cũng mất quyền vào bài học của khóa.<br><br>
+                     Tài khoản và tiến độ đã học <b>vẫn được giữ</b>.`
+            });
+            if (!ok) return;
+            const { error } = await sb.from("class_students").delete()
+              .eq("class_id", id).eq("student_id", sid);
+            if (error) return toast("Không gỡ được: " + error.message, "err");
+            await reload();
+            toast("Đã gỡ khỏi lớp");
+            return;
+          }
+        });
+
+        window.__tclsInit = async function () {
+          if (loaded || failed) { paint(); return; }
+          paint();
+          await load();
+          paint();
+        };
+      })();
+      // =============== HẾT LỚP CỦA TÔI ===============
+
+      if (tab === "myclasses") window.__tclsInit();
 
       refreshIcons();
     }

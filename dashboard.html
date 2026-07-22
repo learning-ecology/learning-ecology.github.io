@@ -883,6 +883,7 @@
           ${annCard}
         </div>
         <div class="tabpane" data-tab="courses">
+          <div id="my-classes"></div>
           ${chipRow}
           ${catSections || `<div class="card"><p class="empty">${t("not_enrolled")}</p></div>`}
           ${looseCard}
@@ -903,6 +904,45 @@
           ${profileCard}
         </div>
         ${hubFooter}`;
+
+      // --- Lớp của tôi (Phase 29) — read-only; RLS shows only classes I'm in ---
+      (async function myClasses() {
+        const box = document.getElementById("my-classes");
+        if (!box) return;
+        const cs = await sb.from("class_students").select("class_id").eq("student_id", user.id);
+        if (cs.error || !(cs.data || []).length) return;   // table missing, or not in any class
+        const cl = await sb.from("classes").select("*")
+          .in("id", cs.data.map(r => r.class_id)).order("starts_on", { ascending: true });
+        if (cl.error || !(cl.data || []).length) return;
+        const tIds = [...new Set(cl.data.map(c => c.teacher_id).filter(Boolean))];
+        const tr = tIds.length
+          ? await sb.from("profiles").select("id, full_name, email").in("id", tIds)
+          : { data: [] };
+        const tName = id => {
+          const p = (tr.data || []).find(x => x.id === id);
+          return p ? (p.full_name || p.email) : "";
+        };
+        const cTitle = id => ((courses || []).find(c => c.id === id) || {}).title || "";
+        const ST = { upcoming: "Sắp mở", active: "Đang học",
+                     completed: "Kết thúc", archived: "Lưu trữ" };
+        const PILL = { upcoming: "todo", active: "done", completed: "off", archived: "bad" };
+        box.innerHTML = `
+          <div class="card">
+            <div class="card-head"><h2>🎓 Lớp của tôi</h2></div>
+            ${cl.data.map(c => `
+              <div class="lesson">
+                <div>
+                  <b>${esc(c.name)}</b>
+                  <span class="pill ${PILL[c.status] || ""}">${ST[c.status] || ""}</span>
+                  <span class="kind">${esc(cTitle(c.course_id))}${
+                    c.teacher_id ? " · Giáo viên: " + esc(tName(c.teacher_id)) : ""}${
+                    c.schedule ? " · " + esc(c.schedule) : ""}${
+                    c.starts_on ? " · từ " + esc(c.starts_on) : ""}${
+                    c.ends_on ? " → " + esc(c.ends_on) : ""}</span>
+                </div>
+              </div>`).join("")}
+          </div>`;
+      })();
 
       document.getElementById("p-save").addEventListener("click", async () => {
         const m = document.getElementById("p-msg");
@@ -1965,6 +2005,8 @@
           </div>
         </div>
 
+        <div class="tabpane" data-tab="classes"><div id="oc-root"></div></div>
+
         <div class="tabpane" data-tab="students">
         <div id="stu-alert"></div>
         <div class="card">
@@ -2383,10 +2425,100 @@
         try { navigator.clipboard.writeText(out.value); } catch (e) {}
       }));
 
+
+      // ================= LỚP HỌC — TOÀN HỆ THỐNG (Phase 29) =================
+      // Chủ sở hữu xem lớp của MỌI trung tâm (chỉ đọc). Việc tạo/sửa lớp do
+      // quản trị viên từng trung tâm làm trong admin.html — chủ sở hữu vẫn có
+      // toàn quyền ở tầng cơ sở dữ liệu (policy "classes owner manage") nếu cần
+      // can thiệp trực tiếp bằng SQL.
+      (function () {
+        let done = false;
+        window.__ocInit = async function () {
+          const box = document.getElementById("oc-root");
+          if (!box || done) return;
+          box.innerHTML = `<p class="empty">Đang tải…</p>`;
+          const [cl, cs, orgs, crs, pe] = await Promise.all([
+            sb.from("classes").select("*").order("created_at"),
+            sb.from("class_students").select("class_id, student_id"),
+            sb.from("organizations").select("id, name"),
+            sb.from("courses").select("id, title"),
+            sb.from("profiles").select("id, full_name, email").in("role", ["teacher", "admin"])
+          ]);
+          if (cl.error) {
+            box.innerHTML = `<div class="card"><p class="empty">Chưa chạy <b>migration39_classes.sql</b>.
+              Chạy migration đó trong SQL Editor rồi mở lại tab này.</p></div>`;
+            return;
+          }
+          done = true;
+          const classes = cl.data || [], mem = cs.data || [];
+          if (!classes.length) {
+            box.innerHTML = `<div class="card"><p class="empty">Chưa có trung tâm nào tạo lớp.</p></div>`;
+            return;
+          }
+          const oName = id => ((orgs.data || []).find(o => o.id === id) || {}).name || "(không thuộc trung tâm)";
+          const cTitle = id => ((crs.data || []).find(c => c.id === id) || {}).title || "—";
+          const tName = id => {
+            const p = (pe.data || []).find(x => x.id === id);
+            return p ? (p.full_name || p.email) : "chưa phân công";
+          };
+          const nOf = id => mem.filter(m => m.class_id === id).length;
+          const ST = { upcoming: "Sắp mở", active: "Đang học",
+                       completed: "Kết thúc", archived: "Lưu trữ" };
+          const PILL = { upcoming: "todo", active: "done", completed: "off", archived: "bad" };
+
+          const byOrg = {};
+          classes.forEach(c => { (byOrg[c.org_id] = byOrg[c.org_id] || []).push(c); });
+
+          box.innerHTML = `
+            <div class="card">
+              <div class="card-head"><h2>🏫 Lớp học theo trung tâm</h2>
+                <button class="ghost" id="oc-csv">Tải CSV</button></div>
+              <div class="stat-grid">
+                <div class="stat"><div class="k">Trung tâm</div><div class="v">${Object.keys(byOrg).length}</div></div>
+                <div class="stat"><div class="k">Tổng số lớp</div><div class="v">${classes.length}</div></div>
+                <div class="stat"><div class="k">Đang học</div><div class="v">${classes.filter(c => c.status === "active").length}</div></div>
+                <div class="stat"><div class="k">Lượt học viên</div><div class="v">${mem.length}</div></div>
+              </div>
+            </div>
+            ${Object.entries(byOrg).map(([oid, list]) => `
+              <div class="card">
+                <div class="card-head"><h2>${esc(oName(oid))}</h2>
+                  <span class="pill">${list.length} lớp</span></div>
+                <table class="stackable">
+                  <thead><tr><th>Lớp</th><th>Khóa</th><th>Giáo viên</th>
+                    <th>Học viên</th><th>Lịch</th><th>Trạng thái</th></tr></thead>
+                  <tbody>${list.map(c => `
+                    <tr>
+                      <td data-th="Lớp">${esc(c.name)}</td>
+                      <td data-th="Khóa">${esc(cTitle(c.course_id))}</td>
+                      <td data-th="Giáo viên">${esc(tName(c.teacher_id))}</td>
+                      <td data-th="Học viên">${nOf(c.id)}${c.max_students != null ? " / " + c.max_students : ""}</td>
+                      <td data-th="Lịch">${esc(c.schedule || "—")}</td>
+                      <td data-th="Trạng thái"><span class="pill ${PILL[c.status] || ""}">${ST[c.status] || ""}</span></td>
+                    </tr>`).join("")}</tbody>
+                </table>
+              </div>`).join("")}`;
+
+          document.getElementById("oc-csv").addEventListener("click", () => {
+            const rows = [["Trung tâm", "Lớp", "Khóa", "Giáo viên", "Học viên", "Sĩ số tối đa",
+                           "Lịch", "Bắt đầu", "Kết thúc", "Trạng thái"]];
+            classes.forEach(c => rows.push([oName(c.org_id), c.name, cTitle(c.course_id),
+              tName(c.teacher_id), nOf(c.id), c.max_students == null ? "" : c.max_students,
+              c.schedule || "", c.starts_on || "", c.ends_on || "", ST[c.status] || ""]));
+            const body = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(new Blob(["﻿" + body], { type: "text/csv;charset=utf-8" }));
+            a.download = "lop-hoc.csv"; a.click(); URL.revokeObjectURL(a.href);
+          });
+        };
+      })();
+      // =============== HẾT LỚP HỌC TOÀN HỆ THỐNG ===============
+
       function showTab(t) {
         adminTab = t;
         if (t === "landing" && window.__lpmInit) window.__lpmInit();
         if (t === "modules" && window.__modInit) window.__modInit();
+        if (t === "classes" && window.__ocInit) window.__ocInit();
         app.querySelectorAll(".tabpane").forEach(p =>
           p.classList.toggle("show", p.getAttribute("data-tab") === t));
         document.querySelectorAll("#subnav .sn-item[data-id]").forEach(b =>
@@ -2406,6 +2538,7 @@
           { id: "landing", label: "Landing Page", icon: "globe", group: "Content" },
           { id: "modules", label: "Tính năng", icon: "toggle-right", group: "Settings" },
           { id: "students", label: "Students (" + onlyStudents.length + ")" + (stuWarn ? " ⚠️" : ""), icon: "users", group: "Users" },
+          { id: "classes", label: "Lớp học", icon: "layers", group: "Users" },
           { id: "progress", label: "Analytics", icon: "bar-chart-3", group: "Analytics" },
           { id: "announce", label: "Announce" + ((anns || []).length ? " (" + anns.length + ")" : ""), icon: "megaphone", group: "Community" },
           { href: "organizations.html", label: "Organizations & licenses", icon: "building-2", group: "Settings" },
