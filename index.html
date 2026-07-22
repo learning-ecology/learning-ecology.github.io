@@ -44,7 +44,46 @@
       color: #fff;
     }
     .lp-header img { width: 34px; height: 34px; border-radius: 8px; }
-    .lp-header .name { font-family: var(--serif); font-size: 1.15rem; font-weight: 700; flex: 1; }
+    .lp-header .name { font-family: var(--serif); font-size: 1.15rem; font-weight: 700; flex: none; }
+
+    /* ---- section menu inside the sticky header ---- */
+    .lp-nav { flex: 1 1 auto; min-width: 0; display: flex; justify-content: center; }
+    .lp-nav[hidden] { display: none; }
+    .lp-nav-toggle {
+      display: none; background: transparent; border: 1px solid rgba(255,255,255,.4);
+      color: #fff; border-radius: 8px; padding: .32rem .6rem; font-size: 1rem; cursor: pointer;
+      min-width: 44px; min-height: 44px; justify-content: center;   /* comfortable tap target */
+    }
+    .lp-nav-toggle:hover { background: rgba(255,255,255,.12); }
+    .lp-nav-list {
+      display: flex; gap: .1rem; list-style: none; margin: 0; padding: 0;
+      max-width: 100%; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none;
+    }
+    .lp-nav-list::-webkit-scrollbar { display: none; }
+    .lp-nav-list a {
+      display: block; white-space: nowrap; text-decoration: none; color: #cfe0f5;
+      font-size: .86rem; font-weight: 600; padding: .38rem .62rem; border-radius: 8px;
+      transition: background .15s ease, color .15s ease;
+    }
+    .lp-nav-list a:hover { color: #fff; background: rgba(255,255,255,.12); }
+    .lp-nav-list a.on { color: #f4d68a; background: rgba(255,255,255,.14); }
+    @media (max-width: 900px) {
+      /* phones & small tablets: collapse into a hamburger dropdown */
+      .lp-nav { flex: 0 0 auto; justify-content: flex-end; margin-left: auto; }
+      .lp-nav-toggle { display: inline-flex; align-items: center; }
+      .lp-nav-list {
+        position: absolute; top: 100%; left: .75rem; right: .75rem;
+        flex-direction: column; gap: 0; overflow: hidden auto; max-height: 70vh;
+        background: #17263e; border: 1px solid rgba(255,255,255,.16);
+        border-radius: 12px; padding: .35rem; margin-top: .4rem; display: none;
+        box-shadow: 0 20px 44px -22px rgba(0,0,0,.7); z-index: 60;
+      }
+      .lp-nav.open .lp-nav-list { display: flex; }
+      .lp-nav-list a { padding: .6rem .7rem; font-size: .95rem; }
+    }
+    @media (prefers-reduced-motion: reduce) { .lp-nav-list a { transition: none; } }
+    /* direct #hash links must not land under the sticky header */
+    #lp-main > section { scroll-margin-top: 72px; }
     .lp-hero {
       /* translucent so the background artwork shows through, but kept dense
          enough that white/pale-blue hero text stays above 4.5:1 contrast
@@ -550,6 +589,16 @@
   <header class="lp-header">
     <img src="icons/icon-192.png" alt="Learning Ecology" />
     <span class="name">Learning Ecology</span>
+
+    <!-- section menu: built from the sections actually visible on the page,
+         so it follows any rename / hide / reorder made in the dashboard -->
+    <nav class="lp-nav" id="lpNav" aria-label="Mục trên trang" hidden>
+      <button class="lp-nav-toggle" id="lpNavToggle" aria-expanded="false" aria-controls="lpNavList">
+        <span aria-hidden="true">☰</span><span class="sr-only">Mở menu mục trên trang</span>
+      </button>
+      <ul class="lp-nav-list" id="lpNavList"></ul>
+    </nav>
+
     <button id="lp-theme" class="ghost theme-btn" aria-label="Light / dark mode"
             style="color:#fff; border-color:rgba(255,255,255,0.4); margin-right:0.4rem;">🌙</button>
     <a id="hd-login" class="btn ghost" href="login.html"
@@ -781,6 +830,73 @@
       renderCourses(cfg, courses);
       renderTeachers(cfg, teachers);
       renderAchievements(cfg, achievements, feedback, gallery);
+      initNav();          // built last, from whatever ended up visible
+    }
+
+    /* ================= header section menu =================
+       Reads the live page: only sections that are actually visible and have a
+       heading become links, in their on-page order. Renaming, hiding, adding
+       or reordering a section in the dashboard therefore updates this menu
+       automatically — there is no separate list to maintain. */
+    function initNav() {
+      const nav = $("lpNav"), list = $("lpNavList"), toggle = $("lpNavToggle");
+      const header = document.querySelector(".lp-header");
+      const items = [];
+      for (const s of document.querySelectorAll("#lp-main > section[data-sec]")) {
+        if (s.hidden || !s.id) continue;
+        const h = s.querySelector("h2");
+        const label = h && h.textContent.trim();
+        if (label) items.push({ id: s.id, label, el: s });
+      }
+      if (items.length < 2) { nav.hidden = true; return; }   // nothing worth navigating
+      nav.hidden = false;
+      list.innerHTML = items.map(it =>
+        `<li><a href="#${esc(it.id)}">${esc(it.label)}</a></li>`).join("");
+      const links = [...list.querySelectorAll("a")];
+      const headerH = () => (header ? header.offsetHeight : 0);
+      const closeMenu = () => { nav.classList.remove("open"); toggle.setAttribute("aria-expanded", "false"); };
+
+      list.addEventListener("click", e => {
+        const a = e.target.closest("a"); if (!a) return;
+        e.preventDefault();
+        const el = document.getElementById(a.getAttribute("href").slice(1));
+        if (!el) return;
+        const top = el.getBoundingClientRect().top + scrollY - headerH() - 8;
+        window.scrollTo({ top: Math.max(0, top), behavior: REDUCED ? "auto" : "smooth" });
+        closeMenu();
+        try { history.replaceState(null, "", "#" + el.id); } catch (err) {}
+      });
+      toggle.addEventListener("click", e => {
+        e.stopPropagation();
+        const open = nav.classList.toggle("open");
+        toggle.setAttribute("aria-expanded", String(open));
+      });
+      document.addEventListener("click", e => { if (!nav.contains(e.target)) closeMenu(); });
+      document.addEventListener("keydown", e => { if (e.key === "Escape") closeMenu(); });
+
+      /* highlight whichever section the reader is currently looking at */
+      function spy() {
+        const line = scrollY + headerH() + 14;
+        let active = -1;
+        items.forEach((it, i) => {
+          if (it.el.getBoundingClientRect().top + scrollY <= line) active = i;
+        });
+        if (scrollY + innerHeight >= document.documentElement.scrollHeight - 4)
+          active = items.length - 1;                        // bottom of page → last link
+        links.forEach((a, i) => a.classList.toggle("on", i === active));
+        if (active >= 0 && list.scrollWidth > list.clientWidth) {
+          const a = links[active], dx = a.offsetLeft - list.scrollLeft;
+          if (dx < 0 || dx + a.offsetWidth > list.clientWidth)
+            list.scrollTo({ left: Math.max(0, a.offsetLeft - 16), behavior: REDUCED ? "auto" : "smooth" });
+        }
+      }
+      let queued = null;
+      addEventListener("scroll", () => {
+        if (queued) return;
+        queued = setTimeout(() => { queued = null; spy(); }, 90);
+      }, { passive: true });
+      addEventListener("resize", spy, { passive: true });
+      spy();
     }
 
     /* ================= teaching team (3D carousel, all data from the
