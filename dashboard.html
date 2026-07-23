@@ -3857,7 +3857,8 @@
         const T = { trials: "landing_trials", courses: "landing_courses", teachers: "landing_teachers",
                     ach: "landing_achievements", fb: "landing_feedback", gal: "landing_gallery" };
         const NAMES = { brand: "Thương hiệu & màu sắc", hero: "Hero (đầu trang)", trials: "Học thử miễn phí", courses: "Khóa học", teachers: "Đội ngũ giáo viên",
-                        ach: "Thành tựu", fb: "Phản hồi học viên", gal: "Thư viện hình ảnh", settings: "Bố cục & hiển thị" };
+                        ach: "Thành tựu", fb: "Phản hồi học viên", gal: "Thư viện hình ảnh",
+                        previews: "Xem trước công khai", settings: "Bố cục & hiển thị" };
         const TITLE_OF = { trials: r => r.title, courses: r => r.title, teachers: r => r.name, ach: r => r.title,
                            fb: r => r.student_name, gal: r => r.caption || r.image_alt || "(ảnh)" };
         const D = { trials: [], courses: [], teachers: [], ach: [], fb: [], gal: [], cfg: null };
@@ -4533,10 +4534,82 @@
                 `<button class="${k === cur ? "" : "ghost"}" data-lpmtab="${k}">${NAMES[k]}${T[k] ? " (" + D[k].length + ")" : ""}</button>`).join("")}
             </div>
             ${cur === "settings" ? settingsPanel() : cur === "hero" ? heroPanel()
-              : cur === "brand" ? brandPanel() : listPanel(cur)}`;
+              : cur === "brand" ? brandPanel() : cur === "previews" ? previewsPanel() : listPanel(cur)}`;
           wireImages();
           wireSectionDnD();
           if (cur === "brand") wireBrand();
+          if (cur === "previews") wirePreviews();
+        }
+
+        /* ---------- Xem trước công khai (Phase 34) ----------
+           Chọn khóa nào cho khách xem trước và đặt liên kết. Nút "Xem toàn bộ
+           khoá học" trên trang chủ chỉ hiện khi khóa được BẬT và có liên kết
+           hợp lệ. Lưu vào cfg.previews[<course_id>] = { on, url, new_tab }.
+           Tắt KHÔNG xóa liên kết (giữ url để bật lại sau). */
+        function previewsPanel() {
+          const pv = (D.cfg || {}).previews || {};
+          const list = courses || [];
+          if (!list.length)
+            return `<p class="empty">Chưa có khóa học nội bộ nào. Tạo khóa ở tab <b>Courses</b> trước, rồi quay lại đây.</p>`;
+          return `
+            <p class="kind" style="text-transform:none; margin:.5rem 0;">
+              Chọn khóa cho khách <b>xem trước công khai</b> và đặt liên kết cho nút <b>“Xem toàn bộ khoá học”</b>
+              trên trang chủ. Nút chỉ hiện khi khóa được <b>bật</b> và có liên kết hợp lệ. Tắt sẽ ẩn nút nhưng
+              <b>không xóa</b> liên kết đã lưu. Dùng nút <b>“Dùng trang có sẵn”</b> để tự điền trang xem trước
+              <code>course.html</code> tích hợp sẵn.</p>
+            ${list.map(c => {
+              const p = pv[c.id] || {};
+              return `
+              <div class="card">
+                <div class="card-head">
+                  <h2>${c.icon ? esc(c.icon) + " " : ""}${esc(c.title)}</h2>
+                  <label style="font-size:.9rem; color:var(--muted); white-space:nowrap;">
+                    <input type="checkbox" data-pvon="${c.id}" ${p.on ? "checked" : ""}> Bật xem trước công khai</label>
+                </div>
+                <div class="form-row" style="align-items:flex-end;">
+                  <div class="field" style="flex:1 1 260px;"><label>Liên kết xem trước</label>
+                    <input data-pvurl="${c.id}" value="${esc(p.url || "")}" placeholder="course.html?id=${c.id}"></div>
+                  <button class="ghost" data-act="pv_usebuilt" data-cid="${c.id}">↩ Dùng trang có sẵn</button>
+                  <label style="font-size:.85rem; color:var(--muted); align-self:center;">
+                    <input type="checkbox" data-pvnew="${c.id}" ${p.new_tab ? "checked" : ""}> mở tab mới</label>
+                </div>
+              </div>`;
+            }).join("")}
+            <div class="form-row" style="margin-top:.6rem;">
+              <button data-act="pv_save">💾 Lưu</button>
+              <a class="ghost btn" style="text-decoration:none;" href="index.html?preview=1" target="_blank" rel="noopener">👁 Xem trước trang chủ</a>
+            </div>
+            <p class="msg" id="pv-msg"></p>`;
+        }
+        function wirePreviews() {
+          root.querySelectorAll("[data-pvon],[data-pvurl],[data-pvnew]")
+            .forEach(el => el.addEventListener("input", () => { dirty = true; }));
+        }
+        async function savePreviews() {
+          const msg = document.getElementById("pv-msg");
+          const say = (t, e) => { if (msg) { msg.textContent = t; msg.className = "msg" + (e ? " err" : ""); } };
+          const cfg = JSON.parse(JSON.stringify(D.cfg || {}));
+          const previews = {};
+          let bad = null;
+          (courses || []).forEach(c => {
+            const on = root.querySelector(`[data-pvon="${c.id}"]`);
+            const url = root.querySelector(`[data-pvurl="${c.id}"]`);
+            const nt = root.querySelector(`[data-pvnew="${c.id}"]`);
+            if (!on || !url) return;
+            const u = url.value.trim();
+            if (u && !okUrl(u)) { bad = u; return; }
+            // keep the row if enabled OR a url is set (so disabling never loses the url)
+            if (on.checked || u) previews[c.id] = { on: on.checked, url: u, new_tab: !!(nt && nt.checked) };
+          });
+          if (bad !== null) return say('Liên kết "' + bad + '" không hợp lệ — cần https://…, course.html?id=…, hoặc để trống.', 1);
+          cfg.previews = previews;
+          try {
+            const { error } = await sb.from("landing_settings").upsert({ id: 1, config: cfg });
+            if (error) throw error;
+            D.cfg = cfg; dirty = false;
+            say("✓ Đã lưu — trang chủ cập nhật ở lần tải kế tiếp.");
+            UI.toast("✓ Đã lưu cài đặt xem trước công khai");
+          } catch (err) { say("Không lưu được: " + (err.message || err), 1); }
         }
 
         /* ---------- image upload (drag-drop + picker, validated) ---------- */
@@ -4814,6 +4887,15 @@
           if (act === "brand_savedraft") return saveBrand("draft");
           if (act === "brand_publish") return saveBrand("publish");
           if (act === "brand_restore") return restoreBrand();
+          if (act === "pv_save") return savePreviews();
+          if (act === "pv_usebuilt") {
+            const cid = b.getAttribute("data-cid");
+            const inp = root.querySelector(`[data-pvurl="${cid}"]`);
+            const on = root.querySelector(`[data-pvon="${cid}"]`);
+            if (inp) { inp.value = "course.html?id=" + cid; dirty = true; }
+            if (on && !on.checked) on.checked = true;   // filling the link implies enabling
+            return;
+          }
           if (act === "multi") return document.getElementById("lpm-multi").click();
         });
         root.addEventListener("change", async e => {
