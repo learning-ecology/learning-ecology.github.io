@@ -40,9 +40,9 @@
       position: sticky; top: 0; z-index: 50;
       display: flex; align-items: center; gap: 0.6rem;
       padding: 0.7rem clamp(1rem, 4vw, 2.5rem);
-      background: rgba(23,38,62,0.94);
+      background: var(--lp-header-bg, rgba(23,38,62,0.94));
       backdrop-filter: blur(6px);
-      color: #fff;
+      color: var(--lp-header-text, #fff);
     }
     .lp-header img { width: 34px; height: 34px; border-radius: 8px; }
     .lp-header .name { font-family: var(--serif); font-size: 1.15rem; font-weight: 700; flex: none; }
@@ -104,11 +104,31 @@
     }
     .lp-cta { display: flex; gap: 0.7rem; justify-content: center; flex-wrap: wrap; }
     .lp-cta .gold {
-      background: linear-gradient(135deg, #f4d68a, #d9a53c);
-      border-color: #d9a53c; color: #132743; font-weight: 800;
+      background: var(--lp-btn, linear-gradient(135deg, #f4d68a, #d9a53c));
+      border-color: var(--lp-btn, #d9a53c); color: var(--lp-btn-text, #132743); font-weight: 800;
     }
-    .lp-cta .gold:hover { background: linear-gradient(135deg, #f8e0a5, #e0b055); }
+    .lp-cta .gold:hover { background: var(--lp-btn-hover, linear-gradient(135deg, #f8e0a5, #e0b055)); }
     .lp-cta a { text-decoration: none; }
+    /* ---- brand: header controls + primary buttons follow the owner's colors,
+            but every value falls back to the original design when unset ---- */
+    .lp-header .btn.ghost, .lp-header #lp-theme,
+    .lp-header .lp-nav-toggle, .lp-header .lp-nav-list a {
+      color: var(--lp-header-text, #fff);
+    }
+    .lp-header .btn.ghost { border-color: color-mix(in srgb, var(--lp-header-text, #fff) 45%, transparent); }
+    .lp-header .btn:not(.ghost) {
+      background: var(--lp-btn, var(--accent)); border-color: var(--lp-btn, var(--accent));
+      color: var(--lp-btn-text, #fff);
+    }
+    .lp-header .btn:not(.ghost):hover { background: var(--lp-btn-hover, var(--accent-ink)); }
+    /* optional foreground image in the hero (below the chips) */
+    #heroImage { margin: 2.2rem auto 0; max-width: 560px; }
+    #heroImage[hidden] { display: none; }
+    #heroImage img {
+      width: 100%; display: block; aspect-ratio: 16 / 9; object-fit: cover;
+      border-radius: 16px; border: 1px solid rgba(255,255,255,0.25);
+      box-shadow: 0 26px 60px -30px rgba(0,0,0,0.65);
+    }
     .lp-chips { display: flex; gap: 0.5rem 1.4rem; justify-content: center; flex-wrap: wrap; margin-top: 2rem; }
     .lp-chips span { font-size: 0.86rem; color: #cfe0f5; font-weight: 600; }
     .lp-section { max-width: 980px; margin: 0 auto; padding: clamp(2.4rem, 7vw, 4rem) 1.25rem; }
@@ -588,8 +608,8 @@
   </div>
 
   <header class="lp-header">
-    <img src="icons/icon-192.png" alt="Learning Ecology" />
-    <span class="name">Learning Ecology</span>
+    <img id="lpLogo" src="icons/icon-192.png" alt="Learning Ecology" />
+    <span class="name" id="lpName">Learning Ecology</span>
 
     <!-- section menu: built from the sections actually visible on the page,
          so it follows any rename / hide / reorder made in the dashboard -->
@@ -601,9 +621,9 @@
     </nav>
 
     <button id="lp-theme" class="ghost theme-btn" aria-label="Light / dark mode"
-            style="color:#fff; border-color:rgba(255,255,255,0.4); margin-right:0.4rem;">🌙</button>
+            style="margin-right:0.4rem;">🌙</button>
     <a id="hd-login" class="btn ghost" href="login.html"
-       style="text-decoration:none; color:#fff; border-color:rgba(255,255,255,0.4);">Đăng nhập</a>
+       style="text-decoration:none;">Đăng nhập</a>
   </header>
 
   <!-- ================= HERO ================= -->
@@ -621,6 +641,7 @@
       <span>📊 Theo dõi tiến độ</span>
       <span>📲 Học như ứng dụng trên điện thoại</span>
     </div>
+    <div id="heroImage" hidden></div>
   </section>
 
   <!-- Sections below are reordered / hidden by the owner's Landing Page settings -->
@@ -825,6 +846,7 @@
         q("landing_achievements"), q("landing_feedback"), q("landing_gallery")
       ]);
       const cfg = (settingsRes && settingsRes.data && settingsRes.data.config) || {};
+      applyBrand(cfg);
       renderHero(cfg);
       applySections(cfg);
       renderTrial(cfg, trials);
@@ -1041,6 +1063,76 @@
 
     /* ================= hero (owner-editable; every field left blank in the
        dashboard keeps the wording currently on the page) ==================== */
+    /* ================= brand (owner-editable logo, name, hero images, colors)
+       Published brand lives in cfg.brand; a work-in-progress lives in
+       cfg.brand_draft and is only shown with ?preview=1. Every value is
+       optional — anything left unset keeps the original design, so the page
+       can never end up half-styled or unreadable. ================= */
+    function safeColor(v) {
+      v = String(v == null ? "" : v).trim();
+      // allow only real CSS colour literals we emit ourselves — never arbitrary text
+      return /^#[0-9a-fA-F]{3,8}$/.test(v)
+          || /^rgba?\(\s*[\d.\s,%/]+\)$/i.test(v)
+          || /^hsla?\(\s*[\d.\s,%/deg]+\)$/i.test(v) ? v : "";
+    }
+    function brandPos(p) {
+      const ok = ["center", "top", "bottom", "left", "right"];
+      p = String(p || "").trim();
+      if (ok.includes(p)) return p;
+      if (/^\d{1,3}%\s+\d{1,3}%$/.test(p)) return p;   // explicit "x% y%"
+      return "center";
+    }
+    function applyBrand(cfg) {
+      const B = (PREVIEW && cfg.brand_draft && Object.keys(cfg.brand_draft).length)
+        ? cfg.brand_draft : (cfg.brand || {});
+      // logo + site name
+      const logo = $("lpLogo"), name = $("lpName");
+      if (B.logo_url && logo) logo.src = B.logo_url;
+      if (B.site_name) {
+        if (name) name.textContent = B.site_name;
+        if (logo) logo.alt = B.site_name;
+        try { document.title = B.site_name; } catch (e) {}
+      }
+      // hero background image (kept under the dark gradient so text stays ≥4.5:1)
+      const hero = document.querySelector(".lp-hero");
+      if (hero && B.hero_bg) {
+        const u = String(B.hero_bg).replace(/["\\]/g, "");
+        hero.style.backgroundImage =
+          `linear-gradient(135deg, rgba(30,79,143,.86), rgba(19,39,67,.93)), url("${u}")`;
+        hero.style.backgroundSize = "cover";
+        hero.style.backgroundPosition = brandPos(B.hero_bg_pos);
+        hero.style.backgroundRepeat = "no-repeat";
+      }
+      // optional hero foreground image
+      const hi = $("heroImage");
+      if (hi && B.hero_image) {
+        hi.innerHTML = `<img src="${esc(B.hero_image)}" alt=""
+          style="object-position:${brandPos(B.hero_image_pos)};">`;
+        hi.hidden = false;
+      }
+      // colours → CSS variables, split so dark mode keeps its readable base
+      const c = B.colors || {};
+      const put = (k, cssvar, into) => { const v = safeColor(c[k]); if (v) into.push(cssvar + ":" + v); };
+      const light = [], dark = [];
+      // structural colours: light view fully, dark view keeps its own safe base
+      [["bg", "--paper"], ["card", "--card"], ["heading", "--ink"], ["body", "--muted"]]
+        .forEach(([k, v]) => put(k, v, light));
+      // hue colours carry into BOTH themes
+      [["primary", "--accent"], ["secondary", "--accent-ink"], ["accent", "--gold"]]
+        .forEach(([k, v]) => { put(k, v, light); put(k, v, dark); });
+      // landing button + header vars apply to both themes
+      const both = [];
+      [["btn", "--lp-btn"], ["btn_hover", "--lp-btn-hover"], ["btn_text", "--lp-btn-text"],
+       ["header_bg", "--lp-header-bg"], ["header_text", "--lp-header-text"]]
+        .forEach(([k, v]) => put(k, v, both));
+      const css =
+        ((light.length || both.length) ? `:root{${light.concat(both).join(";")}}` : "") +
+        ((dark.length || both.length) ? `:root[data-theme="dark"]{${dark.concat(both).join(";")}}` : "");
+      let st = $("lpBrandVars");
+      if (!st) { st = document.createElement("style"); st.id = "lpBrandVars"; document.head.appendChild(st); }
+      st.textContent = css;
+    }
+
     function renderHero(cfg) {
       const H = cfg.hero || {};
       if (H.signed_label) window.__lpAuth.label = H.signed_label;

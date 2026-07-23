@@ -3856,12 +3856,13 @@
         if (!root) return;
         const T = { trials: "landing_trials", courses: "landing_courses", teachers: "landing_teachers",
                     ach: "landing_achievements", fb: "landing_feedback", gal: "landing_gallery" };
-        const NAMES = { hero: "Hero (đầu trang)", trials: "Học thử miễn phí", courses: "Khóa học", teachers: "Đội ngũ giáo viên",
+        const NAMES = { brand: "Thương hiệu & màu sắc", hero: "Hero (đầu trang)", trials: "Học thử miễn phí", courses: "Khóa học", teachers: "Đội ngũ giáo viên",
                         ach: "Thành tựu", fb: "Phản hồi học viên", gal: "Thư viện hình ảnh", settings: "Bố cục & hiển thị" };
         const TITLE_OF = { trials: r => r.title, courses: r => r.title, teachers: r => r.name, ach: r => r.title,
                            fb: r => r.student_name, gal: r => r.caption || r.image_alt || "(ảnh)" };
         const D = { trials: [], courses: [], teachers: [], ach: [], fb: [], gal: [], cfg: null };
         let loaded = false, failed = false, cur = "trials", editing = null, dirty = false;
+        let BW = null;   // brand working copy (Thương hiệu tab)
 
         const FOCAL_OPTS = [["center","Giữa"],["top","Trên"],["bottom","Dưới"],["left","Trái"],["right","Phải"],["custom","Tùy chỉnh…"]];
         const F = {
@@ -4189,6 +4190,337 @@
             </div>
             <p class="msg" id="lpm-cfgmsg"></p>`;
         }
+        /* ============ Thương hiệu & màu sắc (Phase 31) ============
+           Logo, tên website, ảnh hero + ảnh nền hero, và bảng màu thương hiệu.
+           Lưu vào cfg.brand (đã publish) và cfg.brand_draft (nháp) — cùng cơ
+           chế draft/publish như phần bố cục. Trang chủ đọc cfg.brand; mở
+           index.html?preview=1 để xem cfg.brand_draft. Ô nào để trống thì giữ
+           nguyên thiết kế gốc, nên trang không bao giờ bị lỡ dở hay khó đọc. */
+        const BRAND_DEF = {
+          primary: "#1e4f8f", secondary: "#153a6b", accent: "#b7823f",
+          bg: "#f4f6fa", card: "#ffffff", heading: "#17263e", body: "#5a6577",
+          btn_text: "#ffffff", header_text: "#ffffff"
+        };
+        const COLOR_ROLES = [
+          ["primary",     "Màu chính",            "#1e4f8f", "Nút chính, điểm nhấn, tiêu đề phần"],
+          ["secondary",   "Màu phụ",              "#153a6b", "Hover, liên kết, chữ đậm phụ"],
+          ["accent",      "Màu nhấn",             "#b7823f", "Điểm xuyết (vàng), nhãn nhỏ"],
+          ["bg",          "Nền trang",            "#f4f6fa", ""],
+          ["card",        "Nền thẻ",              "#ffffff", ""],
+          ["heading",     "Chữ tiêu đề",          "#17263e", ""],
+          ["body",        "Chữ nội dung",         "#5a6577", ""],
+          ["btn",         "Nút — nền",            "",        "trống = dùng Màu chính"],
+          ["btn_hover",   "Nút — khi rê chuột",   "",        "trống = dùng Màu phụ"],
+          ["btn_text",    "Nút — chữ",            "#ffffff", ""],
+          ["header_bg",   "Header — nền",         "",        "trống = xanh đậm mặc định"],
+          ["header_text", "Header — chữ & menu",  "#ffffff", ""]
+        ];
+        const BRAND_IMGS = [
+          ["logo_url",   "Logo",              "png", 240,  "Vuông ~120×120. PNG nền trong suốt là đẹp nhất.", false],
+          ["hero_image", "Ảnh minh họa hero", "jpg", 1200, "Tỉ lệ 16:9, ~1200×675. Hiện dưới các nút ở hero.", true],
+          ["hero_bg",    "Ảnh nền hero",      "jpg", 1600, "Ảnh rộng ~1600×900. Nằm dưới lớp phủ tối để chữ vẫn rõ.", true]
+        ];
+        const POS_OPTS = [["center", "Giữa"], ["top", "Trên"], ["bottom", "Dưới"], ["left", "Trái"], ["right", "Phải"]];
+
+        function brandInit() {
+          const src = (D.cfg && (D.cfg.brand_draft || D.cfg.brand)) || {};
+          BW = JSON.parse(JSON.stringify(src));
+          BW.colors = BW.colors || {};
+        }
+        const bcol = k => (BW && BW.colors && BW.colors[k]) || "";
+
+        // normalize any CSS colour (hex / rgb() / hsl() / name) to canonical, or "" if invalid
+        function normColor(v) {
+          v = String(v == null ? "" : v).trim(); if (!v) return "";
+          try {
+            const cx = document.createElement("canvas").getContext("2d");
+            cx.fillStyle = "#010203"; cx.fillStyle = v; const a = cx.fillStyle;
+            cx.fillStyle = "#fefdfc"; cx.fillStyle = v; const b = cx.fillStyle;
+            return a === b ? a : "";              // stable across two seeds ⇒ browser accepted it
+          } catch (e) { return ""; }
+        }
+        function pickerHex(v) {                    // a #rrggbb the <input type=color> can display
+          const n = normColor(v); if (/^#[0-9a-f]{6}$/i.test(n)) return n;
+          const m = n.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+          if (m) return "#" + [1, 2, 3].map(i => (+m[i]).toString(16).padStart(2, "0")).join("");
+          return "#000000";
+        }
+        function toRGB(v) {
+          const c = document.createElement("canvas").getContext("2d");
+          c.fillStyle = normColor(v) || "#000"; const h = c.fillStyle;
+          if (/^#/.test(h)) { const x = parseInt(h.slice(1), 16); return [(x >> 16) & 255, (x >> 8) & 255, x & 255]; }
+          const m = h.match(/(\d+),\s*(\d+),\s*(\d+)/); return m ? [+m[1], +m[2], +m[3]] : [0, 0, 0];
+        }
+        function ratio(a, b) {
+          const L = c => { const s = toRGB(c).map(v => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); });
+            return .2126 * s[0] + .7152 * s[1] + .0722 * s[2]; };
+          const l1 = L(a), l2 = L(b), hi = Math.max(l1, l2), lo = Math.min(l1, l2);
+          return (hi + .05) / (lo + .05);
+        }
+        function contrastPill(r) {
+          const v = r.toFixed(1) + ":1";
+          return r >= 4.5 ? `<span class="pill done">${v} ✓</span>`
+               : r >= 3   ? `<span class="pill todo">${v} — chỉ đạt cho chữ lớn</span>`
+                          : `<span class="pill bad">${v} ✕ khó đọc</span>`;
+        }
+        function optimizeImg(file, maxW, fmt) {
+          return new Promise((res, rej) => {
+            const img = new Image();
+            img.onload = () => {
+              try {
+                const scale = Math.min(1, (maxW || 1200) / img.width);
+                const w = Math.max(1, Math.round(img.width * scale)), h = Math.max(1, Math.round(img.height * scale));
+                const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+                cv.getContext("2d").drawImage(img, 0, 0, w, h);
+                cv.toBlob(b => b ? res(b) : rej(new Error("resize failed")), fmt, 0.85);
+              } catch (e) { rej(e); }
+              URL.revokeObjectURL(img.src);
+            };
+            img.onerror = rej; img.src = URL.createObjectURL(file);
+          });
+        }
+
+        function brandImgDrop(k, label, fmt, maxW, hint, hasPos) {
+          const cur = BW[k] || "";
+          const pos = BW[k + (k === "logo_url" ? "" : "_pos")] || "center";
+          return `
+            <div class="bdrop" data-bk="${k}" data-fmt="${fmt}" data-max="${maxW}" tabindex="0" role="button"
+                 style="border:2px dashed var(--line); border-radius:10px; padding:0.6rem 0.8rem; display:flex; gap:0.8rem; align-items:center; flex-wrap:wrap; cursor:pointer; flex-basis:100%;">
+              <img class="bprev" src="${esc(cur)}" alt="" style="${cur ? "" : "display:none;"} width:120px; max-height:80px; object-fit:contain; border-radius:8px; border:1px solid var(--line); background:#0002;">
+              <div style="min-width:180px;"><b style="font-size:0.92rem;">${esc(label)}</b>
+                <br><span class="kind" style="text-transform:none; letter-spacing:0;">${esc(hint)}</span></div>
+              ${hasPos ? `<label class="kind" style="text-transform:none; letter-spacing:0;">Vị trí
+                <select data-bpos="${k}_pos" style="margin-left:.3rem;">${POS_OPTS.map(([ov, ol]) =>
+                  `<option value="${ov}" ${(BW[k + "_pos"] || "center") === ov ? "selected" : ""}>${ol}</option>`).join("")}</select></label>` : ""}
+              <button type="button" class="ghost" data-bdel ${cur ? "" : "hidden"} style="flex:none;">✕ Bỏ ảnh</button>
+              <span class="msg bmsg" style="flex-basis:100%; margin:0;"></span>
+              <input type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden>
+            </div>`;
+        }
+
+        function brandPanel() {
+          if (!BW) brandInit();
+          const hasDraft = D.cfg && D.cfg.brand_draft && Object.keys(D.cfg.brand_draft).length > 0;
+          return `
+            <p class="kind" style="text-transform:none; margin:.5rem 0;">
+              Tùy chỉnh logo, tên, ảnh hero và bảng màu của trang chủ — không cần sửa code.
+              Thay đổi được lưu thành <b>nháp</b>; khách chỉ thấy sau khi bạn bấm <b>🚀 Publish</b>.
+              ${hasDraft ? '<b style="color:var(--warning);"> • Đang có bản nháp chưa publish.</b>' : ""}</p>
+
+            <div id="brand-form">
+              <h3 style="margin:.6rem 0 .3rem;">Logo &amp; tên website</h3>
+              <div class="form-row">
+                <div class="field" style="flex-basis:100%;"><label>Tên hiển thị cạnh logo</label>
+                  <input data-bname value="${esc(BW.site_name || "")}" placeholder="Learning Ecology"></div>
+                ${brandImgDrop(...BRAND_IMGS[0])}
+              </div>
+
+              <h3 style="margin:1rem 0 .3rem;">Ảnh khu vực hero</h3>
+              <div class="form-row">
+                ${brandImgDrop(...BRAND_IMGS[1])}
+                ${brandImgDrop(...BRAND_IMGS[2])}
+              </div>
+
+              <h3 style="margin:1rem 0 .3rem;">Bảng màu thương hiệu</h3>
+              <p class="kind" style="text-transform:none; letter-spacing:0; margin:0 0 .5rem;">
+                Bấm ô màu để chọn trực quan, hoặc gõ mã <b>HEX</b> (#1e4f8f), <b>RGB</b> rgb(30,79,143) hay <b>HSL</b> hsl(212,50%,34%).
+                Để trống một ô = dùng lại màu mặc định. Chế độ tối luôn giữ nền tối dễ đọc, chỉ mượn màu chính/phụ/nhấn của bạn.</p>
+              <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:.5rem .9rem;">
+                ${COLOR_ROLES.map(([k, label, def, hint]) => `
+                  <div style="display:flex; gap:.5rem; align-items:center;">
+                    <input type="color" data-bcol="${k}" value="${pickerHex(bcol(k) || def || "#888888")}"
+                           style="width:44px; height:36px; padding:0; border:1px solid var(--line); border-radius:8px; flex:none; cursor:pointer;"
+                           aria-label="${esc(label)}">
+                    <div style="flex:1; min-width:0;"><b style="font-size:.88rem;">${esc(label)}</b>
+                      ${hint ? `<br><span class="kind" style="text-transform:none; letter-spacing:0;">${esc(hint)}</span>` : ""}</div>
+                    <input data-btext="${k}" value="${esc(bcol(k))}" placeholder="${esc(def || "—")}"
+                           spellcheck="false" style="width:120px; flex:none; font-family:var(--mono); font-size:.82rem;">
+                  </div>`).join("")}
+              </div>
+              <p id="brand-contrast" class="kind" style="text-transform:none; letter-spacing:0; margin:.7rem 0 0; display:flex; gap:.4rem 1rem; flex-wrap:wrap; align-items:center;"></p>
+            </div>
+
+            <h3 style="margin:1.1rem 0 .4rem;">Xem trước trực tiếp</h3>
+            <style>
+              #brand-preview { border:1px solid var(--line); border-radius:14px; overflow:hidden; background:var(--bp-bg); }
+              #brand-preview .bpp-head { display:flex; align-items:center; gap:.5rem; padding:.6rem .9rem; background:var(--bp-hbg); color:var(--bp-htxt); }
+              #brand-preview .bpp-head img { width:26px; height:26px; border-radius:6px; object-fit:contain; }
+              #brand-preview .bpp-name { font-family:var(--serif); font-weight:700; flex:1; }
+              #brand-preview .bpp-head .gh { border:1px solid color-mix(in srgb, var(--bp-htxt) 45%, transparent); background:transparent; color:var(--bp-htxt); border-radius:8px; padding:.25rem .6rem; font-size:.8rem; }
+              #brand-preview .bpp-head .cta { background:var(--bp-btn); color:var(--bp-btnt); border:none; border-radius:8px; padding:.3rem .7rem; font-size:.8rem; font-weight:700; }
+              #brand-preview .bpp-hero { color:#fff; text-align:center; padding:1.6rem 1rem; background-size:cover; background-position:center; }
+              #brand-preview .bpp-hero h4 { font-family:var(--serif); font-size:1.35rem; margin:0 0 .4rem; color:#fff; }
+              #brand-preview .bpp-hero p { margin:0 auto .9rem; max-width:360px; color:#dbe6f5; font-size:.85rem; }
+              #brand-preview .bpp-heroimg { width:min(300px,80%); aspect-ratio:16/9; object-fit:cover; border-radius:12px; margin:.4rem auto 0; display:block; border:1px solid rgba(255,255,255,.25); }
+              #brand-preview .gold { background:var(--bp-btn); color:var(--bp-btnt); border:none; border-radius:9px; padding:.45rem .9rem; font-weight:800; font-size:.85rem; }
+              #brand-preview .ghost2 { background:transparent; color:#fff; border:1px solid rgba(255,255,255,.55); border-radius:9px; padding:.45rem .9rem; font-size:.85rem; }
+              #brand-preview .bpp-body { padding:1.1rem; background:var(--bp-bg); }
+              #brand-preview .bpp-body h5 { color:var(--bp-heading); font-family:var(--serif); margin:0 0 .3rem; font-size:1.1rem; }
+              #brand-preview .bpp-body p { color:var(--bp-body); margin:0 0 .7rem; font-size:.9rem; }
+              #brand-preview .bpp-body a { color:var(--bp-secondary); font-weight:600; }
+              #brand-preview .bpp-card { background:var(--bp-card); border:1px solid color-mix(in srgb, var(--bp-heading) 12%, transparent); border-radius:12px; padding:.8rem; }
+              #brand-preview .bpp-card .tag { color:var(--bp-accent); font-weight:800; font-size:.72rem; text-transform:uppercase; }
+              #brand-preview .bpp-btn { background:var(--bp-btn); color:var(--bp-btnt); border:none; border-radius:9px; padding:.5rem 1rem; font-weight:700; font-size:.85rem; margin-top:.6rem; }
+            </style>
+            <div id="brand-preview">
+              <div class="bpp-head">
+                <img class="bpp-logo" src="${esc(BW.logo_url || "icons/icon-192.png")}" alt="">
+                <span class="bpp-name">${esc(BW.site_name || "Learning Ecology")}</span>
+                <button class="gh" type="button" tabindex="-1">Đăng nhập</button>
+                <button class="cta" type="button" tabindex="-1">Vào học ngay →</button>
+              </div>
+              <div class="bpp-hero">
+                <h4>Học tiếng Anh &amp; tiếng Trung theo lộ trình</h4>
+                <p>Mỗi bài học nằm trong một lộ trình rõ ràng, có quiz, bài tập và chứng nhận.</p>
+                <span class="gold">Bắt đầu học →</span> <span class="ghost2">Học thử miễn phí</span>
+                <img class="bpp-heroimg" src="" alt="" style="display:none;">
+              </div>
+              <div class="bpp-body">
+                <div class="bpp-card">
+                  <div class="tag">Khóa học</div>
+                  <h5>HSK 1 (3.0)</h5>
+                  <p>Chữ tiêu đề, chữ nội dung, thẻ và <a href="#" onclick="return false;">liên kết</a> đều theo màu bạn chọn.</p>
+                  <button class="bpp-btn" type="button" tabindex="-1">Nút chính</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-row" style="margin-top:.8rem;">
+              <button data-act="brand_savedraft">💾 Lưu nháp</button>
+              <button data-act="brand_publish">🚀 Publish</button>
+              <a class="ghost btn" style="text-decoration:none;" href="index.html?preview=1" target="_blank" rel="noopener">👁 Xem trước bản nháp</a>
+              <button class="ghost" data-act="brand_restore">↩ Khôi phục mặc định</button>
+            </div>
+            <p class="msg" id="brand-msg"></p>`;
+        }
+
+        function brandPreview() {
+          const p = document.getElementById("brand-preview"); if (!p) return;
+          const g = (k, d) => normColor(bcol(k)) || d;
+          const primary = g("primary", BRAND_DEF.primary), secondary = g("secondary", BRAND_DEF.secondary),
+                accent = g("accent", BRAND_DEF.accent), bg = g("bg", BRAND_DEF.bg), card = g("card", BRAND_DEF.card),
+                heading = g("heading", BRAND_DEF.heading), body = g("body", BRAND_DEF.body),
+                btn = g("btn", primary), btnh = g("btn_hover", secondary), btnt = g("btn_text", "#ffffff"),
+                hbg = g("header_bg", "#17263e"), htxt = g("header_text", "#ffffff");
+          const S = p.style, set = (n, v) => S.setProperty(n, v);
+          set("--bp-bg", bg); set("--bp-card", card); set("--bp-heading", heading); set("--bp-body", body);
+          set("--bp-primary", primary); set("--bp-secondary", secondary); set("--bp-accent", accent);
+          set("--bp-btn", btn); set("--bp-btnt", btnt); set("--bp-hbg", hbg); set("--bp-htxt", htxt);
+          const hero = p.querySelector(".bpp-hero");
+          if (hero) {
+            hero.style.backgroundImage = BW.hero_bg
+              ? `linear-gradient(135deg,rgba(30,79,143,.86),rgba(19,39,67,.93)),url("${String(BW.hero_bg).replace(/["\\]/g, "")}")`
+              : "linear-gradient(135deg,rgba(30,79,143,.91),rgba(19,39,67,.95))";
+            hero.style.backgroundPosition = BW.hero_bg_pos || "center";
+          }
+          const fg = p.querySelector(".bpp-heroimg");
+          if (fg) { if (BW.hero_image) { fg.src = BW.hero_image; fg.style.objectPosition = BW.hero_image_pos || "center"; fg.style.display = ""; } else fg.style.display = "none"; }
+          const cc = document.getElementById("brand-contrast");
+          if (cc) cc.innerHTML =
+            "Chữ trên nền " + contrastPill(ratio(body, bg)) +
+            " · Chữ nút trên nút " + contrastPill(ratio(btnt, btn)) +
+            " · Chữ header trên header " + contrastPill(ratio(htxt, hbg));
+        }
+
+        function wireBrand() {
+          const form = document.getElementById("brand-form"); if (!form) return;
+          brandPreview();
+          const nm = form.querySelector("[data-bname]");
+          if (nm) nm.addEventListener("input", () => {
+            BW.site_name = nm.value; dirty = true;
+            const el = document.querySelector("#brand-preview .bpp-name"); if (el) el.textContent = nm.value || "Learning Ecology";
+          });
+          // colour picker ⇄ text field, both edit BW.colors[k]
+          form.querySelectorAll("[data-bcol]").forEach(pick => {
+            const k = pick.getAttribute("data-bcol");
+            const txt = form.querySelector(`[data-btext="${k}"]`);
+            pick.addEventListener("input", () => {
+              BW.colors[k] = pick.value; if (txt) { txt.value = pick.value; txt.style.borderColor = ""; }
+              dirty = true; brandPreview();
+            });
+            if (txt) txt.addEventListener("input", () => {
+              const raw = txt.value.trim();
+              if (raw === "") { BW.colors[k] = ""; txt.style.borderColor = ""; pick.value = pickerHex(k in BRAND_DEF ? BRAND_DEF[k] : "#888888"); dirty = true; return brandPreview(); }
+              const n = normColor(raw);
+              if (n) { BW.colors[k] = raw; txt.style.borderColor = ""; pick.value = pickerHex(n); dirty = true; brandPreview(); }
+              else { txt.style.borderColor = "var(--danger)"; }
+            });
+          });
+          // position selects
+          form.querySelectorAll("[data-bpos]").forEach(sel =>
+            sel.addEventListener("change", () => { BW[sel.getAttribute("data-bpos")] = sel.value; dirty = true; brandPreview(); }));
+          // image drops (logo keeps PNG transparency; photos become optimised JPEG)
+          form.querySelectorAll(".bdrop").forEach(drop => {
+            const k = drop.getAttribute("data-bk");
+            const isPng = drop.getAttribute("data-fmt") === "png";
+            const fmt = isPng ? "image/png" : "image/jpeg", ext = isPng ? "png" : "jpg";
+            const maxW = +drop.getAttribute("data-max");
+            const file = drop.querySelector('input[type="file"]'), prev = drop.querySelector(".bprev");
+            const del = drop.querySelector("[data-bdel]"), msg = drop.querySelector(".bmsg");
+            const setMsg = (t, err) => { msg.textContent = t; msg.className = "msg bmsg" + (err ? " err" : ""); };
+            async function take(f) {
+              if (!f) return;
+              if (!/^image\/(jpeg|png|webp)$/i.test(f.type || "") && !/\.(jpe?g|png|webp)$/i.test(f.name || ""))
+                return setMsg('File "' + (f.name || "?") + '" không hỗ trợ — dùng JPG, PNG hoặc WebP.', 1);
+              if (f.size > 10 * 1024 * 1024) return setMsg("Ảnh " + (f.size / 1048576).toFixed(1) + " MB — vượt mức 10 MB.", 1);
+              try {
+                setMsg("⏳ Đang tối ưu & tải lên…");
+                const blob = await optimizeImg(f, maxW, fmt);
+                const path = "brand-" + k + "-" + Date.now() + "." + ext;
+                const { error } = await sb.storage.from("landing").upload(path, blob, { contentType: fmt, upsert: true });
+                if (error) throw error;
+                BW[k] = sb.storage.from("landing").getPublicUrl(path).data.publicUrl;
+                prev.src = BW[k]; prev.style.display = ""; if (del) del.hidden = false;
+                dirty = true; brandPreview();
+                setMsg("✓ Đã tải lên — nhớ 💾 Lưu nháp rồi 🚀 Publish.");
+              } catch (err) { setMsg("Không tải được: " + (err.message || err), 1); }
+            }
+            drop.addEventListener("click", e => { if (e.target.closest("[data-bdel]") || e.target.closest("select")) return; file.click(); });
+            drop.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); file.click(); } });
+            file.addEventListener("change", () => take(file.files[0]));
+            ["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.style.borderColor = "var(--accent-ink)"; }));
+            ["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.style.borderColor = "var(--line)"; }));
+            drop.addEventListener("drop", e => take(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]));
+            if (del) del.addEventListener("click", () => {
+              BW[k] = ""; prev.src = ""; prev.style.display = "none"; del.hidden = true; dirty = true; brandPreview();
+              setMsg("Ảnh sẽ bị gỡ khi 💾 Lưu.");
+            });
+          });
+        }
+
+        async function saveBrand(mode) {
+          const msg = document.getElementById("brand-msg");
+          const say = (t, err) => { if (msg) { msg.textContent = t; msg.className = "msg" + (err ? " err" : ""); } };
+          const colors = {};
+          COLOR_ROLES.forEach(([k]) => { const v = normColor(bcol(k)); if (v) colors[k] = v; });
+          const brand = {
+            logo_url: BW.logo_url || "", site_name: BW.site_name || "",
+            hero_image: BW.hero_image || "", hero_image_pos: BW.hero_image_pos || "center",
+            hero_bg: BW.hero_bg || "", hero_bg_pos: BW.hero_bg_pos || "center", colors
+          };
+          const cfg = JSON.parse(JSON.stringify(D.cfg || {}));
+          if (mode === "draft") cfg.brand_draft = brand;
+          else { cfg.brand = brand; delete cfg.brand_draft; }
+          try {
+            const { error } = await sb.from("landing_settings").upsert({ id: 1, config: cfg });
+            if (error) throw error;
+            D.cfg = cfg; dirty = false; paint();
+            UI.toast(mode === "publish" ? "🚀 Đã publish thương hiệu — khách thấy ngay lần tải kế tiếp"
+                                        : "💾 Đã lưu nháp — bấm 👁 Xem trước để kiểm tra");
+          } catch (err) { say("Không lưu được: " + (err.message || err), 1); }
+        }
+        function restoreBrand() {
+          UI.confirmDialog({ title: "Khôi phục thương hiệu mặc định?", danger: true,
+            okText: "Đặt lại",
+            body: "Xóa logo/tên/ảnh hero và toàn bộ màu tùy chỉnh, đưa trang chủ về giao diện gốc. "
+                + "Thay đổi chỉ áp dụng cho khách sau khi bạn bấm 🚀 Publish." }).then(ok => {
+            if (!ok) return;
+            BW = { colors: {} }; dirty = true; paint();
+            UI.toast("↩ Đã đặt lại về mặc định — bấm 🚀 Publish để áp dụng cho khách");
+          });
+        }
+
+
         function paint() {
           if (failed) {
             root.innerHTML = `<p class="empty">Chạy <b>migration35_landing.sql</b> trong Supabase trước — sau đó mở lại tab này.</p>`;
@@ -4200,9 +4532,11 @@
               ${Object.keys(NAMES).map(k =>
                 `<button class="${k === cur ? "" : "ghost"}" data-lpmtab="${k}">${NAMES[k]}${T[k] ? " (" + D[k].length + ")" : ""}</button>`).join("")}
             </div>
-            ${cur === "settings" ? settingsPanel() : cur === "hero" ? heroPanel() : listPanel(cur)}`;
+            ${cur === "settings" ? settingsPanel() : cur === "hero" ? heroPanel()
+              : cur === "brand" ? brandPanel() : listPanel(cur)}`;
           wireImages();
           wireSectionDnD();
+          if (cur === "brand") wireBrand();
         }
 
         /* ---------- image upload (drag-drop + picker, validated) ---------- */
@@ -4410,7 +4744,7 @@
         /* ---------- events ---------- */
         root.addEventListener("click", e => {
           const tabBtn = e.target.closest("[data-lpmtab]");
-          if (tabBtn) return guardDirty(() => { cur = tabBtn.getAttribute("data-lpmtab"); paint(); });
+          if (tabBtn) return guardDirty(() => { cur = tabBtn.getAttribute("data-lpmtab"); if (cur === "brand") brandInit(); paint(); });
           const b = e.target.closest("[data-act]");
           if (!b) return;
           const act = b.getAttribute("data-act");
@@ -4477,6 +4811,9 @@
           if (act === "secpublish") return saveSections("publish");
           if (act === "seccancel") return saveSections("cancel");
           if (act === "cfgsave") return saveConfig();
+          if (act === "brand_savedraft") return saveBrand("draft");
+          if (act === "brand_publish") return saveBrand("publish");
+          if (act === "brand_restore") return restoreBrand();
           if (act === "multi") return document.getElementById("lpm-multi").click();
         });
         root.addEventListener("change", async e => {
