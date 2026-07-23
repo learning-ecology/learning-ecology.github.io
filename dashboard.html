@@ -1995,6 +1995,8 @@
           </div>
         </div>
 
+        <div class="tabpane" data-tab="testmgr"><div id="testmgr-root"></div></div>
+
         <div class="tabpane" data-tab="landing">
           <div class="card">
             <div class="card-head"><h2>🌐 Landing Page</h2>
@@ -2719,10 +2721,184 @@
       })();
       // =============== HẾT KẾT QUẢ BÀI THI ===============
 
+      /* ================= QUẢN LÝ ĐỀ THI (Phase 37) =================
+         Thêm/sửa/xóa đề thi và ĐÁP ÁN mà không cần viết SQL. Ghi thẳng vào
+         bảng test_keys (chủ sở hữu có quyền ghi qua RLS). Đáp án chỉ nằm ở
+         cơ sở dữ liệu — không bao giờ nằm trong file HTML của bài thi. */
+      (function () {
+        const root = document.getElementById("testmgr-root");
+        if (!root) return;
+
+        let loaded = false, failed = false, KEYS = [], COUNTS = {}, editing = null, adding = false;
+
+        async function load() {
+          const k = await sb.from("test_keys").select("*").order("test_key");
+          if (k.error) { failed = true; return; }
+          KEYS = k.data || [];
+          COUNTS = {};
+          const a = await sb.from("test_attempts").select("test_key");
+          if (!a.error) (a.data || []).forEach(r => { COUNTS[r.test_key] = (COUNTS[r.test_key] || 0) + 1; });
+          loaded = true;
+        }
+
+        // "A C B ✓ ✕ E F" (spaces / commas / newlines) → ["A","C","B","✓","✕","E","F"]
+        const parseAnswers = s => String(s || "").split(/[\s,]+/).map(x => x.trim()).filter(Boolean);
+        // "5: vì ..." lines → { "5": "vì ..." }
+        function parseExpl(s) {
+          const out = {};
+          String(s || "").split(/\r?\n/).forEach(line => {
+            const m = line.match(/^\s*(\d+)\s*[:=]\s*(.+)$/);
+            if (m) out[m[1]] = m[2].trim();
+          });
+          return out;
+        }
+        const explToText = obj => Object.entries(obj || {}).map(([n, t]) => n + ": " + t).join("\n");
+
+        function form(k) {
+          const isNew = !k.test_key || adding;
+          const ans = Array.isArray(k.answer_key) ? k.answer_key.join(" ") : "";
+          return `
+            <div class="card" style="border-color:var(--accent-ink);">
+              <div class="card-head"><h2>${isNew ? "➕ Đề thi mới" : "✏️ Sửa đề: " + esc(k.test_key)}</h2></div>
+              <div class="form-row">
+                <div class="field"><label>Mã đề (test_key) — không dấu, không cách *</label>
+                  <input id="tk-key" value="${esc(k.test_key || "")}" placeholder="hsk1-h10902" ${isNew ? "" : "readonly style=\"opacity:.7;\""}></div>
+                <div class="field"><label>Tên hiển thị *</label>
+                  <input id="tk-name" value="${esc(k.test_name || "")}" placeholder="HSK 1 · H10902"></div>
+                <div class="field" style="max-width:150px;"><label>Điểm mỗi câu</label>
+                  <input type="number" min="1" id="tk-pts" value="${k.points_per || 1}"></div>
+                <div class="field" style="max-width:170px;"><label>Điểm tối đa (tự tính nếu trống)</label>
+                  <input type="number" min="1" id="tk-max" value="${k.max_score != null ? k.max_score : ""}" placeholder="tự tính"></div>
+                <div class="field" style="max-width:230px;"><label>Gắn bài học (tùy chọn)</label>
+                  <select id="tk-lesson"><option value="">— không gắn —</option>${(lessons || []).map(l =>
+                    `<option value="${l.id}" ${k.lesson_id === l.id ? "selected" : ""}>${esc(l.title)}</option>`).join("")}</select></div>
+              </div>
+              <div class="form-row">
+                <div class="field" style="flex-basis:100%;"><label>Đáp án (dán theo thứ tự câu 1 → hết, cách nhau bằng dấu cách)</label>
+                  <textarea id="tk-ans" style="min-height:70px; font-family:var(--mono);" placeholder="A C B ✓ ✕ E F A B ...">${esc(ans)}</textarea>
+                  <span class="kind" id="tk-count" style="text-transform:none; letter-spacing:0;"></span></div>
+                <div class="field" style="flex-basis:100%;"><label>Giải thích (tùy chọn — mỗi dòng: "số câu: nội dung")</label>
+                  <textarea id="tk-expl" style="min-height:56px;" placeholder="5: nghe lại đoạn 2&#10;12: từ này nghĩa là ...">${esc(explToText(k.explanations))}</textarea></div>
+              </div>
+              <div class="form-row" style="margin-top:.5rem;">
+                <button data-act="tk-save">💾 Lưu đề</button>
+                <button class="ghost" data-act="tk-cancel">Hủy</button>
+              </div>
+              <p class="msg" id="tk-msg"></p>
+            </div>`;
+        }
+
+        function paint() {
+          if (failed) {
+            root.innerHTML = `<div class="card"><div class="card-head"><h2>📄 Quản lý đề thi</h2></div>
+              <p class="empty">Chạy <b>migration44_test_results.sql</b> trong Supabase, rồi mở lại tab này.</p></div>`;
+            return;
+          }
+          if (!loaded) { root.innerHTML = `<div class="card"><p class="empty">Đang tải…</p></div>`; return; }
+          root.innerHTML = `
+            <div class="card">
+              <div class="card-head">
+                <h2>📄 Quản lý đề thi <span class="kind">${KEYS.length} đề</span></h2>
+                ${!adding && !editing ? `<button data-act="tk-add">➕ Thêm đề thi</button>` : ""}
+              </div>
+              <p class="kind" style="text-transform:none; letter-spacing:0; margin:.2rem 0 .6rem;">
+                Thêm/sửa đáp án ngay tại đây — không cần viết SQL. <b>Mã đề</b> phải trùng với
+                <code>testKey</code> trong file HTML của bài thi.</p>
+              ${adding ? form({}) : ""}
+              ${KEYS.length ? `
+              <table class="stackable">
+                <thead><tr><th>Mã đề</th><th>Tên</th><th>Số câu</th><th>Điểm</th><th>Lượt nộp</th><th></th></tr></thead>
+                <tbody>${KEYS.map(k => `
+                  ${editing === k.test_key ? `<tr><td colspan="6">${form(k)}</td></tr>` : `
+                  <tr>
+                    <td data-th="Mã đề"><code>${esc(k.test_key)}</code></td>
+                    <td data-th="Tên">${esc(k.test_name)}</td>
+                    <td data-th="Số câu">${k.total_questions}</td>
+                    <td data-th="Điểm">${k.points_per}/câu · tối đa ${k.max_score ?? (k.total_questions * k.points_per)}</td>
+                    <td data-th="Lượt nộp">${COUNTS[k.test_key] || 0}</td>
+                    <td>
+                      <button class="ghost" data-act="tk-edit" data-key="${esc(k.test_key)}">Sửa</button>
+                      <button class="ghost" data-act="tk-del" data-key="${esc(k.test_key)}" style="color:var(--danger); border-color:var(--danger);">Xóa</button>
+                    </td>
+                  </tr>`}`).join("")}</tbody>
+              </table>` : (!adding ? `<p class="empty">Chưa có đề thi nào. Bấm "Thêm đề thi" để tạo đề đầu tiên.</p>` : "")}
+            </div>`;
+          wireCount();
+        }
+
+        // live question count under the answer box
+        function wireCount() {
+          const ta = document.getElementById("tk-ans"), out = document.getElementById("tk-count");
+          if (!ta || !out) return;
+          const upd = () => { const n = parseAnswers(ta.value).length; out.textContent = n ? "→ " + n + " câu" : "Chưa có đáp án nào"; };
+          ta.addEventListener("input", upd); upd();
+        }
+
+        async function save() {
+          const msg = document.getElementById("tk-msg");
+          const say = (t, e) => { if (msg) { msg.textContent = t; msg.className = "msg" + (e ? " err" : ""); } };
+          const key = (document.getElementById("tk-key").value || "").trim();
+          const name = (document.getElementById("tk-name").value || "").trim();
+          const answers = parseAnswers(document.getElementById("tk-ans").value);
+          const pts = Math.max(1, parseInt(document.getElementById("tk-pts").value, 10) || 1);
+          const maxRaw = (document.getElementById("tk-max").value || "").trim();
+          const lesson = document.getElementById("tk-lesson").value || null;
+          const expl = parseExpl(document.getElementById("tk-expl").value);
+          if (!/^[a-zA-Z0-9_-]+$/.test(key)) return say("Mã đề chỉ gồm chữ, số, gạch ngang/gạch dưới — không dấu, không cách.", 1);
+          if (!name) return say("Thiếu tên hiển thị.", 1);
+          if (!answers.length) return say("Chưa dán đáp án.", 1);
+          const total = answers.length;
+          const row = {
+            test_key: key, test_name: name, answer_key: answers, explanations: expl,
+            points_per: pts, total_questions: total,
+            max_score: maxRaw === "" ? total * pts : Math.max(1, parseInt(maxRaw, 10) || total * pts),
+            lesson_id: lesson, updated_at: new Date().toISOString()
+          };
+          // when adding, refuse to silently overwrite an existing id
+          if (adding && KEYS.some(k => k.test_key === key))
+            return say('Mã đề "' + key + '" đã tồn tại — chọn "Sửa" ở dòng đó, hoặc đổi mã.', 1);
+          const { error } = await sb.from("test_keys").upsert(row);
+          if (error) return say("Không lưu được: " + error.message, 1);
+          adding = false; editing = null;
+          await load(); paint();
+          if (window.UI) UI.toast("✓ Đã lưu đề " + key);
+        }
+
+        root.addEventListener("click", async e => {
+          const b = e.target.closest("[data-act]"); if (!b) return;
+          const act = b.getAttribute("data-act"), key = b.getAttribute("data-key");
+          if (act === "tk-add") { adding = true; editing = null; return paint(); }
+          if (act === "tk-cancel") { adding = false; editing = null; return paint(); }
+          if (act === "tk-edit") { editing = key; adding = false; return paint(); }
+          if (act === "tk-save") { return save(); }
+          if (act === "tk-del") {
+            const n = COUNTS[key] || 0;
+            const ok = window.UI ? await UI.confirmDialog({
+              title: 'Xóa đề "' + key + '"?', danger: true, okText: "Xóa đề",
+              body: (n ? "Đề này đã có <b>" + n + "</b> lượt nộp. " : "") +
+                "Xóa đề chỉ xóa <b>đáp án</b> — các kết quả học viên đã nộp <b>vẫn được giữ</b> trong phần Kết quả bài thi. " +
+                "Nếu còn bài thi HTML dùng mã này, học viên sẽ không nộp được cho tới khi bạn tạo lại đề."
+            }) : confirm("Xóa đề " + key + "?");
+            if (!ok) return;
+            const { error } = await sb.from("test_keys").delete().eq("test_key", key);
+            if (error) return window.UI ? UI.toast("Không xóa được: " + error.message, "err") : alert(error.message);
+            await load(); paint();
+            if (window.UI) UI.toast("🗑 Đã xóa đề " + key);
+          }
+        });
+
+        window.__testMgrInit = async function () {
+          if (loaded || failed) { paint(); return; }
+          paint(); await load(); paint();
+        };
+      })();
+      // =============== HẾT QUẢN LÝ ĐỀ THI ===============
+
       function showTab(t) {
         adminTab = t;
         if (t === "landing" && window.__lpmInit) window.__lpmInit();
         if (t === "progress" && window.__testsInit) window.__testsInit();
+        if (t === "testmgr" && window.__testMgrInit) window.__testMgrInit();
         if (t === "modules" && window.__modInit) window.__modInit();
         if (t === "classes" && window.__ocInit) window.__ocInit();
         app.querySelectorAll(".tabpane").forEach(p =>
@@ -2742,6 +2918,7 @@
           { id: "shadow", label: "Shadowing" + ((svRes.data || []).length ? " (" + svRes.data.length + ")" : ""), icon: "video", group: "Content" },
           { id: "dict", label: "Dictation", icon: "headphones", group: "Content" },
           { id: "landing", label: "Landing Page", icon: "globe", group: "Content" },
+          { id: "testmgr", label: "Đề thi", icon: "file-text", group: "Content" },
           { id: "modules", label: "Tính năng", icon: "toggle-right", group: "Settings" },
           { id: "students", label: "Students (" + onlyStudents.length + ")" + (stuWarn ? " ⚠️" : ""), icon: "users", group: "Users" },
           { id: "classes", label: "Lớp học", icon: "layers", group: "Users" },
