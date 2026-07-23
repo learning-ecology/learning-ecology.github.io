@@ -342,6 +342,8 @@
 
         <div class="tabpane" data-tab="classes"><div id="cls-root"></div></div>
 
+        <div class="tabpane" data-tab="assigned"><div id="ac-root"></div></div>
+
         <div class="tabpane" data-tab="enroll">
           <div class="card">
             <div class="card-head">
@@ -445,6 +447,7 @@
       function showTab(k) {
         tab = k;
         if (k === "classes" && window.__clsInit) window.__clsInit();
+        if (k === "assigned" && window.__acInit) window.__acInit();
         try { localStorage.setItem("hub_admin_tab", k); } catch (e) {}
         app.querySelectorAll(".tabpane").forEach(p =>
           p.classList.toggle("show", p.getAttribute("data-tab") === k));
@@ -460,6 +463,7 @@
           { id: "teachers", label: t2("teachers"), icon: "graduation-cap", group: t2("g_people") },
           { id: "students", label: t2("students"), icon: "users", group: t2("g_people") },
           { id: "classes", label: "Lớp học", icon: "layers", group: t2("g_content") },
+          { id: "assigned", label: "Khóa được giao", icon: "book-open", group: t2("g_content") },
           { id: "enroll", label: t2("enrollments"), icon: "book-plus", group: t2("g_content") },
           { id: "reports", label: t2("reports"), icon: "file-text", group: t2("g_analytics") },
           { id: "announce", label: t2("announcements"), icon: "megaphone", group: t2("g_comm") },
@@ -1130,6 +1134,177 @@
       // =============== HẾT LỚP HỌC ===============
 
       if (tab === "classes") window.__clsInit();
+
+
+      // ================= KHÓA ĐƯỢC GIAO (Phase 30) =================
+      // Giáo viên và quản trị trung tâm xem trước mọi bài học của các khóa
+      // trung tâm đã được cấp phép — không cần mượn tài khoản học viên.
+      //
+      // CHỈ ĐỌC. Không có nút sửa/xóa ở đây, và quan trọng hơn: RLS
+      // (migration40) cũng chỉ cấp quyền SELECT. Quyền sửa nội dung vẫn
+      // thuộc về chủ sở hữu. Danh sách khóa do cơ sở dữ liệu lọc theo
+      // giấy phép của chính trung tâm — trình duyệt không tự chọn.
+      (function () {
+        const root = document.getElementById("ac-root");
+        if (!root) return;
+
+        const D = { courses: [], lessons: [], licences: [] };
+        let loaded = false, failed = false;
+        let open = null, q = "";
+
+        const norm = s => (s || "").toLowerCase()
+          .normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d");
+
+        async function load() {
+          // RLS trả về đúng những khóa nhân viên này được xem.
+          const [co, le, li] = await Promise.all([
+            sb.from("courses").select("id, title, color, icon, tier, sequential")
+              .order("sort_order").order("created_at"),
+            sb.from("lessons").select("id, title, kind, url, storage_path, sort_order, est_minutes, tier, course_id")
+              .order("sort_order").order("created_at"),
+            sb.from("course_licenses").select("course_id, seats, starts_on, expires_on")
+          ]);
+          if (co.error) { failed = true; return; }
+          D.courses = co.data || [];
+          D.lessons = le.data || [];
+          D.licences = li.data || [];
+          loaded = true;
+        }
+
+        const lessonsOf = cid => D.lessons.filter(l => l.course_id === cid);
+        const licOf = cid => D.licences.find(l => l.course_id === cid);
+
+        function lessonRow(l, courseTier) {
+          const prem = (l.tier || courseTier) === "premium";
+          const how = l.storage_path ? "tệp tải lên" : (l.url ? "liên kết" : "chưa có nội dung");
+          const canOpen = !!(l.url || l.storage_path);
+          return `
+            <div class="lesson">
+              <div>
+                <b>${esc(l.title)}</b>
+                ${prem ? `<span class="pill todo" style="flex:none;">👑</span>` : ""}
+                <span class="kind">#${l.sort_order ?? 0} · ${esc(l.kind || "")} · ${how}${
+                  l.est_minutes ? " · ~" + l.est_minutes + " phút" : ""}</span>
+              </div>
+              ${canOpen
+                ? `<button class="ghost ac-open" data-id="${l.id}">Mở xem ↗</button>`
+                : `<span style="color:var(--muted); font-size:.85rem;">—</span>`}
+            </div>`;
+        }
+
+        function paint() {
+          if (failed) {
+            root.innerHTML = `<div class="card"><p class="empty">
+              Chưa chạy <b>migration40_staff_lessons.sql</b>. Chạy migration đó trong SQL Editor rồi mở lại tab này.
+            </p></div>`;
+            return;
+          }
+          if (!loaded) { root.innerHTML = `<p class="empty">Đang tải…</p>`; return; }
+          if (!D.courses.length) {
+            root.innerHTML = `<div class="card"><p class="empty">
+              Trung tâm chưa được cấp phép khóa học nào, hoặc giấy phép đã hết hạn.
+              Liên hệ Learning Ecology để được cấp khóa.</p></div>`;
+            return;
+          }
+
+          const nq = norm(q);
+          const hits = cid => nq
+            ? lessonsOf(cid).filter(l => norm(l.title).includes(nq))
+            : lessonsOf(cid);
+
+          root.innerHTML = `
+            <div class="card">
+              <div class="card-head"><h2>📚 Khóa được giao cho trung tâm</h2></div>
+              <p style="margin:0 0 .7rem; color:var(--muted); font-size:.85rem;">
+                Toàn bộ bài học của những khóa trung tâm bạn đã được cấp phép — mở xem trực tiếp
+                bằng tài khoản của mình, không cần đăng nhập bằng tài khoản học viên, và không phụ thuộc
+                vào việc học viên đã ghi danh hay đã mở khóa bài trước đó hay chưa.
+                Đây là chế độ <b>chỉ xem</b>: nội dung bài học do Learning Ecology biên soạn và quản lý.</p>
+              <div class="form-row">
+                <div class="field" style="min-width:240px;"><label>Tìm bài học</label>
+                  <input id="ac-q" value="${esc(q)}" placeholder="gõ tên bài…"></div>
+                ${q ? `<button class="ghost" data-act="ac-clear">✕ Xóa tìm</button>` : ""}
+              </div>
+            </div>
+            ${D.courses.map(c => {
+              const all = lessonsOf(c.id), found = hits(c.id);
+              if (nq && !found.length) return "";
+              const lic = licOf(c.id);
+              const expanded = open === c.id || !!nq;
+              return `
+              <div class="card">
+                <div class="card-head">
+                  <h2>${c.icon ? esc(c.icon) + " " : ""}${esc(c.title)}
+                    ${c.tier === "premium" ? `<span class="pill todo">👑</span>` : ""}
+                    ${c.sequential ? `<span class="pill off">học tuần tự</span>` : ""}</h2>
+                  <button class="ghost" data-act="ac-toggle" data-id="${c.id}">
+                    ${expanded ? "▾" : "▸"} ${all.length} bài học</button>
+                </div>
+                <p style="margin:0; color:var(--muted); font-size:.85rem;">
+                  ${nq ? `Khớp ${found.length}/${all.length} bài · ` : ""}${
+                    lic && lic.expires_on ? "Giấy phép đến " + esc(lic.expires_on)
+                                          : "Giấy phép không giới hạn thời gian"}</p>
+                ${expanded ? (found.length
+                  ? `<div style="margin-top:.6rem;">${found.map(l => lessonRow(l, c.tier)).join("")}</div>`
+                  : `<p class="empty" style="margin-top:.6rem;">Khóa này chưa có bài học nào.</p>`) : ""}
+              </div>`;
+            }).join("") || `<div class="card"><p class="empty">Không có bài học nào khớp "${esc(q)}".</p></div>`}`;
+          refreshIcons();
+          const box = document.getElementById("ac-q");
+          if (box && q) { box.focus(); box.setSelectionRange(q.length, q.length); }
+        }
+
+        root.addEventListener("click", async e => {
+          const b = e.target.closest("[data-act], .ac-open");
+          if (!b) return;
+
+          if (b.classList.contains("ac-open")) {
+            const l = D.lessons.find(x => x.id === b.getAttribute("data-id"));
+            if (!l) return;
+            if (l.url && !l.storage_path) {
+              window.open(l.url, "_blank", "noopener");
+              return;
+            }
+            // Tệp tải lên: mở tab TRƯỚC rồi mới lấy link ký, nếu không
+            // trình duyệt sẽ chặn cửa sổ bật lên (vì mở sau lời gọi mạng).
+            const w = window.open("", "_blank");
+            const { data, error } = await sb.storage.from("materials")
+              .createSignedUrl(l.storage_path, 3600);
+            if (error || !data) {
+              if (w) w.close();
+              toast("Không mở được tệp: " + ((error && error.message) || "không rõ lỗi"), "err");
+              return;
+            }
+            if (w) w.location = data.signedUrl;
+            else window.open(data.signedUrl, "_blank", "noopener");
+            return;
+          }
+
+          const act = b.getAttribute("data-act");
+          if (act === "ac-toggle") {
+            const id = b.getAttribute("data-id");
+            open = open === id ? null : id;
+            return paint();
+          }
+          if (act === "ac-clear") { q = ""; return paint(); }
+        });
+
+        root.addEventListener("input", e => {
+          if (e.target.id !== "ac-q") return;
+          q = e.target.value;
+          paint();
+        });
+
+        window.__acInit = async function () {
+          if (loaded || failed) { paint(); return; }
+          paint();
+          await load();
+          paint();
+        };
+      })();
+      // =============== HẾT KHÓA ĐƯỢC GIAO ===============
+
+      if (tab === "assigned") window.__acInit();
 
       refreshIcons();
     }
