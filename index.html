@@ -1387,7 +1387,9 @@
           ${c.price ? `<p class="price">${esc(c.price)}</p>` : ""}
           <div class="ctas">
             ${btnHtml(c.btn1_label || "Học thử miễn phí", c.btn1_url, c.new_tab, "gold", soon)}
-            ${(c.btn2_label || c.btn2_url) ? btnHtml(c.btn2_label || "Xem chi tiết", c.btn2_url, c.new_tab, "ghost", soon) : ""}
+            ${c.course_id
+              ? `<a class="btn ghost" href="course.html?id=${encodeURIComponent(c.course_id)}" data-hit="cta-course">${esc(c.btn2_label || "Xem toàn bộ khoá học")}</a>`
+              : (c.btn2_label || c.btn2_url) ? btnHtml(c.btn2_label || "Xem chi tiết", c.btn2_url, c.new_tab, "ghost", soon) : ""}
           </div>`;
         if (REDUCED) { info.innerHTML = html; return; }
         info.classList.add("swap");

@@ -9,7 +9,7 @@
 //  - Requests to other origins (Supabase, CDNs) are not touched.
 // ------------------------------------------------------------
 
-const CACHE = "learning-ecology-v5";
+const CACHE = "learning-ecology-v6";
 
 // The app shell, pre-cached at install so the first offline
 // launch works. Files that fail to cache are skipped silently
@@ -17,6 +17,7 @@ const CACHE = "learning-ecology-v5";
 const CORE = [
   "./",
   "./index.html",
+  "./course.html",
   "./login.html",
   "./profile.jpg",
   "./dashboard.html",

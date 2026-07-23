@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Khóa học — Learning Ecology</title>
+  <meta name="description" content="Xem toàn bộ nội dung khóa học và học thử các bài miễn phí — Learning Ecology." />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Khóa học — Learning Ecology" />
+  <meta property="og:image" content="https://learningecology.io.vn/social-card.png?v=2" />
+
+  <link rel="stylesheet" href="styles.css" />
+  <script>
+    /* dark mode before first paint */
+    try { var __t = localStorage.getItem("hub_theme");
+      if (__t === "dark" || (!__t && matchMedia("(prefers-color-scheme: dark)").matches))
+        document.documentElement.setAttribute("data-theme", "dark");
+    } catch (e) {}
+  </script>
+  <link rel="icon" type="image/png" href="icons/icon-192.png" />
+  <meta name="theme-color" content="#17263e" />
+
+  <style>
+    #cp-main { overflow-x: hidden; overflow-x: clip; }
+    /* header (mirrors the landing page so branding stays consistent) */
+    .lp-header {
+      position: sticky; top: 0; z-index: 50;
+      display: flex; align-items: center; gap: 0.6rem;
+      padding: 0.7rem clamp(1rem, 4vw, 2.5rem);
+      background: var(--lp-header-bg, rgba(23,38,62,0.94));
+      backdrop-filter: blur(6px); color: var(--lp-header-text, #fff);
+    }
+    .lp-header img { width: 34px; height: 34px; border-radius: 8px; object-fit: contain; }
+    .lp-header .name { font-family: var(--serif); font-size: 1.15rem; font-weight: 700; }
+    .lp-header .spacer { flex: 1 1 auto; }
+    .lp-header .btn.ghost, .lp-header #cp-theme {
+      color: var(--lp-header-text, #fff);
+      border-color: color-mix(in srgb, var(--lp-header-text, #fff) 45%, transparent);
+      text-decoration: none;
+    }
+    .lp-header .btn:not(.ghost) {
+      background: var(--lp-btn, var(--accent)); border-color: var(--lp-btn, var(--accent));
+      color: var(--lp-btn-text, #fff); text-decoration: none;
+    }
+    .lp-header .btn:not(.ghost):hover { background: var(--lp-btn-hover, var(--accent-ink)); }
+
+    /* course hero */
+    .cp-hero {
+      background: linear-gradient(135deg, rgba(30,79,143,.93), rgba(19,39,67,.96));
+      color: #fff; padding: clamp(1.8rem, 6vw, 3rem) 1.25rem;
+    }
+    .cp-hero .in { max-width: 900px; margin: 0 auto; }
+    .cp-hero .ey { font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; color: #cfe0f5; font-weight: 700; }
+    .cp-hero h1 { font-size: clamp(1.5rem, 4.4vw, 2.3rem); margin: .3rem 0 .5rem; line-height: 1.2; }
+    .cp-hero .meta { display: flex; flex-wrap: wrap; gap: .4rem 1.1rem; color: #dbe6f5; font-size: .9rem; }
+    .cp-hero .meta b { color: #fff; }
+
+    #cp-main { max-width: 900px; margin: 0 auto; padding: clamp(1.6rem, 5vw, 2.6rem) 1.25rem 3rem; }
+    .cp-note { color: var(--muted); font-size: .9rem; margin: 0 0 1.1rem; }
+
+    .cp-lesson {
+      display: flex; align-items: center; gap: .8rem;
+      background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+      padding: .7rem .9rem; margin-bottom: .55rem;
+    }
+    .cp-lesson .num {
+      flex: none; width: 30px; height: 30px; border-radius: 50%;
+      display: grid; place-items: center; font-weight: 700; font-size: .82rem;
+      background: var(--info-bg); color: var(--accent-ink);
+    }
+    .cp-lesson .body { flex: 1 1 auto; min-width: 0; }
+    .cp-lesson .t { font-weight: 600; overflow-wrap: anywhere; }
+    .cp-lesson .k { font-size: .78rem; color: var(--muted); margin-top: 1px; }
+    .cp-lesson.locked { opacity: .82; }
+    .cp-lesson.locked .num { background: rgba(183,130,63,0.16); color: var(--gold); }
+    .cp-badge { flex: none; font-size: .72rem; font-weight: 800; padding: .15rem .5rem; border-radius: 999px; }
+    .cp-badge.free { background: var(--success-bg); color: var(--success); }
+    .cp-badge.prem { background: rgba(183,130,63,0.16); color: var(--gold); }
+    .cp-lesson .act { flex: none; }
+    .cp-lesson .act .btn { text-decoration: none; white-space: nowrap; }
+
+    .cp-unlock {
+      margin-top: 1.4rem; background: linear-gradient(135deg, rgba(30,79,143,.06), rgba(183,130,63,.08));
+      border: 1px solid var(--line); border-radius: 16px; padding: 1.2rem; text-align: center;
+    }
+    .cp-unlock.flash { animation: cpflash 1.1s ease; }
+    @keyframes cpflash { 0%,100%{ box-shadow: 0 0 0 0 rgba(183,130,63,0); } 30%{ box-shadow: 0 0 0 4px rgba(183,130,63,.35); } }
+    .cp-unlock h3 { margin: 0 0 .4rem; font-family: var(--serif); }
+    .cp-unlock p { margin: 0 0 .9rem; color: var(--muted); }
+    .cp-unlock .btn { text-decoration: none; margin: 0 .3rem .3rem 0; }
+
+    /* locked-lesson dialog */
+    .cp-ov { position: fixed; inset: 0; background: rgba(15,23,37,.55); display: none;
+      align-items: center; justify-content: center; z-index: 100; padding: 1rem; }
+    .cp-ov.on { display: flex; }
+    .cp-modal { background: var(--card); border-radius: 16px; max-width: 420px; width: 100%;
+      padding: 1.4rem; box-shadow: var(--shadow-pop); text-align: center; }
+    .cp-modal .lk { font-size: 2rem; }
+    .cp-modal h3 { margin: .3rem 0 .4rem; font-family: var(--serif); }
+    .cp-modal p { color: var(--muted); margin: 0 0 1rem; }
+    .cp-modal .btn { text-decoration: none; margin: 0 .3rem .3rem 0; }
+    .cp-foot { text-align: center; color: var(--muted); font-size: .85rem; padding: 1.5rem 1rem 2.4rem; }
+    .cp-foot a { color: var(--accent-ink); }
+    @media (prefers-reduced-motion: reduce) { .cp-unlock.flash { animation: none; } }
+  </style>
+</head>
+<body>
+  <header class="lp-header">
+    <img id="cpLogo" src="icons/icon-192.png" alt="Learning Ecology" />
+    <span class="name" id="cpName">Learning Ecology</span>
+    <span class="spacer"></span>
+    <a class="btn ghost" href="index.html" style="margin-right:.4rem;">← Trang chủ</a>
+    <button id="cp-theme" class="ghost theme-btn" aria-label="Sáng / tối" style="margin-right:.4rem;">🌙</button>
+    <a id="cp-login" class="btn" href="login.html">Vào học ngay →</a>
+  </header>
+
+  <section class="cp-hero"><div class="in" id="cpHero">
+    <div class="ey">Khóa học</div>
+    <h1 id="cpTitle">Đang tải…</h1>
+  </div></section>
+
+  <main id="cp-main">
+    <div id="cpBody"><p class="cp-note">Đang tải nội dung khóa học…</p></div>
+  </main>
+
+  <div class="cp-foot">
+    © <span id="cpYear"></span> <span id="cpFootName">Learning Ecology</span> ·
+    <a href="index.html">Trang chủ</a>
+  </div>
+
+  <!-- locked-lesson dialog -->
+  <div class="cp-ov" id="cpOverlay" role="dialog" aria-modal="true" aria-labelledby="cpMTitle">
+    <div class="cp-modal">
+      <div class="lk">🔒</div>
+      <h3 id="cpMTitle">Bài học Premium</h3>
+      <p>Liên hệ để mở khóa toàn bộ khóa học và học không giới hạn.</p>
+      <div id="cpMBtns"></div>
+      <button class="ghost" data-cpclose style="margin-top:.4rem;">Đóng</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script>
+    const $ = id => document.getElementById(id);
+    function esc(s){ return String(s==null?"":s)
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+    function safeColor(v){ v=String(v==null?"":v).trim();
+      return /^#[0-9a-fA-F]{3,8}$/.test(v) || /^rgba?\(\s*[\d.\s,%/]+\)$/i.test(v)
+          || /^hsla?\(\s*[\d.\s,%/deg]+\)$/i.test(v) ? v : ""; }
+    const CONTACT_FALLBACK = "https://zalo.me/0961923983";
+
+    /* theme toggle */
+    $("cp-theme").addEventListener("click", () => {
+      const root = document.documentElement;
+      const dark = root.getAttribute("data-theme") === "dark";
+      root.setAttribute("data-theme", dark ? "light" : "dark");
+      try { localStorage.setItem("hub_theme", dark ? "light" : "dark"); } catch (e) {}
+    });
+
+    /* apply the owner's brand (logo, name, colours) — same model as index.html */
+    function applyBrand(cfg){
+      const B = cfg.brand || {};
+      if (B.logo_url) $("cpLogo").src = B.logo_url;
+      if (B.site_name){ $("cpName").textContent = B.site_name; $("cpFootName").textContent = B.site_name;
+        $("cpLogo").alt = B.site_name; }
+      const c = B.colors || {}, light = [], dark = [], both = [];
+      const put=(k,v,arr)=>{ const val=safeColor(c[k]); if(val) arr.push(v+":"+val); };
+      [["bg","--paper"],["card","--card"],["heading","--ink"],["body","--muted"]].forEach(([k,v])=>put(k,v,light));
+      [["primary","--accent"],["secondary","--accent-ink"],["accent","--gold"]].forEach(([k,v])=>{put(k,v,light);put(k,v,dark);});
+      [["btn","--lp-btn"],["btn_hover","--lp-btn-hover"],["btn_text","--lp-btn-text"],
+       ["header_bg","--lp-header-bg"],["header_text","--lp-header-text"]].forEach(([k,v])=>put(k,v,both));
+      const css = ((light.length||both.length)?`:root{${light.concat(both).join(";")}}`:"")
+                + ((dark.length||both.length)?`:root[data-theme="dark"]{${dark.concat(both).join(";")}}`:"");
+      if (css){ const st=document.createElement("style"); st.textContent=css; document.head.appendChild(st); }
+    }
+
+    /* open a FREE lesson: external link, or a signed URL for an uploaded file */
+    async function openLesson(l){
+      if (l.url){ window.open(l.url, "_blank", "noopener"); return; }
+      if (l.storage_path){
+        const w = window.open("", "_blank");      // open first so the pop-up isn't blocked
+        const { data, error } = await sb.storage.from("materials").createSignedUrl(l.storage_path, 3600);
+        if (error || !data){ if (w) w.close(); alert("Không mở được bài học này. Vui lòng thử lại sau."); return; }
+        if (w) w.location = data.signedUrl; else window.open(data.signedUrl, "_blank", "noopener");
+      }
+    }
+
+    let CONTACT = CONTACT_FALLBACK;
+    function contactButtons(){
+      const zalo = /zalo\.me/i.test(CONTACT);
+      return `<a class="btn" href="${esc(CONTACT)}" target="_blank" rel="noopener">${zalo ? "💬 Liên hệ ngay" : "Liên hệ ngay"}</a>`
+           + `<a class="btn ghost" href="index.html#lien-he">Xem thông tin liên hệ</a>`;
+    }
+    function showLocked(){
+      $("cpMBtns").innerHTML = contactButtons();
+      $("cpOverlay").classList.add("on");
+    }
+    $("cpOverlay").addEventListener("click", e => {
+      if (e.target.id === "cpOverlay" || e.target.hasAttribute("data-cpclose")) $("cpOverlay").classList.remove("on");
+    });
+    document.addEventListener("keydown", e => { if (e.key === "Escape") $("cpOverlay").classList.remove("on"); });
+
+    function render(data){
+      const c = data.course, lessons = data.lessons || [];
+      document.title = c.title + " — Learning Ecology";
+      $("cpTitle").textContent = c.title;
+      const freeN = lessons.filter(l => !l.premium).length;
+      $("cpHero").insertAdjacentHTML("beforeend",
+        `<div class="meta">
+           <span>📚 <b>${lessons.length}</b> bài học</span>
+           <span>🔓 <b>${freeN}</b> học thử miễn phí</span>
+           ${lessons.length - freeN ? `<span>👑 <b>${lessons.length - freeN}</b> bài Premium</span>` : ""}
+         </div>`);
+
+      if (!lessons.length){
+        $("cpBody").innerHTML = `<p class="cp-note">Khóa học này chưa có bài nào được đăng.</p>` + unlockCard();
+      } else {
+        $("cpBody").innerHTML =
+          `<p class="cp-note">Bấm một bài <b>miễn phí</b> để học thử ngay — không cần đăng nhập. Bài <b>Premium</b> cần liên hệ để mở khóa.</p>`
+          + lessons.map((l, i) => lessonRow(l, i + 1)).join("")
+          + unlockCard();
+      }
+      wireBody();
+    }
+    function lessonRow(l, n){
+      const openable = !l.premium && (l.url || l.storage_path);
+      return `
+        <div class="cp-lesson ${l.premium ? "locked" : ""}">
+          <div class="num">${l.premium ? "🔒" : n}</div>
+          <div class="body">
+            <div class="t">${esc(l.title)}</div>
+            <div class="k">${esc(l.kind || "")}${l.est_minutes ? " · ~" + l.est_minutes + " phút" : ""}</div>
+          </div>
+          <span class="cp-badge ${l.premium ? "prem" : "free"}">${l.premium ? "👑 Premium" : "Miễn phí"}</span>
+          <div class="act">
+            ${l.premium
+              ? `<button class="btn ghost" data-lock>🔒 Mở khóa</button>`
+              : openable
+                ? `<button class="btn" data-open='${esc(JSON.stringify({ url: l.url || "", storage_path: l.storage_path || "" }))}'>Học ngay →</button>`
+                : `<span class="cp-badge free" style="opacity:.7;">sắp có</span>`}
+          </div>
+        </div>`;
+    }
+    function unlockCard(){
+      return `
+        <div class="cp-unlock" id="cpUnlock">
+          <h3>👑 Mở khóa toàn bộ khóa học</h3>
+          <p>Liên hệ để mở khóa toàn bộ khóa học và học không giới hạn tất cả bài Premium.</p>
+          <div>${contactButtons()}</div>
+        </div>`;
+    }
+    function wireBody(){
+      $("cpBody").querySelectorAll("[data-open]").forEach(b =>
+        b.addEventListener("click", () => openLesson(JSON.parse(b.getAttribute("data-open")))));
+      $("cpBody").querySelectorAll("[data-lock]").forEach(b =>
+        b.addEventListener("click", showLocked));
+    }
+
+    async function boot(){
+      $("cpYear").textContent = new Date().getFullYear();
+      const id = new URLSearchParams(location.search).get("id");
+      // settings (brand + contact) and the course structure, in parallel
+      const [setRes, courseRes] = await Promise.all([
+        sb.from("landing_settings").select("config").eq("id", 1).maybeSingle().then(r => r, () => ({ data: null })),
+        id ? sb.rpc("public_course", { p_course: id }).then(r => r, () => ({ data: null })) : Promise.resolve({ data: null })
+      ]);
+      const cfg = (setRes && setRes.data && setRes.data.config) || {};
+      applyBrand(cfg);
+      const cUrl = cfg.trial && cfg.trial.s_url;
+      if (cUrl && /^https?:\/\//i.test(cUrl)) CONTACT = cUrl;
+      // signed-in visitors get "Vào học ngay"; others "Đăng nhập"
+      sb.auth.getSession().then(({ data }) => {
+        const el = $("cp-login");
+        if (data && data.session) { el.textContent = "Vào học ngay →"; el.href = "dashboard.html"; }
+        else el.textContent = "Đăng nhập";
+      }).catch(() => {});
+
+      const data = courseRes && courseRes.data;
+      if (!id || !data || !data.course){
+        $("cpTitle").textContent = "Không tìm thấy khóa học";
+        $("cpBody").innerHTML =
+          `<p class="cp-note">Khóa học không tồn tại hoặc chưa được công khai.</p>
+           <div class="cp-unlock"><h3>Khám phá các khóa học</h3>
+             <p>Quay lại trang chủ để xem toàn bộ khóa học đang mở.</p>
+             <div><a class="btn" href="index.html">← Về trang chủ</a></div></div>`;
+        return;
+      }
+      render(data);
+    }
+    boot();
+  </script>
+</body>
+</html>
