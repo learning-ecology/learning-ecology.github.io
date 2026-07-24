@@ -2554,6 +2554,38 @@
         const fmtDT = s => { if (!s) return "—"; try { return new Date(s).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" }); } catch (e) { return String(s); } };
         const fmtDur = sec => { if (sec == null) return "—"; const m = Math.floor(sec / 60), s = Math.round(sec % 60); return m + "′" + String(s).padStart(2, "0") + "″"; };
 
+        // Some tests (e.g. the CEFR placement test) attach a computed summary
+        // (meta). Show the level + per-skill breakdown, all values escaped.
+        function cefrBadge(meta) {
+          if (!meta || meta.kind !== "cefr") return "";
+          return `<span class="pill done" style="background:var(--info-bg);color:var(--accent-ink);">CEFR ${esc(meta.level_label || meta.level || "?")}</span>`;
+        }
+        function cefrBlock(meta) {
+          if (!meta || meta.kind !== "cefr") return "";
+          const areaVI = { Grammar: "Ngữ pháp", Vocabulary: "Từ vựng", Reading: "Đọc hiểu", Everyday: "Giao tiếp" };
+          const barC = p => p >= 70 ? "var(--success)" : p >= 45 ? "var(--gold)" : "var(--danger)";
+          const bar = (label, c, n, p) => `
+            <div style="display:flex;align-items:center;gap:.5rem;margin:.2rem 0;">
+              <span style="flex:none;width:96px;font-size:.82rem;font-weight:600;">${esc(label)}</span>
+              <span style="flex:1;height:9px;background:var(--line);border-radius:6px;overflow:hidden;">
+                <span style="display:block;height:100%;width:${Math.max(0, Math.min(100, +p || 0))}%;background:${barC(+p || 0)};"></span></span>
+              <span style="flex:none;width:60px;text-align:right;font-size:.78rem;color:var(--muted);">${(+c || 0)}/${(+n || 0)}·${(+p || 0)}%</span>
+            </div>`;
+          const areas = (meta.areas || []).map(a => bar(areaVI[a.area] || a.area, a.c, a.n, a.pct)).join("");
+          const levels = (meta.levels || []).map(l => bar(l.lvl, l.c, l.n, l.pct)).join("");
+          return `
+            <div style="background:linear-gradient(135deg,var(--info-bg),rgba(183,130,63,.08));border:1px solid var(--line);border-radius:12px;padding:.7rem .9rem;margin:.2rem 0 .8rem;">
+              <div style="display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;">
+                <span style="font-size:1.5rem;font-weight:900;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent-ink));padding:.05em .5em;border-radius:10px;">${esc(meta.level_label || meta.level || "?")}</span>
+                <div><b>${esc(meta.level_name || "")}</b><div class="kind" style="text-transform:none;letter-spacing:0;">Trình độ ước lượng${meta.pct != null ? " · " + esc(String(meta.pct)) + "%" : ""}</div></div>
+              </div>
+              ${meta.desc ? `<p style="margin:.5rem 0 .2rem;color:var(--muted);font-size:.86rem;">${esc(meta.desc)}</p>` : ""}
+              ${areas ? `<div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:.5rem 0 .1rem;">Theo kỹ năng</div>${areas}` : ""}
+              ${levels ? `<div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:.5rem 0 .1rem;">Theo CEFR</div>${levels}` : ""}
+              ${meta.next ? `<p style="margin:.5rem 0 0;font-size:.86rem;"><b>👉 Gợi ý:</b> ${esc(meta.next)}</p>` : ""}
+            </div>`;
+        }
+
         async function load() {
           const a = await sb.from("test_attempts").select("*").order("submitted_at", { ascending: false });
           if (a.error) { failed = true; return; }
@@ -2634,7 +2666,7 @@
                   <div style="border:1px solid var(--line); border-radius:12px; padding:.7rem .9rem; margin-bottom:.6rem;">
                     <div class="form-row" style="justify-content:space-between; align-items:center; gap:.6rem;">
                       <div style="min-width:0;">
-                        <b>${esc(neOf(grp.sid))}</b> · ${esc(grp.test)} ${statusPill(a)}
+                        <b>${esc(neOf(grp.sid))}</b> · ${esc(grp.test)} ${statusPill(a)} ${cefrBadge(a.meta)}
                         <div class="kind" style="text-transform:none; letter-spacing:0; margin-top:2px;">
                           Mới nhất: <b>${a.score}/${a.max_score}</b> (${pct(a)}%) · Cao nhất: <b>${grp.best.score}/${grp.best.max_score}</b>
                           · ${grp.list.length} lần làm · ${fmtDT(a.submitted_at)}</div>
@@ -2682,6 +2714,7 @@
               <p class="kind" style="text-transform:none; letter-spacing:0;">
                 Điểm <b>${a.score}/${a.max_score}</b> (${pct(a)}%) · Đúng ${a.correct} · Sai ${a.incorrect} · Bỏ trống ${a.unanswered}
                 · Lần #${a.attempt_no} · ${fmtDur(a.seconds_spent)} · ${fmtDT(a.submitted_at)}</p>
+              ${cefrBlock(a.meta)}
               <div class="tq-legend">
                 <span><i style="background:var(--success)"></i>Đúng</span>
                 <span><i style="background:var(--danger)"></i>Sai</span>

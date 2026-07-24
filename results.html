@@ -63,6 +63,27 @@
     function fmtDT(s){ if(!s) return "—"; try { return new Date(s).toLocaleString("vi-VN",{dateStyle:"short",timeStyle:"short"}); } catch(e){ return String(s); } }
     function fmtDur(sec){ if(sec==null) return "—"; const m=Math.floor(sec/60),s=Math.round(sec%60); return m+" phút "+String(s).padStart(2,"0")+"s"; }
 
+    function cefrBlock(meta){
+      if(!meta || meta.kind!=="cefr") return "";
+      const areaVI={Grammar:"Ngữ pháp",Vocabulary:"Từ vựng",Reading:"Đọc hiểu",Everyday:"Giao tiếp"};
+      const barC=p=>p>=70?"var(--success)":p>=45?"var(--warning)":"var(--danger)";
+      const bar=(label,c,n,p)=>`<div style="display:flex;align-items:center;gap:.5rem;margin:.25rem 0;">
+        <span style="flex:none;width:110px;font-size:.85rem;font-weight:600;">${esc(label)}</span>
+        <span style="flex:1;height:10px;background:var(--line);border-radius:6px;overflow:hidden;"><span style="display:block;height:100%;width:${Math.max(0,Math.min(100,+p||0))}%;background:${barC(+p||0)};"></span></span>
+        <span style="flex:none;width:66px;text-align:right;font-size:.8rem;color:var(--muted);">${(+c||0)}/${(+n||0)}·${(+p||0)}%</span></div>`;
+      const areas=(meta.areas||[]).map(a=>bar(areaVI[a.area]||a.area,a.c,a.n,a.pct)).join("");
+      const levels=(meta.levels||[]).map(l=>bar(l.lvl,l.c,l.n,l.pct)).join("");
+      return `<div class="rv-card">
+        <div style="display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;">
+          <span style="font-size:2rem;font-weight:900;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2));padding:.05em .55em;border-radius:12px;">${esc(meta.level_label||meta.level||"?")}</span>
+          <div><b style="font-size:1.05rem;">${esc(meta.level_name||"")}</b><div style="color:var(--muted);font-size:.9rem;">Trình độ ước lượng${meta.pct!=null?" · "+esc(String(meta.pct))+"%":""}</div></div>
+        </div>
+        ${meta.desc?`<p style="margin:.6rem 0 .2rem;color:var(--muted);font-size:.9rem;">${esc(meta.desc)}</p>`:""}
+        ${areas?`<h3 class="sec" style="margin:.6rem 0 .2rem;">Theo kỹ năng</h3>${areas}`:""}
+        ${levels?`<h3 class="sec" style="margin:.6rem 0 .2rem;">Theo CEFR</h3>${levels}`:""}
+        ${meta.next?`<p style="margin:.7rem 0 0;font-size:.9rem;"><b>👉 Gợi ý:</b> ${esc(meta.next)}</p>`:""}
+      </div>`;
+    }
     function renderReview(d){
       const pct = d.max_score ? Math.round(d.score/d.max_score*100) : 0;
       const rows = (d.detail||[]).map(q=>{
@@ -98,6 +119,7 @@
             ${d.started_at ? `<span>▶️ Bắt đầu: <b>${fmtDT(d.started_at)}</b></span>` : ""}
           </div>
         </div>
+        ${cefrBlock(d.meta)}
         <div class="rv-legend">
           <span><span class="rv-dot" style="background:var(--success)"></span>Đúng</span>
           <span><span class="rv-dot" style="background:var(--danger)"></span>Sai</span>

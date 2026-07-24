@@ -51,7 +51,10 @@
           p_test_key: String(testKey),
           p_answers: answers || {},
           p_seconds: (meta.seconds != null ? Math.round(meta.seconds) : null),
-          p_started: (meta.started || null)
+          p_started: (meta.started || null),
+          // optional computed summary (e.g. CEFR level, per-skill scores) that the
+          // test attaches so the dashboard can show more than just the raw score
+          p_meta: (meta.summary && typeof meta.summary === "object") ? meta.summary : {}
         });
         if (error) return { error: error.message || String(error) };
         // also surface the result in the lesson activity feed
