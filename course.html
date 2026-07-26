@@ -404,13 +404,15 @@
       if (t) t.addEventListener("click", () => {
         const first = items.find(i => !i.premium);
         if (!first) return;
-        if (sec === "reading") { location.href = "reading.html?open=" + encodeURIComponent(first.id); return; }
+        const P2 = { reading: "reading.html", shadow: "shadow.html", dict: "dictation.html" }[sec];
+        if (P2) { location.href = P2 + "?open=" + encodeURIComponent(first.id); return; }
         openSecItem(sec, first.id);
       });
       $("cpMain").querySelectorAll("[data-sec-open]").forEach(b =>
         b.addEventListener("click", () => {
           // Đọc hiểu: mở THẲNG giao diện thật để khách trải nghiệm đầy đủ
-          if (sec === "reading") { location.href = "reading.html?open=" + encodeURIComponent(b.getAttribute("data-sec-open")); return; }
+          const P = { reading: "reading.html", shadow: "shadow.html", dict: "dictation.html" }[sec];
+          if (P) { location.href = P + "?open=" + encodeURIComponent(b.getAttribute("data-sec-open")); return; }
           openSecItem(sec, b.getAttribute("data-sec-open"));
         }));
       $("cpMain").querySelectorAll("[data-sec-lock]").forEach(b => b.addEventListener("click", openBuy));

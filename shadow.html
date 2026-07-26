@@ -236,6 +236,18 @@
            background:var(--ink); color:var(--bg); border-radius:10px; padding:9px 18px; font-size:14px;
            opacity:0; pointer-events:none; transition:.25s; z-index:200; max-width:88vw; }
   #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  /* khách dùng thử: nút đăng nhập + lời mời tạo tài khoản */
+  .nd-a { font-size:13px; font-weight:700; text-decoration:none; padding:6px 12px;
+          border-radius:9px; border:1px solid var(--line); color:var(--ink); white-space:nowrap; }
+  .nd-a.nd-p { background:var(--accent); border-color:var(--accent); color:#fff; }
+  #leNudge { position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:350;
+             width:min(520px,calc(100vw - 24px)); }
+  #leNudge .nd-in { display:flex; gap:12px; align-items:center; flex-wrap:wrap; background:var(--panel);
+             color:var(--ink); border:1px solid var(--line); border-radius:14px; padding:12px 14px;
+             box-shadow:0 18px 44px -18px rgba(0,0,0,.5); }
+  #leNudge .nd-tx { flex:1; min-width:200px; font-size:13.5px; line-height:1.5; }
+  #leNudge .nd-bt { display:flex; gap:6px; align-items:center; }
+  #leNudge .nd-x { background:none; border:none; color:var(--muted); cursor:pointer; font-size:15px; }
 </style>
 </head>
 <body>
@@ -251,7 +263,7 @@
   </nav>
   <div class="grow"></div>
   <span id="whoami" class="mutetext"></span>
-  <a href="dashboard.html" class="mutetext">← Trang học</a>
+  <span id="navAuth" hidden style="display:inline-flex;gap:6px;white-space:nowrap"><a class="nd-a" href="login.html">Đăng nhập</a><a class="nd-a nd-p" href="login.html">Đăng ký miễn phí</a></span><a id="navBack" href="dashboard.html" class="mutetext">← Trang học</a>
 </header>
 
 <main>
@@ -481,6 +493,24 @@ const todayKey = (d) => { const x = d ? new Date(d) : new Date(); return x.getFu
    SAME storage as reading.html ("crh-…") so both pages share one word library;
    the HSK dictionary cache is global (same for everyone). */
 let uid = null, isStaff = false;
+let PUBLIC = false;      // true = khách chưa đăng nhập
+
+/* Khách KHÔNG được tạo/nhập/sửa nội dung: ẩn toàn bộ giao diện tạo video.
+   (Máy chủ vẫn chặn bằng RLS — đây chỉ là lớp giao diện.) */
+function hideCreationUI() {
+  ['navAdmin', 'impPanel', 'impPubWrap', 'impTierWrap'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.hidden = true;
+  });
+  const url = document.getElementById('impUrl');
+  const box = url && url.closest('.panel');
+  if (box) box.hidden = true;                      // cả khối "Nạp video YouTube"
+  document.querySelectorAll('[data-owner-only]').forEach(el => { el.hidden = true; });
+}
+function guestBlocked() {
+  if (!PUBLIC) return false;
+  needAccount('Đăng nhập để tạo nội dung luyện tập của riêng bạn.');
+  return true;
+}
 const K = k => k === 'crh-dict-v1' ? k
   : (k.indexOf('crh-') === 0 ? 'crh-' : 'csh-') + (uid ? uid.slice(0, 8) : 'anon') + '-' + k;
 function store(key, val) { try { localStorage.setItem(K(key), JSON.stringify(val)); } catch (e) { toast('⚠️ Bộ nhớ đầy'); } }
@@ -494,7 +524,14 @@ const fmtH = s => s >= 3600 ? (s/3600).toFixed(1) + ' giờ' : Math.round(s/60) 
 /* ================= hub account ================= */
 async function requireLogin() {
   const { data: { session } } = await sb.auth.getSession();
-  if (!session) { location.href = 'login.html'; return null; }
+  if (!session) {                      // KHÁCH chưa đăng nhập → chỉ xem/luyện video miễn phí
+    PUBLIC = true; uid = null; isStaff = false; isPremium = false;
+    $('whoami').textContent = 'Khách';
+    hideCreationUI();
+    const nav = $('navAuth'); if (nav) nav.hidden = false;
+    const back = $('navBack'); if (back) { back.textContent = '← Xem khóa học'; back.href = 'course.html'; }
+    return { id: null, guest: true };
+  }
   const user = session.user;
   let prof = null;
   try {
@@ -516,9 +553,43 @@ async function requireLogin() {
   return user;
 }
 
+/* ================= khách: mời tạo tài khoản ================= */
+let nudgeShown = false;
+function needAccount(msg) {
+  if (!PUBLIC) return false;
+  if (nudgeShown && document.getElementById('leNudge')) return true;
+  nudgeShown = true;
+  const old = document.getElementById('leNudge'); if (old) old.remove();
+  const box = document.createElement('div');
+  box.id = 'leNudge';
+  box.innerHTML = '<div class="nd-in"><div class="nd-tx"></div>' +
+    '<div class="nd-bt"><a class="nd-a" href="login.html">Đăng nhập</a>' +
+    '<a class="nd-a nd-p" href="login.html">Đăng ký miễn phí</a>' +
+    '<button class="nd-x" aria-label="Đóng">✕</button></div></div>';
+  box.querySelector('.nd-tx').textContent =
+    msg || 'Đăng nhập miễn phí để lưu tiến độ, điểm và bản ghi âm của bạn.';
+  document.body.appendChild(box);
+  box.querySelector('.nd-x').addEventListener('click', () => box.remove());
+  setTimeout(() => { if (box.isConnected) box.remove(); }, 12000);
+  return true;
+}
+
 /* ================= cloud: video library ================= */
 let VIDS = [];
 async function loadVideos() {
+  if (PUBLIC) {                        // danh sách đã lọc: KHÔNG kèm yt/subs
+    try {
+      const { data } = await sb.rpc('public_video_list', { p_kind: 'shadow' });
+      VIDS = (Array.isArray(data) ? data : []).map(r => ({
+        id: r.id, title: r.title, level: r.level, tier: r.premium ? 'premium' : 'free',
+        cover_url: r.cover_url || '', subs: [], yt: null, published: true,
+        lines: r.lines || 0, _pub: true
+      }));
+      ACCESS_READY = true;
+    } catch (e) { VIDS = []; }
+    freeOrderCache = null;
+    return;
+  }
   try {
     const { data, error } = await sb.from('shadow_videos').select('*').order('created_at', { ascending: false });
     if (error) throw error;
@@ -602,6 +673,7 @@ function scheduleProgPush() {
   if (PROG) store('prog-' + PROG.video_id, PROG);
 }
 async function pushProg() {
+  if (!uid) return;      // khách: không ghi lên máy chủ
   if (!uid || !PROG) return;
   try {
     PROG.updated_at = new Date().toISOString();
@@ -666,6 +738,7 @@ async function pullGoals() {
   } catch (e) {}
 }
 async function pushGoals() {
+  if (!uid) return;      // khách: không ghi lên máy chủ
   store('goals', GOALS);
   try { await sb.from('shadow_profile').upsert({ user_id: uid, goals: GOALS, updated_at: new Date().toISOString() }); } catch (e) {}
 }
@@ -712,6 +785,7 @@ async function pushVocabDelete(w) {
   }
 }
 async function pullVocab() {
+  if (!uid) return;      // khách: không có dữ liệu đám mây
   try {
     const { data, error } = await sb.from('reading_vocab').select('*');
     if (error) throw error;
@@ -1150,7 +1224,7 @@ function normalizeCues(cues) {
 
 /* ================= import flow ================= */
 let IMP = null;   // { yt, title, auto: {cues,track,label}, cues: final }
-$('btnLoadUrl').addEventListener('click', startImport);
+$('btnLoadUrl').addEventListener('click', () => { if (guestBlocked()) return; startImport(); });
 $('impUrl').addEventListener('keydown', e => { if (e.key === 'Enter') startImport(); });
 async function startImport() {
   const ytid = extractYtId($('impUrl').value);
@@ -1256,6 +1330,13 @@ function loadYtApi() {
 }
 async function openVideo(v) {
   if (isLocked(v)) { showUpgrade(v); return; }
+  if (PUBLIC && v._pub && !v.yt) {          // lấy media + phụ đề của video MIỄN PHÍ
+    try {
+      const { data } = await sb.rpc('public_video', { p_id: v.id, p_kind: 'shadow' });
+      if (!data || !data.yt) { showUpgrade(v); return; }
+      v.yt = data.yt; v.subs = data.subs || [];
+    } catch (e) { showUpgrade(v); return; }
+  }
   CUR = v;
   cues = normalizeCues((v.subs || []).map(c => ({ ...c })));
   activeIdx = -1; LOOP = -1;
@@ -1660,7 +1741,8 @@ function renderBmk() {
 }
 $('bmkList').addEventListener('click', e => {
   const del = e.target.closest('[data-del]');
-  if (del) { const i = +del.dataset.del; PROG.bookmarks = PROG.bookmarks.filter(x => x !== i); scheduleProgPush(); renderBmk(); refreshCueMarks(); return; }
+  if (del) {
+    if (guestBlocked()) return; const i = +del.dataset.del; PROG.bookmarks = PROG.bookmarks.filter(x => x !== i); scheduleProgPush(); renderBmk(); refreshCueMarks(); return; }
   const z = e.target.closest('.zh[data-i]');
   if (z) { const i = +z.dataset.i; if (SH.on) playCue(i, true); else seekPlay(cues[i].a); }
 });
@@ -1839,6 +1921,7 @@ function renderLibrary() {
   if (q) list = list.filter(v => (v.title || '').toLowerCase().includes(q));
   $('libGrid').innerHTML = list.map(v => {
     const subs = v.subs || [];
+    const nLines = subs.length || v.lines || 0;   // khách: số câu đếm sẵn từ máy chủ
     const dur = subs.length ? subs[subs.length - 1].b : 0;
     const p = MYPROG[v.id];
     const lock = isLocked(v);
@@ -1849,7 +1932,7 @@ function renderLibrary() {
             : (p && p.done ? '<span class="done">✓ Xong</span>' : '')) +
       '<div class="body"><h3>' + escH(v.title) + '</h3>' +
       '<div class="meta"><span class="lv lv' + (v.level || 0) + '">' + (v.level ? 'HSK ' + v.level : 'chưa xếp') + '</span>' +
-      '<span>' + subs.length + ' câu</span>' +
+      '<span>' + nLines + ' câu</span>' +
       (!v.published ? '<span>🔒 riêng tư</span>' : '') +
       (p && p.sentences ? '<span>đã luyện ' + p.sentences + ' câu</span>' : '') +
       (v.created_by === uid && !isStaff ? '<button class="small" data-del="' + v.id + '" title="Xóa video của tôi">🗑</button>' : '') +
@@ -2067,6 +2150,11 @@ $('admList').addEventListener('click', async e => {
   rebuildDictIndex();
   $('impStatus').textContent = '';
   renderLibrary();
+  try {
+    const want = new URLSearchParams(location.search).get('open');
+    const v = want && VIDS.find(x => x.id === want);
+    if (v) openVideo(v);
+  } catch (e) {}
   applyDisplayPrefs();
 })();
 })();
