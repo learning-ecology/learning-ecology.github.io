@@ -261,6 +261,21 @@
            border-radius:10px; padding:10px 18px; font-size:14px; z-index:1500; opacity:0; transition:opacity .3s; pointer-events:none; }
   #toast.show { opacity:.95; }
 
+  /* ---- khách dùng thử: nút đăng nhập + lời mời tạo tài khoản ---- */
+  .nd-a { font-size:13px; font-weight:700; text-decoration:none; padding:6px 12px;
+          border-radius:9px; border:1px solid var(--line); color:var(--ink); white-space:nowrap; }
+  .nd-a:hover { border-color:var(--accent); }
+  .nd-a.nd-p { background:var(--accent); border-color:var(--accent); color:#fff; }
+  #leNudge { position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
+             z-index:350; width:min(520px,calc(100vw - 24px)); }
+  #leNudge .nd-in { display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+             background:var(--panel); color:var(--ink); border:1px solid var(--line);
+             border-radius:14px; padding:12px 14px; box-shadow:0 18px 44px -18px rgba(0,0,0,.5); }
+  #leNudge .nd-tx { flex:1; min-width:200px; font-size:13.5px; line-height:1.5; }
+  #leNudge .nd-bt { display:flex; gap:6px; align-items:center; }
+  #leNudge .nd-x { background:none; border:none; color:var(--muted); cursor:pointer; font-size:15px; }
+  @media (max-width:520px){ #leNudge .nd-in { padding:10px 12px; } }
+
   /* ---- copy protection (students only; staff exempt) ---- */
   body.protect #rTitle, body.protect #rBody, body.protect .rtrans {
     -webkit-user-select:none; -moz-user-select:none; user-select:none;
@@ -325,7 +340,11 @@
     <button data-v="admin" id="navAdmin" hidden>⚙️ Quản lý</button>
   </nav>
   <span style="margin-left:auto" class="mutetext" id="whoami"></span>
-  <a href="dashboard.html" style="font-size:13px;white-space:nowrap">← Bảng điều khiển</a>
+  <span id="navAuth" hidden style="display:inline-flex;gap:6px;white-space:nowrap">
+    <a class="nd-a" href="login.html">Đăng nhập</a>
+    <a class="nd-a nd-p" href="login.html">Đăng ký miễn phí</a>
+  </span>
+  <a href="dashboard.html" id="navBack" style="font-size:13px;white-space:nowrap">← Bảng điều khiển</a>
 </header>
 <main>
 
@@ -631,6 +650,26 @@ let toastTimer = null;
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2600); }
 const escH = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
+/* ================= khách: mời tạo tài khoản khi cần lưu ================= */
+let nudgeShown = false;
+function needAccount(msg) {
+  if (!PUBLIC) return false;               // đã đăng nhập → không chặn gì
+  if (nudgeShown && document.getElementById('leNudge')) return true;
+  nudgeShown = true;
+  const old = document.getElementById('leNudge'); if (old) old.remove();
+  const box = document.createElement('div');
+  box.id = 'leNudge';
+  box.innerHTML =
+    '<div class="nd-in"><div class="nd-tx">' + escH(msg || 'Đăng nhập miễn phí để lưu từ vựng và tiến độ học tập của bạn.') + '</div>' +
+    '<div class="nd-bt"><a class="nd-a" href="login.html">Đăng nhập</a>' +
+    '<a class="nd-a nd-p" href="login.html">Đăng ký miễn phí</a>' +
+    '<button class="nd-x" aria-label="Đóng">✕</button></div></div>';
+  document.body.appendChild(box);
+  box.querySelector('.nd-x').addEventListener('click', () => box.remove());
+  setTimeout(() => { if (box.isConnected) box.remove(); }, 12000);
+  return true;
+}
+
 /* ================= copy protection (students; staff exempt) =================
    Deters casual copying: no text selection, no copy/cut/right-click/drag,
    no Ctrl/Cmd C-X-A-S-P-U outside form fields, print shows a notice instead
@@ -670,7 +709,14 @@ function armCopyGuard(name) {
 /* ================= hub account & cloud sync ================= */
 async function requireLogin() {
   const { data: { session } } = await sb.auth.getSession();
-  if (!session) { location.href = 'login.html'; return null; }
+  if (!session) {                       // KHÁCH chưa đăng nhập → chế độ dùng thử
+    PUBLIC = true; uid = null; isStaff = false; isPremium = false;
+    $('whoami').textContent = 'Khách';
+    const nav = $('navAuth'); if (nav) nav.hidden = false;
+    const back = $('navBack'); if (back) { back.textContent = '← Xem khóa học'; back.href = 'course.html'; }
+    armCopyGuard('Learning Ecology');
+    return { id: null, guest: true };
+  }
   const user = session.user;
   let prof = null;
   try {
@@ -697,11 +743,25 @@ async function requireLogin() {
 /* --- shared content: reading texts + extra dictionary (cloud, cached for offline) --- */
 let TEXTS = [];
 let DICT_CUSTOM = [];
+let PUBLIC = false;        // true = khách chưa đăng nhập (dùng thử bài miễn phí)
 /* --- access control (migration 26): premium plan, per-student grants,
        free-text limit. If the migration hasn't run yet (no tier column),
        ACCESS_READY stays false and nothing is ever locked. --- */
 let isPremium = false, ACCESS_READY = false, TITLEVI_READY = false, GRANTS = [], FREE_LIMIT = 0, freeOrderCache = null;
 async function loadTexts() {
+  if (PUBLIC) {            // chỉ lấy danh sách đã lọc từ máy chủ (không kèm nội dung)
+    try {
+      const { data } = await sb.rpc('public_reading_list');
+      TEXTS = (Array.isArray(data) ? data : []).map(r => ({
+        id: r.id, title: r.title, vi: r.title_vi || '', level: r.level,
+        tags: r.tags || [], cat: r.category || '', cover: r.cover_url || '',
+        tier: r.premium ? 'premium' : 'free', words: r.words || 0,
+        pub: true, text: null, tr: ''
+      }));
+      ACCESS_READY = true;
+    } catch (e) { TEXTS = []; }
+    return;
+  }
   try {
     const { data, error } = await sb.from('reading_texts').select('*').order('level').order('created_at');
     if (error) throw error;
@@ -790,6 +850,7 @@ async function pushVocabDelete(w) {
   }
 }
 async function pullVocab() {
+  if (!uid) return;          // khách: không có dữ liệu đám mây
   try {
     const { data, error } = await sb.from('reading_vocab').select('*');
     if (error) throw error;
@@ -826,6 +887,7 @@ async function pushDay() {
   } catch (e) {}
 }
 async function pullDays() {
+  if (!uid) return;          // khách: không có dữ liệu đám mây
   try {
     const { data, error } = await sb.from('reading_days').select('*');
     if (error) throw error;
@@ -850,6 +912,7 @@ async function pushProgress() {
   } catch (e) {}
 }
 async function pullProgress() {
+  if (!uid) return;          // khách: không có dữ liệu đám mây
   try {
     const { data, error } = await sb.from('reading_progress').select('*').eq('user_id', uid).maybeSingle();
     if (error) throw error;
@@ -994,6 +1057,7 @@ function freeRank(id) {
   return freeOrderCache.indexOf(id);
 }
 function isLocked(t) {
+  if (PUBLIC) return t.tier === 'premium';    // khách: chỉ bài miễn phí mở được
   if (!ACCESS_READY || isStaff || isPremium) return false;
   if (grantCovers(t)) return false;
   if (t.tier === 'premium') return true;
@@ -1006,7 +1070,7 @@ function showUpgradeR(t) {
     const why = (t && t.tier === 'premium')
       ? 'Bài đọc này thuộc gói Premium. Mở khóa để đọc toàn bộ thư viện.'
       : 'Bạn đã dùng hết ' + FREE_LIMIT + ' bài đọc miễn phí. Mở khóa để đọc không giới hạn.';
-    Premium.open({ reason: why });
+    Premium.open({ section: 'reading', reason: why });
     return;
   }
   const reason = (t && t.tier === 'premium')
@@ -1030,10 +1094,14 @@ function showUpgradeR(t) {
 
 /* ================= reading texts (shared, from Supabase) ================= */
 function getTexts() { return TEXTS; }
-function estMinutes(t) { return Math.max(1, Math.round((t.text.match(CJK_G) || []).length / 180)); }
+function estMinutes(t) {
+  const n = t.text ? (t.text.match(CJK_G) || []).length : (t.words || 0);
+  return Math.max(1, Math.round(n / 180));
+}
 const CJK_G = /[〇一-鿿㐀-䶿豈-﫿]/g;
 /* word count = segmented Chinese words (punctuation & non-Chinese excluded); cached per text */
 function wordCount(t) {
+  if (!t.text) return t.words || 0;         // khách: đếm sẵn từ máy chủ
   if (t._wc == null) {
     let n = 0;
     for (const line of t.text.split('\n')) for (const tok of segment(line)) if (tok.zh) n++;
@@ -1263,10 +1331,18 @@ $('libGrid').addEventListener('click', e => {
 let currentText = null;
 let readTimer = null;
 function textList() { return getTexts().filter(t => (!libLevel || t.level === libLevel) && !isLocked(t)); }
-function openText(id) {
+async function openText(id) {
   const t = getTexts().find(x => x.id === id);
   if (!t) return;
   if (isLocked(t)) { showUpgradeR(t); return; }
+  if (PUBLIC && t.text == null) {          // nội dung bài miễn phí lấy từ máy chủ khi mở
+    toast('Đang mở bài đọc…');
+    try {
+      const { data } = await sb.rpc('public_reading_text', { p_id: id });
+      if (!data || data.content == null) { showUpgradeR(t); return; }
+      t.text = data.content; t.tr = data.translation || '';
+    } catch (e) { showUpgradeR(t); return; }
+  }
   currentText = t;
   show('reader');
   renderReader();
@@ -1422,6 +1498,7 @@ document.addEventListener('click', e => { if (!e.target.closest('#popup') && !e.
 
 /* ================= vocabulary store ================= */
 function saveWord(w, p, m, lvl, ex, note, status) {
+  needAccount('Đăng nhập miễn phí để lưu từ vựng và tiến độ học tập của bạn.');
   const vocab = read('crh-vocab', {});
   const isNew = !vocab[w];
   const cur = vocab[w] || { added: Date.now(), status: 'new',
@@ -2330,6 +2407,11 @@ $('btnKeySave').addEventListener('click', async () => {
   rebuildDictIndex();
   renderLibrary();
   updateDueBadge();
+  // mở thẳng một bài khi đến từ trang khóa học: reading.html?open=<id>
+  try {
+    const want = new URLSearchParams(location.search).get('open');
+    if (want && getTexts().some(x => x.id === want)) openText(want);
+  } catch (e) {}
 })();
 })();
 </script>

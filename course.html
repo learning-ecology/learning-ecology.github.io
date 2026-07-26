@@ -403,10 +403,16 @@
       const t = $("secTry");
       if (t) t.addEventListener("click", () => {
         const first = items.find(i => !i.premium);
-        if (first) openSecItem(sec, first.id);
+        if (!first) return;
+        if (sec === "reading") { location.href = "reading.html?open=" + encodeURIComponent(first.id); return; }
+        openSecItem(sec, first.id);
       });
       $("cpMain").querySelectorAll("[data-sec-open]").forEach(b =>
-        b.addEventListener("click", () => openSecItem(sec, b.getAttribute("data-sec-open"))));
+        b.addEventListener("click", () => {
+          // Đọc hiểu: mở THẲNG giao diện thật để khách trải nghiệm đầy đủ
+          if (sec === "reading") { location.href = "reading.html?open=" + encodeURIComponent(b.getAttribute("data-sec-open")); return; }
+          openSecItem(sec, b.getAttribute("data-sec-open"));
+        }));
       $("cpMain").querySelectorAll("[data-sec-lock]").forEach(b => b.addEventListener("click", openBuy));
     }
 

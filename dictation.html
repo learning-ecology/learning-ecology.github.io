@@ -453,7 +453,7 @@ function showUpgrade(v) {
     const why = (v && v.tier === 'premium')
       ? 'Nội dung này thuộc gói Premium. Mở khóa để học không giới hạn.'
       : 'Bạn đã dùng hết video miễn phí. Mở khóa để luyện không giới hạn.';
-    Premium.open({ reason: why });
+    Premium.open({ section: 'dict', reason: why });
     return;
   }
   const reason = (v && v.tier === 'premium')
