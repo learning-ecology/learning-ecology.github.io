@@ -1,0 +1,9 @@
+# macOS / editor junk
+.DS_Store
+.write-test
+.claude/
+
+# local backups — not part of the website
+*-backup.png
+*-backup.html
+*.bak

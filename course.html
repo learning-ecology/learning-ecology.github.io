@@ -146,6 +146,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
+  <script src="premium.js"></script>
   <script>
     const $ = id => document.getElementById(id);
     function esc(s){ return String(s==null?"":s)
@@ -188,7 +189,15 @@
       return `<a class="btn" href="${esc(CONTACT)}" target="_blank" rel="noopener">${zalo ? "💬 Liên hệ ngay" : "Liên hệ ngay"}</a>`
            + `<a class="btn ghost" href="index.html#lien-he">Xem thông tin liên hệ</a>`;
     }
-    function showLocked(){ $("cpMBtns").innerHTML = contactButtons(); $("cpOverlay").classList.add("on"); }
+    function showLocked(){
+      // popup dùng chung (premium.js) — nội dung theo từng khóa, sửa trong Bảng điều khiển
+      if (window.Premium && currentId){
+        const c = COURSES.find(x => x.id === currentId) || {};
+        Premium.open({ courseId: currentId, courseTitle: c.title || "", thumb: c.banner_url || "" });
+        return;
+      }
+      $("cpMBtns").innerHTML = contactButtons(); $("cpOverlay").classList.add("on");
+    }
     $("cpOverlay").addEventListener("click", e => {
       if (e.target.id === "cpOverlay" || e.target.hasAttribute("data-cpclose")) $("cpOverlay").classList.remove("on");
     });

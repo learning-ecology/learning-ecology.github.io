@@ -42,6 +42,7 @@
   <script src="lang.js"></script>
   <script src="config.js"></script>
   <script src="ui.js"></script>
+  <script src="premium.js"></script>
   <script>
     applyI18n();
     const langBtn = document.getElementById("lang-btn");
@@ -277,7 +278,15 @@
       const logLock = lid => {
         sb.from("lock_events").insert({ student_id: user.id, lesson_id: lid || null }).then(() => {});
       };
-      const showUpgrade = () => {
+      const showUpgrade = (lessonId) => {
+        // popup dùng chung, nội dung lấy từ Bảng điều khiển → Giá & thanh toán
+        if (window.Premium) {
+          const l = (lessons || []).find(x => x.id === lessonId);
+          const c = (courses || []).find(x => x.id === (l && l.course_id));
+          Premium.open({ courseId: c && c.id, courseTitle: c && c.title,
+                         thumb: (c && c.banner_url) || "" });
+          return;
+        }
         const T = window.UI ? UI.t2 : (k => k);
         const old = document.querySelector(".cert-overlay"); if (old) old.remove();
         const plans = window.PREMIUM_PLANS || [];
@@ -1022,7 +1031,7 @@
       // --- premium locks + upgrade ---
       app.querySelectorAll(".prem-btn").forEach(btn => btn.addEventListener("click", () => {
         logLock(btn.getAttribute("data-lesson"));
-        showUpgrade();
+        showUpgrade(btn.getAttribute("data-lesson"));
       }));
       document.getElementById("upg-open")?.addEventListener("click", showUpgrade);
 
@@ -1350,7 +1359,7 @@
       };
       const openLesson = l => {
         if (lockedSet.has(l.id)) { alert(t("locked_hint")); return; }
-        if (premLocked.has(l.id)) { logLock(l.id); showUpgrade(); return; }
+        if (premLocked.has(l.id)) { logLock(l.id); showUpgrade(l.id); return; }
         if (l.storage_path) logOpen(l.id);   // tracked pages log themselves
         sb.from("lesson_activity").upsert({
           student_id: user.id, lesson_id: l.id, kind: "activity",
@@ -1458,7 +1467,8 @@
         { data: lessons }, { data: prog }, { data: students }, { data: courses },
         { data: enrollments }, { data: anns }, { data: skeys }, { data: orgs },
         { data: allLics }, { data: events }, { data: activity }, { data: lockEvents },
-        cardsRes, { data: pageViews }, rtRes, raRes, rsRes, svRes, saRes, ssRes, ddRes
+        cardsRes, { data: pageViews }, rtRes, raRes, rsRes, svRes, saRes, ssRes, ddRes,
+        cpRes, psRes
       ] = await Promise.all([
         sb.from("lessons").select("*").order("sort_order").order("created_at"),
         // Every student's progress, joined with names + lesson titles.
@@ -1508,7 +1518,10 @@
         sb.from("shadow_settings").select("free_limit").eq("id", 1).maybeSingle(),
         // dictation daily stats (needs migration 31)
         sb.from("dict_days").select("user_id, day, sent, ok, total, listen_sec")
-          .order("day", { ascending: false }).limit(5000)
+          .order("day", { ascending: false }).limit(5000),
+        // course pricing + payment settings (need migration 46)
+        sb.from("course_pricing").select("course_id, config"),
+        sb.from("payment_settings").select("config").eq("id", 1).maybeSingle()
       ]);
       let cards = cardsRes.data || [];
 
@@ -2008,6 +2021,104 @@
         </div>
 
         <div class="tabpane" data-tab="classes"><div id="oc-root"></div></div>
+
+        <div class="tabpane" data-tab="pricing">
+        <div class="card">
+          <h2>💳 Giá &amp; thanh toán <span class="kind" id="pr-state"></span></h2>
+          <p class="kind" style="margin:0 0 0.7rem;">Mọi thứ ở đây hiện trong popup "Mở khóa Premium" — trên trang khóa học công khai, dashboard học viên, Đọc hiểu, Shadowing, Chép chính tả. Mỗi khóa có giá và thông tin riêng.</p>
+          <div class="form-row">
+            <div class="field" style="max-width:280px;"><label>Khóa học</label>
+              <select id="pr-course">${(courses || []).map(c => `<option value="${c.id}">${esc(c.title)}</option>`).join("") || `<option value="">— chưa có khóa học —</option>`}</select></div>
+            <button class="ghost" id="pr-preview" style="flex:none;">👁 Xem thử popup</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Nội dung popup cho khóa này</h2>
+          <div class="form-row">
+            <div class="field"><label>Tiêu đề</label><input id="pr-title" placeholder="Mở khóa toàn bộ khóa học" /></div>
+            <div class="field"><label>Mô tả ngắn</label><input id="pr-sub" placeholder="Học trọn đời, cập nhật miễn phí." /></div>
+          </div>
+          <div class="form-row" style="margin-top:0.5rem;">
+            <div class="field" style="max-width:150px;"><label>Giá gốc (đ)</label><input type="number" id="pr-price" min="0" placeholder="1500000" /></div>
+            <div class="field" style="max-width:150px;"><label>Giá khuyến mãi</label><input type="number" id="pr-sale" min="0" placeholder="990000" /></div>
+            <div class="field" style="max-width:120px;"><label>Đang giảm giá</label>
+              <label style="font-size:0.85rem; color:var(--muted); cursor:pointer; display:block; padding:0.6rem 0;">
+                <input type="checkbox" id="pr-onsale" /> bật</label></div>
+            <div class="field" style="max-width:120px;"><label>Nhãn giảm giá</label><input id="pr-badge" placeholder="tự tính (-34%)" /></div>
+            <div class="field"><label>Nhãn khuyến mãi</label><input id="pr-promo" placeholder="Ưu đãi khai giảng — còn 3 ngày" /></div>
+          </div>
+          <div class="field" style="margin-top:0.5rem;"><label>Quyền lợi — mỗi dòng một ý</label>
+            <textarea id="pr-benefits" style="min-height:90px;" placeholder="Mở khóa toàn bộ 15 bài học&#10;Học trọn đời, cập nhật miễn phí&#10;Thầy hỗ trợ trực tiếp qua Zalo"></textarea></div>
+          <div class="field"><label>Mô tả chi tiết (cho phép HTML cơ bản: &lt;p&gt; &lt;b&gt; &lt;ul&gt;&lt;li&gt;)</label>
+            <textarea id="pr-desc" style="min-height:100px;" placeholder="<p>Sau khi thanh toán, tài khoản được kích hoạt trong 1 giờ.</p>"></textarea></div>
+          <div class="form-row" style="margin-top:0.5rem;">
+            <div class="field" style="max-width:300px;"><label>Ảnh bảng giá / khuyến mãi</label>
+              <input type="file" id="pr-img-file" accept="image/*" style="padding:0.42rem;" /></div>
+            <div id="pr-img-box" style="flex:none;"></div>
+          </div>
+          <label style="font-size:0.85rem; color:var(--muted); cursor:pointer; display:block; margin-top:0.5rem;">
+            <input type="checkbox" id="pr-enabled" checked /> Dùng cấu hình này cho khóa (bỏ chọn = dùng popup mặc định)
+          </label>
+          <div class="form-row" style="margin-top:0.7rem;">
+            <button id="pr-save">Lưu cho khóa này</button>
+            <button class="ghost" id="pr-clear" style="color:var(--danger); border-color:var(--danger);">Xóa cấu hình khóa</button>
+          </div>
+          <p id="pr-msg" class="msg"></p>
+        </div>
+
+        <div class="card">
+          <h2>Thanh toán &amp; liên hệ cho khóa này</h2>
+          <label style="font-size:0.85rem; color:var(--muted); cursor:pointer; display:block; margin-bottom:0.5rem;">
+            <input type="checkbox" id="pr-pay-global" checked /> Dùng thông tin chung (bên dưới) — bỏ chọn để đặt riêng cho khóa này
+          </label>
+          <div id="pr-pay-own" style="display:none;">
+            <div class="form-row">
+              <div class="field" style="max-width:170px;"><label>Ngân hàng</label><input id="pr-bank" /></div>
+              <div class="field" style="max-width:200px;"><label>Chủ tài khoản</label><input id="pr-holder" /></div>
+              <div class="field" style="max-width:190px;"><label>Số tài khoản</label><input id="pr-acc" /></div>
+              <div class="field"><label>Nội dung chuyển khoản</label><input id="pr-ref" placeholder="HSK1 &lt;tên học viên&gt;" /></div>
+            </div>
+            <div class="form-row" style="margin-top:0.5rem;">
+              <div class="field" style="max-width:170px;"><label>Zalo</label><input id="pr-zalo" placeholder="0961923983" /></div>
+              <div class="field" style="max-width:230px;"><label>Messenger</label><input id="pr-mess" placeholder="https://m.me/..." /></div>
+              <div class="field" style="max-width:150px;"><label>Điện thoại</label><input id="pr-phone" /></div>
+              <div class="field" style="max-width:220px;"><label>Email</label><input id="pr-email" /></div>
+            </div>
+            <div class="form-row" style="margin-top:0.5rem;">
+              <div class="field" style="max-width:300px;"><label>Ảnh QR chuyển khoản</label>
+                <input type="file" id="pr-qr-file" accept="image/*" style="padding:0.42rem;" /></div>
+              <div id="pr-qr-box" style="flex:none;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>🏦 Thông tin chung (áp dụng cho mọi khóa)</h2>
+          <p class="kind" style="margin:0 0 0.7rem;">Dùng khi một khóa không đặt thông tin riêng. Sửa ở đây là đổi cho tất cả.</p>
+          <div class="form-row">
+            <div class="field" style="max-width:170px;"><label>Ngân hàng</label><input id="pg-bank" /></div>
+            <div class="field" style="max-width:200px;"><label>Chủ tài khoản</label><input id="pg-holder" /></div>
+            <div class="field" style="max-width:190px;"><label>Số tài khoản</label><input id="pg-acc" /></div>
+            <div class="field"><label>Nội dung chuyển khoản mẫu</label><input id="pg-ref" /></div>
+          </div>
+          <div class="form-row" style="margin-top:0.5rem;">
+            <div class="field" style="max-width:170px;"><label>Zalo</label><input id="pg-zalo" /></div>
+            <div class="field" style="max-width:230px;"><label>Messenger</label><input id="pg-mess" /></div>
+            <div class="field" style="max-width:150px;"><label>Điện thoại</label><input id="pg-phone" /></div>
+            <div class="field" style="max-width:220px;"><label>Email</label><input id="pg-email" /></div>
+          </div>
+          <div class="form-row" style="margin-top:0.5rem;">
+            <div class="field" style="max-width:300px;"><label>Ảnh QR chung</label>
+              <input type="file" id="pg-qr-file" accept="image/*" style="padding:0.42rem;" /></div>
+            <div id="pg-qr-box" style="flex:none;"></div>
+          </div>
+          <div class="field" style="margin-top:0.5rem;"><label>Quyền lợi mặc định — mỗi dòng một ý (dùng khi khóa chưa nhập riêng)</label>
+            <textarea id="pg-benefits" style="min-height:80px;"></textarea></div>
+          <button id="pg-save" style="margin-top:0.5rem;">Lưu thông tin chung</button>
+          <p id="pg-msg" class="msg"></p>
+        </div>
+        </div>
 
         <div class="tabpane" data-tab="students">
         <div id="stu-alert"></div>
@@ -2952,6 +3063,7 @@
           { id: "dict", label: "Dictation", icon: "headphones", group: "Content" },
           { id: "landing", label: "Landing Page", icon: "globe", group: "Content" },
           { id: "testmgr", label: "Đề thi", icon: "file-text", group: "Content" },
+          { id: "pricing", label: "Giá & thanh toán", icon: "badge-dollar-sign", group: "Settings" },
           { id: "modules", label: "Tính năng", icon: "toggle-right", group: "Settings" },
           { id: "students", label: "Students (" + onlyStudents.length + ")" + (stuWarn ? " ⚠️" : ""), icon: "users", group: "Users" },
           { id: "classes", label: "Lớp học", icon: "layers", group: "Users" },
@@ -3191,6 +3303,210 @@
           m.className = "msg err";
         }
       });
+
+      // ================= PRICING & PAYMENT =================
+      (function () {
+        const selC = document.getElementById("pr-course");
+        if (!selC) return;
+        const $g = id => document.getElementById(id);
+        const msg = (el, t, err) => { el.textContent = t; el.className = "msg" + (err ? " err" : ""); };
+        const prMsg = $g("pr-msg"), pgMsg = $g("pg-msg");
+
+        let PRICING = {};                       // course_id -> config
+        (cpRes.data || []).forEach(r => { PRICING[r.course_id] = r.config || {}; });
+        let GLOBAL = (psRes.data && psRes.data.config) || {};
+        const missing = !!(cpRes.error || psRes.error);
+        $g("pr-state").textContent = missing ? "— chạy migration46 trước" : "";
+
+        const lines = a => (a || []).join("\n");
+        const toLines = v => String(v || "").split("\n").map(x => x.trim()).filter(Boolean);
+
+        // ---- upload an image to the public "banners" bucket ----
+        async function upImg(file, prefix) {
+          const blob = (window.UI && UI.resizeImage) ? await UI.resizeImage(file, 1200) : file;
+          const path = prefix + "-" + Date.now() + ".jpg";
+          const { error } = await sb.storage.from("banners")
+            .upload(path, blob, { contentType: "image/jpeg", upsert: true });
+          if (error) throw error;
+          return sb.storage.from("banners").getPublicUrl(path).data.publicUrl;
+        }
+        function imgBox(el, url, onClear) {
+          el.innerHTML = url
+            ? `<img src="${esc(url)}" alt="" style="height:54px;border-radius:8px;border:1px solid var(--line);vertical-align:middle;" />
+               <button class="ghost" type="button" style="margin-left:0.4rem;color:var(--danger);border-color:var(--danger);">✕</button>`
+            : `<span class="kind">chưa có ảnh</span>`;
+          const b = el.querySelector("button");
+          if (b) b.addEventListener("click", onClear);
+        }
+
+        // ---- fill the form from a course's config ----
+        function fillCourse() {
+          const c = PRICING[selC.value] || {};
+          const pay = c.payment || {}, con = c.contacts || {};
+          $g("pr-title").value = c.title || "";
+          $g("pr-sub").value = c.subtitle || "";
+          $g("pr-price").value = c.price != null ? c.price : "";
+          $g("pr-sale").value = c.sale_price != null ? c.sale_price : "";
+          $g("pr-onsale").checked = !!c.on_sale;
+          $g("pr-badge").value = c.badge || "";
+          $g("pr-promo").value = c.promo_label || "";
+          $g("pr-benefits").value = lines(c.benefits);
+          $g("pr-desc").value = c.description_html || "";
+          $g("pr-enabled").checked = c.enabled !== false;
+          const ownPay = (pay.use_global === false) || (con.use_global === false);
+          $g("pr-pay-global").checked = !ownPay;
+          $g("pr-pay-own").style.display = ownPay ? "block" : "none";
+          $g("pr-bank").value = pay.bank || ""; $g("pr-holder").value = pay.holder || "";
+          $g("pr-acc").value = pay.number || ""; $g("pr-ref").value = pay.reference || "";
+          $g("pr-zalo").value = con.zalo || ""; $g("pr-mess").value = con.messenger || "";
+          $g("pr-phone").value = con.phone || ""; $g("pr-email").value = con.email || "";
+          imgBox($g("pr-img-box"), c.promo_image, () => {
+            (PRICING[selC.value] = PRICING[selC.value] || {}).promo_image = "";
+            imgBox($g("pr-img-box"), "", () => {});
+          });
+          imgBox($g("pr-qr-box"), pay.qr_url, () => {
+            const cc = PRICING[selC.value] = PRICING[selC.value] || {};
+            cc.payment = cc.payment || {}; cc.payment.qr_url = "";
+            imgBox($g("pr-qr-box"), "", () => {});
+          });
+        }
+
+        function fillGlobal() {
+          const pay = GLOBAL.payment || {}, con = GLOBAL.contacts || {}, d = GLOBAL.defaults || {};
+          $g("pg-bank").value = pay.bank || ""; $g("pg-holder").value = pay.holder || "";
+          $g("pg-acc").value = pay.number || ""; $g("pg-ref").value = pay.reference || "";
+          $g("pg-zalo").value = con.zalo || ""; $g("pg-mess").value = con.messenger || "";
+          $g("pg-phone").value = con.phone || ""; $g("pg-email").value = con.email || "";
+          $g("pg-benefits").value = lines(d.benefits);
+          imgBox($g("pg-qr-box"), pay.qr_url, () => {
+            GLOBAL.payment = GLOBAL.payment || {}; GLOBAL.payment.qr_url = "";
+            imgBox($g("pg-qr-box"), "", () => {});
+          });
+        }
+
+        // ---- read the form back into a config object ----
+        function readCourse() {
+          const ownPay = !$g("pr-pay-global").checked;
+          const num = v => (v === "" || v == null) ? null : Number(v);
+          const prev = PRICING[selC.value] || {};
+          return {
+            enabled: $g("pr-enabled").checked,
+            title: $g("pr-title").value.trim(),
+            subtitle: $g("pr-sub").value.trim(),
+            price: num($g("pr-price").value),
+            sale_price: num($g("pr-sale").value),
+            on_sale: $g("pr-onsale").checked,
+            badge: $g("pr-badge").value.trim(),
+            promo_label: $g("pr-promo").value.trim(),
+            promo_image: prev.promo_image || "",
+            benefits: toLines($g("pr-benefits").value),
+            description_html: $g("pr-desc").value.trim(),
+            payment: {
+              use_global: !ownPay,
+              bank: $g("pr-bank").value.trim(), holder: $g("pr-holder").value.trim(),
+              number: $g("pr-acc").value.trim(), reference: $g("pr-ref").value.trim(),
+              qr_url: (prev.payment && prev.payment.qr_url) || ""
+            },
+            contacts: {
+              use_global: !ownPay,
+              zalo: $g("pr-zalo").value.trim(), messenger: $g("pr-mess").value.trim(),
+              phone: $g("pr-phone").value.trim(), email: $g("pr-email").value.trim()
+            },
+            plans: prev.plans || []
+          };
+        }
+
+        selC.addEventListener("change", fillCourse);
+        $g("pr-pay-global").addEventListener("change", e => {
+          $g("pr-pay-own").style.display = e.target.checked ? "none" : "block";
+        });
+
+        $g("pr-img-file").addEventListener("change", async e => {
+          const f = e.target.files[0]; if (!f) return;
+          msg(prMsg, "Đang tải ảnh…");
+          try {
+            const url = await upImg(f, "promo-" + selC.value);
+            (PRICING[selC.value] = PRICING[selC.value] || {}).promo_image = url;
+            imgBox($g("pr-img-box"), url, () => {
+              PRICING[selC.value].promo_image = ""; imgBox($g("pr-img-box"), "", () => {});
+            });
+            msg(prMsg, "Đã tải ảnh ✓ — nhớ bấm Lưu.");
+          } catch (err) { msg(prMsg, "Tải ảnh thất bại: " + err.message, true); }
+          e.target.value = "";
+        });
+        $g("pr-qr-file").addEventListener("change", async e => {
+          const f = e.target.files[0]; if (!f) return;
+          msg(prMsg, "Đang tải ảnh QR…");
+          try {
+            const url = await upImg(f, "qr-" + selC.value);
+            const cc = PRICING[selC.value] = PRICING[selC.value] || {};
+            cc.payment = cc.payment || {}; cc.payment.qr_url = url;
+            imgBox($g("pr-qr-box"), url, () => { cc.payment.qr_url = ""; imgBox($g("pr-qr-box"), "", () => {}); });
+            msg(prMsg, "Đã tải QR ✓ — nhớ bấm Lưu.");
+          } catch (err) { msg(prMsg, "Tải ảnh thất bại: " + err.message, true); }
+          e.target.value = "";
+        });
+        $g("pg-qr-file").addEventListener("change", async e => {
+          const f = e.target.files[0]; if (!f) return;
+          msg(pgMsg, "Đang tải ảnh QR…");
+          try {
+            const url = await upImg(f, "qr-global");
+            GLOBAL.payment = GLOBAL.payment || {}; GLOBAL.payment.qr_url = url;
+            imgBox($g("pg-qr-box"), url, () => { GLOBAL.payment.qr_url = ""; imgBox($g("pg-qr-box"), "", () => {}); });
+            msg(pgMsg, "Đã tải QR ✓ — nhớ bấm Lưu.");
+          } catch (err) { msg(pgMsg, "Tải ảnh thất bại: " + err.message, true); }
+          e.target.value = "";
+        });
+
+        $g("pr-save").addEventListener("click", async () => {
+          if (!selC.value) { msg(prMsg, "Hãy tạo một khóa học trước.", true); return; }
+          const cfg = readCourse();
+          const { error } = await sb.from("course_pricing")
+            .upsert({ course_id: selC.value, config: cfg, updated_at: new Date().toISOString() },
+                    { onConflict: "course_id" });
+          if (error) { msg(prMsg, "Không lưu được: " + error.message + (missing ? " — hãy chạy migration46." : ""), true); return; }
+          PRICING[selC.value] = cfg;
+          if (window.Premium) Premium.refresh();
+          msg(prMsg, "Đã lưu cho khóa này ✓");
+        });
+
+        $g("pr-clear").addEventListener("click", async () => {
+          if (!confirm("Xóa cấu hình giá của khóa này? Popup sẽ quay về nội dung chung.")) return;
+          const { error } = await sb.from("course_pricing").delete().eq("course_id", selC.value);
+          if (error) { msg(prMsg, "Không xóa được: " + error.message, true); return; }
+          delete PRICING[selC.value];
+          if (window.Premium) Premium.refresh();
+          fillCourse();
+          msg(prMsg, "Đã xóa cấu hình khóa ✓");
+        });
+
+        $g("pg-save").addEventListener("click", async () => {
+          GLOBAL.payment = Object.assign(GLOBAL.payment || {}, {
+            bank: $g("pg-bank").value.trim(), holder: $g("pg-holder").value.trim(),
+            number: $g("pg-acc").value.trim(), reference: $g("pg-ref").value.trim()
+          });
+          GLOBAL.contacts = Object.assign(GLOBAL.contacts || {}, {
+            zalo: $g("pg-zalo").value.trim(), messenger: $g("pg-mess").value.trim(),
+            phone: $g("pg-phone").value.trim(), email: $g("pg-email").value.trim()
+          });
+          GLOBAL.defaults = Object.assign(GLOBAL.defaults || {}, { benefits: toLines($g("pg-benefits").value) });
+          const { error } = await sb.from("payment_settings")
+            .upsert({ id: 1, config: GLOBAL, updated_at: new Date().toISOString() }, { onConflict: "id" });
+          if (error) { msg(pgMsg, "Không lưu được: " + error.message + (missing ? " — hãy chạy migration46." : ""), true); return; }
+          if (window.Premium) Premium.refresh();
+          msg(pgMsg, "Đã lưu thông tin chung ✓");
+        });
+
+        $g("pr-preview").addEventListener("click", () => {
+          if (!window.Premium) { msg(prMsg, "Chưa tải được premium.js.", true); return; }
+          const c = (courses || []).find(x => x.id === selC.value) || {};
+          Premium.preview(readCourse(), { courseId: selC.value, courseTitle: c.title, thumb: c.banner_url || "" });
+        });
+
+        fillCourse();
+        fillGlobal();
+      })();
+      // =============== END PRICING & PAYMENT ===============
 
       // ================= READING MANAGEMENT =================
       (function () {
@@ -3913,7 +4229,8 @@
           "reading_vocab", "reading_days", "reading_progress", "reading_access",
           "shadow_videos", "shadow_progress", "shadow_days", "shadow_profile",
           "shadow_settings", "shadow_access", "hanzi_words", "hanzi_profile",
-          "dict_progress", "dict_days"];
+          "dict_progress", "dict_days",
+          "course_pricing", "payment_settings"];
         const backup = { app: "Learning Ecology", exported_at: new Date().toISOString(), tables: {} };
         const problems = [];
         for (let i = 0; i < TABLES.length; i++) {

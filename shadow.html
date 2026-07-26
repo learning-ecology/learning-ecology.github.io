@@ -6,6 +6,27 @@
 <title>Shadow Chinese — Luyện nói theo video 跟读 · Learning Ecology</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
+<script src="premium.js"></script>
+<script>
+  /* ---- module guard ----------------------------------------------------
+     This feature can be switched off per installation (Dashboard →
+     Tính năng). Students are sent back to the dashboard; the owner keeps
+     access so they can preview. Fails OPEN if app_modules is absent, so
+     the page keeps working on databases without migration38. */
+  (async function () {
+    try {
+      var res = await sb.from("app_modules").select("shadow").eq("id", 1)
+                  .maybeSingle().then(function (r) { return r; }, function () { return null; });
+      if (!res || res.error || !res.data || res.data.shadow !== false) return;
+      var s = await sb.auth.getSession();
+      var uid = s && s.data && s.data.session && s.data.session.user && s.data.session.user.id;
+      if (!uid) return;                       // login redirect handles it
+      var p = await sb.from("profiles").select("role").eq("id", uid).single();
+      if (p && p.data && p.data.role === "owner") return;   // owner may preview
+      location.replace("dashboard.html");
+    } catch (e) { /* never block the page on an unexpected error */ }
+  })();
+  </script>
 <script src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.26.0/dist/index.min.js"></script>
 <style>
   :root {
@@ -542,6 +563,14 @@ function isLocked(v) {
   return freeRank(v.id) >= FREE_LIMIT;
 }
 function showUpgrade(v) {
+  // popup dùng chung (premium.js)
+  if (window.Premium) {
+    const why = (v && v.tier === 'premium')
+      ? 'Nội dung này thuộc gói Premium. Mở khóa để học không giới hạn.'
+      : 'Bạn đã dùng hết video miễn phí. Mở khóa để luyện không giới hạn.';
+    Premium.open({ reason: why });
+    return;
+  }
   const reason = (v && v.tier === 'premium')
     ? 'Video này thuộc gói Premium. Nâng cấp để mở khóa toàn bộ thư viện luyện nói.'
     : 'Bạn đã dùng hết ' + FREE_LIMIT + ' video miễn phí. Nâng cấp Premium để luyện không giới hạn — hoặc nhờ giáo viên mở thêm video cho bạn.';

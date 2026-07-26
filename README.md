@@ -8,7 +8,28 @@ A tiny, working learning management system:
   accounts, the database, and file storage.
 
 Files: `index.html` (login), `dashboard.html` (student + admin views),
-`styles.css`, `config.js` (your keys), `schema.sql` (database setup).
+`styles.css`, `config.js` (your keys). Database setup lives in
+`setup-my-school/` (see the folder map below).
+
+---
+
+## Folder layout
+
+The app code is **one shared codebase** — your school and any rented centre run
+the *same* `.html`/`.css`/`.js`. What makes a site "yours" or "theirs" is only
+`config.js` (which Supabase project it points at) plus the module switches in
+the database.
+
+| Where | What's there |
+|---|---|
+| **(top level)** | The website itself — every `.html`, `styles.css`, `ui.js`, `lang.js`, `tracker.js`, `sw.js`, `manifest.json`, `icons/`, images, **and your live `config.js`**. This whole level is what you upload to your GitHub Pages repo. |
+| **`setup-my-school/`** | Your own database: `schema.sql` + the numbered `migration*.sql` you run step-by-step. Your live DB already has these; you only run the newest one on each upgrade. |
+| **`setup-tenant/`** | The kit for standing up a **rented centre**: the one-shot `tenant-setup.sql`, the `TENANT-SETUP.md` guide, and a `config.example.js` template. |
+| **`edge-functions/`** | The two Supabase server functions (`manage-user.ts`, `yt-captions.ts`). Shared — both your project and a centre's deploy the same code. |
+| **`UPGRADE-CHECKLIST.md`** | The master log: what every phase added, in what order to install it, and how to test it. |
+
+> Moving the setup files into folders does **not** affect your live site — GitHub
+> Pages only ever serves the top-level web files, which stayed put.
 
 ---
 
