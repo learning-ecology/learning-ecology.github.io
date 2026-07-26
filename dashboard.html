@@ -14,7 +14,7 @@
   </script>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#17263e" />
-  <link rel="icon" type="image/png" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" href="icons/logo-64.png" />
   <link rel="apple-touch-icon" href="icons/icon-180.png" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -23,7 +23,7 @@
 </head>
 <body>
   <header class="topbar">
-    <span class="brand"><img src="icons/icon-192.png" alt="" />Learning Ecology</span>
+    <span class="brand"><img src="icons/logo-64.png" alt="" />Learning Ecology</span>
     <div style="display:flex; align-items:center;">
       <span id="bell-slot" style="margin-right:0.5rem;"></span>
       <span class="badge" id="who-badge" style="display:none;"></span>
@@ -38,7 +38,8 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/lucide@0.454.0/dist/umd/lucide.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/lucide@0.454.0/dist/umd/lucide.min.js"
+          onload="try{lucide.createIcons()}catch(e){}"></script>
   <script src="lang.js"></script>
   <script src="config.js"></script>
   <script src="ui.js"></script>

@@ -9,7 +9,14 @@
 //  - Requests to other origins (Supabase, CDNs) are not touched.
 // ------------------------------------------------------------
 
-const CACHE = "learning-ecology-v6";
+const CACHE = "learning-ecology-v7";
+
+// Phase 43: how long a navigation waits for the network before the last good
+// copy is shown instead. On a healthy connection the network always wins, so
+// a freshly uploaded file still appears immediately; on a slow or flaky
+// connection the page opens at once and the fresh copy lands in the cache for
+// the next visit.
+const SLOW_NETWORK_MS = 2500;
 
 // The app shell, pre-cached at install so the first offline
 // launch works. Files that fail to cache are skipped silently
@@ -36,6 +43,7 @@ const CORE = [
   "./tracker.js",
   "./config.js",
   "./manifest.json",
+  "./icons/logo-64.png",
   "./icons/icon-192.png",
   "./icons/icon-512.png"
 ];
@@ -80,16 +88,33 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
+  // Pages, CSS and JS: still network first, so a new upload is picked up right
+  // away — but a slow network no longer means a blank screen. If the response
+  // has not arrived within SLOW_NETWORK_MS the cached copy is shown instead,
+  // and the network reply (whenever it lands) refreshes the cache.
   e.respondWith(
-    fetch(e.request)
-      .then((res) => {
-        if (res.ok) {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(e.request, copy));
-        }
-        return res;
-      })
-      .catch(() => caches.match(e.request, { ignoreSearch: false })
-        .then((hit) => hit || caches.match("./login.html")))
+    new Promise((resolve) => {
+      let sent = false;
+      const send = (r) => { if (!sent && r) { sent = true; resolve(r); } };
+
+      const slow = setTimeout(() => {
+        caches.match(e.request).then((hit) => send(hit));
+      }, SLOW_NETWORK_MS);
+
+      fetch(e.request)
+        .then((res) => {
+          clearTimeout(slow);
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(e.request, copy));
+          }
+          send(res);
+        })
+        .catch(() => {
+          clearTimeout(slow);
+          caches.match(e.request, { ignoreSearch: false })
+            .then((hit) => send(hit || caches.match("./login.html")));
+        });
+    })
   );
 });

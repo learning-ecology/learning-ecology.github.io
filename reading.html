@@ -27,7 +27,7 @@
     } catch (e) { /* never block the page on an unexpected error */ }
   })();
   </script>
-<script src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.26.0/dist/index.min.js"></script>
+<script defer id="pyLib" src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.26.0/dist/index.min.js"></script>
 <style>
   :root {
     --bg:#f4f6fb; --panel:#fff; --ink:#1c2740; --muted:#64708a; --line:#dfe4ef;
@@ -762,17 +762,65 @@ async function loadTexts() {
     } catch (e) { TEXTS = []; }
     return;
   }
+  /* Phase 43 — the library used to arrive with the FULL text + translation of
+     every lesson (≈1 MB of JSON at 400 lessons), which delayed the first paint
+     and then froze the main thread writing it all to localStorage. It now loads
+     in two stages: metadata (fast, renders straight away), then content in the
+     background so deep search, word counts and offline reading still work. */
+  const META = 'id,title,title_vi,level,tags,tier,sort_order,created_at,published,category,theme_id,subtopics,cover_url,cover_alt';
+  const words = read('crh-words-v1', {});    // char counts kept from last visit
+  const mapRow = r => ({ id: r.id, title: r.title, vi: r.title_vi || '', level: r.level,
+    text: r.content == null ? null : r.content, tr: r.translation || '', tags: r.tags || [],
+    tier: r.tier || 'free', so: r.sort_order || 0, ca: r.created_at || '', pub: r.published !== false, cat: r.category || '',
+    theme: r.theme_id || '', subs: r.subtopics || [], cover: r.cover_url || '', coverAlt: r.cover_alt || '',
+    words: words[r.id] || 0 });
   try {
-    const { data, error } = await sb.from('reading_texts').select('*').order('level').order('created_at');
-    if (error) throw error;
-    ACCESS_READY = data.length > 0 && ('tier' in data[0]);
-    TITLEVI_READY = data.length > 0 && ('title_vi' in data[0]);
-    TEXTS = data.map(r => ({ id: r.id, title: r.title, vi: r.title_vi || '', level: r.level, text: r.content, tr: r.translation || '', tags: r.tags || [],
-      tier: r.tier || 'free', so: r.sort_order || 0, ca: r.created_at || '', pub: r.published !== false, cat: r.category || '',
-      theme: r.theme_id || '', subs: r.subtopics || [], cover: r.cover_url || '', coverAlt: r.cover_alt || '' }));
+    let res = await sb.from('reading_texts').select(META).order('level').order('created_at');
+    let slim = true;
+    if (res.error) {                 // a column is missing (migration not run yet) → old behaviour
+      slim = false;
+      res = await sb.from('reading_texts').select('*').order('level').order('created_at');
+      if (res.error) throw res.error;
+    }
+    const data = res.data || [];
+    ACCESS_READY = slim || (data.length > 0 && ('tier' in data[0]));
+    TITLEVI_READY = slim || (data.length > 0 && ('title_vi' in data[0]));
+    TEXTS = data.map(mapRow);
     freeOrderCache = null;
-    store('texts-cache', TEXTS);
-  } catch (e) { TEXTS = read('texts-cache', []); }
+    if (slim) CONTENT_READY = false;            // stage 2 will fill in the content
+    else { CONTENT_READY = true; store('texts-cache', TEXTS); }
+  } catch (e) {
+    TEXTS = read('texts-cache', []);            // offline: last full copy
+    CONTENT_READY = TEXTS.some(t => t.text != null);
+  }
+}
+
+/* Stage 2: content + translation for every lesson. Runs AFTER the library is on
+   screen, never blocks it, and is what makes search-inside-the-text work. */
+let CONTENT_READY = false, contentJob = null;
+function loadContent() {
+  if (CONTENT_READY || PUBLIC) return Promise.resolve();
+  if (contentJob) return contentJob;
+  contentJob = (async () => {
+    try {
+      const { data, error } = await sb.from('reading_texts').select('id,content,translation');
+      if (error) throw error;
+      const by = new Map((data || []).map(r => [r.id, r]));
+      const words = {};
+      for (const t of TEXTS) {
+        const r = by.get(t.id);
+        if (!r) continue;
+        t.text = r.content || ''; t.tr = r.translation || ''; t._wc = null;
+        t.words = (t.text.match(CJK_G) || []).length;
+        words[t.id] = t.words;
+      }
+      CONTENT_READY = true;
+      try { store('crh-words-v1', words); store('texts-cache', TEXTS); } catch (e) {}
+      if (currentView === 'library') renderLibrary();
+    } catch (e) { /* keep the metadata-only library; opening still fetches per text */ }
+    contentJob = null;
+  })();
+  return contentJob;
 }
 /* --- themes & subtopics (migration 33): shared taxonomy for the library.
        If the migration hasn't run yet, THEMES_READY stays false and the
@@ -950,6 +998,21 @@ function applyTone(plain, tone) {
 }
 const CJK = /[〇一-鿿㐀-䶿豈-﫿]/;
 
+/* ---- pinyin-pro is loaded with defer (it no longer blocks first paint).
+   Anything that needs it awaits this once; after the first load it is instant. ---- */
+function whenPinyin() {
+  if (window.pinyinPro) return Promise.resolve(true);
+  const s = document.getElementById('pyLib');
+  if (!s) return Promise.resolve(false);
+  if (s.dataset.done) return Promise.resolve(!!window.pinyinPro);
+  return new Promise(res => {
+    const fin = () => { s.dataset.done = '1'; res(!!window.pinyinPro); };
+    s.addEventListener('load', fin, { once: true });
+    s.addEventListener('error', fin, { once: true });
+    setTimeout(fin, 6000);                 // never hang the reader on a bad network
+  });
+}
+
 /* char-level pinyin with sandhi — same pipeline as pinyin-tool */
 function charAnalyse(line) {
   if (!window.pinyinPro) return null;
@@ -979,6 +1042,7 @@ function charAnalyse(line) {
 const DICT_URL = i => 'https://cdn.jsdelivr.net/gh/clem109/hsk-vocabulary@master/hsk-vocab-json/hsk-level-' + i + '.json';
 let DICT = {};           // hanzi -> [pinyin, meaning, level]
 let MAXW = 1;
+let DICT_JOB = null;     // set by boot(); anything that segments text awaits it
 function rebuildDictIndex() {
   for (const e of DICT_CUSTOM) DICT[e.word] = [e.pinyin, e.meaning, +e.level, e.example || ''];
   MAXW = 1;
@@ -1034,16 +1098,15 @@ function segment(line) {
 
 /* ================= access control (locks + upgrade prompt) ================= */
 async function loadAccess() {
+  if (PUBLIC) { GRANTS = []; return; }   // khách: không có quyền riêng → khỏi gọi máy chủ
   try {
     /* no student filter: RLS returns this student's own grants PLUS
        course-wide grants for every course they are enrolled in (migration29) */
     const { data } = await sb.from('reading_access').select('text_id, level');
     GRANTS = data || [];
   } catch (e) { GRANTS = []; }
-  try {
-    const { data } = await sb.from('reading_settings').select('free_limit').eq('id', 1).maybeSingle();
-    if (data && typeof data.free_limit === 'number') FREE_LIMIT = data.free_limit;
-  } catch (e) { /* column not there yet → no limit */ }
+  /* free_limit comes from the single reading_settings fetch in loadSettings()
+     (it used to be a second, duplicate round-trip to the same row). */
 }
 function grantCovers(t) {
   return GRANTS.some(g => g.text_id === t.id || (!g.text_id && (g.level == null || g.level === t.level)));
@@ -1332,16 +1395,29 @@ let currentText = null;
 let readTimer = null;
 function textList() { return getTexts().filter(t => (!libLevel || t.level === libLevel) && !isLocked(t)); }
 async function openText(id) {
+  /* segmentation needs the HSK dictionary and pinyin-pro; both load in parallel
+     with the library, so this normally resolves instantly */
+  await Promise.all([whenPinyin(), DICT_JOB]);
   const t = getTexts().find(x => x.id === id);
   if (!t) return;
   if (isLocked(t)) { showUpgradeR(t); return; }
-  if (PUBLIC && t.text == null) {          // nội dung bài miễn phí lấy từ máy chủ khi mở
+  if (t.text == null) {                   // nội dung tải khi mở bài (nhanh hơn nhiều)
     toast('Đang mở bài đọc…');
-    try {
-      const { data } = await sb.rpc('public_reading_text', { p_id: id });
-      if (!data || data.content == null) { showUpgradeR(t); return; }
-      t.text = data.content; t.tr = data.translation || '';
-    } catch (e) { showUpgradeR(t); return; }
+    if (PUBLIC) {
+      try {
+        const { data } = await sb.rpc('public_reading_text', { p_id: id });
+        if (!data || data.content == null) { showUpgradeR(t); return; }
+        t.text = data.content; t.tr = data.translation || '';
+      } catch (e) { showUpgradeR(t); return; }
+    } else {
+      try {
+        const { data, error } = await sb.from('reading_texts')
+          .select('content,translation').eq('id', id).maybeSingle();
+        if (error || !data) throw (error || new Error('no row'));
+        t.text = data.content || ''; t.tr = data.translation || '';
+        t._wc = null; t.words = (t.text.match(CJK_G) || []).length;
+      } catch (e) { toast('Không mở được bài đọc — kiểm tra kết nối'); return; }
+    }
   }
   currentText = t;
   show('reader');
@@ -1781,7 +1857,7 @@ function renderAdmin() {
     (t.vi ? '<div class="mutetext" style="font-size:12px;font-family:-apple-system,sans-serif">' + escH(t.vi) + '</div>' : '') + '</td>' +
     '<td><span class="lv lv' + t.level + '">HSK ' + t.level + '</span></td>' +
     '<td>' + (t.tags || []).map(g => '<span class="tag">' + escH(g) + '</span>').join(' ') + '</td>' +
-    '<td>' + (t.text.match(CJK_G) || []).length + ' chữ</td>' +
+    '<td>' + (t.text ? (t.text.match(CJK_G) || []).length : (t.words || 0)) + ' chữ</td>' +
     '<td><button class="small" data-act="edit" data-id="' + t.id + '">✏️</button> ' +
     '<button class="small" data-act="del" data-id="' + t.id + '">🗑</button></td></tr>').join('');
   $('aList').innerHTML = '<tr><th>Tiêu đề</th><th>Cấp</th><th>Chủ đề</th><th>Độ dài</th><th></th></tr>' + rows;
@@ -2042,6 +2118,15 @@ $('aList').addEventListener('click', async e => {
   const b = e.target.closest('button'); if (!b) return;
   const t = getTexts().find(x => x.id === b.dataset.id); if (!t) return;
   if (b.dataset.act === 'edit') {
+    if (t.text == null) {                 // content loads in the background — wait for this one
+      b.disabled = true;
+      try {
+        const { data } = await sb.from('reading_texts').select('content,translation').eq('id', t.id).maybeSingle();
+        if (data) { t.text = data.content || ''; t.tr = data.translation || ''; }
+      } catch (err) {}
+      b.disabled = false;
+      if (t.text == null) { toast('Chưa tải được nội dung bài — thử lại'); return; }
+    }
     $('aId').value = t.id; $('aTitle').value = t.title; $('aTitleVi').value = t.vi || ''; $('aLevel').value = t.level;
     $('aText').value = t.text; $('aTrans').value = t.tr || ''; $('aTags').value = (t.tags || []).join(', ');
     fillThemeForm(t.theme || '', t.subs || []);
@@ -2236,6 +2321,8 @@ async function loadSettings() {
   try {
     const { data } = await sb.from('reading_settings').select('*').eq('id', 1).maybeSingle();
     if (data && data.az_key) AZ_SHARED = { key: data.az_key, region: data.az_region || 'southeastasia' };
+    /* free-lesson limit rides along on this same row (was a 2nd request) */
+    if (data && typeof data.free_limit === 'number') FREE_LIMIT = data.free_limit;
   } catch (e) {}
 }
 const azConf = () => {
@@ -2402,11 +2489,19 @@ $('btnKeySave').addEventListener('click', async () => {
   loadPrefs();
   if ('speechSynthesis' in window) populateVoicePick();
   $('dictStatus').textContent = '⏳ Đang tải dữ liệu tài khoản…';
+  /* Phase 43 — the HSK dictionary (a CDN download on the first visit) used to be
+     awaited BEFORE anything was drawn, so the library sat blank for an extra
+     second. It now downloads alongside the account data; the library is drawn as
+     soon as the lessons arrive, and the dictionary only gates opening a text. */
+  DICT_JOB = loadDict();
   await Promise.all([loadTexts(), loadThemes(), loadCloudDict(), loadAccess(), loadSettings(), pullVocab(), pullDays(), pullProgress()]);
-  await loadDict();          // HSK dictionary from CDN (cached on the device after first load)
   rebuildDictIndex();
-  renderLibrary();
+  renderLibrary();           // ← first useful screen, no longer waits for the CDN
   updateDueBadge();
+  loadContent();             // lesson text streams in behind the scenes
+  await DICT_JOB;
+  rebuildDictIndex();
+  if (currentView === 'library') renderLibrary();
   // mở thẳng một bài khi đến từ trang khóa học: reading.html?open=<id>
   try {
     const want = new URLSearchParams(location.search).get('open');

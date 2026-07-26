@@ -27,7 +27,7 @@
     } catch (e) { /* never block the page on an unexpected error */ }
   })();
   </script>
-<script src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.26.0/dist/index.min.js"></script>
+<script defer id="pyLib" src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.26.0/dist/index.min.js"></script>
 <style>
   :root {
     --bg:#f4f6fb; --panel:#fff; --ink:#1c2740; --muted:#64708a; --line:#dfe4ef;
@@ -590,19 +590,64 @@ async function loadVideos() {
     freeOrderCache = null;
     return;
   }
+  /* Phase 43 — this used to be select('*'), which downloads the FULL subtitle
+     track of every video (≈38 KB each) just to draw the library. Subtitles now
+     arrive in a second, non-blocking pass; opening a video fetches its own. */
+  const META = 'id,yt,title,level,published,created_by,created_at,tier,sort_order';
+  const cnt = read('vids-lines-v1', {});      // sentence count + length from last visit
   try {
-    const { data, error } = await sb.from('shadow_videos').select('*').order('created_at', { ascending: false });
-    if (error) throw error;
-    VIDS = data;
-    store('vids-cache', VIDS.map(v => ({ ...v, subs: (v.subs || []).slice(0, 400) })));
-  } catch (e) { VIDS = read('vids-cache', []); }
+    let res = await sb.from('shadow_videos').select(META).order('created_at', { ascending: false });
+    if (res.error) {                          // column missing (migration not run) → old behaviour
+      res = await sb.from('shadow_videos').select('*').order('created_at', { ascending: false });
+      if (res.error) throw res.error;
+      VIDS = res.data;
+      SUBS_READY = true;
+      store('vids-cache', VIDS.map(v => ({ ...v, subs: (v.subs || []).slice(0, 400) })));
+    } else {
+      VIDS = (res.data || []).map(v => ({ ...v, subs: null,
+        lines: (cnt[v.id] || {}).n || 0, _dur: (cnt[v.id] || {}).d || 0 }));
+      SUBS_READY = false;
+    }
+  } catch (e) {
+    VIDS = read('vids-cache', []);
+    SUBS_READY = VIDS.some(v => Array.isArray(v.subs));
+  }
   freeOrderCache = null;
+}
+
+/* Second pass: the subtitle tracks. Runs after the library is on screen. */
+let SUBS_READY = false, subsJob = null;
+function loadSubs() {
+  if (SUBS_READY || PUBLIC) return Promise.resolve();
+  if (subsJob) return subsJob;
+  subsJob = (async () => {
+    try {
+      const { data, error } = await sb.from('shadow_videos').select('id,subs');
+      if (error) throw error;
+      const by = new Map((data || []).map(r => [r.id, r.subs || []]));
+      const cnt = {};
+      for (const v of VIDS) {
+        const sx = by.get(v.id);
+        if (!sx) continue;
+        v.subs = sx; v.lines = sx.length;
+        v._dur = sx.length ? sx[sx.length - 1].b : 0;
+        cnt[v.id] = { n: v.lines, d: v._dur };
+      }
+      SUBS_READY = true;
+      try { store('vids-lines-v1', cnt);
+            store('vids-cache', VIDS.map(v => ({ ...v, subs: (v.subs || []).slice(0, 400) }))); } catch (e) {}
+      renderLibrary();
+    } catch (e) { /* library still works; each video loads its own subtitles */ }
+    subsJob = null;
+  })();
+  return subsJob;
 }
 
 /* ================= access control (Free limit + 👑, like the Reading Hub) =================
    Until migration28 runs, ACCESS_READY stays false and nothing is ever locked. */
 let isPremium = false, ACCESS_READY = false, GRANTS = [], FREE_LIMIT = 0, freeOrderCache = null;
 async function loadAccess() {
+  if (PUBLIC) { GRANTS = []; return; }   // khách: không có quyền riêng → khỏi gọi máy chủ
   try {
     /* no student filter: RLS returns this student's own grants PLUS
        course-wide grants for every course they are enrolled in (migration29) */
@@ -713,6 +758,7 @@ async function pushDay() {
   } catch (e) {}
 }
 async function pullDays() {
+  if (!uid) return;
   try {
     const { data, error } = await sb.from('shadow_days').select('*');
     if (error) throw error;
@@ -732,6 +778,7 @@ async function pullDays() {
 let GOALS = { min: 15, words: 5 };
 async function pullGoals() {
   GOALS = read('goals', GOALS);
+  if (!uid) return;
   try {
     const { data } = await sb.from('shadow_profile').select('goals').eq('user_id', uid).maybeSingle();
     if (data && data.goals && data.goals.min !== undefined) { GOALS = data.goals; store('goals', GOALS); }
@@ -868,6 +915,21 @@ function charAnalyse(line) {
   return items.map(it => ({ ...it, mark: it.isZh ? applyTone(it.plain, it.tone) : it.origin }));
 }
 /* pinyin for one word/sentence as a display string */
+/* ---- pinyin-pro is loaded with defer (it no longer blocks first paint).
+   Anything that needs it awaits this once; after the first load it is instant. ---- */
+function whenPinyin() {
+  if (window.pinyinPro) return Promise.resolve(true);
+  const s = document.getElementById('pyLib');
+  if (!s) return Promise.resolve(false);
+  if (s.dataset.done) return Promise.resolve(!!window.pinyinPro);
+  return new Promise(res => {
+    const fin = () => { s.dataset.done = '1'; res(!!window.pinyinPro); };
+    s.addEventListener('load', fin, { once: true });
+    s.addEventListener('error', fin, { once: true });
+    setTimeout(fin, 6000);                 // never hang the reader on a bad network
+  });
+}
+
 function pyOf(text) {
   const items = charAnalyse(text);
   return items ? items.filter(x => x.isZh).map(x => x.mark).join(' ') : '';
@@ -875,6 +937,7 @@ function pyOf(text) {
 
 /* ================= HSK dictionary (same cache as reading.html) ================= */
 const DICT_URL = i => 'https://cdn.jsdelivr.net/gh/clem109/hsk-vocabulary@master/hsk-vocab-json/hsk-level-' + i + '.json';
+let DICT_JOB = null;   // set by boot(); anything that segments text awaits it
 let DICT = {}, DICT_CUSTOM = [], MAXW = 1;
 function rebuildDictIndex() {
   for (const e of DICT_CUSTOM) DICT[e.word] = [e.pinyin, e.meaning, +e.level, e.example || ''];
@@ -1329,6 +1392,9 @@ function loadYtApi() {
   return ytReadyq;
 }
 async function openVideo(v) {
+  /* segmentation needs the HSK dictionary + pinyin-pro (both load in parallel
+     with the library, so this is normally instant) */
+  await Promise.all([whenPinyin(), DICT_JOB]);
   if (isLocked(v)) { showUpgrade(v); return; }
   if (PUBLIC && v._pub && !v.yt) {          // lấy media + phụ đề của video MIỄN PHÍ
     try {
@@ -1336,6 +1402,13 @@ async function openVideo(v) {
       if (!data || !data.yt) { showUpgrade(v); return; }
       v.yt = data.yt; v.subs = data.subs || [];
     } catch (e) { showUpgrade(v); return; }
+  } else if (!Array.isArray(v.subs)) {      // phụ đề tải riêng cho video này
+    toast('Đang tải phụ đề…');
+    try {
+      const { data, error } = await sb.from('shadow_videos').select('subs').eq('id', v.id).maybeSingle();
+      if (error || !data) throw (error || new Error('no row'));
+      v.subs = data.subs || []; v.lines = v.subs.length;
+    } catch (e) { toast('Không tải được phụ đề — kiểm tra kết nối'); return; }
   }
   CUR = v;
   cues = normalizeCues((v.subs || []).map(c => ({ ...c })));
@@ -1886,6 +1959,7 @@ $('navAdmin').addEventListener('click', () => showView('admin'));
 /* ================= library ================= */
 let MYPROG = {};           // video_id -> {done, sentences}
 async function loadMyProgress() {
+  if (!uid) { MYPROG = {}; return; }
   try {
     const { data, error } = await sb.from('shadow_progress').select('video_id, done, sentences').eq('user_id', uid);
     if (error) throw error;
@@ -1921,8 +1995,8 @@ function renderLibrary() {
   if (q) list = list.filter(v => (v.title || '').toLowerCase().includes(q));
   $('libGrid').innerHTML = list.map(v => {
     const subs = v.subs || [];
-    const nLines = subs.length || v.lines || 0;   // khách: số câu đếm sẵn từ máy chủ
-    const dur = subs.length ? subs[subs.length - 1].b : 0;
+    const nLines = subs.length || v.lines || 0;   // khách / trước khi phụ đề về: đếm sẵn
+    const dur = subs.length ? subs[subs.length - 1].b : (v._dur || 0);
     const p = MYPROG[v.id];
     const lock = isLocked(v);
     return '<div class="vcard' + (lock ? ' locked' : '') + '" data-id="' + v.id + '">' +
@@ -2110,7 +2184,7 @@ function renderAdmin() {
             '<option value="premium"' + (v.tier === 'premium' ? ' selected' : '') + '>👑 Premium</option></select>'
         : '') +
       '<label class="toggle"><input type="checkbox" class="admPub"' + (v.published ? ' checked' : '') + '> chia sẻ</label>' +
-      '<span class="mutetext">' + (v.subs || []).length + ' câu</span>' +
+      '<span class="mutetext">' + ((v.subs || []).length || v.lines || 0) + ' câu</span>' +
       '<button class="small admSave">💾 Lưu</button>' +
       '<button class="small admDel">🗑</button>' +
     '</div>').join('') || '<span class="mutetext">Chưa có video nào.</span>';
@@ -2145,11 +2219,13 @@ $('admList').addEventListener('click', async e => {
   if (!user) return;
   loadPrefs();
   $('impStatus').textContent = '⏳ Đang tải dữ liệu tài khoản…';
+  /* Phase 43 — the HSK dictionary download no longer blocks the library. */
+  DICT_JOB = loadDict();
   await Promise.all([loadVideos(), loadCloudDict(), loadSettings(), loadAccess(), pullVocab(), pullDays(), pullGoals(), loadMyProgress()]);
-  await loadDict();
   rebuildDictIndex();
   $('impStatus').textContent = '';
-  renderLibrary();
+  renderLibrary();           // ← on screen without waiting for the CDN
+  loadSubs();                // subtitles stream in behind the scenes
   try {
     const want = new URLSearchParams(location.search).get('open');
     const v = want && VIDS.find(x => x.id === want);
