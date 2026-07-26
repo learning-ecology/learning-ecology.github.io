@@ -73,13 +73,16 @@
       if (raw) CACHE = JSON.parse(raw);
     } catch (e) {}
 
-    if (typeof window.sb === "undefined") {
+    // config.js declares `const sb = …`, which is script-scoped and is NOT
+    // a property of window — so test the identifier, never window.sb.
+    var db = (typeof sb !== "undefined" && sb) ? sb : (window.sb || null);
+    if (!db) {
       return Promise.resolve(CACHE || { settings: {}, byCourse: {} });
     }
     LOADING = Promise.all([
-      sb.from("payment_settings").select("config").eq("id", 1).maybeSingle()
+      db.from("payment_settings").select("config").eq("id", 1).maybeSingle()
         .then(function (r) { return r; }, function () { return { data: null }; }),
-      sb.from("course_pricing").select("course_id, config")
+      db.from("course_pricing").select("course_id, config")
         .then(function (r) { return r; }, function () { return { data: null }; })
     ]).then(function (res) {
       var settings = (res[0] && res[0].data && res[0].data.config) || {};
