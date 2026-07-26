@@ -75,6 +75,30 @@
     .cp-mobilesel { display: none; width: 100%; margin-bottom: 1rem; }
 
     /* free/premium badge inside the reused .lc-foot */
+    .cp-side-h { font-size:.68rem; letter-spacing:.09em; text-transform:uppercase; color:var(--muted);
+      padding:.9rem .55rem .3rem; font-weight:700; }
+    .cp-lead { font-size:1.02rem; color:var(--muted); margin:.9rem 0 .2rem; }
+    .cp-bens { list-style:none; padding:0; margin:.6rem 0 1rem; display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:.35rem .9rem; }
+    .cp-bens li { display:flex; gap:.5rem; align-items:flex-start; font-size:.95rem; }
+    .cp-bens li span { color:var(--success); font-weight:900; }
+    .cp-cta { display:flex; gap:.6rem; flex-wrap:wrap; margin:.6rem 0 1rem; }
+    .cp-gold { background:linear-gradient(135deg,#f4d68a,#d9a53c) !important;
+      border-color:#d9a53c !important; color:#5a3d0e !important; font-weight:800; }
+    .cb-price { font-weight:800; color:#f4d68a; }
+    .cp-read { position:fixed; inset:0; z-index:900; background:rgba(8,14,26,.66);
+      display:flex; align-items:flex-start; justify-content:center; padding:22px 12px; overflow-y:auto; }
+    .cp-read-in { width:100%; max-width:720px; background:var(--card); color:var(--ink);
+      border-radius:16px; padding:18px 20px 22px; margin:auto;
+      box-shadow:0 40px 90px -35px rgba(0,0,0,.7); }
+    .rd-head { display:flex; align-items:center; gap:.8rem; justify-content:space-between;
+      border-bottom:1px solid var(--line); padding-bottom:.6rem; margin-bottom:.9rem; }
+    .rd-body { max-height:min(62vh,620px); overflow-y:auto; }
+    .rd-zh { font-size:1.18rem; line-height:1.85; margin:.7rem 0 .1rem; }
+    .rd-tr { font-size:.93rem; color:var(--muted); margin:0 0 .5rem; }
+    .rd-yt { position:relative; padding-top:56.25%; border-radius:12px; overflow:hidden; margin-bottom:.9rem; }
+    .rd-yt iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
+    @media (max-width:640px){ .rd-body { max-height:56vh; } }
     .cp-badge { font-size: .72rem; font-weight: 800; padding: .16rem .5rem; border-radius: 999px; }
     .cp-badge.free { background: var(--success-bg); color: var(--success); }
     .cp-badge.prem { background: rgba(183,130,63,0.16); color: var(--gold); }
@@ -159,6 +183,13 @@
     const CONTACT_FALLBACK = "https://zalo.me/0961923983";
     let CONTACT = CONTACT_FALLBACK;
     let COURSES = [], currentId = null;
+    let SECTIONS = [];                 // 3 công cụ đang mở xem trước công khai
+    const SEC_META = {
+      reading: { icon: "📖", name: "Thư viện Đọc hiểu", unit: "bài đọc" },
+      shadow:  { icon: "🎤", name: "Luyện nói Shadowing", unit: "video" },
+      dict:    { icon: "🎧", name: "Chép chính tả", unit: "video" }
+    };
+    const secCfg = k => (SECTIONS.find(x => x.section === k) || {}).config || {};
 
     $("cp-theme").addEventListener("click", () => {
       const root = document.documentElement;
@@ -220,12 +251,22 @@
         : `background:linear-gradient(120deg, ${esc(color||"#1e4f8f")}, ${esc(color||"#1e4f8f")}b3);`;
     }
     function renderSidebar(){
+      const secBtns = SECTIONS.map(s => {
+        const m = SEC_META[s.section] || {}, cfg = s.config || {};
+        return `
+        <button class="ci" data-cid="sec:${esc(s.section)}" title="${esc(m.name || s.section)}">
+          <span class="ci-thumb" style="${thumbStyle(cfg.cover, "#0e7c66")}">${cfg.cover ? "" : (m.icon || "🧰")}</span>
+          <span class="ci-title">${esc(m.name || s.section)}</span>
+        </button>`;
+      }).join("");
       $("cpSideList").innerHTML = COURSES.map(c => `
         <button class="ci" data-cid="${esc(c.id)}" title="${esc(c.title)}">
           <span class="ci-thumb" style="${thumbStyle(c.banner_url, c.color)}">${c.banner_url ? "" : esc(c.icon || "📚")}</span>
           <span class="ci-title">${esc(c.title)}</span>
-        </button>`).join("");
-      $("cpMobileSel").innerHTML = COURSES.map(c => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join("");
+        </button>`).join("")
+        + (secBtns ? `<div class="cp-side-h">Công cụ học</div>` + secBtns : "");
+      $("cpMobileSel").innerHTML = COURSES.map(c => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join("")
+        + SECTIONS.map(s => `<option value="sec:${esc(s.section)}">${esc((SEC_META[s.section]||{}).name || s.section)}</option>`).join("");
     }
     function markCurrent(id){
       $("cpSideList").querySelectorAll(".ci").forEach(b =>
@@ -307,6 +348,152 @@
         b.addEventListener("click", () => openLesson(JSON.parse(b.getAttribute("data-open")))));
       $("cpMain").querySelectorAll("[data-lock]").forEach(b => b.addEventListener("click", showLocked));
     }
+    /* ============ Công cụ học: xem trước công khai ============
+       Danh sách lấy từ RPC public_* — nội dung bài Premium KHÔNG BAO
+       GIỜ được gửi về trình duyệt, nên không thể xem qua mã nguồn. */
+    async function renderSection(sec){
+      const m = SEC_META[sec] || {}, cfg = secCfg(sec);
+      const info = SECTIONS.find(x => x.section === sec);
+      if (!info){ $("cpMain").innerHTML = notFoundHtml(); return; }
+      document.title = (m.name || "Công cụ") + " — Learning Ecology";
+      $("cpMain").innerHTML = `<p class="cp-note">Đang tải…</p>`;
+
+      const res = sec === "reading"
+        ? await sb.rpc("public_reading_list").then(r => r, () => ({ data: null }))
+        : await sb.rpc("public_video_list", { p_kind: sec }).then(r => r, () => ({ data: null }));
+      const items = Array.isArray(res && res.data) ? res.data : [];
+      const free = items.filter(i => !i.premium).length, prem = items.length - free;
+      const benefits = (cfg.benefits && cfg.benefits.length ? cfg.benefits : []);
+      const priceLine = cfg.sale_price || cfg.price
+        ? `<span class="cb-price">${cfg.on_sale && cfg.sale_price ? money(cfg.sale_price) : money(cfg.price)}${periodTxt(cfg.period)}</span>`
+        : "";
+
+      $("cpMain").innerHTML = `
+        <div class="course-banner">
+          <div class="cb-bg" style="${thumbStyle(cfg.cover, "#0e7c66")}">${cfg.cover ? "" : (m.icon || "🧰")}</div>
+          <div class="cb-shade"></div>
+          <span class="cb-tag">Công cụ học</span>
+          <div class="cb-info">
+            <div class="cb-title">${esc(m.icon || "")} ${esc(cfg.title && cfg.title.replace(/^Mở khóa\s*/i, "") || m.name || "")}</div>
+            <div class="cb-stats">
+              <span>📚 ${items.length} ${esc(m.unit || "bài")}</span>
+              <span>🔓 ${free} miễn phí</span>
+              ${prem ? `<span>👑 ${prem} Premium</span>` : ""}
+              ${priceLine}
+            </div>
+          </div>
+        </div>
+        ${cfg.tagline ? `<p class="cp-lead">${esc(cfg.tagline)}</p>` : ""}
+        ${benefits.length ? `<ul class="cp-bens">${benefits.map(b => `<li><span>✓</span>${esc(b)}</li>`).join("")}</ul>` : ""}
+        <div class="cp-cta">
+          ${free ? `<button class="btn" id="secTry">🔓 Học thử miễn phí</button>` : ""}
+          <button class="btn cp-gold" id="secBuy">👑 Mở khóa Premium</button>
+        </div>
+        <p class="cp-note">Bấm một mục <b>miễn phí</b> để học thử ngay — không cần đăng nhập. Mục <b>Premium</b> cần mở khóa.</p>
+        ${items.length
+          ? `<div class="lesson-grid">${items.map((it, i) => secCard(it, i + 1, sec)).join("")}</div>`
+          : `<p class="cp-note">Chưa có nội dung được đăng.</p>`}
+        <div class="cp-unlock"><h3>👑 ${esc(cfg.title || ("Mở khóa " + (m.name || "")))}</h3>
+          <p>${esc(cfg.subtitle || "Liên hệ để mở khóa toàn bộ nội dung và học không giới hạn.")}</p>
+          <div><button class="btn cp-gold" id="secBuy2">Xem giá &amp; mở khóa</button></div></div>`;
+
+      const openBuy = () => Premium.open({ section: sec, courseTitle: m.name, thumb: cfg.cover || "" });
+      const b1 = $("secBuy"); if (b1) b1.addEventListener("click", openBuy);
+      const b2 = $("secBuy2"); if (b2) b2.addEventListener("click", openBuy);
+      const t = $("secTry");
+      if (t) t.addEventListener("click", () => {
+        const first = items.find(i => !i.premium);
+        if (first) openSecItem(sec, first.id);
+      });
+      $("cpMain").querySelectorAll("[data-sec-open]").forEach(b =>
+        b.addEventListener("click", () => openSecItem(sec, b.getAttribute("data-sec-open"))));
+      $("cpMain").querySelectorAll("[data-sec-lock]").forEach(b => b.addEventListener("click", openBuy));
+    }
+
+    function secCard(it, n, sec){
+      const lvl = it.level ? "HSK " + it.level : "";
+      const sub = sec === "reading"
+        ? [lvl, it.words ? "✍ " + it.words + " từ" : ""].filter(Boolean).join(" · ")
+        : [lvl, it.lines ? "🗣 " + it.lines + " câu" : ""].filter(Boolean).join(" · ");
+      const foot = it.premium
+        ? `<span class="cp-badge prem">👑 Premium</span><button class="ghost lc-prem-btn" data-sec-lock>🔒 Mở khóa</button>`
+        : `<span class="cp-badge free">Miễn phí</span><button class="btn" data-sec-open="${esc(it.id)}">Học thử</button>`;
+      return `
+        <div class="lcard ${it.premium ? "prem" : ""}">
+          <div class="lc-thumb"${it.cover_url ? ` style="background-image:url('${esc(it.cover_url)}');"` : ""}>
+            ${it.cover_url ? "" : (SEC_META[sec] || {}).icon || "📖"}
+            <span class="lc-num">${n}</span>
+            ${it.premium ? `<span class="lc-state s-lock">🔒</span>` : ""}
+          </div>
+          <div class="lc-body">
+            <div class="lc-title">${esc(it.title || "")}</div>
+            ${it.title_vi ? `<div class="lc-vi">${esc(it.title_vi)}</div>` : ""}
+            <span class="lc-kind">${esc(sub)}</span>
+          </div>
+          <div class="lc-foot">${foot}</div>
+        </div>`;
+    }
+
+    // Mở một mục MIỄN PHÍ ngay trên trang — máy chủ chỉ trả nội dung khi mục đó free
+    async function openSecItem(sec, id){
+      const ov = document.createElement("div");
+      ov.className = "cp-read";
+      ov.innerHTML = `<div class="cp-read-in"><p class="cp-note">Đang tải…</p></div>`;
+      document.body.appendChild(ov);
+      const close = () => ov.remove();
+      ov.addEventListener("click", e => { if (e.target === ov) close(); });
+      document.addEventListener("keydown", function esc2(e){
+        if (e.key === "Escape"){ close(); document.removeEventListener("keydown", esc2); } });
+
+      const res = sec === "reading"
+        ? await sb.rpc("public_reading_text", { p_id: id }).then(r => r, () => ({ data: null }))
+        : await sb.rpc("public_video", { p_id: id, p_kind: sec }).then(r => r, () => ({ data: null }));
+      const d = res && res.data;
+      if (!d){
+        ov.querySelector(".cp-read-in").innerHTML =
+          `<p class="cp-note">Nội dung này cần mở khóa Premium.</p>
+           <div class="cp-cta"><button class="btn cp-gold" id="rdBuy">👑 Mở khóa Premium</button>
+           <button class="ghost" id="rdX">Đóng</button></div>`;
+        ov.querySelector("#rdBuy").addEventListener("click", () =>
+          Premium.open({ section: sec, courseTitle: (SEC_META[sec]||{}).name }));
+        ov.querySelector("#rdX").addEventListener("click", close);
+        return;
+      }
+
+      let body = "";
+      if (sec === "reading"){
+        const lines = String(d.content || "").split("\n").filter(x => x.trim());
+        const trs = String(d.translation || "").split("\n");
+        body = lines.map((ln, i) => `<p class="rd-zh">${esc(ln)}</p>` +
+          (trs[i] && trs[i].trim() ? `<p class="rd-tr">${esc(trs[i])}</p>` : "")).join("");
+      } else {
+        const subs = Array.isArray(d.subs) ? d.subs : [];
+        body = `<div class="rd-yt"><iframe src="https://www.youtube-nocookie.com/embed/${esc(d.yt)}"
+                  title="${esc(d.title || "")}" frameborder="0" allowfullscreen
+                  allow="accelerometer; clipboard-write; encrypted-media; picture-in-picture"></iframe></div>`
+          + subs.slice(0, 8).map(x => `<p class="rd-zh">${esc(x.zh || "")}</p>` +
+              (x.tr ? `<p class="rd-tr">${esc(x.tr)}</p>` : "")).join("")
+          + (subs.length > 8 ? `<p class="cp-note">… còn ${subs.length - 8} câu nữa trong ứng dụng.</p>` : "");
+      }
+      ov.querySelector(".cp-read-in").innerHTML = `
+        <div class="rd-head">
+          <div><b>${esc(d.title || "")}</b>${d.title_vi ? ` — <span class="cp-note" style="display:inline">${esc(d.title_vi)}</span>` : ""}</div>
+          <button class="ghost" id="rdX2">✕</button>
+        </div>
+        <div class="rd-body">${body}</div>
+        <div class="cp-unlock" style="margin-top:1rem;">
+          <h3>Thích cách học này?</h3>
+          <p>Đăng nhập để lưu từ vựng, xem pinyin, chấm phát âm và theo dõi tiến độ — hoặc mở khóa toàn bộ ${esc((SEC_META[sec]||{}).name || "")}.</p>
+          <div><a class="btn" href="login.html">Đăng nhập / Đăng ký</a>
+               <button class="btn cp-gold" id="rdBuy2">👑 Mở khóa Premium</button></div>
+        </div>`;
+      ov.querySelector("#rdX2").addEventListener("click", close);
+      ov.querySelector("#rdBuy2").addEventListener("click", () =>
+        Premium.open({ section: sec, courseTitle: (SEC_META[sec]||{}).name, thumb: secCfg(sec).cover || "" }));
+    }
+    const money = v => (v == null || v === "" || isNaN(Number(v))) ? "" : Number(v).toLocaleString("vi-VN") + "đ";
+    const periodTxt = p => ({ month: "/tháng", year: "/năm", life: " trọn đời" })[p] || "";
+
     function notFoundHtml(){
       return `<p class="cp-note">Khóa học không tồn tại hoặc chưa được công khai.</p>
         ${COURSES.length ? `<p class="cp-note">Chọn một khóa khác ở thanh bên.</p>`
@@ -321,6 +508,7 @@
       markCurrent(id);
       if (push){ try { history.pushState({ id }, "", "course.html?id=" + encodeURIComponent(id)); } catch(e){} }
       $("cpMain").innerHTML = `<p class="cp-note">Đang tải…</p>`;
+      if (String(id).startsWith("sec:")) { renderSection(id.slice(4)); return; }
       const res = await sb.rpc("public_course", { p_course: id }).then(r => r, () => ({ data: null }));
       const data = res && res.data;
       if (!data || !data.course){ document.title = "Khóa học — Learning Ecology"; $("cpMain").innerHTML = notFoundHtml(); return; }
@@ -330,10 +518,12 @@
     async function boot(){
       $("cpYear").textContent = new Date().getFullYear();
       const id = new URLSearchParams(location.search).get("id");
-      const [setRes, listRes] = await Promise.all([
+      const [setRes, listRes, secRes] = await Promise.all([
         sb.from("landing_settings").select("config").eq("id", 1).maybeSingle().then(r => r, () => ({ data: null })),
-        sb.rpc("public_courses").then(r => r, () => ({ data: null }))
+        sb.rpc("public_courses").then(r => r, () => ({ data: null })),
+        sb.rpc("public_sections").then(r => r, () => ({ data: null }))   // cần migration47
       ]);
+      SECTIONS = Array.isArray(secRes && secRes.data) ? secRes.data : [];
       const cfg = (setRes && setRes.data && setRes.data.config) || {};
       applyBrand(cfg);
       const cUrl = cfg.trial && cfg.trial.s_url;
@@ -345,14 +535,18 @@
       }).catch(() => {});
 
       COURSES = (listRes && Array.isArray(listRes.data)) ? listRes.data : [];
-      if (!COURSES.length && !id){
+      if (!COURSES.length && !SECTIONS.length && !id){
         $("cpSide").style.display = "none";
         $("cpMain").innerHTML = notFoundHtml();
         return;
       }
       renderSidebar();
       // pick the course: the requested id if public, else the first public course
-      const start = (id && COURSES.some(c => c.id === id)) ? id : (id || (COURSES[0] && COURSES[0].id));
+      const isSec = v => String(v || "").startsWith("sec:") &&
+                          SECTIONS.some(x => "sec:" + x.section === v);
+      const start = (id && (COURSES.some(c => c.id === id) || isSec(id)))
+        ? id
+        : (id || (COURSES[0] && COURSES[0].id) || (SECTIONS[0] && "sec:" + SECTIONS[0].section));
       if (id && id === start && !new URLSearchParams(location.search).get("id")) { /* noop */ }
       switchCourse(start, false);
       // normalise the URL so it always names the shown course

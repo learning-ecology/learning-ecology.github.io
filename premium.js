@@ -55,6 +55,9 @@
     if (attr === "light") return false;
     return !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
   }
+  function periodLabel(p) {
+    return { month: " / tháng", year: " / năm", life: " · trọn đời" }[p] || "";
+  }
   function telHref(p) { return "tel:" + String(p).replace(/[^\d+]/g, ""); }
   function zaloHref(z) {
     z = String(z || "").trim();
@@ -83,12 +86,15 @@
       db.from("payment_settings").select("config").eq("id", 1).maybeSingle()
         .then(function (r) { return r; }, function () { return { data: null }; }),
       db.from("course_pricing").select("course_id, config")
+        .then(function (r) { return r; }, function () { return { data: null }; }),
+      db.from("section_pricing").select("section, config")
         .then(function (r) { return r; }, function () { return { data: null }; })
     ]).then(function (res) {
       var settings = (res[0] && res[0].data && res[0].data.config) || {};
-      var byCourse = {};
+      var byCourse = {}, bySection = {};
       ((res[1] && res[1].data) || []).forEach(function (r) { byCourse[r.course_id] = r.config || {}; });
-      CACHE = { settings: settings, byCourse: byCourse };
+      ((res[2] && res[2].data) || []).forEach(function (r) { bySection[r.section] = r.config || {}; });
+      CACHE = { settings: settings, byCourse: byCourse, bySection: bySection };
       try { localStorage.setItem(LS_KEY, JSON.stringify(CACHE)); } catch (e) {}
       LOADING = null;
       return CACHE;
@@ -100,9 +106,11 @@
   }
 
   // Gộp: cấu hình khóa đè lên cấu hình chung
-  function resolve(courseId, data) {
+  function resolve(courseId, data, section) {
     var s = (data && data.settings) || {};
-    var c = (courseId && data && data.byCourse && data.byCourse[courseId]) || {};
+    var c = section
+      ? ((data && data.bySection && data.bySection[section]) || {})
+      : ((courseId && data && data.byCourse && data.byCourse[courseId]) || {});
     var d = s.defaults || {};
     var pay = Object.assign({}, s.payment || {});
     var con = Object.assign({}, s.contacts || {});
@@ -119,6 +127,7 @@
       subtitle: c.subtitle || d.subtitle || "Liên hệ để kích hoạt Premium và học không giới hạn.",
       price: price, sale_price: sale, badge: badge,
       promo_label: c.promo_label || "",
+      period: c.period || "",
       currency: c.currency || "đ",
       promo_image: c.promo_image || "",
       benefits: (c.benefits && c.benefits.length ? c.benefits : (d.benefits || [])),
@@ -156,6 +165,7 @@
       ".pmx-price{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px;}",
       ".pmx-now{font-size:27px;font-weight:900;color:var(--pmx-gold);}",
       ".pmx-old{font-size:15px;color:var(--pmx-muted);text-decoration:line-through;}",
+      ".pmx-per{font-size:14px;font-weight:600;color:var(--pmx-muted);}",
       ".pmx-badge{background:#e11d48;color:#fff;font-size:12px;font-weight:800;padding:3px 9px;border-radius:999px;}",
       ".pmx-promo{display:inline-block;background:var(--pmx-soft);color:var(--pmx-gold);font-size:12px;",
       "font-weight:700;padding:3px 10px;border-radius:999px;margin-bottom:10px;}",
@@ -222,7 +232,8 @@
     if (cfg.sale_price || cfg.price) {
       priceHtml =
         '<div class="pmx-price">' +
-          '<span class="pmx-now">' + esc(money(cfg.sale_price || cfg.price, cfg.currency)) + '</span>' +
+          '<span class="pmx-now">' + esc(money(cfg.sale_price || cfg.price, cfg.currency)) +
+            (cfg.period ? '<span class="pmx-per">' + esc(periodLabel(cfg.period)) + '</span>' : "") + '</span>' +
           (cfg.sale_price && cfg.price ? '<span class="pmx-old">' + esc(money(cfg.price, cfg.currency)) + '</span>' : "") +
           (cfg.badge ? '<span class="pmx-badge">' + esc(cfg.badge) + '</span>' : "") +
         '</div>';
@@ -316,7 +327,7 @@
     open: function (opts) {
       opts = opts || {};
       return load().then(function (data) {
-        var cfg = resolve(opts.courseId, data);
+        var cfg = resolve(opts.courseId, data, opts.section);
         return render(cfg, opts);
       }).catch(function () {
         return render(resolve(null, null), opts);   // vẫn hiện popup mặc định
@@ -325,9 +336,10 @@
     // xem thử ngay trong bảng điều khiển, không cần lưu
     preview: function (config, opts) {
       opts = opts || {};
-      var data = { settings: (CACHE && CACHE.settings) || {}, byCourse: {} };
-      if (opts.courseId) data.byCourse[opts.courseId] = config || {};
-      return render(resolve(opts.courseId, data), opts);
+      var data = { settings: (CACHE && CACHE.settings) || {}, byCourse: {}, bySection: {} };
+      if (opts.section) data.bySection[opts.section] = config || {};
+      else if (opts.courseId) data.byCourse[opts.courseId] = config || {};
+      return render(resolve(opts.courseId, data, opts.section), opts);
     },
     // gọi sau khi lưu cấu hình để popup lấy bản mới
     refresh: function () {
