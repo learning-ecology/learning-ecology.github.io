@@ -190,6 +190,114 @@
     .lp-footer { text-align: center; color: var(--muted); font-size: 0.85rem; padding: 2rem 1rem 2.6rem; }
     .lp-footer a { color: var(--accent-ink); }
 
+    /* ============ Lớp học cùng giáo viên (migration48) ============
+       Deliberately looks DIFFERENT from the self-study course carousel:
+       its own tinted band, a "học trực tiếp" kicker and side-by-side
+       comparison cards — so nobody confuses a live class with a course
+       they buy and study alone. */
+    .lp-classes { background: #f2f6fc; border-top: 1px solid #dfe7f3; border-bottom: 1px solid #dfe7f3; }
+    [data-theme="dark"] .lp-classes { background: #161f2f; border-color: #26324a; }
+    .lp-classes > .kicker {
+      text-align: center; font-size: 0.78rem; font-weight: 800; letter-spacing: 0.09em;
+      text-transform: uppercase; color: #1e4f8f; margin: 0 0 0.35rem;
+    }
+    [data-theme="dark"] .lp-classes > .kicker { color: #8fb6ea; }
+    .lpc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.1rem; align-items: start; }
+    .lpc {
+      position: relative; display: flex; flex-direction: column;
+      background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+      overflow: hidden; box-shadow: 0 16px 40px -28px rgba(23,38,62,0.45);
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    .lpc:hover { transform: translateY(-3px); box-shadow: 0 22px 48px -26px rgba(23,38,62,0.5); }
+    .lpc.featured { border-color: #d9a53c; box-shadow: 0 18px 44px -24px rgba(180,130,40,0.55); }
+    /* the coloured top edge is the fastest way to tell the two formats apart */
+    .lpc::before { content: ""; display: block; height: 5px; background: linear-gradient(90deg, #2f6fc4, #6ea3e0); }
+    .lpc.private::before { background: linear-gradient(90deg, #b8862c, #e3b95c); }
+    .lpc .cov { position: relative; aspect-ratio: 16/9; background: #0f2038; overflow: hidden; }
+    .lpc .cov img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .lpc .pad { padding: 1.05rem 1.15rem 1.2rem; display: flex; flex-direction: column; flex: 1; }
+    .lpc .fmt {
+      display: inline-flex; align-items: center; gap: 0.35rem; align-self: flex-start;
+      font-size: 0.74rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase;
+      padding: 0.2rem 0.55rem; border-radius: 999px; margin-bottom: 0.5rem;
+      background: #e4edfb; color: #1d5fc2;
+    }
+    .lpc.private .fmt { background: #faf1dc; color: #8a5f27; }
+    [data-theme="dark"] .lpc .fmt { background: #1d2c45; color: #8fb6ea; }
+    [data-theme="dark"] .lpc.private .fmt { background: #33290f; color: #e3b95c; }
+    .lpc h3 { font-family: var(--serif); font-size: 1.3rem; margin: 0 0 0.2rem; }
+    .lpc .tag { color: var(--muted); font-size: 0.93rem; margin: 0 0 0.7rem; }
+    .lpc .desc { font-size: 0.93rem; margin: 0 0 0.85rem; }
+
+    .lpc-price { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.15rem; }
+    .lpc-price .now { font-size: 1.6rem; font-weight: 800; color: var(--accent-ink); line-height: 1.1; }
+    .lpc.private .lpc-price .now { color: #8a5f27; }
+    [data-theme="dark"] .lpc.private .lpc-price .now { color: #e3b95c; }
+    .lpc-price .was { text-decoration: line-through; color: var(--muted); font-size: 1rem; }
+    .lpc-price .unit { color: var(--muted); font-size: 0.9rem; font-weight: 600; }
+    .lpc-price .off {
+      background: #c62f2f; color: #fff; font-size: 0.76rem; font-weight: 800;
+      padding: 0.15rem 0.45rem; border-radius: 6px; letter-spacing: 0.02em;
+    }
+    .lpc .note { color: var(--muted); font-size: 0.82rem; margin: 0 0 0.9rem; }
+    .lpc .promo {
+      display: block; font-size: 0.8rem; font-weight: 700; color: #c05600; margin: 0 0 0.9rem;
+    }
+    [data-theme="dark"] .lpc .promo { color: #f0a860; }
+
+    .lpc-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; margin-bottom: 0.9rem; }
+    .lpc-facts div {
+      background: var(--bg); border: 1px solid var(--line); border-radius: 9px;
+      padding: 0.45rem 0.6rem; font-size: 0.82rem; line-height: 1.35;
+    }
+    .lpc-facts .k { display: block; color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .lpc-facts b { font-size: 0.9rem; }
+
+    .lpc h4 {
+      font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--muted); margin: 0.2rem 0 0.35rem;
+    }
+    .lpc ul { list-style: none; padding: 0; margin: 0 0 0.85rem; }
+    .lpc ul li { font-size: 0.88rem; padding: 0.13rem 0 0.13rem 1.35rem; position: relative; }
+    .lpc ul li::before { content: "✓"; position: absolute; left: 0; color: #178a4c; font-weight: 800; }
+    .lpc ul.inc li::before { content: "•"; color: var(--accent); }
+    .lpc .sched li::before { content: "🕘"; font-size: 0.8rem; }
+
+    .lpc-state {
+      display: inline-flex; align-items: center; gap: 0.4rem; align-self: flex-start;
+      font-size: 0.82rem; font-weight: 700; padding: 0.3rem 0.6rem;
+      border-radius: 999px; margin-bottom: 0.9rem;
+    }
+    .lpc-state.open { background: #e2f4e9; color: #146c3d; }
+    .lpc-state.limited { background: #fdeadc; color: #9c4700; }
+    .lpc-state.full { background: #f0f1f4; color: #5b6478; }
+    [data-theme="dark"] .lpc-state.open { background: #14301f; color: #6fd39b; }
+    [data-theme="dark"] .lpc-state.limited { background: #35240f; color: #f0a860; }
+    [data-theme="dark"] .lpc-state.full { background: #232a38; color: #97a1b5; }
+    .lpc-state .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+    .lpc-cta { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: auto; }
+    .lpc-cta .btn { text-decoration: none; font-size: 0.9rem; padding: 0.55rem 0.85rem; }
+    .lpc-cta .btn.zalo { background: #0068ff; border-color: #0068ff; color: #fff; }
+    .lpc-cta .btn.zalo:hover { background: #0057d6; }
+    .lpc-cta .btn.fb { background: #1877f2; border-color: #1877f2; color: #fff; }
+    .lpc-cta .btn.fb:hover { background: #1263cc; }
+    /* .gold is scoped per-section elsewhere on this page, so the class alone
+       inherits nothing here — the consultation button needs its own rule */
+    .lpc-cta .btn.gold {
+      background: linear-gradient(135deg, #f4d68a, #d9a53c); border-color: #d9a53c;
+      color: #132743; font-weight: 800;
+    }
+    .lpc-cta .btn.gold:hover { background: linear-gradient(135deg, #f8e0a5, #e0b055); }
+    .lpc .ribbon {
+      position: absolute; top: 0.7rem; right: 0; z-index: 2;
+      background: linear-gradient(135deg, #f4d68a, #d9a53c); color: #713f12;
+      font-size: 0.72rem; font-weight: 800; padding: 0.22rem 0.7rem;
+      border-radius: 999px 0 0 999px; box-shadow: -4px 4px 12px -6px rgba(0,0,0,0.4);
+    }
+    @media (max-width: 640px) { .lpc-facts { grid-template-columns: 1fr 1fr; } }
+
     /* ============ new: shared bits ============ */
     .btn, .lpx-btn { transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease; }
     .btn:hover { transform: translateY(-1px); }
@@ -660,6 +768,17 @@
       <div id="courseBox"><div class="lpx-skel" style="min-height:260px;" aria-hidden="true"></div></div>
     </section>
 
+    <!-- ================= LỚP HỌC CÙNG GIÁO VIÊN (dynamic) =================
+         Deliberately NOT part of the course carousel above: those are
+         self-study courses you buy and study alone, these are live classes
+         with the teacher. Own tinted band + own heading. -->
+    <section class="lp-section lp-classes" data-sec="tclass" id="lop-hoc" hidden>
+      <p class="kicker" id="tclKicker">Học trực tiếp cùng giáo viên</p>
+      <h2 id="tclTitle">Lớp học cùng giáo viên</h2>
+      <p class="lead" id="tclLead">Khác với khóa tự học ở trên: bạn học trực tiếp theo lịch, được chữa bài và nói chuyện với thầy trong từng buổi.</p>
+      <div id="tclBox"></div>
+    </section>
+
     <!-- ================= TEACHER ================= -->
     <section class="lp-section" data-sec="teacher" id="giao-vien" style="padding-top:0;" hidden>
       <h2 id="tchTitle">Đội ngũ giáo viên</h2>
@@ -841,10 +960,11 @@
             () => []);
 
     async function boot() {
-      const [settingsRes, courses, trials, teachers, achievements, feedback, gallery] = await Promise.all([
+      const [settingsRes, courses, trials, teachers, achievements, feedback, gallery, classes] = await Promise.all([
         sb.from("landing_settings").select("config").eq("id", 1).maybeSingle().then(r => r, () => ({ data: null })),
         q("landing_courses"), q("landing_trials"), q("landing_teachers"),
-        q("landing_achievements"), q("landing_feedback"), q("landing_gallery")
+        q("landing_achievements"), q("landing_feedback"), q("landing_gallery"),
+        q("landing_classes")     // migration48 — hidden entirely if it hasn't run
       ]);
       const cfg = (settingsRes && settingsRes.data && settingsRes.data.config) || {};
       applyBrand(cfg);
@@ -852,6 +972,7 @@
       applySections(cfg);
       renderTrial(cfg, trials);
       renderCourses(cfg, courses);
+      renderClasses(cfg, classes);
       renderTeachers(cfg, teachers);
       renderAchievements(cfg, achievements, feedback, gallery);
       initNav();          // built last, from whatever ended up visible
@@ -921,6 +1042,116 @@
       }, { passive: true });
       addEventListener("resize", spy, { passive: true });
       spy();
+    }
+
+    /* ================= Lớp học cùng giáo viên =================
+       Live classes taught by the teacher, kept visually and structurally
+       apart from the self-study courses above. Every field comes from
+       landing_classes — dashboard → Landing Page → "Lớp học cùng giáo viên".
+       If nothing is published (or migration48 has not run) the whole
+       section stays hidden rather than showing an empty shell. */
+    const VND = n => Number(n).toLocaleString("vi-VN") + "đ";
+    const UNIT_LABEL = { session: "/ buổi", month: "/ tháng", course: "/ khóa" };
+    const FMT_LABEL = { group: "Lớp nhóm", private: "1 kèm 1" };
+    const ENROLL_LABEL = { open: "Đang nhận học viên", limited: "Sắp đầy — còn ít chỗ", full: "Đã đầy lớp" };
+
+    function renderClasses(cfg, classes) {
+      const sec = document.querySelector('[data-sec="tclass"]');
+      if (!sec) return;
+      if (!classes.length) { sec.hidden = true; return; }
+      sec.hidden = false;
+
+      const t = cfg.titles || {};
+      if (t.tclass) $("tclTitle").textContent = t.tclass;
+      if (t.tclass_kicker) $("tclKicker").textContent = t.tclass_kicker;
+      if (t.tclass_lead) $("tclLead").textContent = t.tclass_lead;
+
+      const lines = s => String(s || "").split("\n").map(x => x.trim()).filter(Boolean);
+      const today = new Date().toISOString().slice(0, 10);
+
+      /* a sale only counts while it is cheaper AND inside the promo window */
+      const saleOn = c => {
+        if (!(c.sale_price > 0 && c.price > 0 && c.sale_price < c.price)) return false;
+        if (c.promo_from && today < c.promo_from) return false;
+        if (c.promo_to && today > c.promo_to) return false;
+        return true;
+      };
+      const priceBlock = c => {
+        const unit = UNIT_LABEL[c.unit] || "";
+        if (!(c.price > 0) && !(c.sale_price > 0)) {
+          return `<div class="lpc-price"><span class="now">Liên hệ</span>
+                    <span class="unit">để nhận báo giá</span></div>`;
+        }
+        if (!saleOn(c)) {
+          return `<div class="lpc-price"><span class="now">${esc(VND(c.sale_price > 0 ? c.sale_price : c.price))}</span>
+                    <span class="unit">${esc(unit)}</span></div>`;
+        }
+        const pct = Math.round((1 - c.sale_price / c.price) * 100);
+        const label = c.discount_label || ("-" + pct + "%");
+        return `<div class="lpc-price">
+            <span class="now">${esc(VND(c.sale_price))}</span>
+            <span class="unit">${esc(unit)}</span>
+            <span class="was">${esc(VND(c.price))}</span>
+            <span class="off">${esc(label)}</span>
+          </div>`;
+      };
+      const promoText = c => {
+        if (!saleOn(c) || !c.promo_to) return "";
+        const left = Math.ceil((new Date(c.promo_to) - new Date(today)) / 86400000);
+        if (left < 0) return "";
+        return `<span class="promo">⏰ Ưu đãi ${left === 0 ? "kết thúc hôm nay" : "còn " + left + " ngày"}</span>`;
+      };
+      const fact = (k, v) => v ? `<div><span class="k">${esc(k)}</span><b>${esc(v)}</b></div>` : "";
+      const seats = c => {
+        if (c.max_students == null || c.max_students <= 0) return "";
+        return c.max_students === 1 ? "1 học viên (riêng)" : "Tối đa " + c.max_students + " học viên";
+      };
+      /* the contact buttons: an empty link simply drops the button, so a
+         half-configured card never shows a dead end */
+      const cta = (label, url, cls) => {
+        const u = safeUrl(url);
+        if (!u || !label) return "";
+        return `<a class="btn ${cls}" href="${esc(u)}" target="_blank" rel="noopener"
+                   data-hit="cta-class">${esc(label)}</a>`;
+      };
+
+      $("tclBox").innerHTML = `<div class="lpc-grid">${classes.map(c => {
+        const isPriv = c.format === "private";
+        const st = ENROLL_LABEL[c.enroll_status] ? c.enroll_status : "open";
+        const btns = cta(c.btn1_label, c.btn1_url, "zalo")
+                   + cta(c.btn2_label, c.btn2_url, "fb")
+                   + cta(c.btn3_label, c.btn3_url, "gold");
+        return `
+        <article class="lpc ${isPriv ? "private" : "group"} ${c.featured ? "featured" : ""}">
+          ${c.status === "draft" ? '<span class="lpx-draft">DRAFT</span>' : ""}
+          ${c.featured ? '<span class="ribbon">Được chọn nhiều nhất</span>' : ""}
+          ${safeUrl(c.cover_url) ? `<div class="cov">${img(c.cover_url, c.cover_alt || c.title)}</div>` : ""}
+          <div class="pad">
+            <span class="fmt">${esc(c.icon || (isPriv ? "🎯" : "👥"))} ${esc(FMT_LABEL[c.format] || "Lớp học")}</span>
+            <h3>${esc(c.title)}</h3>
+            ${c.tagline ? `<p class="tag">${esc(c.tagline)}</p>` : ""}
+            ${priceBlock(c)}
+            ${c.price_note ? `<p class="note">${esc(c.price_note)}</p>` : ""}
+            ${promoText(c)}
+            ${c.description ? `<p class="desc">${esc(c.description)}</p>` : ""}
+            <div class="lpc-facts">
+              ${fact("Thời lượng khóa", c.duration)}
+              ${fact("Số buổi", c.lesson_count)}
+              ${fact("Mỗi buổi", c.lesson_length)}
+              ${fact("Sĩ số", seats(c))}
+            </div>
+            ${lines(c.schedule).length ? `<h4>Lịch học</h4>
+              <ul class="sched">${lines(c.schedule).map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+            ${lines(c.benefits).length ? `<h4>Quyền lợi</h4>
+              <ul>${lines(c.benefits).map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+            ${lines(c.includes).length ? `<h4>Bao gồm</h4>
+              <ul class="inc">${lines(c.includes).map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+            <span class="lpc-state ${st}"><span class="dot"></span>${esc(
+              ENROLL_LABEL[st] + (c.status_note ? " · " + c.status_note : ""))}</span>
+            <div class="lpc-cta">${btns || `<span class="lpx-soon" aria-disabled="true">Sắp mở đăng ký</span>`}</div>
+          </div>
+        </article>`;
+      }).join("")}</div>`;
     }
 
     /* ================= teaching team (3D carousel, all data from the

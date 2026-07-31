@@ -4307,7 +4307,10 @@
           "shadow_videos", "shadow_progress", "shadow_days", "shadow_profile",
           "shadow_settings", "shadow_access", "hanzi_words", "hanzi_profile",
           "dict_progress", "dict_days",
-          "course_pricing", "payment_settings", "section_pricing"];
+          "course_pricing", "payment_settings", "section_pricing",
+          /* landing page content — was missing from the backup until Phase 44 */
+          "landing_settings", "landing_trials", "landing_courses", "landing_classes",
+          "landing_teachers", "landing_achievements", "landing_feedback", "landing_gallery"];
         const backup = { app: "Learning Ecology", exported_at: new Date().toISOString(), tables: {} };
         const problems = [];
         for (let i = 0; i < TABLES.length; i++) {
@@ -4664,14 +4667,18 @@
       (function () {
         const root = document.getElementById("lpm-root");
         if (!root) return;
-        const T = { trials: "landing_trials", courses: "landing_courses", teachers: "landing_teachers",
+        const T = { trials: "landing_trials", courses: "landing_courses", tclass: "landing_classes",
+                    teachers: "landing_teachers",
                     ach: "landing_achievements", fb: "landing_feedback", gal: "landing_gallery" };
-        const NAMES = { brand: "Thương hiệu & màu sắc", hero: "Hero (đầu trang)", trials: "Học thử miễn phí", courses: "Khóa học", teachers: "Đội ngũ giáo viên",
+        const NAMES = { brand: "Thương hiệu & màu sắc", hero: "Hero (đầu trang)", trials: "Học thử miễn phí", courses: "Khóa học",
+                        tclass: "Lớp học cùng giáo viên", teachers: "Đội ngũ giáo viên",
                         ach: "Thành tựu", fb: "Phản hồi học viên", gal: "Thư viện hình ảnh",
                         previews: "Xem trước công khai", settings: "Bố cục & hiển thị" };
-        const TITLE_OF = { trials: r => r.title, courses: r => r.title, teachers: r => r.name, ach: r => r.title,
+        const TITLE_OF = { trials: r => r.title, courses: r => r.title,
+                           tclass: r => r.title + (r.format === "private" ? " · 1 kèm 1" : " · nhóm"),
+                           teachers: r => r.name, ach: r => r.title,
                            fb: r => r.student_name, gal: r => r.caption || r.image_alt || "(ảnh)" };
-        const D = { trials: [], courses: [], teachers: [], ach: [], fb: [], gal: [], cfg: null };
+        const D = { trials: [], courses: [], tclass: [], teachers: [], ach: [], fb: [], gal: [], cfg: null };
         let loaded = false, failed = false, cur = "trials", editing = null, dirty = false;
         let BW = null;   // brand working copy (Thương hiệu tab)
 
@@ -4711,6 +4718,41 @@
             { k: "btn2_url", l: "Nút phụ — liên kết", t: "url" },
             { k: "new_tab", l: "Mở liên kết trong tab mới", t: "check" },
             { k: "featured", l: "Nổi bật", t: "check" }
+          ],
+          tclass: [
+            { k: "title", l: "Tên lớp *", req: 1 },
+            { k: "format", l: "Hình thức lớp", t: "sel",
+              o: [["group", "👥 Lớp học nhóm"], ["private", "🎯 Lớp học 1 kèm 1"]] },
+            { k: "icon", l: "Biểu tượng (emoji)" },
+            { k: "tagline", l: "Mô tả một dòng" },
+            { k: "description", l: "Mô tả 2–4 câu", t: "area" },
+            { k: "price", l: "Giá gốc (đ) — để trống = \"Liên hệ\"", t: "num" },
+            { k: "sale_price", l: "Giá ưu đãi (đ)", t: "num" },
+            { k: "unit", l: "Cách tính học phí", t: "sel",
+              o: [["session", "Theo buổi"], ["month", "Theo tháng"], ["course", "Theo khóa"]] },
+            { k: "price_note", l: "Ghi chú dưới giá (vd Đóng theo tháng)" },
+            { k: "discount_label", l: "Nhãn giảm giá (trống = tự tính -30%)" },
+            { k: "promo_from", l: "Ưu đãi từ ngày", t: "date" },
+            { k: "promo_to", l: "Ưu đãi đến ngày", t: "date" },
+            { k: "duration", l: "Thời lượng khóa (vd 3 tháng)" },
+            { k: "lesson_count", l: "Số buổi (vd 24 buổi)" },
+            { k: "lesson_length", l: "Mỗi buổi bao lâu (vd 90 phút/buổi)" },
+            { k: "max_students", l: "Sĩ số tối đa (1 = lớp 1 kèm 1)", t: "num" },
+            { k: "schedule", l: "Lịch học / khung giờ — mỗi dòng một khung", t: "area" },
+            { k: "benefits", l: "Quyền lợi — mỗi dòng một ý", t: "area" },
+            { k: "includes", l: "Bao gồm / dịch vụ kèm theo — mỗi dòng một ý", t: "area" },
+            { k: "enroll_status", l: "Tình trạng nhận học viên", t: "sel",
+              o: [["open", "🟢 Đang nhận học viên"], ["limited", "🟠 Sắp đầy — còn ít chỗ"], ["full", "⚪ Đã đầy lớp"]] },
+            { k: "status_note", l: "Ghi chú tình trạng (vd còn 2 chỗ ca tối)" },
+            { k: "cover_url", l: "Ảnh lớp học (16:9, tùy chọn)", t: "img" },
+            { k: "cover_alt", l: "Mô tả ảnh (alt)" },
+            { k: "btn1_label", l: "Nút 1 — nhãn (Zalo)" },
+            { k: "btn1_url", l: "Nút 1 — liên kết Zalo", t: "url" },
+            { k: "btn2_label", l: "Nút 2 — nhãn (Facebook)" },
+            { k: "btn2_url", l: "Nút 2 — liên kết Facebook", t: "url" },
+            { k: "btn3_label", l: "Nút 3 — nhãn (Đăng ký tư vấn)" },
+            { k: "btn3_url", l: "Nút 3 — liên kết đăng ký", t: "url" },
+            { k: "featured", l: "Gắn nhãn \"Được chọn nhiều nhất\"", t: "check" }
           ],
           teachers: [
             { k: "name", l: "Họ tên *", req: 1 },
@@ -4759,9 +4801,10 @@
             { k: "date_text", l: "Ngày / năm" }
           ]
         };
-        const SEC_NAMES = { trial: "Học thử miễn phí", courses: "Khóa học", teacher: "Đội ngũ giáo viên",
+        const SEC_NAMES = { trial: "Học thử miễn phí", courses: "Khóa học", tclass: "Lớp học cùng giáo viên",
+                            teacher: "Đội ngũ giáo viên",
                             achieve: "Thành tựu & Cảm nhận", feats: "Tính năng", quote: "Câu trích dẫn", contact: "Liên hệ / Học phí" };
-        const SEC_DEFAULT = ["trial", "courses", "teacher", "achieve", "feats", "quote", "contact"];
+        const SEC_DEFAULT = ["trial", "courses", "tclass", "teacher", "achieve", "feats", "quote", "contact"];
         /* the hero is always first and always visible — shown in the list as locked */
         const SEC_LOCKED = [{ id: "hero", name: "Hero (tiêu đề chính + nút Bắt đầu học)" }];
         const okUrl = u => !u || /^(https?:\/\/|\/|#|[a-z0-9_-]+\.html)/i.test(String(u).trim());
@@ -4807,6 +4850,12 @@
                 `<option value="${esc(ov)}" ${String(v) === ov ? "selected" : ""}>${esc(ol)}</option>`).join("")}
                 ${f.k === "focal" && !FOCAL_OPTS.some(([ov]) => ov === v) && v ? `<option value="${esc(v)}" selected>${esc(v)}</option>` : ""}
               </select></div>`;
+          if (f.t === "num") return `
+            <div class="field" style="max-width:200px;"><label>${esc(f.l)}</label>
+              <input type="number" min="0" step="1" data-k="${f.k}" value="${esc(v)}" /></div>`;
+          if (f.t === "date") return `
+            <div class="field" style="max-width:190px;"><label>${esc(f.l)}</label>
+              <input type="date" data-k="${f.k}" value="${esc(v)}" /></div>`;
           if (f.t === "course") return `
             <div class="field" style="max-width:230px;"><label>${esc(f.l)}</label>
               <select data-k="${f.k}"><option value="">— không gắn —</option>${(courses || []).map(c =>
@@ -4892,10 +4941,28 @@
             <p class="msg" id="lpm-cfgmsg"></p>
             <hr style="border:none; border-top:1px solid var(--line); margin:.8rem 0;">`;
         }
+        /* header above the class list: the section's own heading on the landing page */
+        function classesHeader() {
+          const t = (D.cfg || {}).titles || {};
+          return `
+            <p class="kind" style="text-transform:none; margin:.5rem 0;">Phần này nằm <b>riêng</b> với khối "Khóa học" ở trên: khóa học là <b>tự học</b>, còn đây là <b>lớp học trực tiếp cùng thầy</b>. Mỗi hình thức lớp là một thẻ. Chỉ thẻ <b>Published</b> mới hiện với khách; Draft chỉ thấy trong 👁 Xem trước.</p>
+            <div class="form-row">
+              <div class="field"><label>Dòng nhỏ phía trên tiêu đề</label>
+                <input data-cfg="titles.tclass_kicker" value="${esc(t.tclass_kicker || "")}" placeholder="Học trực tiếp cùng giáo viên"></div>
+              <div class="field"><label>Tiêu đề phần</label>
+                <input data-cfg="titles.tclass" value="${esc(t.tclass || "")}" placeholder="Lớp học cùng giáo viên"></div>
+              <div class="field" style="flex-basis:100%;"><label>Mô tả dưới tiêu đề</label>
+                <input data-cfg="titles.tclass_lead" value="${esc(t.tclass_lead || "")}" placeholder="Khác với khóa tự học ở trên: bạn học trực tiếp theo lịch…"></div>
+              <button data-act="cfgsave">💾 Lưu mục này</button>
+            </div>
+            <p class="msg" id="lpm-cfgmsg"></p>
+            <hr style="border:none; border-top:1px solid var(--line); margin:.8rem 0;">`;
+        }
         function listPanel(coll) {
           const rows = D[coll];
           return `
             ${coll === "teachers" ? teachersHeader() : ""}
+            ${coll === "tclass" ? classesHeader() : ""}
             <div class="form-row" style="margin:0.4rem 0 0.6rem;">
               <button data-act="add" data-coll="${coll}">+ Thêm mới</button>
               ${coll === "gal" ? `<button class="ghost" data-act="multi">⬆ Tải nhiều ảnh cùng lúc</button>
@@ -5517,6 +5584,12 @@
             if (!el) continue;
             let v = f.t === "check" ? el.checked : el.value.trim();
             if (f.t === "course") v = v || null;
+            if (f.t === "date") v = v || null;
+            if (f.t === "num") {
+              if (v === "") v = null;
+              else if (!isFinite(Number(v)) || Number(v) < 0) return say('"' + f.l + '" phải là một số không âm.', 1);
+              else v = Number(v);
+            }
             if (f.req && !v) return say('Thiếu "' + f.l.replace(" *", "") + '".', 1);
             if (f.t === "url" && !okUrl(v)) return say('Liên kết "' + v + '" không hợp lệ — cần bắt đầu bằng https:// (hoặc để trống).', 1);
             row[f.k] = v;
