@@ -884,14 +884,17 @@
       } catch (e) { /* stats must never break the page */ }
     })();
 
-    // Already signed in? Turn the login buttons into "go to my lessons".
+    // Already signed in? Turn the HERO button into "go to my lessons".
+    // The header button deliberately stays "Đăng nhập" at all times so the
+    // top bar reads the same for everyone; nothing is lost for signed-in
+    // visitors because login.html sends them straight to their dashboard.
     // Kept in a re-runnable function because the hero is rendered from the
     // database a moment later — it must not overwrite the signed-in label.
     window.__lpAuth = { signedIn: false, label: "Vào học ngay →" };
     window.applyAuthCta = function () {
       if (!window.__lpAuth.signedIn) return;
       const label = window.__lpAuth.label || "Vào học ngay →";
-      ["hd-login", "hero-start"].forEach(id => {
+      ["hero-start"].forEach(id => {
         const el = document.getElementById(id);
         if (el) { el.textContent = label; el.href = "dashboard.html"; }
       });
