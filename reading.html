@@ -326,6 +326,179 @@
     .vword .w { min-width:60px; font-size:20px; }
     #card .big { font-size:44px; }
   }
+
+  /* ==================================================================
+     PHASE 45 — MOBILE READER
+     A dedicated full-screen reading app for phones. Everything here is
+     inert until <body> gets the .mreader class, which only happens on a
+     narrow screen WITH the reader open — so the desktop layout above is
+     untouched. Structure while active:
+
+       #view-reader (fixed, flex column)
+         #mHead        sticky title bar        (flex: none)
+         #readerStage  the passage, scrolls    (flex: 1)
+         #mBar         controls                (flex: none)
+     ================================================================== */
+  #mHead, #mBar, #mDim, #mMenu, #mSheet { display:none; }
+
+  body.mreader { overflow:hidden; }
+  body.mreader > header { display:none; }
+  body.mreader main { max-width:none; margin:0; padding:0; }
+  /* the other views stay in the DOM (filters + scroll survive) but are inert */
+  body.mreader .view:not(#view-reader) { display:none !important; }
+
+  body.mreader #view-reader.active {
+    display:flex; flex-direction:column;
+    position:fixed; inset:0; z-index:900;
+    background:var(--r-bg, var(--panel)); color:var(--r-ink, var(--ink));
+    overscroll-behavior:none;
+  }
+
+  /* ---- sticky header ---- */
+  body.mreader #mHead {
+    display:flex; align-items:center; gap:4px; flex:none;
+    padding:6px 6px calc(6px);
+    padding-top:calc(6px + env(safe-area-inset-top, 0px));
+    background:var(--r-bg, var(--panel));
+    border-bottom:1px solid var(--r-line, var(--line));
+    box-shadow:0 1px 6px rgba(15,25,45,.06);
+  }
+  #mHead .mh-btn {
+    flex:none; width:44px; height:44px; border-radius:50%;
+    border:1px solid var(--r-line, var(--line)); background:transparent;
+    color:inherit; font-size:19px; line-height:1; cursor:pointer;
+    display:grid; place-items:center; padding:0;
+  }
+  #mHead .mh-btn:active { background:var(--accent-soft); }
+  #mHead .mh-title {
+    flex:1; min-width:0; text-align:center; font-weight:700; font-size:15.5px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding:0 2px;
+  }
+  #mHead .mh-spacer { flex:none; width:44px; }
+
+  /* ---- scrolling passage ---- */
+  body.mreader #readerStage {
+    flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
+    border:none; border-radius:0; background:transparent;
+    padding:14px 16px 18px;
+  }
+  body.mreader #readerStage > .row,            /* title row + prev/next row */
+  body.mreader #rMeta, body.mreader #rLegend, body.mreader #rTitleVi,
+  body.mreader #rCover, body.mreader #btnSettings { display:none !important; }
+  /* the sticky header already carries the Vietnamese title */
+  body.mreader #mTitleWrap .mt-vi { display:none; }
+  /* the Chinese title is re-shown on its own, above the passage */
+  body.mreader #mTitleWrap { display:block; margin:0 0 14px; }
+  #mTitleWrap { display:none; }
+  #mTitleWrap .mt-zh {
+    font-family:var(--hz-font); font-size:20px; font-weight:600; margin:0;
+    color:var(--r-ink, var(--ink));
+  }
+  #mTitleWrap .mt-vi { font-size:13px; color:var(--muted); margin:3px 0 0; }
+  body.mreader .rpara {
+    row-gap:calc(var(--hz) * (var(--lh, 1.9) - 0.85));
+    margin:0 0 calc(var(--hz) * 0.55);
+  }
+  body.mreader .rpara .pplay { display:none; }
+  body.mreader .rtrans { font-size:var(--tr); margin:2px 0 14px; }
+  /* the sentence currently being read aloud */
+  .rpara.speaking { background:var(--accent-soft); border-radius:8px;
+    box-shadow:0 0 0 6px var(--accent-soft); }
+  .tok.wsel { background:var(--accent); border-radius:5px; }
+  .tok.wsel .hz, .tok.wsel .py { color:#fff !important; }
+
+  /* ---- bottom control bar ---- */
+  body.mreader #mBar {
+    display:flex; align-items:center; gap:0; flex:none;
+    padding:4px 6px; padding-bottom:calc(4px + env(safe-area-inset-bottom, 0px));
+    background:var(--r-bar, #eef1f6); border-top:1px solid var(--r-line, var(--line));
+  }
+  #mBar button {
+    /* 44px is the minimum comfortable touch target; at 320px the row is
+       exactly wide enough for seven of them once the gaps are gone */
+    flex:1; min-width:44px; height:44px; border:none; background:transparent;
+    color:inherit; font-size:14px; cursor:pointer; border-radius:10px;
+    display:grid; place-items:center; padding:0;
+  }
+  #mBar button:active:not(:disabled) { background:rgba(125,145,180,.22); }
+  #mBar button:disabled { opacity:.32; cursor:default; }
+  #mBar .mb-page { flex:none; min-width:38px; text-align:center; font-size:13px;
+    font-variant-numeric:tabular-nums; color:var(--muted); }
+  #mBar #mbPlay {
+    flex:none; width:46px; height:46px; border-radius:50%;
+    background:var(--accent); color:#fff; font-size:17px;
+  }
+  #mBar #mbPlay.loading { opacity:.6; }
+  #mBar #mbPy.on { background:var(--accent-soft); color:var(--accent); font-weight:800; }
+  #mBar #mbRate { font-variant-numeric:tabular-nums; font-size:13px; }
+
+  /* ---- dim + word action menu ---- */
+  body.mreader #mDim { display:block; position:fixed; inset:0; z-index:1000;
+    background:rgba(18,28,45,.34); opacity:0; transition:opacity .16s ease; }
+  body.mreader #mDim.on { opacity:1; }
+  body.mreader #mDim:not(.on) { pointer-events:none; }
+  body.mreader #mMenu {
+    display:block; position:fixed; z-index:1002; min-width:150px;
+    background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    box-shadow:0 14px 40px -12px rgba(15,25,45,.45); padding:5px;
+    opacity:0; transform:scale(.96); transform-origin:top left;
+    transition:opacity .13s ease, transform .13s ease;
+  }
+  body.mreader #mMenu.on { opacity:1; transform:scale(1); }
+  body.mreader #mMenu:not(.on) { pointer-events:none; }
+  #mMenu button {
+    display:flex; align-items:center; gap:9px; width:100%; min-height:44px;
+    border:none; background:transparent; color:var(--ink); font-size:15px;
+    padding:0 12px; border-radius:9px; cursor:pointer; text-align:left;
+  }
+  #mMenu button:active { background:var(--accent-soft); }
+
+  /* ---- bottom sheets (dictionary + settings) ---- */
+  body.mreader #mSheet {
+    display:block; position:fixed; left:0; right:0; bottom:0; z-index:1003;
+    background:var(--panel); color:var(--ink);
+    border-radius:18px 18px 0 0; box-shadow:0 -10px 40px -12px rgba(15,25,45,.45);
+    padding:8px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+    max-height:76vh; overflow-y:auto;
+    transform:translateY(101%); transition:transform .22s ease;
+  }
+  body.mreader #mSheet.on { transform:none; }
+  #mSheet .sh-grab { width:38px; height:4px; border-radius:2px; background:var(--line);
+    margin:2px auto 12px; }
+  #mSheet .sh-w { font-family:var(--hz-font); font-size:32px; font-weight:600; }
+  #mSheet .sh-py { color:var(--accent); font-size:17px; margin-left:9px; }
+  #mSheet .sh-row { display:flex; align-items:baseline; flex-wrap:wrap; gap:6px; }
+  #mSheet .sh-def { margin:10px 0 0; font-size:14.5px; line-height:1.5; }
+  #mSheet .sh-def b { color:var(--muted); font-weight:600; font-size:12.5px;
+    text-transform:uppercase; letter-spacing:.03em; display:block; }
+  #mSheet .sh-ex { font-family:var(--hz-font); font-size:15px; color:var(--muted);
+    margin:10px 0 0; padding-left:9px; border-left:3px solid var(--line); }
+  #mSheet .sh-acts { display:flex; gap:8px; margin-top:16px; }
+  #mSheet .sh-acts button { flex:1; min-height:46px; border-radius:11px; font-size:15px; }
+  #mSheet h4 { margin:16px 0 7px; font-size:12.5px; text-transform:uppercase;
+    letter-spacing:.04em; color:var(--muted); }
+  #mSheet .seg { display:flex; gap:6px; }
+  #mSheet .seg button { flex:1; min-height:44px; border-radius:10px;
+    border:1px solid var(--line); background:transparent; color:inherit;
+    font-size:14px; cursor:pointer; }
+  #mSheet .seg button.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+  #mSheet .sh-slider { display:flex; align-items:center; gap:10px; }
+  #mSheet .sh-slider input { flex:1; }
+
+  /* ---- reading themes (scoped to the mobile reader only) ---- */
+  body.mreader.rt-sepia #view-reader { --r-bg:#f6efe1; --r-ink:#3a2f21; --r-line:#e2d6bf; --r-bar:#efe5d2; }
+  body.mreader.rt-dark  #view-reader { --r-bg:#12161d; --r-ink:#e6e9ef; --r-line:#2a323f; --r-bar:#1a1f28; }
+  body.mreader.rt-dark  #readerStage .rtrans { color:#9aa4b5; }
+  body.mreader.rt-sepia .tok.zh:hover, body.mreader.rt-dark .tok.zh:hover { background:transparent; }
+  /* the pinyin toggle's "on" chip must stay legible on the tinted themes */
+  body.mreader.rt-dark  #mBar #mbPy.on { background:#22354e; color:#9fc4f5; }
+  body.mreader.rt-sepia #mBar #mbPy.on { background:#e3d3b4; color:#6b4d1c; }
+  body.mreader.rt-dark  #mSheet, body.mreader.rt-dark #mMenu { background:#1a1f28; color:#e6e9ef; border-color:#2a323f; }
+  body.mreader.rt-dark  #mMenu button { color:#e6e9ef; }
+
+  @media (prefers-reduced-motion: reduce) {
+    #mSheet, #mMenu, #mDim { transition:none !important; }
+  }
 </style>
 </head>
 <body class="colors-on">
@@ -376,6 +549,12 @@
 
   <!-- ============ READER ============ -->
   <section class="view" id="view-reader">
+    <!-- Phase 45: mobile-only chrome. Hidden by CSS unless body.mreader. -->
+    <div id="mHead">
+      <button class="mh-btn" id="mhBack" aria-label="Quay lại thư viện">←</button>
+      <div class="mh-title" id="mhTitle"></div>
+      <button class="mh-btn" id="mhDone" aria-label="Đánh dấu đã đọc xong" title="Đã đọc xong">✓</button>
+    </div>
     <div id="readerStage">
       <div id="wmark" aria-hidden="true"></div>
       <div class="row" style="align-items:flex-start; flex-wrap:nowrap">
@@ -385,6 +564,10 @@
       <div id="rTitleVi" hidden></div>
       <div id="rMeta" class="row mutetext"></div>
       <figure id="rCover" hidden><img id="rCoverImg" alt="" loading="lazy" decoding="async"></figure>
+      <div id="mTitleWrap">
+        <p class="mt-zh" id="mtZh"></p>
+        <p class="mt-vi" id="mtVi"></p>
+      </div>
       <div id="rBody"></div>
       <div class="row" style="margin-top:16px">
         <button id="btnPrevText" class="small">← Bài trước</button>
@@ -436,7 +619,27 @@
         </div>
       </aside>
     </div>
+
+    <div id="mBar">
+      <button id="mbPrev" aria-label="Phần trước">‹</button>
+      <span class="mb-page" id="mbPage" aria-live="polite">1/1</span>
+      <button id="mbNext" aria-label="Phần sau">›</button>
+      <button id="mbRate" aria-label="Tốc độ đọc">×1.0</button>
+      <button id="mbPlay" aria-label="Đọc thành tiếng">▶</button>
+      <button id="mbPy" aria-label="Bật / tắt pinyin">拼</button>
+      <button id="mbMenu" aria-label="Cài đặt đọc">☰</button>
+    </div>
   </section>
+
+  <div id="mDim"></div>
+  <div id="mMenu" role="menu" aria-label="Thao tác với từ">
+    <button id="mmDict" role="menuitem">📘 Từ điển</button>
+    <button id="mmSave" role="menuitem">🔖 Lưu từ</button>
+  </div>
+  <div id="mSheet" role="dialog" aria-modal="true" aria-label="Bảng thông tin">
+    <div class="sh-grab"></div>
+    <div id="mSheetBody"></div>
+  </div>
 
   <!-- ============ VOCAB ============ -->
   <section class="view" id="view-vocab">
@@ -1043,8 +1246,16 @@ const DICT_URL = i => 'https://cdn.jsdelivr.net/gh/clem109/hsk-vocabulary@master
 let DICT = {};           // hanzi -> [pinyin, meaning, level]
 let MAXW = 1;
 let DICT_JOB = null;     // set by boot(); anything that segments text awaits it
+/* The HSK list is English; the teacher's reading_dict entries are Vietnamese and
+   overwrite it. Keep the English gloss aside so the dictionary panel can show
+   both languages instead of losing one. */
+let DICT_EN = {}, DICT_VI = new Set();
 function rebuildDictIndex() {
-  for (const e of DICT_CUSTOM) DICT[e.word] = [e.pinyin, e.meaning, +e.level, e.example || ''];
+  for (const e of DICT_CUSTOM) {
+    if (DICT[e.word] && DICT_EN[e.word] === undefined) DICT_EN[e.word] = DICT[e.word][1];
+    if (e.meaning) DICT_VI.add(e.word);
+    DICT[e.word] = [e.pinyin, e.meaning, +e.level, e.example || ''];
+  }
   MAXW = 1;
   for (const w in DICT) if (w.length > MAXW) MAXW = w.length;
 }
@@ -1191,6 +1402,9 @@ function bumpStat(field, n) {
 let currentView = 'library';
 function show(view) {
   if (view === 'admin' && !isStaff) return;
+  /* remember where the library was before we leave it — the reader makes
+     <body> overflow:hidden, which throws the page scroll away */
+  if (currentView === 'library' && view !== 'library') LIB_SCROLL = window.scrollY;
   currentView = view;
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + view));
   document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('active', b.dataset.v === view));
@@ -1198,6 +1412,7 @@ function show(view) {
   if (view === 'reader') {
     if (prefs.panel && window.matchMedia('(min-width:1150px)').matches) openSettings();
   } else closeSettings(true);   // leaving the reader hides the drawer but remembers the choice
+  syncMobileMode();
   if (view === 'library') renderLibrary();
   if (view === 'vocab') renderVocab();
   if (view === 'cards') renderCardsHome();
@@ -1420,8 +1635,11 @@ async function openText(id) {
     }
   }
   currentText = t;
+  MPAGE = 0;                      // always land on the first section…
   show('reader');
   renderReader();
+  $('readerStage').scrollTop = 0;
+  if (mobileOn()) { markPageRead(); offerResume(t); }   // …but offer to jump back
   markEncountered(t);
 }
 function markEncountered(t) {
@@ -1452,12 +1670,24 @@ function renderReader() {
     $('rCoverImg').onerror = () => { $('rCover').hidden = true; };
     $('rCover').hidden = false;
   } else $('rCover').hidden = true;
+  $('mtZh').textContent = t.title;
+  $('mtVi').textContent = t.vi || '';
+  $('mtVi').hidden = !t.vi;
+  $('mhTitle').textContent = t.vi || t.title;
   const lines = t.text.split('\n');
   const trs = (t.tr || '').split('\n');
+  /* Phase 45 — on a phone the passage is split into short sections so the
+     reader never becomes an endless scroll. Desktop still renders the lot. */
+  PAGES = buildPages(lines);
+  if (MPAGE >= PAGES.length) MPAGE = PAGES.length - 1;
+  if (MPAGE < 0) MPAGE = 0;
+  const paged = mobileOn() && prefs.mode !== 'scroll';
+  const range = paged ? PAGES[MPAGE] : null;
   const frag = document.createDocumentFragment();
   const savedWords = read('crh-vocab', {});
   lines.forEach((line, li) => {
     if (!line.trim()) return;
+    if (range && (li < range[0] || li > range[1])) return;
     const p = document.createElement('div');
     p.className = 'rpara' + (prefs.pyPos === 'below' ? ' below' : '');
     p.dataset.line = line;
@@ -1497,6 +1727,26 @@ function renderReader() {
   $('rBody').innerHTML = '';
   $('rBody').appendChild(frag);
   $('btnComplete').textContent = stats().completed.includes(t.id) ? '✓ Đã đọc xong (bấm để bỏ)' : '✓ Đã đọc xong';
+  updateBar();
+}
+
+/* ---- Phase 45: split a passage into phone-sized sections ----------------
+   Sections break on paragraph boundaries so a paragraph is never cut in
+   half; the budget is in Chinese characters, which is what actually drives
+   how tall a section renders. */
+let PAGES = [[0, 0]], MPAGE = 0;
+function buildPages(lines) {
+  const budget = 330;
+  const out = []; let start = -1, count = 0;
+  lines.forEach((line, i) => {
+    if (!line.trim()) return;
+    const n = (line.match(CJK_G) || []).length || line.length;
+    if (start === -1) { start = i; count = 0; }
+    else if (count + n > budget) { out.push([start, i - 1]); start = i; count = 0; }
+    count += n;
+  });
+  if (start !== -1) out.push([start, lines.length - 1]);
+  return out.length ? out : [[0, Math.max(0, lines.length - 1)]];
 }
 $('btnComplete').addEventListener('click', () => {
   if (!currentText) return;
@@ -1518,7 +1768,10 @@ $('btnNextText').addEventListener('click', () => stepText(1));
 
 /* reading-time tracking: count seconds while the reader is open and focused */
 setInterval(() => {
-  if (currentView === 'reader' && currentText && document.hasFocus()) bumpStat('read', 5);
+  if (currentView === 'reader' && currentText && document.hasFocus()) {
+    bumpStat('read', 5);
+    if (typeof mDwell === 'number') { mDwell += 5; maybeComplete(); }
+  }
 }, 5000);
 
 /* word popup */
@@ -1527,6 +1780,7 @@ function sentenceOf(line, word) {
   return (parts.find(s => s.includes(word)) || line).trim();
 }
 function wordClicked(w, line, cell) {
+  if (mobileOn() && currentView === 'reader') { openMenu(w, line, cell); return; }
   if (prefs.audioClick) speak(w);
   const d = lookup(w);
   const items = charAnalyse(w);
@@ -2246,6 +2500,7 @@ function applyPrefs() {
   document.body.classList.toggle('tr-hidden', !prefs.tr);
   document.body.classList.toggle('colors-on', prefs.colors);
   document.querySelectorAll('.rpara').forEach(p => p.classList.toggle('below', prefs.pyPos === 'below'));
+  if (typeof applyReadTheme === 'function') applyReadTheme();
 }
 function savePrefs() { store('crh-prefs', prefs); }
 function loadPrefs() { prefs = { ...prefs, ...read('crh-prefs', {}) }; applyPrefs(); }
@@ -2411,12 +2666,12 @@ function stopSpeak() {
   if (currentAudio) { try { currentAudio.pause(); } catch (e) {} currentAudio = null; }
   try { speechSynthesis.cancel(); } catch (e) {}
 }
-async function speak(text) {
+async function speak(text, done) {
   stopSpeak();
   const my = speakToken;
   const r = resolveVoice();
   const sentences = text.split(/(?<=[。！？；.!?;\n])/).map(s => s.trim()).filter(Boolean);
-  if (!sentences.length) return;
+  if (!sentences.length) { if (done) done(); return; }
   if (r.engine === 'azure') {
     const ratePct = Math.round((prefs.rate - 1) * 100);
     for (let i = 0; i < sentences.length; i++) {
@@ -2439,15 +2694,17 @@ async function speak(text) {
         a.play().catch(res);
       });
     }
-  } else speakDevice(text, my);
+    if (done && speakToken === my) done();
+  } else speakDevice(text, my, done);
 }
-function speakDevice(text, my) {
-  if (!('speechSynthesis' in window)) return;
+function speakDevice(text, my, done) {
+  if (!('speechSynthesis' in window)) { if (done) done(); return; }
   const r = resolveVoice();
   const voice = r.engine === 'device' ? r.voice : (mandarinVoices()[0] || null);
   const parts = text.split(/(?<=[。！？；.!?;\n])/).map(s => s.trim()).filter(Boolean);
   const next = () => {
-    if (speakToken !== my || !parts.length) return;
+    if (speakToken !== my) return;                 // cancelled — stay silent
+    if (!parts.length) { if (done) done(); return; }
     const u = new SpeechSynthesisUtterance(parts.shift());
     u.lang = (voice && voice.lang) || 'zh-CN';
     if (voice) u.voice = voice;
@@ -2481,6 +2738,320 @@ $('btnKeySave').addEventListener('click', async () => {
     st.textContent = '✗ ' + ((e.status === 401 || e.status === 403) ? 'Khóa hoặc Region chưa đúng.' : 'Không kết nối được.');
   }
 });
+
+/* ==========================================================================
+   PHASE 45 — MOBILE READER
+   A phone-sized reading app built on top of the existing reader: same texts,
+   same segmentation, same dictionary, same vocabulary store, same audio
+   engine and the same progress counters. Nothing here runs on desktop.
+   ========================================================================== */
+function debounce(fn, ms) {
+  let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+}
+/* same deletion path as the 📒 Từ vựng list, so the cloud copy goes too */
+function removeWord(w) {
+  const vocab = read('crh-vocab', {});
+  if (!vocab[w]) return;
+  delete vocab[w]; store('crh-vocab', vocab);
+  updateDueBadge(); pushVocabDelete(w);
+}
+
+/* Phones only. 700px sits above every common phone width (320–430, and 480–540
+   for a large phone in landscape) and below iPad portrait at 768, so tablets and
+   desktops keep the original layout exactly as it was. */
+const MQ_MOBILE = window.matchMedia('(max-width: 700px)');
+const mobileOn = () => MQ_MOBILE.matches;
+
+function syncMobileMode() {
+  const on = mobileOn() && currentView === 'reader' && !!currentText;
+  document.body.classList.toggle('mreader', on);
+  if (!on) { closeMenu(); closeSheet(); mStopRead(); }
+  applyReadTheme();
+  if (on) updateBar();
+}
+MQ_MOBILE.addEventListener('change', () => { syncMobileMode(); if (currentText) renderReader(); });
+
+/* ---- reading themes / extra preferences -------------------------------- */
+Object.assign(prefs, { theme: prefs.theme || 'light', lh: prefs.lh || 1.9, mode: prefs.mode || 'page' });
+function applyReadTheme() {
+  document.body.classList.toggle('rt-sepia', prefs.theme === 'sepia');
+  document.body.classList.toggle('rt-dark', prefs.theme === 'dark');
+  document.documentElement.style.setProperty('--lh', prefs.lh);
+}
+
+/* ---- where the learner had got to ------------------------------------- */
+const posKey = () => 'crh-pos';
+function savePos() {
+  if (!currentText || !mobileOn()) return;
+  const all = read(posKey(), {});
+  all[currentText.id] = { page: MPAGE, top: Math.round($('readerStage').scrollTop), ts: Date.now() };
+  store(posKey(), all);
+}
+function readPos(id) { return read(posKey(), {})[id] || null; }
+
+/* ---- top bar ----------------------------------------------------------- */
+$('mhBack').addEventListener('click', () => {
+  savePos(); mStopRead(); closeMenu(); closeSheet();
+  show('library');
+  /* The library section was only hidden, never re-rendered, so its filters,
+     search text and card list are exactly as they were left. The scroll
+     offset needs a beat: while the reader was open <body> had overflow:hidden,
+     so the page is not scrollable again until layout settles — re-assert it
+     over a few frames rather than guessing one. */
+  const want = LIB_SCROLL;
+  if (want > 0) [0, 40, 110, 240, 420, 650].forEach(ms => setTimeout(() => {
+    if (currentView === 'library' && Math.abs(window.scrollY - want) > 2) window.scrollTo(0, want);
+  }, ms));
+});
+$('mhDone').addEventListener('click', () => $('btnComplete').click());
+
+let LIB_SCROLL = 0;
+
+/* ---- bottom bar -------------------------------------------------------- */
+const RATES = [0.75, 1, 1.25, 1.5];
+function updateBar() {
+  if (!mobileOn()) return;
+  const paged = prefs.mode !== 'scroll';
+  $('mbPage').textContent = paged ? (MPAGE + 1) + '/' + PAGES.length : '↕';
+  $('mbPrev').disabled = !paged || MPAGE === 0;
+  $('mbNext').disabled = !paged || MPAGE >= PAGES.length - 1;
+  $('mbRate').textContent = '×' + prefs.rate.toFixed(2).replace(/0$/, '').replace(/\.$/, '.0');
+  $('mbPy').classList.toggle('on', prefs.pyPos !== 'hidden');
+  $('mbPy').setAttribute('aria-pressed', prefs.pyPos !== 'hidden');
+  $('mbPlay').textContent = mReading ? '❚❚' : '▶';
+  $('mbPlay').setAttribute('aria-label', mReading ? 'Tạm dừng' : 'Đọc thành tiếng');
+}
+function goPage(n) {
+  if (n < 0 || n >= PAGES.length) return;
+  mDwell = 0;                    // each section earns its own time
+  mStopRead();
+  MPAGE = n; renderReader();
+  $('readerStage').scrollTop = 0;
+  markPageRead(); savePos(); maybeComplete();
+}
+$('mbPrev').addEventListener('click', () => goPage(MPAGE - 1));
+$('mbNext').addEventListener('click', () => goPage(MPAGE + 1));
+$('mbRate').addEventListener('click', () => {
+  const i = RATES.findIndex(r => Math.abs(r - prefs.rate) < 0.01);
+  prefs.rate = RATES[(i + 1) % RATES.length];
+  $('aRate').value = prefs.rate; savePrefs(); updateBar();
+});
+$('mbPy').addEventListener('click', () => {
+  prefs.pyPos = prefs.pyPos === 'hidden' ? 'above' : 'hidden';
+  applyPrefs(); savePrefs(); updateBar();
+});
+$('mbPlay').addEventListener('click', () => mPlayPause());
+$('mbMenu').addEventListener('click', () => openSettingsSheet());
+$('readerStage').addEventListener('scroll', debounce(() => { savePos(); maybeComplete(); }, 350), { passive: true });
+
+/* ---- progress ----------------------------------------------------------
+   A section counts as visited once it is on screen, but that alone never
+   completes a text: the learner has to have visited EVERY section, be on
+   the last one, and have scrolled to the bottom of it. Otherwise a
+   one-section text would be "finished" the instant it opened. */
+function markPageRead() {
+  if (!currentText) return;
+  const s = stats();
+  s.pages = s.pages || {};
+  const seen = new Set(s.pages[currentText.id] || []);
+  seen.add(MPAGE);
+  s.pages[currentText.id] = [...seen];
+  store('crh-stats', s);
+  scheduleProgressPush();
+}
+function maybeComplete() {
+  if (!currentText || !mobileOn()) return;
+  const s = stats();
+  if (s.completed.includes(currentText.id)) return;
+  const seen = new Set((s.pages || {})[currentText.id] || []);
+  if (seen.size < PAGES.length) return;           // some sections never opened
+  if (MPAGE !== PAGES.length - 1) return;         // not on the final section
+  const el = $('readerStage');
+  if (el.scrollHeight - el.scrollTop - el.clientHeight > 60) return;   // not read to the end
+  /* a short text fits without scrolling, so "reached the end" is true the
+     moment it opens — require some real time on the page as well */
+  if (el.scrollHeight <= el.clientHeight + 60 && mDwell < 15) return;
+  s.completed.push(currentText.id); store('crh-stats', s);
+  scheduleProgressPush();
+  toast('🎉 Đã đọc hết bài này!');
+  $('mhDone').textContent = '✓';
+}
+
+/* ---- read aloud with sentence highlighting ----------------------------- */
+let mReading = false, mStopFn = null, mDwell = 0;
+function speakAwait(text) {
+  return new Promise(res => {
+    let fired = false;
+    const fin = () => { if (!fired) { fired = true; mStopFn = null; res(); } };
+    mStopFn = fin;
+    speak(text, fin);
+  });
+}
+function mStopRead() {
+  mReading = false;
+  stopSpeak();
+  if (mStopFn) { const f = mStopFn; mStopFn = null; f(); }
+  document.querySelectorAll('.rpara.speaking').forEach(p => p.classList.remove('speaking'));
+  updateBar();
+}
+async function mPlayPause() {
+  if (mReading) { mStopRead(); return; }
+  const paras = [...$('rBody').querySelectorAll('.rpara')];
+  if (!paras.length) return;
+  mReading = true; updateBar();
+  for (const p of paras) {
+    if (!mReading) break;
+    p.classList.add('speaking');
+    try { p.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {}
+    await speakAwait(p.dataset.line || p.textContent);
+    p.classList.remove('speaking');
+  }
+  if (mReading) {
+    mReading = false; updateBar();
+    /* roll on to the next section by itself, the way an audiobook would */
+    if (prefs.mode !== 'scroll' && MPAGE < PAGES.length - 1) { goPage(MPAGE + 1); mPlayPause(); }
+  }
+}
+
+/* ---- tapping a word: small menu first, exactly like the reference ------ */
+let SELW = null;   // { w, line, cell }
+function openMenu(w, line, cell) {
+  SELW = { w, line, cell };
+  document.querySelectorAll('.tok.wsel').forEach(t => t.classList.remove('wsel'));
+  cell.classList.add('wsel');
+  const menu = $('mMenu');
+  menu.classList.add('on');
+  $('mDim').classList.add('on');
+  const vocab = read('crh-vocab', {});
+  $('mmSave').textContent = vocab[w] ? '🗑 Bỏ lưu' : '🔖 Lưu từ';
+  /* place it under the word, then pull it back inside the screen */
+  const r = cell.getBoundingClientRect();
+  const mw = menu.offsetWidth, mh = menu.offsetHeight, pad = 8;
+  let x = Math.min(window.innerWidth - mw - pad, Math.max(pad, r.left));
+  let y = r.bottom + 6;
+  if (y + mh > window.innerHeight - pad) y = Math.max(pad, r.top - mh - 6);
+  menu.style.left = x + 'px'; menu.style.top = y + 'px';
+}
+function closeMenu() {
+  $('mMenu').classList.remove('on');
+  if (!$('mSheet').classList.contains('on')) $('mDim').classList.remove('on');
+  document.querySelectorAll('.tok.wsel').forEach(t => t.classList.remove('wsel'));
+}
+$('mDim').addEventListener('click', () => { closeMenu(); closeSheet(); });
+$('mmDict').addEventListener('click', () => { $('mMenu').classList.remove('on'); openDictSheet(SELW); });
+$('mmSave').addEventListener('click', () => { toggleSave(SELW); closeMenu(); });
+
+/* ---- dictionary bottom sheet ------------------------------------------ */
+function wordInfo(w, line) {
+  const d = lookup(w);
+  const items = charAnalyse(w);
+  const py = d && d[0] ? d[0] : (items ? items.map(x => x.mark).join(' ') : '');
+  const hasVi = DICT_VI.has(w);
+  return {
+    w, py,
+    vi: hasVi ? d[1] : '',
+    en: hasVi ? (DICT_EN[w] || '') : (d ? d[1] : ''),
+    lvl: d ? d[2] : 0,
+    ex: (d && d[3]) ? d[3] : sentenceOf(line || '', w),
+    known: !!d
+  };
+}
+function openDictSheet(sel) {
+  if (!sel) return;
+  const i = wordInfo(sel.w, sel.line);
+  const vocab = read('crh-vocab', {});
+  const saved = !!vocab[sel.w];
+  $('mSheetBody').innerHTML =
+    '<div class="sh-row"><span class="sh-w">' + escH(i.w) + '</span>' +
+      (i.py ? '<span class="sh-py">' + escH(i.py) + '</span>' : '') +
+      '<span class="lv lv' + i.lvl + '" style="margin-left:auto">' +
+      (i.lvl ? 'HSK' + i.lvl : 'ngoài HSK') + '</span></div>' +
+    (i.vi ? '<div class="sh-def"><b>Tiếng Việt</b>' + escH(i.vi) + '</div>' : '') +
+    (i.en ? '<div class="sh-def"><b>English</b>' + escH(i.en) + '</div>' : '') +
+    (!i.known ? '<div class="sh-def" style="color:var(--muted)">Từ này chưa có trong từ điển HSK — bạn vẫn lưu được và tự ghi nghĩa ở mục 📒 Từ vựng.</div>' : '') +
+    (i.ex && i.ex !== i.w ? '<div class="sh-ex">' + escH(i.ex) + '</div>' : '') +
+    '<div class="sh-acts">' +
+      '<button class="small" id="shPlay">🔊 Nghe</button>' +
+      '<button class="small primary" id="shSave">' + (saved ? '✓ Đã lưu — bỏ' : '🔖 Lưu từ') + '</button>' +
+    '</div>';
+  $('shPlay').onclick = () => speak(i.w);
+  $('shSave').onclick = () => { toggleSave(sel); openDictSheet(sel); };
+  openSheet();
+}
+function openSheet() { $('mSheet').classList.add('on'); $('mDim').classList.add('on'); }
+function closeSheet() {
+  $('mSheet').classList.remove('on');
+  if (!$('mMenu').classList.contains('on')) $('mDim').classList.remove('on');
+  document.querySelectorAll('.tok.wsel').forEach(t => t.classList.remove('wsel'));
+}
+
+/* ---- save / unsave ----------------------------------------------------- */
+function toggleSave(sel) {
+  if (!sel) return;
+  const vocab = read('crh-vocab', {});
+  if (vocab[sel.w]) { removeWord(sel.w); toast('Đã bỏ khỏi từ vựng.'); }
+  else {
+    const i = wordInfo(sel.w, sel.line);
+    const meaning = [i.vi, i.en].filter(Boolean).join(' · ');
+    saveWord(i.w, i.py, meaning, i.lvl, i.ex);
+    toast('Đã lưu từ vựng.');
+  }
+  renderReader();
+}
+
+/* ---- reader settings sheet -------------------------------------------- */
+function openSettingsSheet() {
+  const seg = (id, opts, cur) => '<div class="seg" id="' + id + '">' + opts.map(([v, l]) =>
+    '<button data-v="' + v + '"' + (String(cur) === String(v) ? ' class="on"' : '') + '>' + l + '</button>').join('') + '</div>';
+  $('mSheetBody').innerHTML =
+    '<h4>Cỡ chữ Hán</h4>' +
+    '<div class="sh-slider">A<input type="range" id="stSize" min="18" max="40" step="1" value="' + prefs.hz + '"><span style="font-size:20px">A</span></div>' +
+    '<h4>Giãn dòng</h4>' + seg('stLh', [[1.6, 'Chặt'], [1.9, 'Vừa'], [2.2, 'Rộng']], prefs.lh) +
+    '<h4>Nền đọc</h4>' + seg('stTheme', [['light', 'Sáng'], ['sepia', 'Giấy ngà'], ['dark', 'Tối']], prefs.theme) +
+    '<h4>Cách đọc</h4>' + seg('stMode', [['page', 'Chia phần'], ['scroll', 'Cuộn liền']], prefs.mode) +
+    '<h4>Pinyin</h4>' + seg('stPy', [['above', 'Trên chữ'], ['below', 'Dưới chữ'], ['hidden', 'Ẩn']], prefs.pyPos) +
+    '<h4>Bản dịch</h4>' + seg('stTr', [[1, 'Hiện'], [0, 'Ẩn']], prefs.tr ? 1 : 0) +
+    '<div class="sh-acts"><button class="small" id="stReset">↺ Đặt lại mặc định</button>' +
+    '<button class="small primary" id="stDone">Xong</button></div>';
+
+  $('stSize').oninput = () => { prefs.hz = +$('stSize').value; prefs.py = Math.round(prefs.hz * 0.54); applyPrefs(); savePrefs(); };
+  const pick = (id, fn) => $(id).addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    [...$(id).children].forEach(c => c.classList.toggle('on', c === b));
+    fn(b.dataset.v);
+  });
+  pick('stLh', v => { prefs.lh = +v; applyReadTheme(); savePrefs(); });
+  pick('stTheme', v => { prefs.theme = v; applyReadTheme(); savePrefs(); });
+  pick('stMode', v => { prefs.mode = v; savePrefs(); MPAGE = 0; renderReader(); });
+  pick('stPy', v => { prefs.pyPos = v; applyPrefs(); savePrefs(); updateBar(); renderReader(); });
+  pick('stTr', v => { prefs.tr = v === '1'; applyPrefs(); savePrefs(); });
+  $('stReset').onclick = () => {
+    Object.assign(prefs, { hz: 24, py: 13, trS: 15, lh: 1.9, theme: 'light', mode: 'page', pyPos: 'above', tr: true });
+    applyPrefs(); applyReadTheme(); savePrefs(); renderReader(); openSettingsSheet();
+  };
+  $('stDone').onclick = closeSheet;
+  openSheet();
+}
+
+/* ---- "carry on where you left off" ------------------------------------ */
+function offerResume(t) {
+  const p = readPos(t.id);
+  if (!p || !p.page || p.page >= PAGES.length) return;
+  const bar = document.createElement('div');
+  bar.id = 'mResume';
+  bar.style.cssText = 'display:flex;gap:8px;align-items:center;background:var(--accent-soft);' +
+    'border-radius:10px;padding:8px 10px;margin:0 0 12px;font-size:13.5px;';
+  bar.innerHTML = '<span style="flex:1">Đọc tiếp phần ' + (p.page + 1) + '/' + PAGES.length + '?</span>' +
+    '<button class="small primary" id="mrGo">Đọc tiếp</button>' +
+    '<button class="small" id="mrNo">Từ đầu</button>';
+  const wrap = $('mTitleWrap');
+  wrap.parentNode.insertBefore(bar, wrap.nextSibling);
+  bar.querySelector('#mrGo').onclick = () => {
+    bar.remove(); MPAGE = p.page; renderReader();
+    $('readerStage').scrollTop = p.top || 0; markPageRead();
+  };
+  bar.querySelector('#mrNo').onclick = () => bar.remove();
+}
 
 /* ================= init: sign-in first, then cloud pull, then render ================= */
 (async function boot() {
