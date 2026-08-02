@@ -1055,12 +1055,23 @@ function pathOf(t) {
   return (th ? th.name : '') + (names.length ? (th ? ' › ' : '') + names.join(', ') : '');
 }
 async function loadCloudDict() {
+  /* The dictionary is now ~7,400 entries. Re-downloading half a megabyte on
+     every visit would undo the Phase 43 speed work, so ask dict_meta for a
+     version number first (a single tiny row) and only pull the words when
+     that number differs from the copy already on this device. */
+  const cached = read('cdict-cache', []);
   try {
+    const { data: meta } = await sb.from('dict_meta').select('version,words').eq('id', 1).maybeSingle();
+    const have = read('cdict-ver', null);
+    if (meta && have && String(have) === String(meta.version) && cached.length) {
+      DICT_CUSTOM = cached; return;              // unchanged since last time
+    }
     const { data, error } = await sb.from('reading_dict').select('*').order('word');
     if (error) throw error;
     DICT_CUSTOM = data;
     store('cdict-cache', DICT_CUSTOM);
-  } catch (e) { DICT_CUSTOM = read('cdict-cache', []); }
+    if (meta) store('cdict-ver', meta.version);
+  } catch (e) { DICT_CUSTOM = cached; }
 }
 
 /* --- per-student vocabulary: Supabase is the source of truth, localStorage the offline mirror --- */
@@ -1250,11 +1261,16 @@ let DICT_JOB = null;     // set by boot(); anything that segments text awaits it
    overwrite it. Keep the English gloss aside so the dictionary panel can show
    both languages instead of losing one. */
 let DICT_EN = {}, DICT_VI = new Set();
+/* traditional form, part of speech, HSK band label — per word, from reading_dict */
+let DICT_META = {};
 function rebuildDictIndex() {
   for (const e of DICT_CUSTOM) {
     if (DICT[e.word] && DICT_EN[e.word] === undefined) DICT_EN[e.word] = DICT[e.word][1];
     if (e.meaning) DICT_VI.add(e.word);
-    DICT[e.word] = [e.pinyin, e.meaning, +e.level, e.example || ''];
+    if (e.meaning_en) DICT_EN[e.word] = e.meaning_en;
+    DICT_META[e.word] = { trad: e.traditional || '', pos: e.pos || '', label: e.hsk_label || '' };
+    /* a word with no Vietnamese yet must not blank out the English gloss */
+    DICT[e.word] = [e.pinyin, e.meaning || e.meaning_en || '', +e.level, e.example || ''];
   }
   MAXW = 1;
   for (const w in DICT) if (w.length > MAXW) MAXW = w.length;
@@ -1792,7 +1808,11 @@ function wordClicked(w, line, cell) {
   pop.innerHTML =
     '<button class="close" id="ppClose">✕</button>' +
     '<div><span class="w">' + escH(w) + '</span><span class="p">' + escH(pyStr) + '</span> ' +
-    '<span class="lv lv' + (d ? d[2] : 0) + '">' + (d && d[2] ? 'HSK ' + d[2] : 'ngoài HSK') + '</span></div>' +
+    '<span class="lv lv' + (d ? d[2] : 0) + '">' +
+      escH((DICT_META[w] && DICT_META[w].label) || (d && d[2] ? 'HSK ' + d[2] : 'ngoài HSK')) + '</span></div>' +
+    (DICT_META[w] && DICT_META[w].trad && DICT_META[w].trad !== w
+       ? '<div class="mutetext">繁體 ' + escH(DICT_META[w].trad) + '</div>' : '') +
+    (DICT_META[w] && DICT_META[w].pos ? '<div class="mutetext">' + escH(DICT_META[w].pos) + '</div>' : '') +
     '<div class="m">' + (d ? escH(d[1]) : '<span class="mutetext">Không có trong từ điển HSK — bạn vẫn có thể lưu và tự ghi nghĩa.</span>') + '</div>' +
     (ex && ex !== w ? '<div class="ex">' + escH(ex) + '</div>' : '') +
     (saved && saved.note ? '<div class="mutetext">📝 ' + escH(saved.note) + '</div>' : '') +
@@ -2947,11 +2967,17 @@ function wordInfo(w, line) {
   const items = charAnalyse(w);
   const py = d && d[0] ? d[0] : (items ? items.map(x => x.mark).join(' ') : '');
   const hasVi = DICT_VI.has(w);
+  const m = DICT_META[w] || {};
+  const lvl = d ? d[2] : 0;
   return {
     w, py,
     vi: hasVi ? d[1] : '',
-    en: hasVi ? (DICT_EN[w] || '') : (d ? d[1] : ''),
-    lvl: d ? d[2] : 0,
+    en: hasVi ? (DICT_EN[w] || '') : (DICT_EN[w] || (d ? d[1] : '')),
+    lvl,
+    trad: m.trad || '', pos: m.pos || '',
+    /* HSK 3.0 merges levels 7, 8 and 9 into one advanced band — say so
+       rather than claiming a precise level the source never gave */
+    label: m.label || (lvl ? 'HSK' + lvl : 'ngoài HSK'),
     ex: (d && d[3]) ? d[3] : sentenceOf(line || '', w),
     known: !!d
   };
@@ -2964,8 +2990,11 @@ function openDictSheet(sel) {
   $('mSheetBody').innerHTML =
     '<div class="sh-row"><span class="sh-w">' + escH(i.w) + '</span>' +
       (i.py ? '<span class="sh-py">' + escH(i.py) + '</span>' : '') +
-      '<span class="lv lv' + i.lvl + '" style="margin-left:auto">' +
-      (i.lvl ? 'HSK' + i.lvl : 'ngoài HSK') + '</span></div>' +
+      '<span class="lv lv' + i.lvl + '" style="margin-left:auto">' + escH(i.label) + '</span></div>' +
+    (i.trad && i.trad !== i.w
+       ? '<div class="sh-def"><b>Phồn thể</b><span style="font-family:var(--hz-font);font-size:19px">' +
+         escH(i.trad) + '</span></div>' : '') +
+    (i.pos ? '<div class="sh-def"><b>Từ loại</b>' + escH(i.pos) + '</div>' : '') +
     (i.vi ? '<div class="sh-def"><b>Tiếng Việt</b>' + escH(i.vi) + '</div>' : '') +
     (i.en ? '<div class="sh-def"><b>English</b>' + escH(i.en) + '</div>' : '') +
     (!i.known ? '<div class="sh-def" style="color:var(--muted)">Từ này chưa có trong từ điển HSK — bạn vẫn lưu được và tự ghi nghĩa ở mục 📒 Từ vựng.</div>' : '') +
