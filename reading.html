@@ -320,6 +320,8 @@
   }
   .offline { color:var(--l5); font-weight:600; }
 
+  #hideReadWrap { display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
+    font-size:14px; cursor:pointer; padding:6px 4px; }
   @media (max-width:640px) {
     main { padding:10px 10px 60px; }
     header { padding:8px 10px; }
@@ -375,6 +377,37 @@
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding:0 2px;
   }
   #mHead .mh-spacer { flex:none; width:44px; }
+
+  /* ---- instant gloss: the meaning of the tapped word, pinned under the header
+         so it is readable without covering the sentence being read ---- */
+  #mGloss { display:none; }
+  body.mreader #mGloss {
+    display:block; flex:none; padding:9px 16px 10px;
+    background:var(--r-bg, var(--panel));
+    border-bottom:1px solid var(--r-line, var(--line));
+    animation:mgIn .14s ease;
+  }
+  body.mreader #mGloss[hidden] { display:none; }
+  @keyframes mgIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
+  #mGloss .mg-top { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+  #mGloss .mg-w { font-family:var(--hz-font); font-size:20px; font-weight:600; color:var(--accent); }
+  #mGloss .mg-py { color:var(--accent); font-size:14.5px; }
+  #mGloss .mg-lv { margin-left:auto; font-size:11px; }
+  #mGloss .mg-m { font-size:14px; line-height:1.45; margin-top:2px; color:var(--r-ink, var(--ink)); }
+  #mGloss .mg-m .mg-en { color:var(--muted); }
+  body.mreader.rt-dark #mGloss .mg-w, body.mreader.rt-dark #mGloss .mg-py { color:#8fb6ea; }
+
+  /* ---- end of the passage: read again / mark read ---- */
+  #mEnd { display:none; }
+  body.mreader #mEnd { display:flex; gap:10px; margin:26px 0 8px; }
+  #mEnd button {
+    flex:1; min-height:48px; border-radius:11px; font-size:14.5px; font-weight:600;
+    display:inline-flex; align-items:center; justify-content:center; gap:7px;
+    border:1px solid var(--r-line, var(--line)); background:transparent; color:inherit; cursor:pointer;
+  }
+  #mEnd #meDone { background:#12a37a; border-color:#12a37a; color:#fff; }
+  #mEnd #meDone.done { background:#0d7f5f; border-color:#0d7f5f; }
+  #mEnd button:active { transform:translateY(1px); }
 
   /* ---- scrolling passage ---- */
   body.mreader #readerStage {
@@ -540,6 +573,8 @@
         <option value="premium">👑 Premium</option>
       </select>
       <input id="libSearch" class="grow" placeholder="Tìm theo tên bài, nội dung, chủ đề…" style="min-width:180px" aria-label="Tìm bài đọc">
+      <label class="toggle" id="hideReadWrap" title="Bài đã đọc xong sẽ được ẩn đi để bạn tập trung vào bài mới">
+        <input type="checkbox" id="tgHideRead" checked> Ẩn bài đã đọc <span class="mutetext" id="hideReadN"></span></label>
       <button id="btnClearFilters" class="small" hidden>✕ Xóa hết bộ lọc</button>
     </div>
     <div class="panel row" id="activeFilters" hidden style="padding:8px 12px"></div>
@@ -555,6 +590,7 @@
       <div class="mh-title" id="mhTitle"></div>
       <button class="mh-btn" id="mhDone" aria-label="Đánh dấu đã đọc xong" title="Đã đọc xong">✓</button>
     </div>
+    <div id="mGloss" hidden aria-live="polite"></div>
     <div id="readerStage">
       <div id="wmark" aria-hidden="true"></div>
       <div class="row" style="align-items:flex-start; flex-wrap:nowrap">
@@ -569,6 +605,10 @@
         <p class="mt-vi" id="mtVi"></p>
       </div>
       <div id="rBody"></div>
+      <div id="mEnd" hidden>
+        <button id="meAgain">↺ Đọc lại</button>
+        <button id="meDone">✓ Đánh dấu đã đọc</button>
+      </div>
       <div class="row" style="margin-top:16px">
         <button id="btnPrevText" class="small">← Bài trước</button>
         <button id="btnComplete" class="primary small">✓ Đã đọc xong</button>
@@ -1455,6 +1495,9 @@ $('libSearch').addEventListener('input', () => renderLibrary());
 $('themeSel').addEventListener('change', () => { $('subSel').value = ''; renderLibrary(); });   // theme change resets subtopic
 $('subSel').addEventListener('change', () => renderLibrary());
 $('accSel').addEventListener('change', () => renderLibrary());
+$('tgHideRead').addEventListener('change', () => {
+  store('crh-hideread', $('tgHideRead').checked); renderLibrary();
+});
 $('btnClearFilters').addEventListener('click', clearFilters);
 function clearFilters() {
   libLevel = 0; $('libSearch').value = ''; $('themeSel').value = ''; $('subSel').value = ''; $('accSel').value = '';
@@ -1569,6 +1612,7 @@ function renderLibrary() {
   const q = vnorm($('libSearch').value.trim());
   const theme = $('themeSel').value, sub = $('subSel').value, acc = $('accSel').value;
   const done = stats().completed;
+  const hideRead = $('tgHideRead').checked;
   const filtered = !!q || !!theme || !!sub || !!acc || !!libLevel;
   $('btnClearFilters').hidden = !filtered;
   let list = getTexts().filter(t =>
@@ -1576,6 +1620,11 @@ function renderLibrary() {
     matchesTheme(t, theme) && matchesSub(t, sub) &&
     (!acc || (acc === 'premium' ? t.tier === 'premium' : t.tier !== 'premium')) &&
     (!q || searchHit(t, q)));
+  /* finished texts are hidden by default so the library always opens on
+     what is still to read; the switch brings them back */
+  const readHere = list.filter(t => done.includes(t.id)).length;
+  if (hideRead && readHere) list = list.filter(t => !done.includes(t.id));
+  $('hideReadN').textContent = readHere ? '(' + readHere + ')' : '';
   /* account-based ordering: Free accounts see free texts first, premium after;
      Premium accounts and staff keep the normal order. Stable sort → compatible
      with every active filter. */
@@ -2523,7 +2572,12 @@ function applyPrefs() {
   if (typeof applyReadTheme === 'function') applyReadTheme();
 }
 function savePrefs() { store('crh-prefs', prefs); }
-function loadPrefs() { prefs = { ...prefs, ...read('crh-prefs', {}) }; applyPrefs(); }
+function loadPrefs() {
+  prefs = { ...prefs, ...read('crh-prefs', {}) };
+  /* default ON: hide what has already been read */
+  $('tgHideRead').checked = read('crh-hideread', true) !== false;
+  applyPrefs();
+}
 $('pyPos').addEventListener('change', () => { prefs.pyPos = $('pyPos').value; applyPrefs(); savePrefs(); });
 $('tgTr').addEventListener('change', () => { prefs.tr = $('tgTr').checked; applyPrefs(); savePrefs(); });
 $('tgColors').addEventListener('change', () => { prefs.colors = $('tgColors').checked; applyPrefs(); savePrefs(); });
@@ -2811,7 +2865,7 @@ function readPos(id) { return read(posKey(), {})[id] || null; }
 
 /* ---- top bar ----------------------------------------------------------- */
 $('mhBack').addEventListener('click', () => {
-  savePos(); mStopRead(); closeMenu(); closeSheet();
+  savePos(); mStopRead(); closeMenu(); closeSheet(); hideGloss();
   show('library');
   /* The library section was only hidden, never re-rendered, so its filters,
      search text and card list are exactly as they were left. The scroll
@@ -2840,15 +2894,36 @@ function updateBar() {
   $('mbPy').setAttribute('aria-pressed', prefs.pyPos !== 'hidden');
   $('mbPlay').textContent = mReading ? '❚❚' : '▶';
   $('mbPlay').setAttribute('aria-label', mReading ? 'Tạm dừng' : 'Đọc thành tiếng');
+  /* the finish buttons belong at the end of the LAST section only */
+  const last = !paged || MPAGE === PAGES.length - 1;
+  const end = $('mEnd');
+  if (end) {
+    end.hidden = !last;
+    const done = currentText && stats().completed.includes(currentText.id);
+    const b = $('meDone');
+    b.textContent = done ? '✓ Đã đọc xong' : '✓ Đánh dấu đã đọc';
+    b.classList.toggle('done', !!done);
+  }
 }
 function goPage(n) {
   if (n < 0 || n >= PAGES.length) return;
   mDwell = 0;                    // each section earns its own time
+  hideGloss();
   mStopRead();
   MPAGE = n; renderReader();
   $('readerStage').scrollTop = 0;
   markPageRead(); savePos(); maybeComplete();
 }
+$('meAgain').addEventListener('click', () => { hideGloss(); goPage(0); });
+$('meDone').addEventListener('click', () => {
+  if (!currentText) return;
+  const s = stats();
+  if (!s.completed.includes(currentText.id)) {
+    s.completed.push(currentText.id); store('crh-stats', s); scheduleProgressPush();
+  }
+  toast('🎉 Đã đánh dấu đọc xong!');
+  $('mhBack').click();          // straight back to the library they came from
+});
 $('mbPrev').addEventListener('click', () => goPage(MPAGE - 1));
 $('mbNext').addEventListener('click', () => goPage(MPAGE + 1));
 $('mbRate').addEventListener('click', () => {
@@ -2939,6 +3014,7 @@ function openMenu(w, line, cell) {
   SELW = { w, line, cell };
   document.querySelectorAll('.tok.wsel').forEach(t => t.classList.remove('wsel'));
   cell.classList.add('wsel');
+  showGloss(w, line);          // the meaning appears at once — no extra tap
   const menu = $('mMenu');
   menu.classList.add('on');
   $('mDim').classList.add('on');
@@ -2955,8 +3031,27 @@ function openMenu(w, line, cell) {
 function closeMenu() {
   $('mMenu').classList.remove('on');
   if (!$('mSheet').classList.contains('on')) $('mDim').classList.remove('on');
+  /* the gloss stays: the learner has just looked the word up and is now
+     reading on, so keep it visible until another word is tapped or they
+     leave the passage */
   document.querySelectorAll('.tok.wsel').forEach(t => t.classList.remove('wsel'));
 }
+/* the meaning strip under the header — the fast path, no menu needed */
+function showGloss(w, line) {
+  const i = wordInfo(w, line);
+  const meaning = i.vi || i.en;
+  $('mGloss').innerHTML =
+    '<div class="mg-top"><span class="mg-w">' + escH(i.w) + '</span>' +
+      (i.py ? '<span class="mg-py">' + escH(i.py) + '</span>' : '') +
+      '<span class="lv lv' + i.lvl + ' mg-lv">' + escH(i.label) + '</span></div>' +
+    '<div class="mg-m">' +
+      (i.vi ? escH(i.vi) : '') +
+      (i.vi && i.en ? ' <span class="mg-en">· ' + escH(i.en) + '</span>' : (i.en ? '<span class="mg-en">' + escH(i.en) + '</span>' : '')) +
+      (!meaning ? '<span class="mg-en">Chưa có nghĩa cho từ này — bấm 📘 Từ điển để xem chi tiết và tự ghi nghĩa.</span>' : '') +
+    '</div>';
+  $('mGloss').hidden = false;
+}
+function hideGloss() { $('mGloss').hidden = true; }
 $('mDim').addEventListener('click', () => { closeMenu(); closeSheet(); });
 $('mmDict').addEventListener('click', () => { $('mMenu').classList.remove('on'); openDictSheet(SELW); });
 $('mmSave').addEventListener('click', () => { toggleSave(SELW); closeMenu(); });
