@@ -16,6 +16,58 @@
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta name="twitter:card" content="summary_large_image" />
+  <meta property="og:locale" content="vi_VN" />
+  <meta property="og:site_name" content="Learning Ecology" />
+  <link rel="canonical" href="https://learningecology.io.vn/" />
+
+  <!-- Structured data: tells Google this is a real teaching organisation run by
+       a named teacher, with a contact point and social profiles. This is what
+       lets the site show up as a rich result rather than a bare blue link. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "EducationalOrganization",
+        "@id": "https://learningecology.io.vn/#org",
+        "name": "Learning Ecology",
+        "alternateName": "Learning Ecology — Học tiếng Anh & tiếng Trung",
+        "url": "https://learningecology.io.vn/",
+        "logo": "https://learningecology.io.vn/icons/icon-512.png",
+        "image": "https://learningecology.io.vn/social-card.png",
+        "description": "Lớp học trực tuyến tiếng Anh và tiếng Trung theo lộ trình: bài giảng có quiz và bài tập, theo dõi tiến độ, thư viện đọc hiểu HSK, luyện nói shadowing và chép chính tả.",
+        "inLanguage": "vi",
+        "areaServed": "VN",
+        "sameAs": ["https://www.facebook.com/lqt248"],
+        "founder": { "@id": "https://learningecology.io.vn/#teacher" },
+        "contactPoint": {
+          "@type": "ContactPoint",
+          "contactType": "customer service",
+          "telephone": "+84961923983",
+          "availableLanguage": ["vi", "en", "zh"]
+        }
+      },
+      {
+        "@type": "Person",
+        "@id": "https://learningecology.io.vn/#teacher",
+        "name": "Lê Quốc Thông",
+        "jobTitle": "Giáo viên tiếng Anh và tiếng Trung",
+        "worksFor": { "@id": "https://learningecology.io.vn/#org" },
+        "url": "https://learningecology.io.vn/",
+        "sameAs": ["https://www.facebook.com/lqt248"],
+        "knowsLanguage": ["vi", "en", "zh"]
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://learningecology.io.vn/#website",
+        "url": "https://learningecology.io.vn/",
+        "name": "Learning Ecology",
+        "inLanguage": "vi",
+        "publisher": { "@id": "https://learningecology.io.vn/#org" }
+      }
+    ]
+  }
+  </script>
 
   <link rel="stylesheet" href="styles.css" />
   <script>

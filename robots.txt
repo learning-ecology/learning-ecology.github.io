@@ -1,0 +1,24 @@
+# Learning Ecology — https://learningecology.io.vn
+# Công cụ tìm kiếm được phép đọc các trang công khai; các trang cần đăng nhập
+# thì không (vừa vô ích với người tìm kiếm, vừa tránh lộ đường dẫn nội bộ).
+
+User-agent: *
+Allow: /
+
+# khu vực riêng — cần tài khoản mới xem được
+Disallow: /dashboard.html
+Disallow: /admin.html
+Disallow: /teacher.html
+Disallow: /organizations.html
+Disallow: /login.html
+Disallow: /reset.html
+Disallow: /results.html
+Disallow: /cert.html
+Disallow: /writing.html
+Disallow: /eng-placement.html
+Disallow: /test-template.html
+Disallow: /setup-my-school/
+Disallow: /setup-tenant/
+Disallow: /edge-functions/
+
+Sitemap: https://learningecology.io.vn/sitemap.xml
