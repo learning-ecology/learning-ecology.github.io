@@ -322,6 +322,15 @@
   }
   .offline { color:var(--l5); font-weight:600; }
 
+  #langSwitch { gap:6px; margin-right:4px; }
+  #langSwitch .lang-btn { font-weight:700; border:1px solid var(--line); background:var(--panel);
+    cursor:pointer; padding:6px 12px; }
+  #langSwitch .lang-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+  /* English has no pinyin line and no Chinese typography */
+  body.lang-en .tok .py { display:none; }
+  body.lang-en .tok .hz { font-family:inherit; }
+  body.lang-en .rpara { align-items:baseline; }
+  body.lang-en #mtZh, body.lang-en #rTitle { font-family:inherit; }
   #hideReadWrap { display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
     font-size:14px; cursor:pointer; padding:6px 4px; }
   @media (max-width:640px) {
@@ -559,6 +568,10 @@
   <!-- ============ LIBRARY ============ -->
   <section class="view active" id="view-library">
     <div class="panel row">
+      <div class="row" id="langSwitch" role="group" aria-label="Chọn ngôn ngữ">
+        <button class="chip lang-btn active" data-lang="zh">🀄 Tiếng Trung</button>
+        <button class="chip lang-btn" data-lang="en">🔤 Tiếng Anh</button>
+      </div>
       <div class="row" id="lvlChips">
         <span class="chip active" data-l="0" role="button" tabindex="0">Tất cả</span>
         <span class="chip" data-l="1" role="button" tabindex="0">HSK 1</span><span class="chip" data-l="2" role="button" tabindex="0">HSK 2</span>
@@ -617,12 +630,7 @@
         <button id="btnNextText" class="small">Bài sau →</button>
         <span class="mutetext">Phím ← → chuyển bài · Esc thoát trình chiếu</span>
       </div>
-      <div class="legend" id="rLegend">
-        <span class="lv lv1">HSK 1</span><span class="lv lv2">HSK 2</span><span class="lv lv3">HSK 3</span>
-        <span class="lv lv4">HSK 4</span><span class="lv lv5">HSK 5</span><span class="lv lv6">HSK 6</span>
-        <span class="lv lv7">HSK 7</span><span class="lv lv8">HSK 8</span><span class="lv lv9">HSK 9</span>
-        <span class="lv lv0">ngoài HSK</span>
-      </div>
+      <div class="legend" id="rLegend"></div>
 
       <div id="setBack" hidden></div>
       <aside id="setPanel" role="dialog" aria-label="Cài đặt đọc" aria-hidden="true">
@@ -996,12 +1004,20 @@ let isPremium = false, ACCESS_READY = false, TITLEVI_READY = false, GRANTS = [],
 async function loadTexts() {
   if (PUBLIC) {            // chỉ lấy danh sách đã lọc từ máy chủ (không kèm nội dung)
     try {
-      const { data } = await sb.rpc('public_reading_list');
+      /* migration51 gave this function a language argument. Until it is run the
+         live function takes none, so fall back to the old signature rather than
+         leaving the Chinese library empty. */
+      let res = await sb.rpc('public_reading_list', { p_lang: LANG });
+      if (res.error) {
+        if (!isZh()) { TEXTS = []; ACCESS_READY = true; return; }
+        res = await sb.rpc('public_reading_list');
+      }
+      const data = res.data;
       TEXTS = (Array.isArray(data) ? data : []).map(r => ({
         id: r.id, title: r.title, vi: r.title_vi || '', level: r.level,
         tags: r.tags || [], cat: r.category || '', cover: r.cover_url || '',
         tier: r.premium ? 'premium' : 'free', words: r.words || 0,
-        pub: true, text: null, tr: ''
+        lang: r.lang || 'zh', pub: true, text: null, tr: ''
       }));
       ACCESS_READY = true;
     } catch (e) { TEXTS = []; }
@@ -1012,17 +1028,20 @@ async function loadTexts() {
      and then froze the main thread writing it all to localStorage. It now loads
      in two stages: metadata (fast, renders straight away), then content in the
      background so deep search, word counts and offline reading still work. */
-  const META = 'id,title,title_vi,level,tags,tier,sort_order,created_at,published,category,theme_id,subtopics,cover_url,cover_alt';
+  const META = 'id,title,title_vi,level,tags,tier,sort_order,created_at,published,category,theme_id,subtopics,cover_url,cover_alt,lang';
   const words = read('crh-words-v1', {});    // char counts kept from last visit
   const mapRow = r => ({ id: r.id, title: r.title, vi: r.title_vi || '', level: r.level,
     text: r.content == null ? null : r.content, tr: r.translation || '', tags: r.tags || [],
     tier: r.tier || 'free', so: r.sort_order || 0, ca: r.created_at || '', pub: r.published !== false, cat: r.category || '',
     theme: r.theme_id || '', subs: r.subtopics || [], cover: r.cover_url || '', coverAlt: r.cover_alt || '',
-    words: words[r.id] || 0 });
+    lang: r.lang || 'zh', words: words[r.id] || 0 });
   try {
-    let res = await sb.from('reading_texts').select(META).order('level').order('created_at');
+    let res = await sb.from('reading_texts').select(META).eq('lang', LANG).order('level').order('created_at');
     let slim = true;
     if (res.error) {                 // a column is missing (migration not run yet) → old behaviour
+      /* the fallback query cannot filter by language, so it would show the
+         Chinese texts inside the English library. Better to show nothing. */
+      if (!isZh()) { TEXTS = []; ACCESS_READY = true; CONTENT_READY = true; return; }
       slim = false;
       res = await sb.from('reading_texts').select('*').order('level').order('created_at');
       if (res.error) throw res.error;
@@ -1048,7 +1067,7 @@ function loadContent() {
   if (contentJob) return contentJob;
   contentJob = (async () => {
     try {
-      const { data, error } = await sb.from('reading_texts').select('id,content,translation');
+      const { data, error } = await sb.from('reading_texts').select('id,content,translation').eq('lang', LANG);
       if (error) throw error;
       const by = new Map((data || []).map(r => [r.id, r]));
       const words = {};
@@ -1101,30 +1120,31 @@ async function loadCloudDict() {
      every visit would undo the Phase 43 speed work, so ask dict_meta for a
      version number first (a single tiny row) and only pull the words when
      that number differs from the copy already on this device. */
-  const cached = read('cdict-cache', []);
+  const cached = read('cdict-cache-' + LANG, []);
   try {
     const { data: meta } = await sb.from('dict_meta').select('version,words').eq('id', 1).maybeSingle();
-    const have = read('cdict-ver', null);
+    const have = read('cdict-ver-' + LANG, null);
     if (meta && have && String(have) === String(meta.version) && cached.length) {
       DICT_CUSTOM = cached; return;              // unchanged since last time
     }
-    const { data, error } = await sb.from('reading_dict').select('*').order('word');
+    const { data, error } = await sb.from('reading_dict').select('*').eq('lang', LANG).order('word');
     if (error) throw error;
     DICT_CUSTOM = data;
-    store('cdict-cache', DICT_CUSTOM);
-    if (meta) store('cdict-ver', meta.version);
+    store('cdict-cache-' + LANG, DICT_CUSTOM);
+    if (meta) store('cdict-ver-' + LANG, meta.version);
   } catch (e) { DICT_CUSTOM = cached; }
 }
 
 /* --- per-student vocabulary: Supabase is the source of truth, localStorage the offline mirror --- */
 function rowToLocal(r) {
-  return { p: r.pinyin, m: r.meaning, lvl: r.level, ex: r.example, note: r.note, status: r.status,
+  return { p: r.pinyin, m: r.meaning, lvl: r.level, lang: r.lang || 'zh', ex: r.example, note: r.note, status: r.status,
     added: new Date(r.added_at).getTime(), up: Number(r.up_ms) || 0, pushed: true,
     srs: { ef: r.ef, ivl: Number(r.ivl_ms), due: new Date(r.due).getTime(),
            reps: r.reps, lapses: r.lapses, ok: r.ok, total: r.total } };
 }
 function localToRow(w, v) {
   return { user_id: uid, word: w, pinyin: v.p || '', meaning: v.m || '', level: v.lvl || 0,
+    lang: v.lang || 'zh',
     example: v.ex || '', note: v.note || '', status: v.status || 'new',
     added_at: new Date(v.added || Date.now()).toISOString(),
     ef: v.srs.ef, ivl_ms: Math.round(v.srs.ivl || 0), due: new Date(v.srs.due || Date.now()).toISOString(),
@@ -1271,6 +1291,7 @@ function whenPinyin() {
 
 /* char-level pinyin with sandhi — same pipeline as pinyin-tool */
 function charAnalyse(line) {
+  if (!isZh()) return null;              // no pinyin for English
   if (!window.pinyinPro) return null;
   const py = window.pinyinPro.pinyin;
   const base = py(line, { type: 'all', toneSandhi: false });
@@ -1292,6 +1313,130 @@ function charAnalyse(line) {
   items.forEach((it, i) => { if (it.isZh && it.tone === 3) { if (start === -1) start = i; } else flush(i); });
   flush(items.length);
   return items.map(it => ({ ...it, mark: it.isZh ? applyTone(it.plain, it.tone) : it.origin }));
+}
+
+/* ==========================================================================
+   LANGUAGE LAYER (Phase 48)
+   The library is the same for both languages; only these few things differ.
+   Everything else — filters, progress, vocabulary, flashcards, the mobile
+   reader, access control — is shared, which is exactly why English lives in
+   this file rather than a second copy of it.
+   ========================================================================== */
+const CEFR = ['', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+let LANG = 'zh';                                  // 'zh' | 'en'
+const isZh = () => LANG === 'zh';
+/* level stays a number in the database; only the label changes */
+function levelLabel(n, lang) {
+  const L = lang || LANG;
+  /* English words are not graded by the dictionary, so an ungraded word gets
+     no badge at all rather than a meaningless "Level 0" */
+  if (L === 'en') return CEFR[n] || '';
+  return n ? 'HSK ' + n : 'ngoài HSK';
+}
+function levelsOf(lang) {
+  return (lang || LANG) === 'en' ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5, 6, 7, 8, 9];
+}
+function setLang(l, redraw) {
+  if (l !== 'zh' && l !== 'en') l = 'zh';
+  if (LANG === l && redraw !== true) return;
+  LANG = l;
+  store('crh-lang', LANG);
+  document.body.classList.toggle('lang-en', LANG === 'en');
+  buildLevelChips();
+  fillAdminLevels();
+  libLevel = 0;
+}
+/* the level filter chips are rebuilt whenever the language changes */
+function buildLegend() {
+  const box = $('rLegend'); if (!box) return;
+  box.innerHTML = levelsOf().map(n => '<span class="lv lv' + n + '">' + levelLabel(n) + '</span>').join('') +
+    (isZh() ? '<span class="lv lv0">ngoài HSK</span>' : '');
+}
+function buildLevelChips() {
+  const box = $('lvlChips'); if (!box) return;
+  box.innerHTML = '<span class="chip' + (libLevel ? '' : ' active') +
+      '" data-l="0" role="button" tabindex="0">Tất cả</span>' +
+    levelsOf().map(n => '<span class="chip' + (libLevel === n ? ' active' : '') +
+      '" data-l="' + n + '" role="button" tabindex="0">' + levelLabel(n) + '</span>').join('');
+}
+function fillAdminLevels() {
+  const sel = $('aLevel'); if (!sel) return;
+  const keep = sel.value;
+  sel.innerHTML = levelsOf().map(n => '<option value="' + n + '">' + levelLabel(n) + '</option>').join('');
+  if (keep) sel.value = keep;
+}
+
+/* ---- word splitting: Chinese needs the dictionary, English does not ---- */
+function splitEnglish(line) {
+  const toks = [];
+  /* keep apostrophes and hyphens inside words: "don't", "well-known" */
+  const re = /[A-Za-zÀ-ÖØ-öø-ÿ]+(?:['’\-][A-Za-zÀ-ÖØ-öø-ÿ]+)*/g;
+  let last = 0, m;
+  while ((m = re.exec(line))) {
+    if (m.index > last) toks.push({ w: line.slice(last, m.index), lvl: -1, zh: false });
+    toks.push({ w: m[0], lvl: 0, zh: true });     // zh:true = "this is a lookupable word"
+    last = m.index + m[0].length;
+  }
+  if (last < line.length) toks.push({ w: line.slice(last), lvl: -1, zh: false });
+  return toks;
+}
+
+/* ---- English definitions -------------------------------------------------
+   Your own reading_dict entries always win (that is where Vietnamese meanings
+   live). Anything you have not written yet is fetched once from the free
+   Dictionary API — no key, no quota to manage — and kept on the device so the
+   same word is never fetched twice. If it is offline or unknown, the panel
+   still opens and the word can still be saved. */
+const EN_API  = w => 'https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent(w);
+/* Wiktionary is run by Wikimedia and is effectively always up; it is the
+   fallback for when the smaller free API is having a bad day (it returned
+   502s while this was being built). */
+const EN_WIKI = w => 'https://en.wiktionary.org/api/rest_v1/page/definition/' + encodeURIComponent(w);
+let EN_CACHE = null;
+const enCache = () => (EN_CACHE || (EN_CACHE = read('crh-endict', {})));
+function enCached(w) { return enCache()[w.toLowerCase()] || null; }
+const stripTags = t => String(t || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+
+async function fromDictApi(k) {
+  const r = await fetch(EN_API(k));
+  if (!r.ok) return null;
+  const j = await r.json();
+  const e = Array.isArray(j) ? j[0] : null;
+  if (!e) return null;
+  const defs = [];
+  for (const m of (e.meanings || []).slice(0, 3)) {
+    const d = (m.definitions || [])[0];
+    if (d && d.definition) defs.push({ pos: m.partOfSpeech || '', def: d.definition, ex: d.example || '' });
+  }
+  if (!defs.length) return null;
+  return { ph: e.phonetic || ((e.phonetics || []).find(p => p.text) || {}).text || '', defs };
+}
+async function fromWiktionary(k) {
+  const r = await fetch(EN_WIKI(k));
+  if (!r.ok) return null;
+  const j = await r.json();
+  const en = (j && j.en) || [];
+  const defs = [];
+  for (const part of en.slice(0, 3)) {
+    const d = (part.definitions || [])[0];
+    const txt = stripTags(d && d.definition);
+    if (txt) defs.push({ pos: (part.partOfSpeech || '').toLowerCase(), def: txt, ex: '' });
+  }
+  return defs.length ? { ph: '', defs } : null;
+}
+async function enLookup(w) {
+  const k = w.toLowerCase();
+  const c = enCache();
+  if (c[k] !== undefined) return c[k];
+  let out = null, reached = false;
+  for (const src of [fromDictApi, fromWiktionary]) {
+    try { out = await src(k); reached = true; if (out) break; }
+    catch (e) { /* network error — try the next source */ }
+  }
+  if (!reached) return null;             // offline: do not remember a failure
+  c[k] = out;                            // remember misses too, so we ask once
+  try { store('crh-endict', c); } catch (e) {}
+  return out;
 }
 
 /* ================= HSK dictionary ================= */
@@ -1318,6 +1463,7 @@ function rebuildDictIndex() {
   for (const w in DICT) if (w.length > MAXW) MAXW = w.length;
 }
 async function loadDict() {
+  if (!isZh()) return true;          // the HSK word list is not used for English
   const cached = read('crh-dict-v1', null);
   if (cached && cached.words) {
     DICT = cached.words; rebuildDictIndex();
@@ -1345,8 +1491,10 @@ async function loadDict() {
 }
 function lookup(w) { return DICT[w] || null; }
 
-/* greedy longest-match segmentation over the HSK dictionary */
+/* greedy longest-match segmentation over the HSK dictionary (Chinese only;
+   English is split on word boundaries instead) */
 function segment(line) {
+  if (!isZh()) return splitEnglish(line);
   const toks = [];
   let i = 0;
   while (i < line.length) {
@@ -1500,6 +1648,23 @@ $('accSel').addEventListener('change', () => renderLibrary());
 $('tgHideRead').addEventListener('change', () => {
   store('crh-hideread', $('tgHideRead').checked); renderLibrary();
 });
+$('langSwitch').addEventListener('click', async e => {
+  const b = e.target.closest('.lang-btn'); if (!b) return;
+  if (b.dataset.lang === LANG) return;
+  document.querySelectorAll('#langSwitch .lang-btn').forEach(x => x.classList.toggle('active', x === b));
+  setLang(b.dataset.lang);
+  $('libSearch').value = ''; $('themeSel').value = ''; $('subSel').value = ''; $('accSel').value = '';
+  $('dictStatus').textContent = '⏳ Đang tải thư viện…';
+  CONTENT_READY = false; contentJob = null;
+  await Promise.all([loadTexts(), loadCloudDict()]);
+  rebuildDictIndex();
+  buildLegend();
+  renderLibrary();
+  loadContent();
+  $('dictStatus').textContent = isZh()
+    ? '📗 Từ điển HSK: ' + Object.keys(DICT).length + ' từ'
+    : '📘 Từ điển tiếng Anh: tra tự động khi bạn chạm vào từ';
+});
 $('btnClearFilters').addEventListener('click', clearFilters);
 function clearFilters() {
   libLevel = 0; $('libSearch').value = ''; $('themeSel').value = ''; $('subSel').value = ''; $('accSel').value = '';
@@ -1633,7 +1798,7 @@ function renderLibrary() {
   if (!isStaff && !isPremium)
     list = [...list].sort((a, b) => (a.tier === 'premium' ? 1 : 0) - (b.tier === 'premium' ? 1 : 0));
   const af = [];
-  if (libLevel) af.push(['lvl', 'HSK ' + libLevel]);
+  if (libLevel) af.push(['lvl', levelLabel(libLevel)]);
   if (theme) { const th = themeById(theme); af.push(['theme', th ? th.name : 'Chủ đề']); }
   if (sub) {
     const s = sub.startsWith('tag:') ? null : subById(sub);
@@ -1652,7 +1817,7 @@ function renderLibrary() {
         (path ? '<div class="lc-path">' + escH(path) + '</div>' : '') +
         '<h3>' + escH(t.title) + '</h3>' +
         (t.vi ? '<div class="lc-vi">' + escH(t.vi) + '</div>' : '') +
-        '<div class="meta"><span class="lv lv' + t.level + '">HSK ' + t.level + '</span>' +
+        '<div class="meta"><span class="lv lv' + t.level + '">' + levelLabel(t.level, t.lang) + '</span>' +
         '<span>⏱ ~' + estMinutes(t) + ' phút</span>' +
         '<span>✍ ' + wordCount(t) + ' từ</span>' +
         (t.tags || []).map(g => '<span class="tag">' + escH(g) + '</span>').join('') + '</div>' +
@@ -1725,7 +1890,7 @@ function renderReader() {
   $('rTitleVi').textContent = t.vi || '';
   $('rTitleVi').hidden = !t.vi;
   const rPath = pathOf(t);
-  $('rMeta').innerHTML = '<span class="lv lv' + t.level + '">HSK ' + t.level + '</span>' +
+  $('rMeta').innerHTML = '<span class="lv lv' + t.level + '">' + levelLabel(t.level, t.lang) + '</span>' +
     accessBadge(t).replace('class="acc', 'style="position:static" class="acc') +
     '<span>⏱ ~' + estMinutes(t) + ' phút</span>' +
     '<span>✍ ' + wordCount(t) + ' từ</span>' +
@@ -1780,7 +1945,7 @@ function renderReader() {
         cell.addEventListener('click', ev => { ev.stopPropagation(); wordClicked(tok.w, line, cell); });
         if (prefs.tips) {
           const d = lookup(tok.w);
-          cell.title = d ? (d[0] + ' — ' + d[1] + (d[2] ? '  [HSK ' + d[2] + ']' : '')) : '';
+          cell.title = d ? (d[0] + ' — ' + d[1] + (d[2] ? '  [' + levelLabel(d[2]) + ']' : '')) : '';
         }
       }
       p.appendChild(cell);
@@ -1849,6 +2014,8 @@ function sentenceOf(line, word) {
 function wordClicked(w, line, cell) {
   if (mobileOn() && currentView === 'reader') { openMenu(w, line, cell); return; }
   if (prefs.audioClick) speak(w);
+  if (!isZh() && !lookup(w) && !enCached(w))
+    enrichEnglish(w, () => { if ($('popup').style.display === 'block') wordClicked(w, line, cell); });
   const d = lookup(w);
   const items = charAnalyse(w);
   const pyStr = d ? d[0] : (items ? items.map(x => x.mark).join(' ') : '');
@@ -1859,12 +2026,21 @@ function wordClicked(w, line, cell) {
   pop.innerHTML =
     '<button class="close" id="ppClose">✕</button>' +
     '<div><span class="w">' + escH(w) + '</span><span class="p">' + escH(pyStr) + '</span> ' +
-    '<span class="lv lv' + (d ? d[2] : 0) + '">' +
-      escH((DICT_META[w] && DICT_META[w].label) || (d && d[2] ? 'HSK ' + d[2] : 'ngoài HSK')) + '</span></div>' +
+    (function () {
+      const lb = (DICT_META[w] && DICT_META[w].label) || levelLabel(d ? d[2] : 0);
+      return lb ? '<span class="lv lv' + (d ? d[2] : 0) + '">' + escH(lb) + '</span>' : '';
+    })() + '</div>' +
     (DICT_META[w] && DICT_META[w].trad && DICT_META[w].trad !== w
        ? '<div class="mutetext">繁體 ' + escH(DICT_META[w].trad) + '</div>' : '') +
     (DICT_META[w] && DICT_META[w].pos ? '<div class="mutetext">' + escH(DICT_META[w].pos) + '</div>' : '') +
-    '<div class="m">' + (d ? escH(d[1]) : '<span class="mutetext">Không có trong từ điển HSK — bạn vẫn có thể lưu và tự ghi nghĩa.</span>') + '</div>' +
+    '<div class="m">' + (function () {
+      if (d) return escH(d[1]);
+      const info = wordInfo(w, line);
+      if (info.en) return escH(info.en);
+      return '<span class="mutetext">' + (isZh()
+        ? 'Không có trong từ điển HSK — bạn vẫn có thể lưu và tự ghi nghĩa.'
+        : 'Chưa tra được nghĩa — bạn vẫn có thể lưu và tự ghi nghĩa.') + '</span>';
+    })() + '</div>' +
     (ex && ex !== w ? '<div class="ex">' + escH(ex) + '</div>' : '') +
     (saved && saved.note ? '<div class="mutetext">📝 ' + escH(saved.note) + '</div>' : '') +
     '<div class="row" style="margin-top:10px">' +
@@ -1895,6 +2071,15 @@ function wordClicked(w, line, cell) {
   };
 }
 function hidePopup() { $('popup').style.display = 'none'; }
+/* fetch an English definition once, then re-render whatever asked for it */
+let enBusy = null;
+function enrichEnglish(w, redraw) {
+  if (enCached(w) !== null && enCache()[w.toLowerCase()] !== undefined) return;
+  if (enBusy === w) return;
+  enBusy = w;
+  enLookup(w).then(() => { enBusy = null; if (redraw) redraw(); })
+             .catch(() => { enBusy = null; });
+}
 document.addEventListener('click', e => { if (!e.target.closest('#popup') && !e.target.closest('.tok')) hidePopup(); });
 
 /* ================= vocabulary store ================= */
@@ -1904,7 +2089,7 @@ function saveWord(w, p, m, lvl, ex, note, status) {
   const isNew = !vocab[w];
   const cur = vocab[w] || { added: Date.now(), status: 'new',
     srs: { ef: 2.5, ivl: 0, due: Date.now(), reps: 0, lapses: 0, ok: 0, total: 0 } };
-  vocab[w] = { ...cur, p, m: m || cur.m || '', lvl, ex: ex || cur.ex || '',
+  vocab[w] = { ...cur, p, m: m || cur.m || '', lvl, lang: LANG, ex: ex || cur.ex || '',
     note: note !== undefined ? note : cur.note || '', status: status || cur.status,
     up: Date.now(), pushed: cur.pushed || false };
   store('crh-vocab', vocab);
@@ -1933,7 +2118,7 @@ function renderVocab() {
     '<div class="vword" data-w="' + escH(v.w) + '">' +
       '<div class="w">' + escH(v.w) + '</div>' +
       '<div class="grow"><span class="p">' + escH(v.p||'') + '</span> ' +
-        '<span class="lv lv' + (v.lvl||0) + '">' + (v.lvl ? 'HSK ' + v.lvl : 'ngoài HSK') + '</span> ' +
+        '<span class="lv lv' + (v.lvl||0) + '">' + levelLabel(v.lvl || 0, v.lang) + '</span> ' +
         '<span class="status ' + statusOf(v) + '">' + statusLabel(v) + '</span>' +
         '<div>' + escH(v.m||'') + '</div>' +
         (v.note ? '<div class="note">📝 ' + escH(v.note) + '</div>' : '') +
@@ -2036,7 +2221,7 @@ function flipCard() {
   $('card').innerHTML =
     '<div class="big">' + escH(w) + '</div>' +
     '<div class="mid">' + escH(v.p || '') + '</div>' +
-    '<div class="small">' + escH(v.m || '') + ' <span class="lv lv' + (v.lvl||0) + '">' + (v.lvl ? 'HSK ' + v.lvl : 'ngoài HSK') + '</span></div>' +
+    '<div class="small">' + escH(v.m || '') + ' <span class="lv lv' + (v.lvl||0) + '">' + levelLabel(v.lvl || 0, v.lang) + '</span></div>' +
     (v.ex ? '<div class="exs">' + escH(v.ex) + '</div>' : '') +
     (v.note ? '<div class="small">📝 ' + escH(v.note) + '</div>' : '') +
     '<button class="small" id="fcAudio">🔊 Nghe</button>';
@@ -2105,7 +2290,7 @@ function renderDash() {
   $('readTiles').innerHTML =
     tile(mins >= 60 ? Math.floor(mins/60) + 'g ' + mins%60 + 'p' : mins + ' phút', 'Tổng thời gian đọc') +
     tile(doneTexts, 'Bài đã đọc xong') +
-    tile(curLvl === '—' ? '—' : 'HSK ' + curLvl, 'Cấp đang đọc') +
+    tile(curLvl === '—' ? '—' : levelLabel(curLvl), 'Cấp đang đọc') +
     tile(s.seen.length, 'Từ HSK đã gặp');
   $('vocabTiles').innerHTML =
     tile(vlist.length, 'Từ đã lưu') + tile(known, 'Đã thuộc') +
@@ -2180,7 +2365,7 @@ function renderAdmin() {
   const rows = getTexts().map(t =>
     '<tr><td style="font-family:var(--hz-font)">' + escH(t.title) +
     (t.vi ? '<div class="mutetext" style="font-size:12px;font-family:-apple-system,sans-serif">' + escH(t.vi) + '</div>' : '') + '</td>' +
-    '<td><span class="lv lv' + t.level + '">HSK ' + t.level + '</span></td>' +
+    '<td><span class="lv lv' + t.level + '">' + levelLabel(t.level, t.lang) + '</span></td>' +
     '<td>' + (t.tags || []).map(g => '<span class="tag">' + escH(g) + '</span>').join(' ') + '</td>' +
     '<td>' + (t.text ? (t.text.match(CJK_G) || []).length : (t.words || 0)) + ' chữ</td>' +
     '<td><button class="small" data-act="edit" data-id="' + t.id + '">✏️</button> ' +
@@ -2403,7 +2588,7 @@ $('thList').addEventListener('click', e => {
 $('aSave').addEventListener('click', async () => {
   const title = $('aTitle').value.trim(), text = $('aText').value.trim();
   if (!title || !text) { toast('Cần có tiêu đề và nội dung'); return; }
-  const row = { title, level: +$('aLevel').value, content: text,
+  const row = { title, level: +$('aLevel').value, content: text, lang: LANG,
     translation: $('aTrans').value.trim(),
     tags: $('aTags').value.split(',').map(s => s.trim()).filter(Boolean) };
   try {
@@ -2473,7 +2658,7 @@ $('bulkGo').addEventListener('click', async () => {
   try { arr = JSON.parse($('bulkBox').value); if (!Array.isArray(arr)) throw 0; }
   catch (e) { $('bulkMsg').textContent = '✗ JSON không hợp lệ — cần một mảng [ … ]'; return; }
   const rows = arr.filter(t => t.title && t.text).map(t => ({
-    title: String(t.title), level: Math.min(9, Math.max(1, +t.level || 1)),
+    title: String(t.title), level: Math.min(9, Math.max(1, +t.level || 1)), lang: LANG,
     content: String(t.text), translation: String(t.translation || t.tr || ''),
     tags: Array.isArray(t.tags) ? t.tags.map(String) : [], created_by: uid,
     /* Vietnamese title: optional, several accepted key spellings; old files without it keep working */
@@ -2698,7 +2883,15 @@ function voiceQuality(v) {
   if (/flo|sandy|shelley|eddy|reed|rocko|grandma|grandpa/.test(n)) return 0.5;
   return 1;
 }
+function englishVoices() {
+  if (!('speechSynthesis' in window)) return [];
+  return speechSynthesis.getVoices()
+    .filter(v => /^en[-_]/i.test(v.lang))
+    .sort((a, b) => (voiceQuality(b) - voiceQuality(a)) ||
+                    (/^en[-_](us|gb)/i.test(b.lang) - /^en[-_](us|gb)/i.test(a.lang)));
+}
 function mandarinVoices() {
+  if (!isZh()) return englishVoices();      // the reader asks for "the voice for this text"
   if (!('speechSynthesis' in window)) return [];
   return speechSynthesis.getVoices()
     .filter(v => /^zh[-_](cn|tw)/i.test(v.lang) || /^zh$/i.test(v.lang))
@@ -2727,7 +2920,7 @@ function resolveVoice() {
     if (voice) return { engine: 'device', voice };
   }
   if ($('optNet').checked && hasKey() && netOk && navigator.onLine !== false)
-    return { engine: 'azure', v: 'zh-CN-XiaoxiaoNeural' };
+    return { engine: 'azure', v: isZh() ? 'zh-CN-XiaoxiaoNeural' : 'en-US-AriaNeural' };
   return { engine: 'device', voice: mandarinVoices()[0] || null };
 }
 function updateVoiceInfo() {
@@ -2782,7 +2975,7 @@ function speakDevice(text, my, done) {
     if (speakToken !== my) return;                 // cancelled — stay silent
     if (!parts.length) { if (done) done(); return; }
     const u = new SpeechSynthesisUtterance(parts.shift());
-    u.lang = (voice && voice.lang) || 'zh-CN';
+    u.lang = (voice && voice.lang) || (isZh() ? 'zh-CN' : 'en-US');
     if (voice) u.voice = voice;
     u.rate = prefs.rate;
     u.onend = next;
@@ -3041,11 +3234,12 @@ function closeMenu() {
 /* the meaning strip under the header — the fast path, no menu needed */
 function showGloss(w, line) {
   const i = wordInfo(w, line);
+  if (!isZh() && !i.vi && !i.en) enrichEnglish(w, () => { if (SELW && SELW.w === w) showGloss(w, line); });
   const meaning = i.vi || i.en;
   $('mGloss').innerHTML =
     '<div class="mg-top"><span class="mg-w">' + escH(i.w) + '</span>' +
       (i.py ? '<span class="mg-py">' + escH(i.py) + '</span>' : '') +
-      '<span class="lv lv' + i.lvl + ' mg-lv">' + escH(i.label) + '</span></div>' +
+      (i.label ? '<span class="lv lv' + i.lvl + ' mg-lv">' + escH(i.label) + '</span>' : '') + '</div>' +
     '<div class="mg-m">' +
       (i.vi ? escH(i.vi) : '') +
       (i.vi && i.en ? ' <span class="mg-en">· ' + escH(i.en) + '</span>' : (i.en ? '<span class="mg-en">' + escH(i.en) + '</span>' : '')) +
@@ -3066,15 +3260,26 @@ function wordInfo(w, line) {
   const hasVi = DICT_VI.has(w);
   const m = DICT_META[w] || {};
   const lvl = d ? d[2] : 0;
+  /* English: your own entry wins; otherwise use whatever the free dictionary
+     returned for this word (already on the device by the time we re-render) */
+  let enApi = '', apiPy = '', apiPos = '';
+  if (!isZh()) {
+    const c = enCached(w);
+    if (c) {
+      apiPy = c.ph || '';
+      apiPos = (c.defs[0] || {}).pos || '';
+      enApi = c.defs.map(x => (x.pos ? '(' + x.pos + ') ' : '') + x.def).join(' · ');
+    }
+  }
   return {
-    w, py,
+    w, py: py || apiPy,
     vi: hasVi ? d[1] : '',
-    en: hasVi ? (DICT_EN[w] || '') : (DICT_EN[w] || (d ? d[1] : '')),
+    en: hasVi ? (DICT_EN[w] || enApi) : (DICT_EN[w] || (d ? d[1] : '') || enApi),
     lvl,
-    trad: m.trad || '', pos: m.pos || '',
+    trad: m.trad || '', pos: m.pos || apiPos,
     /* HSK 3.0 merges levels 7, 8 and 9 into one advanced band — say so
        rather than claiming a precise level the source never gave */
-    label: m.label || (lvl ? 'HSK' + lvl : 'ngoài HSK'),
+    label: m.label || levelLabel(lvl),
     ex: (d && d[3]) ? d[3] : sentenceOf(line || '', w),
     known: !!d
   };
@@ -3082,12 +3287,13 @@ function wordInfo(w, line) {
 function openDictSheet(sel) {
   if (!sel) return;
   const i = wordInfo(sel.w, sel.line);
+  if (!isZh() && !i.vi && !i.en) enrichEnglish(sel.w, () => { if (SELW && SELW.w === sel.w) openDictSheet(sel); });
   const vocab = read('crh-vocab', {});
   const saved = !!vocab[sel.w];
   $('mSheetBody').innerHTML =
     '<div class="sh-row"><span class="sh-w">' + escH(i.w) + '</span>' +
       (i.py ? '<span class="sh-py">' + escH(i.py) + '</span>' : '') +
-      '<span class="lv lv' + i.lvl + '" style="margin-left:auto">' + escH(i.label) + '</span></div>' +
+      (i.label ? '<span class="lv lv' + i.lvl + '" style="margin-left:auto">' + escH(i.label) + '</span>' : '') + '</div>' +
     (i.trad && i.trad !== i.w
        ? '<div class="sh-def"><b>Phồn thể</b><span style="font-family:var(--hz-font);font-size:19px">' +
          escH(i.trad) + '</span></div>' : '') +
@@ -3183,6 +3389,12 @@ function offerResume(t) {
 (async function boot() {
   const user = await requireLogin();
   if (!user) return;
+  /* pick the library the learner last used, BEFORE any query runs */
+  LANG = read('crh-lang', 'zh') === 'en' ? 'en' : 'zh';
+  document.body.classList.toggle('lang-en', LANG === 'en');
+  document.querySelectorAll('#langSwitch .lang-btn')
+    .forEach(b => b.classList.toggle('active', b.dataset.lang === LANG));
+  buildLevelChips(); fillAdminLevels(); buildLegend();
   loadPrefs();
   if ('speechSynthesis' in window) populateVoicePick();
   $('dictStatus').textContent = '⏳ Đang tải dữ liệu tài khoản…';
@@ -3193,6 +3405,7 @@ function offerResume(t) {
   DICT_JOB = loadDict();
   await Promise.all([loadTexts(), loadThemes(), loadCloudDict(), loadAccess(), loadSettings(), pullVocab(), pullDays(), pullProgress()]);
   rebuildDictIndex();
+  if (!isZh()) $('dictStatus').textContent = '📘 Từ điển tiếng Anh: tra tự động khi bạn chạm vào từ';
   renderLibrary();           // ← first useful screen, no longer waits for the CDN
   updateDueBadge();
   loadContent();             // lesson text streams in behind the scenes
