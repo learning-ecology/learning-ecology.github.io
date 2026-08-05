@@ -1469,7 +1469,7 @@
         { data: lessons }, { data: prog }, { data: students }, { data: courses },
         { data: enrollments }, { data: anns }, { data: skeys }, { data: orgs },
         { data: allLics }, { data: events }, { data: activity }, { data: lockEvents },
-        cardsRes, { data: pageViews }, rtRes, raRes, rsRes, svRes, saRes, ssRes, ddRes,
+        cardsRes, { data: pageViews }, rtRes0, raRes, rsRes, svRes, saRes, ssRes, ddRes,
         cpRes, psRes, spRes
       ] = await Promise.all([
         sb.from("lessons").select("*").order("sort_order").order("created_at"),
@@ -1508,7 +1508,7 @@
           .order("created_at", { ascending: false }).limit(1000),
         // reading hub content + access (need migrations 25/26)
         sb.from("reading_texts")
-          .select("id, title, level, tags, category, tier, audience, published, sort_order, created_at")
+          .select("id, title, level, tags, category, tier, audience, published, sort_order, created_at, lang")
           .order("sort_order").order("level").order("created_at"),
         sb.from("reading_access").select("*").order("created_at"),
         sb.from("reading_settings").select("free_limit").eq("id", 1).maybeSingle(),
@@ -1526,6 +1526,16 @@
         sb.from("payment_settings").select("config").eq("id", 1).maybeSingle(),
         sb.from("section_pricing").select("section, config")
       ]);
+
+      /* `lang` only exists after migration51. If the column is missing the
+         reading query fails, so ask again without it: the Reading tab keeps
+         working and simply finds no English texts until the migration runs. */
+      let rtRes = rtRes0;
+      if (rtRes.error && /lang/i.test(rtRes.error.message || "")) {
+        rtRes = await sb.from("reading_texts")
+          .select("id, title, level, tags, category, tier, audience, published, sort_order, created_at")
+          .order("sort_order").order("level").order("created_at");
+      }
       let cards = cardsRes.data || [];
 
       const courseName = id => (courses || []).find(c => c.id === id)?.title || null;
@@ -1831,11 +1841,19 @@
         </div>
 
         <div class="tabpane" data-tab="reading">
+        <div class="card" style="padding-bottom:0.9rem;">
+          <div class="form-row" style="align-items:center; gap:0.6rem;">
+            <b style="font-size:0.95rem;">Thư viện đang mở:</b>
+            <button class="rl-btn" id="rl-zh" data-lang="zh">🀄 Tiếng Trung</button>
+            <button class="rl-btn ghost" id="rl-en" data-lang="en">🔤 Tiếng Anh</button>
+            <span class="kind" id="rl-note" style="text-transform:none; letter-spacing:0;"></span>
+          </div>
+        </div>
         <div class="card">
           <h2>📖 Add a reading text</h2>
           <div class="form-row">
             <div class="field"><label>Title</label><input id="rt-title" placeholder="我的一天" /></div>
-            <div class="field" style="max-width:110px;"><label>HSK level</label>
+            <div class="field" style="max-width:120px;"><label id="rt-level-lbl">HSK level</label>
               <select id="rt-level">${[1,2,3,4,5,6,7,8,9].map(n => `<option value="${n}">HSK ${n}</option>`).join("")}</select></div>
             <div class="field" style="max-width:160px;"><label>Category (optional)</label>
               <input id="rt-cat" placeholder="Sinh hoạt / Văn hóa…" /></div>
@@ -1849,7 +1867,7 @@
               <label style="font-size:0.85rem; color:var(--muted); cursor:pointer; display:block; padding:0.6rem 0;">
                 <input type="checkbox" id="rt-pub" checked /> published</label></div>
           </div>
-          <div class="field" style="margin-top:0.5rem;"><label>Chinese text — one paragraph per line</label>
+          <div class="field" style="margin-top:0.5rem;"><label id="rt-content-lbl">Chinese text — one paragraph per line</label>
             <textarea id="rt-content" style="min-height:110px;" placeholder="我早上七点起床。……"></textarea></div>
           <div class="field"><label>Translation (optional) — one line per paragraph</label>
             <textarea id="rt-tr" style="min-height:80px;" placeholder="I get up at 7 a.m. …"></textarea></div>
@@ -3600,7 +3618,14 @@
         const limitIn = document.getElementById("rs-limit");
         limitIn.value = (rsRes.data && typeof rsRes.data.free_limit === "number") ? rsRes.data.free_limit : 5;
 
-        const lvlPill = n => `<span class="hsk-pill hsk-${n}">HSK ${n}</span>`;
+        /* Which library is being managed. Reading texts, their level labels and
+           the bulk importer all follow this. Stored so it survives a reload. */
+        const CEFR_L = ["", "A1", "A2", "B1", "B2", "C1", "C2"];
+        let rlang = localStorage.getItem("hub_rlang") === "en" ? "en" : "zh";
+        const lvlName = (n, lang) => ((lang || rlang) === "en"
+          ? (CEFR_L[n] || ("L" + n)) : (n ? "HSK " + n : "Unrated"));
+        const lvlNums = () => (rlang === "en" ? [1,2,3,4,5,6] : [1,2,3,4,5,6,7,8,9]);
+        const lvlPill = (n, lang) => `<span class="hsk-pill hsk-${n}">${lvlName(n, lang)}</span>`;
         const textTitle = id => (rtexts.find(t => t.id === id) || {}).title || "?";
 
         // ---- search + filters (persisted per device) ----
@@ -3611,10 +3636,13 @@
         const rtfL = document.getElementById("rtf-lvl");
         const rtfT = document.getElementById("rtf-type");
         rtfQ.value = rtf.q; rtfL.value = String(rtf.lvl || 0); rtfT.value = rtf.type;
+        /* set up the language switch as soon as the reading controls exist */
+        setTimeout(() => { try { applyRlang(); } catch (e) {} }, 0);
         if (rtfT.value !== rtf.type) { rtf.type = "all"; rtfT.value = "all"; }
         function rtView() {
           const q = nrm(rtf.q.trim());
           return rtexts.filter(t => {
+            if ((t.lang || "zh") !== rlang) return false;
             if (rtf.lvl && t.level !== Number(rtf.lvl)) return false;
             if (rtf.type === "free" && t.tier === "premium") return false;
             if (rtf.type === "premium" && t.tier !== "premium") return false;
@@ -3633,11 +3661,11 @@
           document.getElementById("rt-count").textContent =
             "(" + view.length + (view.length !== rtexts.length ? " of " + rtexts.length : "") + ")";
           const sel = document.getElementById("ra-text");
-          sel.innerHTML = rtexts.map(t => `<option value="${t.id}">${esc(t.title)} (HSK ${t.level})</option>`).join("");
+          sel.innerHTML = rtexts.map(t => `<option value="${t.id}">${esc(t.title)} (${lvlName(t.level, t.lang)})</option>`).join("");
           if (rtRes.error) return;
           listEl.innerHTML = view.map(t => `
             <div class="lesson" style="flex-wrap:wrap;">
-              ${lvlPill(t.level)}
+              ${lvlPill(t.level, t.lang)}
               <div class="meta">
                 <div class="title">${esc(t.title)}${t.published ? "" : ' <span class="pill off">draft</span>'}${t.audience === "assigned" ? ' <span class="pill todo">assigned only</span>' : ""}</div>
                 <span class="kind">${esc(t.category || "")}${(t.tags || []).length ? " · " + esc((t.tags || []).join(", ")) : ""}</span>
@@ -3852,7 +3880,7 @@
             goBtn.disabled = true;
             const runEl = document.getElementById("rti-run");
             const base = rtexts.length;
-            const rowsIn = okR.map((x, i) => ({ ...x.row, sort_order: base + i + 1, created_by: user.id }));
+            const rowsIn = okR.map((x, i) => ({ ...x.row, lang: rlang, sort_order: base + i + 1, created_by: user.id }));
             let doneN = 0;
             for (let i = 0; i < rowsIn.length; i += 50) {
               runEl.className = "msg";
@@ -3950,12 +3978,49 @@
           }));
         }
 
+        function applyRlang() {
+          document.getElementById("rl-zh").className = "rl-btn" + (rlang === "zh" ? "" : " ghost");
+          document.getElementById("rl-en").className = "rl-btn" + (rlang === "en" ? "" : " ghost");
+          const en = rlang === "en";
+          document.getElementById("rt-level-lbl").textContent = en ? "CEFR level" : "HSK level";
+          document.getElementById("rt-content-lbl").textContent =
+            en ? "English text — one paragraph per line" : "Chinese text — one paragraph per line";
+          document.getElementById("rt-title").placeholder = en ? "The Resilience of Coral Reefs" : "我的一天";
+          document.getElementById("rt-content").placeholder =
+            en ? "Coral reefs are among the most resilient ecosystems…" : "我早上七点起床。……";
+          document.getElementById("rt-tr").placeholder =
+            en ? "Rạn san hô nằm trong số những hệ sinh thái…" : "I get up at 7 a.m. …";
+          const lv = document.getElementById("rt-level");
+          const keep = lv.value;
+          lv.innerHTML = lvlNums().map(n => `<option value="${n}">${lvlName(n)}</option>`).join("");
+          if (lvlNums().includes(Number(keep))) lv.value = keep;
+          /* the level filter chips in the list header follow too */
+          const f = document.getElementById("rtf-lvl");
+          if (f) {
+            const k = f.value;
+            f.innerHTML = `<option value="0">${en ? "Mọi cấp CEFR" : "Mọi cấp HSK"}</option>` +
+              lvlNums().map(n => `<option value="${n}">${lvlName(n)}</option>`).join("");
+            if (lvlNums().includes(Number(k))) f.value = k;
+            else { f.value = "0"; rtf.lvl = 0; saveRtf(); }
+          }
+          const n = rtexts.filter(t => (t.lang || "zh") === rlang).length;
+          document.getElementById("rl-note").textContent =
+            n + (en ? " bài tiếng Anh" : " bài tiếng Trung") + " · thêm bài mới sẽ vào thư viện này";
+          renderRt();
+        }
+        document.querySelectorAll(".rl-btn").forEach(b => b.addEventListener("click", () => {
+          if (b.dataset.lang === rlang) return;
+          rlang = b.dataset.lang;
+          localStorage.setItem("hub_rlang", rlang);
+          applyRlang();
+        }));
+
         document.getElementById("rt-add").addEventListener("click", async () => {
           const title = document.getElementById("rt-title").value.trim();
           const content = document.getElementById("rt-content").value;
           if (!title || !content.trim()) { say(rtMsg, "Add a title and the Chinese text.", true); return; }
           const row = {
-            title, content,
+            title, content, lang: rlang,
             level: parseInt(document.getElementById("rt-level").value, 10),
             category: document.getElementById("rt-cat").value.trim() || null,
             tags: document.getElementById("rt-tags").value.split(",").map(x => x.trim()).filter(Boolean),
@@ -5240,7 +5305,10 @@
               #brand-preview .bpp-card { background:var(--bp-card); border:1px solid color-mix(in srgb, var(--bp-heading) 12%, transparent); border-radius:12px; padding:.8rem; }
               #brand-preview .bpp-card .tag { color:var(--bp-accent); font-weight:800; font-size:.72rem; text-transform:uppercase; }
               #brand-preview .bpp-btn { background:var(--bp-btn); color:var(--bp-btnt); border:none; border-radius:9px; padding:.5rem 1rem; font-weight:700; font-size:.85rem; margin-top:.6rem; }
-            </style>
+              .rl-btn { padding:0.45rem 0.9rem; border-radius:999px; font-size:0.9rem; font-weight:700;
+    border:1px solid var(--accent); background:var(--accent); color:#fff; cursor:pointer; }
+  .rl-btn.ghost { background:transparent; color:var(--ink); border-color:var(--line); }
+</style>
             <div id="brand-preview">
               <div class="bpp-head">
                 <img class="bpp-logo" src="${esc(BW.logo_url || "icons/icon-192.png")}" alt="">
