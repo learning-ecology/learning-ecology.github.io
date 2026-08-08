@@ -1,0 +1,2105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Luyện thi V-SAT tiếng Anh · Learning Ecology</title>
+<meta name="description" content="Luyện thi V-SAT tiếng Anh: đề thi thử bám sát cấu trúc thật, có bấm giờ, chấm điểm tự động, xem lại đáp án và giải thích chi tiết." />
+<link rel="canonical" href="https://learningecology.io.vn/vsat.html" />
+<link rel="icon" type="image/png" href="icons/logo-64.png" />
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#17263e" />
+<script>
+  /* match the rest of the site: apply the saved theme before first paint */
+  try { var __t = localStorage.getItem("hub_theme");
+    if (__t === "dark" || (!__t && matchMedia("(prefers-color-scheme: dark)").matches))
+      document.documentElement.setAttribute("data-theme", "dark");
+  } catch (e) {}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="premium.js"></script>
+<style>
+:root{
+  --font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --color-text-primary:#1f2733;
+  --color-text-secondary:#5c6a7d;
+  --color-background-primary:#ffffff;
+  --color-background-secondary:#f4f6fa;
+  --color-background-tertiary:#eef2f8;
+  --color-border-secondary:#d3dae4;
+  --color-border-tertiary:#e4e9f0;
+  --border-radius-md:8px;
+  --border-radius-lg:12px;
+  --accent:#4f46e5;      /* indigo */
+  --accent-2:#0d9488;    /* teal  */
+  --accent-soft:#eef0fe;
+  --accent-2-soft:#e6f5f2;
+  --good:#16a34a;
+  --good-soft:#e7f6ec;
+  --bad:#dc2626;
+  --bad-soft:#fdeaea;
+  --warn:#d97706;
+  --warn-soft:#fdf3e3;
+  --flag:#e11d48;
+  --page-bg:#eaeef4;
+  --shadow:0 1px 3px rgba(20,30,50,.08),0 8px 24px rgba(20,30,50,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--page-bg);font-family:var(--font-sans);color:var(--color-text-primary);-webkit-text-size-adjust:100%}
+body{padding-bottom:80px}
+button{font-family:inherit}
+.hidden{display:none!important}
+
+/* ---------- Top bar ---------- */
+.topbar{position:sticky;top:0;z-index:50;background:var(--color-background-primary);border-bottom:1px solid var(--color-border-secondary);box-shadow:0 1px 3px rgba(20,30,50,.05)}
+.topbar-in{max-width:1080px;margin:0 auto;display:flex;align-items:center;gap:12px;padding:10px 16px;flex-wrap:wrap}
+.brand{font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px;margin-right:auto}
+.brand .logo{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800}
+.mode-switch{display:flex;background:var(--color-background-tertiary);border-radius:999px;padding:3px;gap:2px}
+.mode-switch button{border:none;background:transparent;padding:7px 16px;border-radius:999px;font-size:13px;font-weight:600;color:var(--color-text-secondary);cursor:pointer}
+.mode-switch button.active{background:var(--color-background-primary);color:var(--accent);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.icon-btn{border:1px solid var(--color-border-secondary);background:var(--color-background-primary);border-radius:var(--border-radius-md);padding:7px 12px;font-size:13px;cursor:pointer;color:var(--color-text-secondary);font-weight:500}
+.icon-btn:hover{background:var(--color-background-secondary)}
+.menu-wrap{position:relative}
+.menu{position:absolute;right:0;top:calc(100% + 6px);background:#fff;border:1px solid var(--color-border-secondary);border-radius:var(--border-radius-lg);box-shadow:var(--shadow);min-width:230px;padding:6px;z-index:60}
+.menu button{display:block;width:100%;text-align:left;border:none;background:transparent;padding:9px 12px;border-radius:var(--border-radius-md);font-size:13px;cursor:pointer;color:var(--color-text-primary)}
+.menu button:hover{background:var(--color-background-secondary)}
+.menu .sep{height:1px;background:var(--color-border-tertiary);margin:5px 4px}
+.menu .danger{color:var(--bad)}
+
+/* ---------- Layout ---------- */
+.wrap{max-width:1080px;margin:0 auto;padding:18px 16px}
+.card{background:var(--color-background-primary);border:1px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);box-shadow:var(--shadow)}
+.pad{padding:20px}
+
+/* ---------- Home ---------- */
+.home-hero{text-align:center;padding:30px 20px 10px}
+.home-hero h1{font-size:22px;margin-bottom:6px}
+.home-hero p{color:var(--color-text-secondary);font-size:14px;max-width:600px;margin:0 auto}
+.home-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:22px}
+.home-tile{padding:24px;border-radius:var(--border-radius-lg);border:1px solid var(--color-border-tertiary);cursor:pointer;background:var(--color-background-primary);transition:transform .12s,box-shadow .12s;text-align:left}
+.home-tile:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+.home-tile .ico{width:44px;height:44px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:12px}
+.home-tile.practice .ico{background:var(--accent-2-soft)}
+.home-tile.test .ico{background:var(--accent-soft)}
+.home-tile h3{font-size:17px;margin-bottom:6px}
+.home-tile p{font-size:13px;color:var(--color-text-secondary);line-height:1.6}
+.home-tile .go{margin-top:14px;font-weight:600;font-size:13px;color:var(--accent)}
+.home-tile.practice .go{color:var(--accent-2)}
+.mini-stats{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.chip{font-size:12px;background:var(--color-background-secondary);border:1px solid var(--color-border-tertiary);border-radius:999px;padding:4px 10px;color:var(--color-text-secondary)}
+
+/* ---------- Section titles / prose ---------- */
+h2.sec{font-size:19px;margin-bottom:4px}
+.sub{color:var(--color-text-secondary);font-size:13.5px;line-height:1.6;margin-bottom:16px}
+.btn{border:none;border-radius:var(--border-radius-md);padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:#4338ca}
+.btn-teal{background:var(--accent-2);color:#fff}
+.btn-teal:hover{background:#0b7d73}
+.btn-ghost{background:var(--color-background-secondary);color:var(--color-text-primary);border:1px solid var(--color-border-secondary)}
+.btn-ghost:hover{background:var(--color-background-tertiary)}
+.btn-sm{padding:7px 13px;font-size:13px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+/* ---------- Practice nav ---------- */
+.pmlayout{display:grid;grid-template-columns:250px 1fr;gap:18px;align-items:start}
+.psidebar{position:sticky;top:70px}
+.steplist{list-style:none}
+.steplist li{margin-bottom:6px}
+.steplist button{width:100%;text-align:left;border:1px solid var(--color-border-tertiary);background:var(--color-background-primary);border-radius:var(--border-radius-md);padding:10px 12px;font-size:13px;cursor:pointer;display:flex;gap:9px;align-items:center;color:var(--color-text-primary)}
+.steplist button:hover{background:var(--color-background-secondary)}
+.steplist button.active{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:600}
+.steplist .num{width:22px;height:22px;flex-shrink:0;border-radius:50%;background:var(--color-background-tertiary);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--color-text-secondary)}
+.steplist button.active .num{background:var(--accent);color:#fff}
+.steplist .done .num{background:var(--good);color:#fff}
+.progress-box{margin-top:16px;padding:14px;border-radius:var(--border-radius-lg);background:var(--color-background-secondary);border:1px solid var(--color-border-tertiary)}
+.progress-box h4{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--color-text-secondary);margin-bottom:10px}
+.pbar{height:7px;border-radius:99px;background:var(--color-border-tertiary);overflow:hidden;margin:4px 0 2px}
+.pbar span{display:block;height:100%;background:var(--accent-2);width:0;transition:width .3s}
+.prow{font-size:12px;color:var(--color-text-secondary);display:flex;justify-content:space-between;margin-top:9px}
+
+/* ---------- Vocab bank ---------- */
+.vfilter{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.vfilter input{flex:1;min-width:160px;border:1px solid var(--color-border-secondary);border-radius:var(--border-radius-md);padding:9px 12px;font-size:13px}
+.vfilter select{border:1px solid var(--color-border-secondary);border-radius:var(--border-radius-md);padding:9px 10px;font-size:13px;background:#fff}
+.vgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.vcard{border:1px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:14px;background:var(--color-background-primary)}
+.vcard .top{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.vcard .w{font-size:16px;font-weight:700}
+.vcard .pos{font-size:12px;font-style:italic;color:var(--accent)}
+.vcard .ipa{font-size:13px;color:var(--color-text-secondary)}
+.spk{border:none;background:var(--accent-soft);color:var(--accent);width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:14px;display:inline-flex;align-items:center;justify-content:center}
+.spk:hover{background:#e0e2fb}
+.vcard .def{font-size:13px;margin-top:8px;line-height:1.55}
+.vcard .vi{font-size:13px;color:var(--accent-2);font-weight:600;margin-top:3px}
+.vcard .ex{font-size:12.5px;margin-top:8px;padding:8px 10px;background:var(--color-background-secondary);border-radius:var(--border-radius-md);line-height:1.6}
+.vcard .ex .exvi{color:var(--color-text-secondary);font-style:italic;display:block;margin-top:3px}
+.vcard .forms{font-size:12px;color:var(--color-text-secondary);margin-top:8px}
+.vcard .forms b{color:var(--color-text-primary)}
+.tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;background:var(--color-background-tertiary);color:var(--color-text-secondary);margin-left:auto}
+
+/* ---------- Flashcards ---------- */
+.fc-stage{max-width:460px;margin:0 auto}
+.flashcard{perspective:1200px;height:270px;margin-bottom:14px;cursor:pointer}
+.fc-inner{position:relative;width:100%;height:100%;transition:transform .5s;transform-style:preserve-3d}
+.flashcard.flipped .fc-inner{transform:rotateY(180deg)}
+.fc-face{position:absolute;inset:0;backface-visibility:hidden;border-radius:16px;border:1px solid var(--color-border-tertiary);box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;background:#fff}
+.fc-front{background:linear-gradient(135deg,#fff,var(--accent-soft))}
+.fc-front .w{font-size:26px;font-weight:800}
+.fc-front .ipa{color:var(--color-text-secondary);margin-top:6px}
+.fc-back{transform:rotateY(180deg);align-items:flex-start;text-align:left;justify-content:flex-start;overflow:auto}
+.fc-back .w{font-size:18px;font-weight:700}
+.fc-back .def{font-size:13.5px;margin-top:8px;line-height:1.55}
+.fc-back .vi{color:var(--accent-2);font-weight:600;margin-top:4px}
+.fc-back .ex{font-size:12.5px;margin-top:10px;font-style:italic;color:var(--color-text-secondary);line-height:1.6}
+.fc-hint{text-align:center;font-size:12px;color:var(--color-text-secondary);margin-bottom:10px}
+.fc-controls{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:14px}
+.classify{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:460px;margin:0 auto}
+.classify button{border:1px solid var(--color-border-secondary);border-radius:var(--border-radius-md);padding:10px;font-size:13px;font-weight:600;cursor:pointer;background:#fff}
+.classify button[data-c="mastered"]{color:var(--good)}
+.classify button[data-c="remembered"]{color:var(--accent)}
+.classify button[data-c="learning"]{color:var(--warn)}
+.classify button[data-c="new"]{color:var(--bad)}
+.classify button.sel{outline:2px solid currentColor;background:var(--color-background-secondary)}
+.class-counts{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:16px}
+.cc{font-size:12px;padding:5px 11px;border-radius:999px;font-weight:600}
+.cc.mastered{background:var(--good-soft);color:var(--good)}
+.cc.remembered{background:var(--accent-soft);color:var(--accent)}
+.cc.learning{background:var(--warn-soft);color:var(--warn)}
+.cc.new{background:var(--bad-soft);color:var(--bad)}
+
+/* ---------- Exercises ---------- */
+.ex-block{border:1px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:16px;margin-bottom:14px}
+.ex-block h4{font-size:14px;margin-bottom:4px}
+.ex-block .eh-sub{font-size:12.5px;color:var(--color-text-secondary);margin-bottom:12px}
+.qitem{margin-bottom:14px;font-size:13.5px;line-height:1.7}
+.qitem .qtext{margin-bottom:7px}
+.opts{display:flex;flex-direction:column;gap:6px}
+.opt{border:1px solid var(--color-border-secondary);border-radius:var(--border-radius-md);padding:8px 12px;font-size:13px;cursor:pointer;background:#fff;text-align:left}
+.opt:hover{background:var(--color-background-secondary)}
+.opt.sel{border-color:var(--accent);background:var(--accent-soft)}
+.opt.correct{border-color:var(--good);background:var(--good-soft)}
+.opt.wrong{border-color:var(--bad);background:var(--bad-soft)}
+.blankinput{border:none;border-bottom:1.5px solid var(--accent);background:transparent;font-size:13.5px;padding:2px 4px;width:130px;text-align:center;color:var(--color-text-primary);outline:none}
+.selinline{border:1px solid var(--color-border-secondary);border-radius:6px;padding:3px 6px;font-size:13px;background:#fff}
+.fb{font-size:12.5px;margin-top:7px;padding:8px 10px;border-radius:var(--border-radius-md);line-height:1.55;display:none}
+.fb.show{display:block}
+.fb.ok{background:var(--good-soft);color:#166534}
+.fb.no{background:var(--bad-soft);color:#991b1b}
+.matchgrid{display:grid;grid-template-columns:1fr auto;gap:8px 12px;align-items:center}
+.matchgrid .mleft{font-size:13px;padding:8px 10px;border:1px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);background:var(--color-background-secondary)}
+.ex-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;align-items:center}
+.ex-score{font-size:13px;font-weight:600;margin-left:auto;color:var(--color-text-secondary)}
+
+/* ---------- Grammar ---------- */
+.gcard{border:1px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:18px;margin-bottom:14px}
+.gcard h3{font-size:16px;margin-bottom:4px;color:var(--accent)}
+.gcard .form{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;background:var(--color-background-tertiary);border-radius:var(--border-radius-md);padding:10px 12px;margin:10px 0;line-height:1.7}
+.gcard p{font-size:13.5px;line-height:1.65;margin-bottom:8px}
+.gcard .vi{color:var(--accent-2)}
+.gcard .exlist{list-style:none;margin:6px 0}
+.gcard .exlist li{font-size:13px;padding:7px 0;border-bottom:1px dashed var(--color-border-tertiary);line-height:1.6}
+.gcard .exlist li:last-child{border-bottom:none}
+.gcard .exlist .t{color:var(--color-text-secondary);font-style:italic;font-size:12.5px;display:block}
+.gnote{font-size:12.5px;background:var(--warn-soft);border-left:3px solid var(--warn);padding:8px 12px;border-radius:6px;margin-top:8px;line-height:1.6}
+.gnote.mistake{background:var(--bad-soft);border-color:var(--bad)}
+.gnote b{color:var(--color-text-primary)}
+
+/* ---------- Mock test ---------- */
+.testbar{position:sticky;top:57px;z-index:40;background:var(--color-background-primary);border-bottom:1px solid var(--color-border-secondary);box-shadow:0 1px 3px rgba(20,30,50,.05)}
+.testbar-in{max-width:1080px;margin:0 auto;display:flex;align-items:center;gap:10px;padding:8px 16px;flex-wrap:wrap}
+.timer{font-variant-numeric:tabular-nums;font-weight:700;font-size:15px;background:var(--accent-soft);color:var(--accent);padding:6px 12px;border-radius:var(--border-radius-md)}
+.timer.warn{background:var(--warn-soft);color:var(--warn)}
+.timer.danger{background:var(--bad-soft);color:var(--bad)}
+.hl-tools{display:flex;gap:6px;align-items:center}
+.hl-swatch{width:24px;height:24px;border-radius:50%;border:2px solid transparent;cursor:pointer}
+.hl-swatch.sel{border-color:var(--color-text-primary);transform:scale(1.12)}
+.hl-swatch.eraser{background:#fff;border:2px dashed var(--color-border-secondary);font-size:12px;display:flex;align-items:center;justify-content:center}
+.testlayout{display:grid;grid-template-columns:1fr 240px;gap:18px;align-items:start;max-width:1080px;margin:0 auto;padding:18px 16px}
+.navigator{position:sticky;top:110px;background:#fff;border:1px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:14px;box-shadow:var(--shadow)}
+.navigator h4{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--color-text-secondary);margin-bottom:10px}
+.navgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.navbtn{position:relative;aspect-ratio:1;border:1px solid var(--color-border-secondary);border-radius:7px;background:#fff;font-size:12px;font-weight:600;cursor:pointer;color:var(--color-text-secondary)}
+.navbtn.answered{background:var(--good-soft);border-color:var(--good);color:#166534}
+.navbtn.partial{background:var(--warn-soft);border-color:var(--warn);color:#92610a}
+.navbtn.current{outline:2px solid var(--accent);outline-offset:1px}
+.navbtn.flagged::after{content:"";position:absolute;top:-3px;right:-3px;width:9px;height:9px;border-radius:50%;background:var(--flag);border:1.5px solid #fff}
+.navlegend{font-size:11px;color:var(--color-text-secondary);margin-top:12px;line-height:1.9}
+.navlegend .dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:middle}
+.qcard{scroll-margin-top:120px}
+.qcard-head{display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--color-background-secondary);border-bottom:1px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg) var(--border-radius-lg) 0 0}
+.qcard-head .qtitle{font-size:13px;font-weight:600}
+.qcard-head .tools{margin-left:auto;display:flex;gap:6px}
+.qtool{border:1px solid var(--color-border-secondary);background:#fff;border-radius:6px;padding:4px 9px;font-size:12px;cursor:pointer;color:var(--color-text-secondary)}
+.qtool:hover{background:var(--color-background-tertiary)}
+.qtool.flagged{background:var(--bad-soft);border-color:var(--flag);color:var(--flag)}
+.qtool.noteon{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.note-area{padding:0 14px 12px;display:none}
+.note-area.show{display:block}
+.note-area textarea{width:100%;min-height:60px;border:1px solid var(--color-border-secondary);border-radius:var(--border-radius-md);padding:8px;font-size:13px;font-family:inherit;resize:vertical}
+.note-area .nlbl{font-size:11px;color:var(--color-text-secondary);margin:8px 0 4px}
+
+/* Original exam styles (preserved) */
+.qb{margin-bottom:0;border:1px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);overflow:hidden;background:#fff}
+.pt{font-size:16px;font-weight:700;border-bottom:2px solid var(--accent);padding-bottom:6px;margin:22px 0 6px;color:var(--accent)}
+.pi{font-size:13px;color:var(--color-text-secondary);margin-bottom:14px;line-height:1.6;font-style:italic}
+.nb{background:var(--color-background-tertiary);border:1px solid var(--color-border-secondary);border-radius:var(--border-radius-md);padding:1rem;margin:.75rem 1rem;font-size:13px;line-height:1.7}
+.nb strong{font-weight:600;display:block;text-align:center;font-size:14px;margin-bottom:4px}
+.tft{width:100%;border-collapse:collapse;font-size:13px}
+.tft th{background:var(--color-background-secondary);padding:7px 12px;text-align:center;font-weight:600;border:1px solid var(--color-border-tertiary);width:60px}
+.tft th:first-child{text-align:left;width:auto}
+.tft td{padding:7px 12px;border:1px solid var(--color-border-tertiary);vertical-align:middle}
+.tft td:not(:first-child){text-align:center}
+.tft tr:nth-child(even) td{background:var(--color-background-secondary)}
+.tfc{width:20px;height:20px;cursor:pointer;accent-color:var(--accent)}
+.pb{font-size:13px;line-height:1.8;padding:1rem;background:var(--color-background-secondary);border-bottom:1px solid var(--color-border-tertiary)}
+.pb p{margin-bottom:.75rem}
+.pb p:last-child{margin-bottom:0}
+.mcq{font-size:13px;font-weight:500;padding:.75rem 1rem 0}
+.mco{padding:.75rem 1rem}
+.mcop{display:flex;align-items:flex-start;gap:8px;padding:6px 10px;border-radius:var(--border-radius-md);cursor:pointer;font-size:13px;line-height:1.6;margin-bottom:4px}
+.mcop:hover{background:var(--color-background-secondary)}
+.mcop input{margin-top:2px;flex-shrink:0;accent-color:var(--accent)}
+.ms{padding:.75rem 1rem}
+.mr{display:grid;grid-template-columns:1fr 28px 1fr;align-items:center;gap:8px;margin-bottom:8px}
+.mst{font-size:13px;padding:8px 10px;border:1px solid var(--color-border-secondary);border-radius:var(--border-radius-md);line-height:1.5}
+.ma{text-align:center;font-size:14px;color:var(--color-text-secondary)}
+.msel{font-size:12px;padding:6px 8px;border:1px solid var(--color-border-secondary);border-radius:var(--border-radius-md);background:var(--color-background-primary);color:var(--color-text-primary);width:100%}
+.mchoices{margin-top:.75rem;font-size:12px;color:var(--color-text-secondary);line-height:2}
+.gft{font-size:13px;line-height:2.1;padding:1rem}
+.gi{border:none;border-bottom:1.5px solid var(--accent);background:transparent;font-size:13px;color:var(--color-text-primary);width:90px;text-align:center;outline:none;padding:2px 4px}
+.gi:focus{border-bottom-color:var(--accent-2)}
+.eh{text-align:center;border:2px solid var(--color-text-primary);padding:1rem;margin-bottom:.5rem;border-radius:var(--border-radius-lg)}
+.eh h1{font-size:13px;font-weight:500;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.eh h2{font-size:17px;font-weight:700;margin-bottom:4px}
+.eh p{font-size:13px;color:var(--color-text-secondary)}
+
+/* highlight colors */
+.hl-yellow{background:#fff3a3;border-radius:3px;padding:0 1px}
+.hl-green{background:#b6f0c2;border-radius:3px;padding:0 1px}
+.hl-pink{background:#ffc4dd;border-radius:3px;padding:0 1px}
+.hl-blue{background:#bce0ff;border-radius:3px;padding:0 1px}
+body.hide-annos .hl-yellow,body.hide-annos .hl-green,body.hide-annos .hl-pink,body.hide-annos .hl-blue{background:transparent;padding:0}
+body.hide-annos .note-area{display:none!important}
+
+/* results */
+.result-hero{text-align:center;padding:26px 16px}
+.result-score{font-size:44px;font-weight:800}
+.result-pct{font-size:16px;color:var(--color-text-secondary)}
+.gauge{width:150px;height:150px;margin:10px auto}
+.sectiongrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+.sbox{border:1px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:14px}
+.sbox h4{font-size:13px;margin-bottom:8px}
+.sbox .big{font-size:22px;font-weight:700}
+.review-item{border:1px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);padding:12px;margin-bottom:10px;font-size:13px;line-height:1.6}
+.review-item .badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;margin-right:8px}
+.badge.ok{background:var(--good-soft);color:var(--good)}
+.badge.no{background:var(--bad-soft);color:var(--bad)}
+.badge.blank{background:var(--warn-soft);color:var(--warn)}
+.review-item .expl{margin-top:6px;color:var(--color-text-secondary);font-size:12.5px}
+.review-item .yourhl{margin-top:6px;font-size:12px;color:var(--accent)}
+.weaklist{list-style:none}
+.weaklist li{font-size:13px;padding:8px 0;border-bottom:1px dashed var(--color-border-tertiary)}
+
+/* ---------- Matching questions (letter-input format) ---------- */
+.match-instruction{font-size:12.5px;background:var(--accent-2-soft);border:1px solid var(--accent-2);color:#0b6b62;border-radius:8px;padding:9px 12px;margin:2px 2px 12px;line-height:1.6}
+.match-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:0 2px 12px}
+.match-col h5{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--color-text-secondary);margin-bottom:8px;font-weight:700}
+.mp{font-size:13px;padding:9px 11px;border:1px solid var(--color-border-secondary);border-radius:8px;margin-bottom:8px;line-height:1.5;background:var(--color-background-primary)}
+.mp .num{font-weight:700;color:var(--accent);margin-right:4px}
+.mo{font-size:13px;padding:8px 11px;border:1px solid var(--color-border-tertiary);border-radius:8px;margin-bottom:8px;line-height:1.5;background:var(--color-background-secondary)}
+.mo .lt{font-weight:800;color:var(--accent);margin-right:6px}
+.match-answers{background:var(--color-background-secondary);border:1px solid var(--color-border-tertiary);border-radius:10px;padding:12px 14px;margin:0 2px}
+.ma-label{font-size:13px;font-weight:600;margin-bottom:10px}
+.ma-boxes{display:flex;gap:14px;flex-wrap:wrap}
+.ma-box{display:flex;flex-direction:column;align-items:center;gap:5px}
+.ma-box>span{font-size:12px;font-weight:700;color:var(--color-text-secondary)}
+.minput{width:52px;height:52px;text-align:center;font-size:20px;font-weight:700;text-transform:uppercase;border:2px solid var(--color-border-secondary);border-radius:10px;background:var(--color-background-primary);color:var(--color-text-primary);outline:none;caret-color:var(--accent)}
+.minput:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.minput.dup,.minput.invalid{border-color:var(--bad);background:var(--bad-soft)}
+.minput.unanswered{border-color:var(--warn);background:var(--warn-soft)}
+.minput.rvok{border-color:var(--good);background:var(--good-soft)}
+.minput.rvno{border-color:var(--bad);background:var(--bad-soft)}
+.ma-msg{font-size:12px;margin-top:9px;min-height:1.1em;color:var(--bad);line-height:1.4}
+@media (max-width:640px){.match-cols{grid-template-columns:1fr}.minput{width:46px;height:46px;font-size:18px}}
+
+/* ---------- Complete Test Review Mode ---------- */
+.review-topbar{position:sticky;top:57px;z-index:40;background:var(--color-background-primary);border-bottom:1px solid var(--color-border-secondary);box-shadow:0 1px 3px rgba(20,30,50,.05)}
+.review-topbar-in{max-width:1080px;margin:0 auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 16px}
+.review-filters{display:flex;gap:3px;background:var(--color-background-tertiary);border-radius:999px;padding:3px;flex-wrap:wrap}
+.review-filters button{border:none;background:transparent;padding:6px 13px;border-radius:999px;font-size:12.5px;font-weight:600;color:var(--color-text-secondary);cursor:pointer}
+.review-filters button.active{background:var(--color-background-primary);color:var(--accent);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.ro-badge{margin-left:auto;font-size:12px;color:var(--color-text-secondary);background:var(--color-background-secondary);border:1px solid var(--color-border-tertiary);border-radius:999px;padding:5px 12px}
+.review-grid{display:grid;grid-template-columns:1fr 240px;gap:18px;align-items:start;max-width:1080px;margin:0 auto;padding:18px 16px}
+.review-main{min-width:0}
+.review-main input:disabled,.review-main select:disabled{opacity:1;cursor:default}
+.review-main .tfc:disabled{accent-color:var(--accent)}
+.review-main .gi:disabled{color:var(--color-text-primary);-webkit-text-fill-color:var(--color-text-primary)}
+.rsplit{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;margin-bottom:16px}
+.rsplit-text{position:sticky;top:112px;max-height:calc(100vh - 132px);overflow:auto}
+.rsplit-text .qb{margin-bottom:0}
+.rsplit-q>.qcard{margin-bottom:16px}
+.rv-correct{background:var(--good-soft)!important;box-shadow:inset 0 0 0 2px var(--good);border-radius:6px}
+.rv-wrong{background:var(--bad-soft)!important;box-shadow:inset 0 0 0 2px var(--bad);border-radius:6px}
+.rv-panel{margin:0 14px 12px;border:1px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);overflow:hidden}
+.rv-head{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--color-background-secondary);font-size:12.5px;flex-wrap:wrap}
+.rv-pts{margin-left:auto;font-weight:700}
+.rv-sub{padding:9px 12px;font-size:12.5px;line-height:1.75}
+.rv-sub .si{display:block;padding:1px 0}
+.rv-exbtn{border:none;background:transparent;color:var(--accent);font-size:12px;font-weight:600;cursor:pointer;padding:7px 12px;display:block;border-top:1px solid var(--color-border-tertiary);width:100%;text-align:left}
+.rv-expl{padding:10px 12px;background:var(--accent-soft);font-size:12.5px;line-height:1.6;border-top:1px solid var(--color-border-tertiary)}
+.rv-expl.collapsed{display:none}
+.rv-cor{color:var(--good);font-weight:700}
+.rv-inc{color:var(--bad);font-weight:700}
+.status-pill{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px}
+.status-pill.correct{background:var(--good-soft);color:var(--good)}
+.status-pill.incorrect{background:var(--bad-soft);color:var(--bad)}
+.status-pill.unanswered{background:var(--warn-soft);color:var(--warn)}
+.navbtn.nvc{background:var(--good-soft);border-color:var(--good);color:#166534}
+.navbtn.nvi{background:var(--bad-soft);border-color:var(--bad);color:#991b1b}
+.filtered-out{display:none!important}
+.review-gennotes textarea{width:100%;min-height:120px;border:1px solid var(--color-border-secondary);border-radius:8px;padding:8px;font-family:inherit;font-size:13px;resize:vertical}
+@media (max-width:860px){
+  .review-grid{grid-template-columns:1fr}
+  .rsplit{grid-template-columns:1fr}
+  .rsplit-text{position:static;max-height:none}
+}
+
+/* floating notepad */
+.notepad-toggle{position:fixed;right:18px;bottom:18px;z-index:70;background:var(--accent);color:#fff;border:none;border-radius:999px;padding:12px 18px;font-size:14px;font-weight:600;cursor:pointer;box-shadow:var(--shadow)}
+.notepad{position:fixed;right:18px;bottom:70px;z-index:70;width:320px;max-width:calc(100vw - 36px);background:#fff;border:1px solid var(--color-border-secondary);border-radius:var(--border-radius-lg);box-shadow:var(--shadow);display:none;flex-direction:column;overflow:hidden}
+.notepad.open{display:flex}
+.notepad header{padding:10px 14px;background:var(--color-background-secondary);border-bottom:1px solid var(--color-border-tertiary);font-size:13px;font-weight:600;display:flex;align-items:center}
+.notepad header button{margin-left:auto;border:none;background:transparent;font-size:16px;cursor:pointer;color:var(--color-text-secondary)}
+.notepad textarea{border:none;padding:12px;font-size:13px;font-family:inherit;min-height:200px;resize:vertical;outline:none}
+
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--color-text-primary);color:#fff;padding:10px 18px;border-radius:999px;font-size:13px;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+.banner{background:var(--accent-2-soft);border:1px solid var(--accent-2);color:#0b6b62;padding:12px 16px;border-radius:var(--border-radius-lg);font-size:13.5px;margin-bottom:16px;line-height:1.6}
+
+@media (max-width:860px){
+  .pmlayout{grid-template-columns:1fr}
+  .psidebar{position:static}
+  .testlayout{grid-template-columns:1fr}
+  .navigator{position:static;order:-1}
+  .vgrid{grid-template-columns:1fr}
+  .home-grid{grid-template-columns:1fr}
+  .sectiongrid{grid-template-columns:1fr}
+  .steplist{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .steplist li{margin:0}
+}
+@media (max-width:520px){
+  .brand span.full{display:none}
+  .classify{grid-template-columns:1fr}
+  .matchgrid{grid-template-columns:1fr}
+}
+
+/* ===== Platform shell (Phase 50) — topbar + exam picker ===== */
+#leTop{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--color-background-primary);
+  border-bottom:1px solid var(--color-border-secondary);font-size:14px;flex-wrap:wrap}
+#leTop .le-brand{display:inline-flex;align-items:center;gap:7px;font-weight:800;color:var(--color-text-primary);text-decoration:none}
+#leTop .le-brand img{border-radius:6px}
+#leTop .le-sep{color:var(--color-text-secondary)}
+#leTop .le-page{color:var(--accent)}
+#leTop .le-spacer{margin-left:auto}
+#leTop .le-who{color:var(--color-text-secondary);font-size:13px}
+#leTop .le-a{color:var(--accent);text-decoration:none;font-size:13px;white-space:nowrap;
+  border:1px solid var(--color-border-secondary);border-radius:8px;padding:5px 10px}
+#leTop .le-a.le-p{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+@media (max-width:640px){ #leTop .le-page,#leTop .le-who{display:none} }
+
+#examPick{max-width:1000px;margin:14px auto 0;padding:0 16px}
+#examPick h3{font-size:15px;margin:0 0 10px;color:var(--color-text-secondary);font-weight:700;
+  text-transform:uppercase;letter-spacing:.05em}
+.exgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.excard{position:relative;text-align:left;background:var(--color-background-primary);
+  border:1px solid var(--color-border-secondary);border-radius:var(--border-radius-lg);
+  padding:14px 15px;cursor:pointer;transition:transform .15s,box-shadow .15s}
+.excard:hover{transform:translateY(-2px);box-shadow:0 12px 26px -18px rgba(20,30,50,.5)}
+.excard.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent) inset}
+.excard h4{margin:0 0 3px;font-size:15.5px}
+.excard .sub{color:var(--color-text-secondary);font-size:12.5px;margin:0 0 8px}
+.excard .meta{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--color-text-secondary)}
+.extag{display:inline-block;font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;margin-bottom:7px}
+.extag.free{background:#e2f4e9;color:#146c3d}
+.extag.prem{background:linear-gradient(135deg,#f4d68a,#d9a53c);color:#713f12}
+.excard.locked{opacity:.85}
+.excard.locked::after{content:"🔒";position:absolute;top:12px;right:13px;font-size:15px}
+.exempty{color:var(--color-text-secondary);font-size:14px;padding:14px;border:1px dashed var(--color-border-secondary);
+  border-radius:var(--border-radius-lg);text-align:center}
+</style>
+</head>
+<body>
+
+<!-- ============ TOP BAR ============ -->
+<!-- Platform topbar: same shape as the Reading / Shadowing pages -->
+<header id="leTop">
+  <a class="le-brand" href="index.html"><img src="icons/logo-64.png" alt="" width="26" height="26">Learning Ecology</a>
+  <span class="le-sep">·</span>
+  <b class="le-page">Luyện thi V-SAT</b>
+  <span class="le-spacer"></span>
+  <span class="le-who" id="leWho"></span>
+  <span id="leAuth" hidden>
+    <a class="le-a" href="login.html">Đăng nhập</a>
+    <a class="le-a le-p" href="login.html">Đăng ký miễn phí</a>
+  </span>
+  <a class="le-a" id="leBack" href="dashboard.html">← Bảng điều khiển</a>
+</header>
+<div class="topbar">
+  <div class="topbar-in">
+    <div class="brand"><span class="logo">V</span><span class="full">VSAT English · Exam 2 (2025)</span></div>
+    <div class="mode-switch">
+      <button id="mode-practice" onclick="setMode('practice')">📚 Practice</button>
+      <button id="mode-test" onclick="setMode('test')">📝 Mock Test</button>
+    </div>
+    <div class="menu-wrap">
+      <button class="icon-btn" onclick="toggleMenu(event)">⚙ Reset ▾</button>
+      <div class="menu hidden" id="resetMenu">
+        <button onclick="resetPractice()">Reset Practice progress</button>
+        <button onclick="resetTest()">Reset Mock Test answers</button>
+        <button onclick="resetAnnotations()">Clear highlights &amp; notes</button>
+        <div class="sep"></div>
+        <button class="danger" onclick="resetAll()">Reset EVERYTHING</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ HOME ============ -->
+
+<div id="view-home" class="wrap">
+  <div class="home-hero">
+    <h1 id="home-title">VSAT English</h1>
+    <p id="home-sub">Prepare with guided vocabulary &amp; grammar practice, then test yourself under real exam conditions. Your progress is saved automatically on this device.</p>
+  </div>
+  <div id="examBar" class="row" style="justify-content:center;margin:6px 0 2px;gap:10px;flex-wrap:wrap"></div>
+  <div id="examPick"></div>
+  <div class="home-grid">
+    <div class="home-tile practice" onclick="setMode('practice')">
+      <div class="ico">📚</div>
+      <h3>Practice Mode</h3>
+      <p>Study the vocabulary, collocations and grammar behind the test. Flashcards, exercises and instant feedback — no answers to the exam are revealed.</p>
+      <div class="mini-stats" id="home-practice-stats"></div>
+      <div class="go">Start practising →</div>
+    </div>
+    <div class="home-tile test" onclick="setMode('test')">
+      <div class="ico">📝</div>
+      <h3>Mock Test Mode</h3>
+      <p>25 questions · 60 minutes. Realistic exam conditions with a timer, question navigator, flagging, highlighting and personal notes. Full review after you submit.</p>
+      <div class="mini-stats" id="home-test-stats"></div>
+      <div class="go">Start the mock test →</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PRACTICE MODE ============ -->
+<div id="view-practice" class="wrap hidden">
+  <div class="pmlayout">
+    <aside class="psidebar">
+      <ul class="steplist" id="steplist"></ul>
+      <div class="progress-box">
+        <h4>Your progress</h4>
+        <div id="progress-rows"></div>
+      </div>
+    </aside>
+    <main id="practice-main"></main>
+  </div>
+</div>
+
+<!-- ============ MOCK TEST MODE ============ -->
+<div id="view-test" class="hidden">
+  <div class="testbar" id="testbar">
+    <div class="testbar-in">
+      <div class="timer" id="timer" title="Time remaining">60:00</div>
+      <button class="icon-btn btn-sm" id="timerToggle" onclick="toggleTimer()">Pause</button>
+      <div class="hl-tools" title="Highlighter — select text then it highlights in this colour">
+        <span style="font-size:12px;color:var(--color-text-secondary);margin-right:2px">Highlight:</span>
+        <span class="hl-swatch sel" style="background:#fff3a3" data-color="yellow" onclick="setHL('yellow')"></span>
+        <span class="hl-swatch" style="background:#b6f0c2" data-color="green" onclick="setHL('green')"></span>
+        <span class="hl-swatch" style="background:#ffc4dd" data-color="pink" onclick="setHL('pink')"></span>
+        <span class="hl-swatch" style="background:#bce0ff" data-color="blue" onclick="setHL('blue')"></span>
+        <span class="hl-swatch eraser" data-color="erase" onclick="setHL('erase')" title="Eraser — tap a highlight to remove it">⌫</span>
+      </div>
+      <button class="icon-btn btn-sm" onclick="clearAllHL()">Clear all</button>
+      <button class="icon-btn btn-sm" id="annoToggle" onclick="toggleAnnos()">Hide notes</button>
+      <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="attemptSubmit()">Submit ↗</button>
+    </div>
+  </div>
+  <div class="testlayout">
+    <div id="test-main"></div>
+    <aside>
+      <div class="navigator">
+        <h4>Question navigator</h4>
+        <div class="navgrid" id="navgrid"></div>
+        <div class="navlegend">
+          <div><span class="dot" style="background:var(--good)"></span>Answered</div>
+          <div><span class="dot" style="background:var(--warn)"></span>Partly answered</div>
+          <div><span class="dot" style="background:#fff;border:1px solid var(--color-border-secondary)"></span>Not answered</div>
+          <div><span class="dot" style="background:var(--flag);border-radius:50%"></span>Flagged</div>
+        </div>
+      </div>
+    </aside>
+  </div>
+  <div id="review-root" class="hidden"></div>
+</div>
+
+<!-- notepad -->
+<button class="notepad-toggle hidden" id="notepadToggle" onclick="toggleNotepad()">🗒 Notepad</button>
+<div class="notepad" id="notepad">
+  <header>Personal notepad <button onclick="toggleNotepad()">✕</button></header>
+  <textarea id="notepadText" placeholder="Jot down anything here — saved automatically…"></textarea>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================================================================
+   VSAT English Exam 2 (2025) — Learning App
+   Self-contained, offline. Persistence via localStorage.
+   ================================================================ */
+/* ---- Storage primitives (Phase 50) -------------------------------------
+   Declared here, above the engine, because the engine reads from `store`
+   during its own top-level initialisation. Keys are namespaced per learner
+   so a shared computer never mixes two students' answers. The rest of the
+   platform layer lives at the bottom of this file. */
+let VNS = "anon";
+const nsKey = k => "vsat2_" + VNS + "_" + k;
+const rawStore = {
+  get(k, d) { try { const v = localStorage.getItem(nsKey(k)); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(nsKey(k), JSON.stringify(v)); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(nsKey(k)); } catch (e) {} },
+  clearAll() { Object.keys(localStorage).filter(x => x.indexOf("vsat2_" + VNS) === 0).forEach(x => localStorage.removeItem(x)); }
+};
+let pushT = null, schedulePush = () => {};   // replaced by the platform layer below
+
+const LS='vsat2_';
+/* Storage is provided by the platform layer at the bottom of this file: it is
+   namespaced per learner and mirrors progress to the account. The engine's own
+   calls (store.get / store.set / store.del) are unchanged. */
+const store={
+  get(k,d){return rawStore.get(k,d);},
+  set(k,v){rawStore.set(k,v);schedulePush();},
+  del(k){rawStore.del(k);schedulePush();},
+  clearAll(){rawStore.clearAll();schedulePush();}
+};
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1800);}
+function speak(text){try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='en-GB';u.rate=.9;window.speechSynthesis.speak(u);}catch(e){toast('Audio not available');}}
+
+/* ================= VOCABULARY BANK (default exam — overridden by loaded exam data) ================= */
+let VOCAB=[
+{w:"admission",pos:"n.",ipa:"/ədˈmɪʃ.ən/",def:"the money you pay to enter a place, or the act of being allowed in",vi:"phí vào cửa; sự cho vào",ex:"Admission is free for children under 12 and senior citizens.",exvi:"Vào cửa miễn phí cho trẻ em dưới 12 tuổi và người cao tuổi.",forms:"admit (v.), admission fee, free admission",sec:"P1"},
+{w:"senior citizen",pos:"n. phr.",ipa:"/ˌsiː.ni.ə ˈsɪt.ɪ.zən/",def:"an older person, especially one who has retired",vi:"người cao tuổi",ex:"Senior citizens can enter the museum at no cost.",exvi:"Người cao tuổi có thể vào bảo tàng miễn phí.",forms:"often plural: senior citizens",sec:"P1"},
+{w:"permit",pos:"v.",ipa:"/pəˈmɪt/",def:"to allow something to happen or someone to do something",vi:"cho phép",ex:"Photography is permitted in all areas except the Ancient Artefacts Gallery.",exvi:"Được phép chụp ảnh ở mọi khu vực trừ Phòng Cổ vật.",forms:"permission (n.), permit (n.), be permitted to do sth",sec:"P1"},
+{w:"guided tour",pos:"n. phr.",ipa:"/ˌɡaɪ.dɪd ˈtʊə/",def:"a visit to a place with a person who explains things to you",vi:"chuyến tham quan có hướng dẫn viên",ex:"Guided tours depart every hour from the main entrance.",exvi:"Các chuyến tham quan có hướng dẫn khởi hành mỗi giờ từ lối vào chính.",forms:"guide (n./v.), guided tour depart/leave",sec:"P1"},
+{w:"locally sourced",pos:"adj. phr.",ipa:"/ˈləʊ.kəl.i sɔːst/",def:"produced or bought from the nearby area rather than far away",vi:"có nguồn gốc địa phương",ex:"The café serves fresh, locally sourced food daily.",exvi:"Quán cà phê phục vụ đồ ăn tươi, có nguồn gốc địa phương mỗi ngày.",forms:"source (v./n.), locally produced",sec:"P1"},
+{w:"vegetarian",pos:"adj./n.",ipa:"/ˌvedʒ.əˈteə.ri.ən/",def:"(a person) who does not eat meat or fish",vi:"(người) ăn chay",ex:"I told them you're vegetarian, so they'll prepare a special menu.",exvi:"Tôi đã báo họ rằng bạn ăn chay, nên họ sẽ chuẩn bị thực đơn riêng.",forms:"vegan (stricter), vegetarian option",sec:"P1"},
+{w:"concession",pos:"n.",ipa:"/kənˈseʃ.ən/",def:"a reduced price for certain groups such as students or the unemployed",vi:"giá ưu đãi (cho nhóm đặc biệt)",ex:"Concessions are available for unemployed learners.",exvi:"Có giá ưu đãi dành cho học viên đang thất nghiệp.",forms:"concessionary (adj.), concession ticket",sec:"P1"},
+{w:"spectator",pos:"n.",ipa:"/spekˈteɪ.tə/",def:"a person who watches an event, especially a sports match",vi:"khán giả (xem sự kiện)",ex:"Spectators are welcome from 9:00 a.m.",exvi:"Khán giả được chào đón từ 9 giờ sáng.",forms:"spectate (v.), spectator sport",sec:"P1"},
+{w:"refreshments",pos:"n. (pl.)",ipa:"/rɪˈfreʃ.mənts/",def:"small amounts of food and drink at an event",vi:"đồ ăn nhẹ và nước uống",ex:"Please bring your own refreshments.",exvi:"Vui lòng mang theo đồ ăn nhẹ của riêng bạn.",forms:"refresh (v.), light refreshments",sec:"P1"},
+{w:"out of service",pos:"phrase",ipa:"/ˌaʊt əv ˈsɜː.vɪs/",def:"not working or not available for use",vi:"ngừng hoạt động; hỏng",ex:"The lift in Block B is out of service this week.",exvi:"Thang máy ở khu B ngừng hoạt động tuần này.",forms:"opposite: in service; back in service",sec:"P1"},
+{w:"undergo",pos:"v.",ipa:"/ˌʌn.dəˈɡəʊ/",def:"to experience something, especially a change or medical/technical process",vi:"trải qua (quá trình)",ex:"The lift will be undergoing a safety inspection.",exvi:"Thang máy sẽ được kiểm tra an toàn.",forms:"undergo–underwent–undergone; undergo repairs",sec:"P1"},
+{w:"resume",pos:"v.",ipa:"/rɪˈzjuːm/",def:"to begin again after a pause",vi:"tiếp tục lại; nối lại",ex:"Normal service will resume on Thursday.",exvi:"Dịch vụ bình thường sẽ hoạt động trở lại vào thứ Năm.",forms:"resumption (n.), resume work",sec:"P1"},
+{w:"reservation",pos:"n.",ipa:"/ˌrez.əˈveɪ.ʃən/",def:"an arrangement to have a table, room, etc. kept for you",vi:"sự đặt trước (bàn, phòng)",ex:"Linh has already made a reservation at the restaurant.",exvi:"Linh đã đặt bàn trước tại nhà hàng.",forms:"reserve (v.), make/cancel a reservation",sec:"P1"},
+{w:"paradox",pos:"n.",ipa:"/ˈpær.ə.dɒks/",def:"a situation that seems impossible because it contains two opposite facts",vi:"nghịch lý",ex:"This paradox lies at the heart of the food-waste debate.",exvi:"Nghịch lý này nằm ở trung tâm của cuộc tranh luận về lãng phí thực phẩm.",forms:"paradoxical (adj.), paradoxically (adv.)",sec:"P2"},
+{w:"food waste",pos:"n. phr.",ipa:"/ˈfuːd weɪst/",def:"food that is thrown away instead of being eaten",vi:"thực phẩm bị lãng phí",ex:"Technology is being used to reduce food waste.",exvi:"Công nghệ đang được dùng để giảm lãng phí thực phẩm.",forms:"reduce/cut food waste; waste (v.)",sec:"P2"},
+{w:"perishable",pos:"adj.",ipa:"/ˈper.ɪ.ʃə.bəl/",def:"likely to decay or go bad quickly",vi:"dễ hư hỏng, dễ ôi thiu",ex:"Perishable food such as fruit and dairy is often discarded.",exvi:"Thực phẩm dễ hỏng như trái cây và bơ sữa thường bị vứt bỏ.",forms:"perish (v.), perishable goods",sec:"P2"},
+{w:"discard",pos:"v.",ipa:"/dɪˈskɑːd/",def:"to throw away something you no longer want",vi:"vứt bỏ, loại bỏ",ex:"Rather than discarding a loaf of bread, users can share it.",exvi:"Thay vì vứt bỏ ổ bánh mì, người dùng có thể chia sẻ nó.",forms:"discard (n.), be discarded",sec:"P2"},
+{w:"surplus",pos:"n./adj.",ipa:"/ˈsɜː.pləs/",def:"an amount that is more than what is needed",vi:"phần dư thừa",ex:"Platforms connect households that have surplus food with food banks.",exvi:"Các nền tảng kết nối hộ gia đình có thực phẩm dư thừa với ngân hàng thực phẩm.",forms:"surplus stock; a surplus of sth",sec:"P2"},
+{w:"biodegradable",pos:"adj.",ipa:"/ˌbaɪ.əʊ.dɪˈɡreɪ.də.bəl/",def:"able to decay naturally without harming the environment",vi:"có thể phân hủy sinh học",ex:"Smart packaging uses biodegradable wrappers.",exvi:"Bao bì thông minh dùng lớp bọc có thể phân hủy sinh học.",forms:"biodegrade (v.), non-biodegradable",sec:"P2"},
+{w:"sensor",pos:"n.",ipa:"/ˈsen.sə/",def:"a device that detects changes such as light, heat or movement",vi:"cảm biến",ex:"Wrappers are embedded with sensors that change colour.",exvi:"Lớp bọc được gắn cảm biến đổi màu.",forms:"sense (v.), motion sensor",sec:"P2"},
+{w:"retailer",pos:"n.",ipa:"/ˈriː.teɪ.lə/",def:"a business or person that sells goods to the public",vi:"nhà bán lẻ",ex:"Large food retailers use AI to predict demand.",exvi:"Các nhà bán lẻ thực phẩm lớn dùng AI để dự đoán nhu cầu.",forms:"retail (n./v.), retail chain",sec:"P2"},
+{w:"demand",pos:"n.",ipa:"/dɪˈmɑːnd/",def:"the amount of a product that people want to buy",vi:"nhu cầu (thị trường)",ex:"AI systems predict demand more accurately.",exvi:"Các hệ thống AI dự đoán nhu cầu chính xác hơn.",forms:"supply and demand; demand for sth",sec:"P2"},
+{w:"in excess",pos:"phrase",ipa:"/ɪn ɪkˈses/",def:"in an amount that is too large or more than needed",vi:"quá mức, dư thừa",ex:"Less food is ordered in excess and discarded.",exvi:"Ít thực phẩm bị đặt dư thừa rồi vứt bỏ hơn.",forms:"excessive (adj.), an excess of sth",sec:"P2"},
+{w:"expiry date",pos:"n. phr.",ipa:"/ɪkˈspaɪə.ri deɪt/",def:"the date after which food should not be eaten",vi:"hạn sử dụng",ex:"Apps track expiry dates and send reminders.",exvi:"Ứng dụng theo dõi hạn sử dụng và gửi nhắc nhở.",forms:"use-by date, expire (v.)",sec:"P2"},
+{w:"notification",pos:"n.",ipa:"/ˌnəʊ.tɪ.fɪˈkeɪ.ʃən/",def:"a message that tells you about something",vi:"thông báo",ex:"Users receive notifications when food is about to go off.",exvi:"Người dùng nhận thông báo khi thực phẩm sắp hỏng.",forms:"notify (v.), push notification",sec:"P2"},
+{w:"go off",pos:"phrasal v.",ipa:"/ɡəʊ ˈɒf/",def:"(of food) to become bad and unfit to eat",vi:"bị hỏng, ôi thiu",ex:"The app warns you when food is about to go off.",exvi:"Ứng dụng cảnh báo khi thực phẩm sắp bị hỏng.",forms:"the milk has gone off",sec:"P2"},
+{w:"charity",pos:"n.",ipa:"/ˈtʃær.ə.ti/",def:"an organisation that helps people in need",vi:"tổ chức từ thiện",ex:"Platforms connect households with local charities.",exvi:"Các nền tảng kết nối hộ gia đình với tổ chức từ thiện địa phương.",forms:"charitable (adj.), charity work",sec:"P2"},
+{w:"supply chain",pos:"n. phr.",ipa:"/səˈplaɪ tʃeɪn/",def:"the whole process of producing and delivering a product",vi:"chuỗi cung ứng",ex:"Agricultural supply chains play a significant role.",exvi:"Chuỗi cung ứng nông nghiệp đóng vai trò quan trọng.",forms:"supply-chain management",sec:"P2"},
+{w:"consumer behaviour",pos:"n. phr.",ipa:"/kənˈsjuː.mə bɪˈheɪ.vjə/",def:"the way people decide what to buy and use",vi:"hành vi người tiêu dùng",ex:"Consumer behaviour plays a significant role in food waste.",exvi:"Hành vi người tiêu dùng đóng vai trò lớn trong lãng phí thực phẩm.",forms:"consume (v.), consumer (n.)",sec:"P2"},
+{w:"cardiovascular disease",pos:"n. phr.",ipa:"/ˌkɑː.di.əʊˈvæs.kjə.lə dɪˈziːz/",def:"illness affecting the heart and blood vessels",vi:"bệnh tim mạch",ex:"Inactivity is associated with a higher risk of cardiovascular disease.",exvi:"Lười vận động liên quan đến nguy cơ mắc bệnh tim mạch cao hơn.",forms:"heart disease; cardiovascular (adj.)",sec:"P3"},
+{w:"biodiversity",pos:"n.",ipa:"/ˌbaɪ.əʊ.daɪˈvɜː.sə.ti/",def:"the variety of plant and animal life in a place",vi:"đa dạng sinh học",ex:"City expansion has led to a reduction in biodiversity.",exvi:"Việc mở rộng đô thị đã làm giảm đa dạng sinh học.",forms:"diverse (adj.), diversity (n.)",sec:"P3"},
+{w:"habitat",pos:"n.",ipa:"/ˈhæb.ɪ.tæt/",def:"the natural home of an animal or plant",vi:"môi trường sống (tự nhiên)",ex:"Rapid expansion destroyed natural habitats.",exvi:"Sự mở rộng nhanh chóng đã phá hủy môi trường sống tự nhiên.",forms:"natural habitat, habitat loss",sec:"P3"},
+{w:"infrastructure",pos:"n.",ipa:"/ˈɪn.frə.strʌk.tʃə/",def:"the basic systems of a country such as roads and transport",vi:"cơ sở hạ tầng",ex:"There was a failure to invest in transport infrastructure.",exvi:"Đã có sự thất bại trong việc đầu tư cơ sở hạ tầng giao thông.",forms:"public infrastructure",sec:"P3"},
+{w:"fatality",pos:"n.",ipa:"/fəˈtæl.ə.ti/",def:"a death caused by an accident, disaster or illness",vi:"ca tử vong",ex:"Stricter laws led to a decrease in road accident fatalities.",exvi:"Luật nghiêm khắc hơn đã làm giảm số ca tử vong do tai nạn giao thông.",forms:"fatal (adj.), fatally (adv.)",sec:"P3"},
+{w:"be associated with",pos:"phrase",ipa:"/əˈsəʊ.si.eɪ.tɪd wɪð/",def:"to be connected with or related to something",vi:"có liên quan đến",ex:"A lack of exercise is associated with heart disease.",exvi:"Thiếu vận động có liên quan đến bệnh tim.",forms:"associate (v.), association (n.)",sec:"P3"},
+{w:"stem from",pos:"phrasal v.",ipa:"/stem frɒm/",def:"to be caused by; to originate from",vi:"bắt nguồn từ",ex:"The problem stems from a failure to invest.",exvi:"Vấn đề bắt nguồn từ việc không đầu tư.",forms:"stem from a cause",sec:"P3"},
+{w:"disrupt",pos:"v.",ipa:"/dɪsˈrʌpt/",def:"to interrupt or disturb the normal flow of something",vi:"làm gián đoạn, phá vỡ",ex:"Social media use has been linked to disrupted sleep patterns.",exvi:"Việc dùng mạng xã hội có liên quan đến rối loạn giấc ngủ.",forms:"disruption (n.), disruptive (adj.)",sec:"P3"},
+{w:"scholarship",pos:"n.",ipa:"/ˈskɒl.ə.ʃɪp/",def:"money given to a student to pay for their studies",vi:"học bổng",ex:"Have you heard that Lan got the scholarship?",exvi:"Bạn nghe tin Lan được học bổng chưa?",forms:"win/be awarded a scholarship",sec:"P3"},
+{w:"dedication",pos:"n.",ipa:"/ˌded.ɪˈkeɪ.ʃən/",def:"the quality of giving a lot of time and effort to something",vi:"sự tận tâm, cống hiến",ex:"It is the dedication of the nursing staff that keeps the hospital running.",exvi:"Chính sự tận tâm của đội ngũ điều dưỡng giúp bệnh viện vận hành.",forms:"dedicate (v.), dedicated (adj.)",sec:"P3"},
+{w:"seasoned",pos:"adj.",ipa:"/ˈsiː.zənd/",def:"having a lot of experience of something",vi:"dày dạn kinh nghiệm",ex:"He negotiated the way a seasoned diplomat would.",exvi:"Anh ấy đàm phán theo cách một nhà ngoại giao dày dạn sẽ làm.",forms:"a seasoned traveller/professional",sec:"P3"},
+{w:"maturity",pos:"n.",ipa:"/məˈtʃʊə.rə.ti/",def:"the quality of behaving in a sensible, adult way",vi:"sự chín chắn, trưởng thành",ex:"He handled the criticism with a maturity that surprised everyone.",exvi:"Anh ấy tiếp nhận lời chê với sự chín chắn khiến mọi người bất ngờ.",forms:"mature (adj./v.), immaturity",sec:"P3"},
+{w:"revival",pos:"n.",ipa:"/rɪˈvaɪ.vəl/",def:"the process of becoming popular, active or successful again",vi:"sự hồi sinh, phục hồi",ex:"Cycling has experienced a remarkable revival in cities.",exvi:"Xe đạp đã có sự hồi sinh đáng kể ở các thành phố.",forms:"revive (v.), revive interest",sec:"P4"},
+{w:"dedicated",pos:"adj.",ipa:"/ˈded.ɪ.keɪ.tɪd/",def:"designed for one particular purpose only",vi:"chuyên dụng, dành riêng",ex:"Councils invested in dedicated cycling lanes.",exvi:"Chính quyền đầu tư vào làn đường dành riêng cho xe đạp.",forms:"a dedicated lane/server",sec:"P4"},
+{w:"commuter",pos:"n.",ipa:"/kəˈmjuː.tə/",def:"a person who travels regularly to and from work",vi:"người đi làm hằng ngày",ex:"Many commuters switched from cars to bicycles.",exvi:"Nhiều người đi làm đã chuyển từ ô tô sang xe đạp.",forms:"commute (v./n.), daily commute",sec:"P4"},
+{w:"congestion",pos:"n.",ipa:"/kənˈdʒes.tʃən/",def:"a situation in which a place is too full of traffic",vi:"sự tắc nghẽn (giao thông)",ex:"Cities want to reduce congestion and pollution.",exvi:"Các thành phố muốn giảm tắc nghẽn và ô nhiễm.",forms:"congested (adj.), traffic congestion",sec:"P4"},
+{w:"cost-effective",pos:"adj.",ipa:"/ˌkɒst.ɪˈfek.tɪv/",def:"giving good value for the amount of money spent",vi:"hiệu quả về chi phí, đáng đồng tiền",ex:"Promoting cycling is a cost-effective solution.",exvi:"Khuyến khích đi xe đạp là giải pháp hiệu quả về chi phí.",forms:"cost-effectiveness (n.)",sec:"P4"},
+{w:"regard as",pos:"phrase",ipa:"/rɪˈɡɑːd æz/",def:"to consider someone or something in a particular way",vi:"xem như, coi là",ex:"Cycling is widely regarded as an ideal solution.",exvi:"Đi xe đạp được xem rộng rãi là một giải pháp lý tưởng.",forms:"be regarded as; regard (n.)",sec:"P4"},
+{w:"make the switch",pos:"phrase",ipa:"/meɪk ðə swɪtʃ/",def:"to change from one thing to another",vi:"chuyển đổi (sang cái khác)",ex:"Commuters made the switch from cars to bicycles.",exvi:"Người đi làm đã chuyển từ ô tô sang xe đạp.",forms:"switch (v./n.), switch to sth",sec:"P4"}
+];
+
+/* ================= GRAMMAR POINTS ================= */
+let GRAMMAR=[
+{id:"g1",name:"Inversion in conditional sentences",
+ en:"In formal English we can drop <b>if</b> and put the auxiliary verb before the subject. This makes three conditional types more formal.",
+ vi:"Trong văn phong trang trọng, ta có thể bỏ <b>if</b> và đảo trợ động từ lên trước chủ ngữ để câu điều kiện trang trọng hơn.",
+ form:"Were + S + to V …  (type 2)\nShould + S + V …  (type 1)\nHad + S + V3/ed …  (type 3)\nHad it not been for + N …  (= If it had not been for)",
+ ex:[["Were the government to invest more, fewer people would drive.","Nếu chính phủ đầu tư nhiều hơn, ít người lái xe hơn."],
+     ["Should you finish early, please send me the report.","Nếu bạn xong sớm, hãy gửi tôi báo cáo."],
+     ["Had Minh practised more, he would have performed better.","Giá như Minh luyện tập nhiều hơn, cậu ấy đã thể hiện tốt hơn."],
+     ["Had it not been for her mentor's advice, she might never have studied medicine.","Nếu không nhờ lời khuyên của người cố vấn, cô ấy có lẽ đã không học y."]],
+ usage:"Used in formal writing, reports and academic essays. The meaning is the same as an if-clause but sounds more sophisticated.",
+ mistake:"Don't keep <b>if</b> with the inversion. ✗ <i>If were the government to invest…</i> → ✓ <i>Were the government to invest…</i>"},
+{id:"g2",name:"Relative clauses (defining, non-defining & connective)",
+ en:"Relative clauses add information about a noun using <b>who, whom, whose, which, that</b>. Non-defining clauses (with commas) add extra, non-essential detail; <b>which</b> can also refer back to a whole idea.",
+ vi:"Mệnh đề quan hệ bổ sung thông tin cho danh từ bằng who, whom, whose, which, that. Mệnh đề không xác định (có dấu phẩy) thêm thông tin phụ; <b>which</b> có thể thay cho cả một ý.",
+ form:"…, which + V …  (refers to whole clause)\nN + whose + N …  (possession)\nN + who/that + V …  (defining people)",
+ ex:[["Dr. Pham is a cardiologist whose research has transformed treatment.","Bác sĩ Phạm là chuyên gia tim mạch mà nghiên cứu của ông đã thay đổi việc điều trị."],
+     ["The documentary won awards, which brought its director to fame.","Bộ phim tài liệu đoạt giải, điều đó khiến đạo diễn nổi tiếng."],
+     ["My neighbour has a son who published his first novel at nineteen.","Hàng xóm tôi có con trai đã xuất bản tiểu thuyết đầu tay năm 19 tuổi."]],
+ usage:"Use commas for extra (non-defining) information. Use 'whose' for possession, 'which' (not 'what') to refer to a previous clause.",
+ mistake:"✗ <i>The centre has a garden, what is popular.</i> → ✓ <i>…, which is popular.</i> Never use <b>what</b> as a relative pronoun."},
+{id:"g3",name:"Cleft sentences (It is/was … that …)",
+ en:"A cleft sentence splits one idea into two parts to emphasise a particular element (the subject, object, or a reason).",
+ vi:"Câu chẻ tách một ý thành hai phần để nhấn mạnh một thành phần cụ thể (chủ ngữ, tân ngữ hoặc lý do).",
+ form:"It + is/was + [emphasised part] + that/who + …",
+ ex:[["It is the dedication of the nursing staff that keeps this hospital running.","Chính sự tận tâm của đội ngũ điều dưỡng đã giúp bệnh viện vận hành."],
+     ["It was the unexpected plot twist that made the film so popular.","Chính tình tiết bất ngờ đã khiến bộ phim nổi tiếng."]],
+ usage:"Emphasises the part placed between 'It is/was' and 'that'. Common in writing to highlight the key point.",
+ mistake:"Keep the verb agreeing with the real subject inside the clause: ✓ <i>It is the staff that keep…</i> (plural)."},
+{id:"g4",name:"Cause-and-effect language",
+ en:"We link causes and results with verbs and phrases such as <b>lead to, result in, stem from, be linked to, be associated with</b>.",
+ vi:"Ta nối nguyên nhân và kết quả bằng các động từ/cụm: lead to, result in, stem from, be linked to, be associated with.",
+ form:"Cause + has led to / has resulted in + effect\nEffect + stems from + cause\nX + is linked to / is associated with + Y",
+ ex:[["Rapid expansion has led to the destruction of habitats.","Sự mở rộng nhanh đã dẫn đến việc phá hủy môi trường sống."],
+     ["Stricter laws have resulted in fewer road fatalities.","Luật nghiêm hơn đã dẫn đến ít ca tử vong giao thông hơn."],
+     ["Social media use has been linked to disrupted sleep.","Việc dùng mạng xã hội có liên quan đến rối loạn giấc ngủ."]],
+ usage:"'Lead to / result in' are followed by a noun or -ing. 'Stem from' means 'be caused by'.",
+ mistake:"✗ <i>lead to destroy habitats</i> → ✓ <i>lead to the destruction of / lead to destroying habitats.</i>"},
+{id:"g5",name:"Adverbs of manner & comparison (as … as / the way)",
+ en:"To describe <b>how</b> something is done, use adverbs of manner, the structure <b>as + adverb + as</b>, or <b>the way (that) …</b>.",
+ vi:"Để mô tả cách thức làm việc gì, dùng trạng từ chỉ cách thức, cấu trúc as + trạng từ + as, hoặc the way (that)…",
+ form:"S + V + adverb (e.g. calmly)\nas + adverb/adjective + as + S\nthe way (that) + S + V",
+ ex:[["She handled it as impressively as she always does.","Cô ấy xử lý ấn tượng như mọi khi."],
+     ["He completed the task exactly the way the instructions specified.","Anh ấy hoàn thành đúng theo cách hướng dẫn yêu cầu."],
+     ["He negotiated the way a seasoned diplomat would.","Anh ấy đàm phán theo cách một nhà ngoại giao dày dạn."]],
+ usage:"'The way + clause' functions like 'how'. 'as … as' compares the manner or degree.",
+ mistake:"✗ <i>as good as she always does it</i> (manner) → ✓ <i>as well as she always does it.</i> Use an adverb for manner."},
+{id:"g6",name:"The present passive & continuous passive",
+ en:"Use the passive when the action matters more than who does it: <b>be + past participle</b>. The continuous passive (<b>is being + V3</b>) shows an action in progress.",
+ vi:"Dùng bị động khi hành động quan trọng hơn người thực hiện: be + V3. Bị động tiếp diễn (is being + V3) diễn tả hành động đang xảy ra.",
+ form:"S + am/is/are + V3  (present passive)\nS + am/is/are + being + V3  (present continuous passive)",
+ ex:[["Millions of tonnes of food are thrown away every year.","Hàng triệu tấn thực phẩm bị vứt bỏ mỗi năm."],
+     ["Artificial intelligence is being used to predict demand.","Trí tuệ nhân tạo đang được dùng để dự đoán nhu cầu."]],
+ usage:"Common in formal, scientific and news writing to sound objective.",
+ mistake:"Don't forget the correct participle. ✗ <i>is use</i> → ✓ <i>is used</i>. ✗ <i>are throw away</i> → ✓ <i>are thrown away</i>."},
+{id:"g7",name:"Prepositions & fixed collocations",
+ en:"Many words in the test require a fixed preposition or partner word: <b>an effect ON, regarded AS, a range OF, a switch FROM…TO, make it + adjective</b>.",
+ vi:"Nhiều từ trong đề cần giới từ cố định: an effect ON, regarded AS, a range OF, a switch FROM…TO, make it + tính từ.",
+ form:"have an effect / impact ON sth\nbe regarded / seen AS sth\na (wide) range OF sth\nmake it + adjective + to do sth",
+ ex:[["Cycling has a positive effect on mental health.","Đạp xe có tác động tích cực đến sức khỏe tinh thần."],
+     ["It attracted a much wider range of riders.","Nó thu hút nhiều nhóm người đi xe hơn."],
+     ["Lanes make it safer to travel by bike.","Các làn đường khiến việc đi xe đạp an toàn hơn."]],
+ usage:"Learn the noun/verb together with its preposition as one chunk.",
+ mistake:"✗ <i>effect in / regarded like / range for</i> → ✓ <i>effect on / regarded as / range of.</i>"}
+];
+
+/* ================= VOCABULARY EXERCISES ================= */
+/* type: mcq | fill | match | context | cloze */
+let VOCAB_EX=[
+ {type:"cloze",title:"Cloze passage — Reducing food waste",sub:"Read the passage and choose the best word for each gap.",
+  text:"Every year, huge amounts of ###1### food are thrown away. Supermarkets now use AI to predict ###2### so that less stock is ordered ###3###. At home, apps send a ###4### when food is about to ###5###, and platforms let people share ###6### food with charities.",
+  gaps:[
+   {n:1,opts:["perishable","cost-effective","dedicated"],a:"perishable"},
+   {n:2,opts:["demand","admission","revival"],a:"demand"},
+   {n:3,opts:["in excess","out of service","as"],a:"in excess"},
+   {n:4,opts:["notification","reservation","concession"],a:"notification"},
+   {n:5,opts:["go off","undergo","resume"],a:"go off"},
+   {n:6,opts:["surplus","seasoned","biodegradable"],a:"surplus"}]},
+ {type:"mcq",title:"Multiple choice — Meaning",sub:"Choose the option closest in meaning.",
+  items:[
+   {q:"Something <b>perishable</b> is likely to…",opts:["last a very long time","decay quickly","cost a lot"],a:1,ex:"Perishable = likely to go bad quickly (fruit, dairy)."},
+   {q:"If a lift is <b>out of service</b>, it is…",opts:["free to use","not working","very fast"],a:1,ex:"Out of service = not available / not working."},
+   {q:"A <b>concession</b> is a…",opts:["reduced price for some people","type of guided tour","kind of reservation"],a:0,ex:"A concession is a discount for groups like students or the unemployed."},
+   {q:"To <b>resume</b> means to…",opts:["stop completely","begin again after a pause","happen by chance"],a:1,ex:"Resume = start again after an interruption."},
+   {q:"<b>Surplus</b> food is food that is…",opts:["more than needed","gone bad","imported"],a:0,ex:"Surplus = an extra amount beyond what is needed."}]},
+ {type:"fill",title:"Gap-fill sentences",sub:"Type ONE word from the vocabulary bank. (Spelling matters.)",
+  items:[
+   {before:"Photography is ",after:" in all areas except one gallery.",a:["permitted"],ex:"be permitted = be allowed."},
+   {before:"Cycling has a positive ",after:" on mental health.",a:["effect","impact"],ex:"have an effect/impact ON something."},
+   {before:"Cycling is widely regarded ",after:" a cost-effective solution.",a:["as"],ex:"be regarded AS something."},
+   {before:"Spectators are welcome, but please bring your own ",after:".",a:["refreshments"],ex:"refreshments = light food and drink."},
+   {before:"The lift will be ",after:" a safety inspection this week.",a:["undergoing","undergo"],ex:"undergo an inspection = experience the process."}]},
+ {type:"match",title:"Word–definition matching",sub:"Match each word with its meaning.",
+  pairs:[["biodiversity","the variety of plant and animal life"],["commuter","a person who travels to work regularly"],["habitat","the natural home of an animal or plant"],["dedication","giving a lot of time and effort"],["fatality","a death caused by an accident"]]},
+ {type:"match",title:"Collocation matching",sub:"Match each word with its usual partner.",
+  pairs:[["make a","reservation"],["guided","tour"],["supply","chain"],["expiry","date"],["senior","citizen"]]},
+ {type:"context",title:"Context word selection",sub:"Choose the word that best fits the sentence.",
+  items:[
+   {q:"The problem ______ from a failure to invest in transport.",opts:["stems","resumes","permits"],a:0,ex:"stem from = be caused by / originate from."},
+   {q:"A lack of exercise is ______ with heart disease.",opts:["associated","regarded","undergone"],a:0,ex:"be associated with = be connected to."},
+   {q:"City expansion has ______ to the loss of natural habitats.",opts:["led","made","gone"],a:0,ex:"lead to = cause / result in."},
+   {q:"Councils built lanes to ______ it safer to cycle.",opts:["make","do","take"],a:0,ex:"make it + adjective + to do sth."},
+   {q:"Many commuters made the ______ from cars to bikes.",opts:["switch","surplus","sensor"],a:0,ex:"make the switch from … to … = change."}]}
+];
+
+/* ================= GRAMMAR PRACTICE ================= */
+let GRAMMAR_EX=[
+ {type:"mcq",title:"Multiple choice — Choose the correct form",sub:"Select the grammatically correct option.",
+  items:[
+   {q:"______ the government to invest more in transport, fewer people would drive.",opts:["If were","Were","Should have"],a:1,ex:"Inversion type-2: Were + S + to V (= If the government were to invest)."},
+   {q:"______ you finish the report early, please send it to me.",opts:["Should","Were","Had"],a:0,ex:"Inversion type-1: Should + S + V (= If you finish)."},
+   {q:"Dr. Pham is a scientist ______ research changed medicine.",opts:["who","whose","which"],a:1,ex:"'whose' shows possession (his research)."},
+   {q:"The film won awards, ______ made its director famous.",opts:["what","which","that"],a:1,ex:"'which' refers back to the whole clause; 'what' is never a relative pronoun."},
+   {q:"It ______ the nursing staff that keeps the hospital running.",opts:["is the dedication of","is dedicated","dedicates"],a:0,ex:"Cleft: It is + emphasised part + that …"}]},
+ {type:"verbform",title:"Choose the correct verb form",sub:"Complete each sentence with the right form.",
+  items:[
+   {before:"Millions of tonnes of food ",after:" away every year.",opts:["throws","are thrown","throwing"],a:1,ex:"Present passive: are + thrown (V3)."},
+   {before:"AI ",after:" used to predict demand right now.",opts:["is being","is been","being"],a:0,ex:"Present continuous passive: is being + used."},
+   {before:"Had Minh practised more, he ",after:" better.",opts:["will perform","would have performed","performs"],a:1,ex:"Type-3 result clause: would have + V3."},
+   {before:"City expansion has ",after:" to habitat loss.",opts:["led","lead","leading"],a:0,ex:"present perfect: has led to."}]},
+ {type:"fill",title:"Gap-fill — one word",sub:"Type ONE word to complete each structure.",
+  items:[
+   {before:"Cycling is regarded ",after:" a great solution.",a:["as"],ex:"be regarded AS."},
+   {before:"It attracted a wider range ",after:" riders.",a:["of"],ex:"a range OF."},
+   {before:"Had it not been ",after:" her mentor, she'd have quit.",a:["for"],ex:"Had it not been FOR + noun (= if it had not been for)."},
+   {before:"Councils invested in lanes, ",after:" it safer to cycle.",a:["making"],ex:"…, making it safer (participle clause = which makes)."}]},
+ {type:"transform",title:"Sentence transformation",sub:"Rewrite using the word/structure given. Type the missing part.",
+  items:[
+   {q:"If the government invested more, fewer people would drive. (Begin: <i>Were…</i>)",prompt:"Were the government ______ more, fewer people would drive.",a:["to invest"],ex:"Inversion type-2: Were + S + to + V."},
+   {q:"If you finish early, call me. (Begin: <i>Should…</i>)",prompt:"Should you ______ early, call me.",a:["finish"],ex:"Should + S + bare infinitive."},
+   {q:"The staff's dedication keeps the hospital running. (Emphasise with a cleft)",prompt:"It is the dedication of the staff ______ keeps the hospital running.",a:["that"],ex:"Cleft: It is X that + verb."}]},
+ {type:"error",title:"Error correction",sub:"Each sentence has ONE error. Type the corrected word.",
+  items:[
+   {q:"The centre has a garden, <u>what</u> is popular with residents.",a:["which"],ex:"Use 'which' (not 'what') as a relative pronoun."},
+   {q:"Social media use has been <u>link</u> to poor sleep.",a:["linked"],ex:"Passive: has been linked (V3)."},
+   {q:"Cycling has a positive effect <u>in</u> mental health.",a:["on"],ex:"have an effect ON something."},
+   {q:"If <u>were</u> the government to invest more, traffic would fall.",a:["remove","delete","nothing"],alt:true,ex:"With inversion you drop 'If': Were the government to invest…"}]},
+ {type:"order",title:"Sentence ordering",sub:"Put the words in the correct order.",
+  items:[
+   {words:["Were","the","government","to","invest","more"],a:"Were the government to invest more",ex:"Inversion type-2 order: Were + subject + to + verb."},
+   {words:["It","was","the","plot","twist","that","surprised","us"],a:"It was the plot twist that surprised us",ex:"Cleft sentence: It was + X + that + clause."}]},
+ {type:"halves",title:"Matching sentence halves",sub:"Match each beginning with its correct ending.",
+  pairs:[
+   ["Had Minh practised more,","he would have performed better."],
+   ["Should you need help,","just send me a message."],
+   ["Dr. Pham is a doctor","whose research saved lives."],
+   ["Stricter laws have resulted","in fewer road fatalities."]]}
+];
+</script>
+
+<script>
+/* ================================================================
+   SHARED UI: mode switching, menu, notepad, helpers
+   ================================================================ */
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function norm(s){return String(s||'').trim().toLowerCase().replace(/[.,!?;:]$/,'');}
+
+let currentMode=store.get('mode','home');
+function setMode(m){
+  currentMode=m;store.set('mode',m);
+  document.getElementById('view-home').classList.toggle('hidden',m!=='home');
+  document.getElementById('view-practice').classList.toggle('hidden',m!=='practice');
+  document.getElementById('view-test').classList.toggle('hidden',m!=='test');
+  document.getElementById('mode-practice').classList.toggle('active',m==='practice');
+  document.getElementById('mode-test').classList.toggle('active',m==='test');
+  document.getElementById('notepadToggle').classList.toggle('hidden',m!=='test');
+  window.scrollTo(0,0);
+  if(m==='practice')renderPractice();
+  if(m==='test')enterTest();
+  updateHomeStats();
+}
+function toggleMenu(e){e.stopPropagation();document.getElementById('resetMenu').classList.toggle('hidden');}
+document.addEventListener('click',()=>document.getElementById('resetMenu').classList.add('hidden'));
+
+/* notepad */
+function toggleNotepad(){document.getElementById('notepad').classList.toggle('open');}
+const npText=document.getElementById('notepadText');
+npText.value=store.get('notepad','');
+npText.addEventListener('input',()=>store.set('notepad',npText.value));
+
+/* ================================================================
+   PROGRESS STATE
+   ================================================================ */
+function pget(){return store.get('progress',{stepsDone:{},vocabClass:{},grammarClass:{},vocabEx:{},grammarEx:{}});}
+function pset(p){store.set('progress',p);}
+function markStep(i){const p=pget();p.stepsDone[i]=true;pset(p);}
+
+/* ================================================================
+   PRACTICE MODE
+   ================================================================ */
+const STEPS=[
+ {t:"Vocabulary study",render:renderVocabBank},
+ {t:"Vocabulary flashcards",render:renderVocabFlash},
+ {t:"Vocabulary exercises",render:renderVocabExercises},
+ {t:"Grammar study",render:renderGrammarStudy},
+ {t:"Grammar flashcards",render:renderGrammarFlash},
+ {t:"Grammar exercises",render:renderGrammarExercises},
+ {t:"Review difficult items",render:renderReviewDifficult},
+ {t:"Start the mock test",render:renderReadyStep}
+];
+let curStep=store.get('curStep',0);
+
+function renderPractice(){
+  const p=pget();
+  const sl=document.getElementById('steplist');
+  sl.innerHTML=STEPS.map((s,i)=>`<li><button class="${i===curStep?'active':''} ${p.stepsDone[i]?'done':''}" onclick="gotoStep(${i})"><span class="num">${p.stepsDone[i]?'✓':i+1}</span>${esc(s.t)}</button></li>`).join('');
+  STEPS[curStep].render();
+  renderProgressBox();
+  window.scrollTo(0,0);
+}
+function gotoStep(i){curStep=i;store.set('curStep',i);renderPractice();}
+function renderProgressBox(){
+  const p=pget();
+  const vClass=Object.keys(p.vocabClass).length, gClass=Object.keys(p.grammarClass).length;
+  const vExS=exSummary(p.vocabEx), gExS=exSummary(p.grammarEx);
+  const stepsPct=Math.round(Object.keys(p.stepsDone).length/STEPS.length*100);
+  function bar(pct){return `<div class="pbar"><span style="width:${pct}%"></span></div>`;}
+  document.getElementById('progress-rows').innerHTML=
+   `<div class="prow"><span>Vocab studied</span><span>${vClass}/${VOCAB.length}</span></div>${bar(Math.round(vClass/VOCAB.length*100))}
+    <div class="prow"><span>Vocab practice</span><span>${vExS.correct}/${vExS.total}</span></div>${bar(vExS.pct)}
+    <div class="prow"><span>Grammar studied</span><span>${gClass}/${GRAMMAR.length}</span></div>${bar(Math.round(gClass/GRAMMAR.length*100))}
+    <div class="prow"><span>Grammar practice</span><span>${gExS.correct}/${gExS.total}</span></div>${bar(gExS.pct)}
+    <div class="prow"><span>Overall practice</span><span>${stepsPct}%</span></div>${bar(stepsPct)}`;
+}
+function exSummary(obj){let c=0,t=0;Object.values(obj||{}).forEach(v=>{c+=v.correct||0;t+=v.total||0;});return{correct:c,total:t,pct:t?Math.round(c/t*100):0};}
+
+/* ---------- Step 1: Vocabulary bank ---------- */
+const SECNAMES={P1:"Part 1 · Notices",P2:"Part 2 · Reading",P3:"Part 3 · Matching",P4:"Part 4 · Gap-fill"};
+function renderVocabBank(){
+  const main=document.getElementById('practice-main');
+  main.innerHTML=`<h2 class="sec">1 · Vocabulary &amp; collocations</h2>
+   <p class="sub">${VOCAB.length} key words and collocations from the test. Tap 🔊 to hear the pronunciation. Studying a card marks it as reviewed.</p>
+   <div class="vfilter">
+     <input id="vsearch" placeholder="Search a word…" oninput="renderVocabList()">
+     <select id="vsec" onchange="renderVocabList()">
+       <option value="">All parts</option>
+       <option value="P1">Part 1 · Notices</option>
+       <option value="P2">Part 2 · Reading</option>
+       <option value="P3">Part 3 · Matching</option>
+       <option value="P4">Part 4 · Gap-fill</option>
+     </select>
+   </div>
+   <div class="vgrid" id="vgrid"></div>
+   <div class="row" style="margin-top:18px"><button class="btn btn-primary" onclick="markStep(0);toast('Vocabulary marked as studied');gotoStep(1)">Mark as studied → Flashcards</button></div>`;
+  renderVocabList();
+}
+function renderVocabList(){
+  const q=norm(document.getElementById('vsearch').value), sec=document.getElementById('vsec').value;
+  const p=pget();
+  const list=VOCAB.filter(v=>(!sec||v.sec===sec)&&(!q||v.w.toLowerCase().includes(q)));
+  document.getElementById('vgrid').innerHTML=list.map(v=>{
+    const cls=p.vocabClass[v.w];
+    return `<div class="vcard">
+      <div class="top"><span class="w">${esc(v.w)}</span><span class="pos">${esc(v.pos)}</span><span class="ipa">${esc(v.ipa)}</span>
+        <button class="spk" onclick="speak('${esc(v.w).replace(/'/g,"\\'")}')" title="Listen">🔊</button>
+        <span class="tag">${SECNAMES[v.sec]}</span></div>
+      <div class="def">${esc(v.def)}</div>
+      <div class="vi">${esc(v.vi)}</div>
+      <div class="ex">“${esc(v.ex)}”<span class="exvi">${esc(v.exvi)}</span></div>
+      <div class="forms"><b>Forms:</b> ${esc(v.forms)}</div>
+      ${cls?`<div class="forms" style="color:var(--accent-2)">● ${cls}</div>`:''}
+    </div>`;
+  }).join('')||'<p class="sub">No words match your search.</p>';
+}
+
+/* ---------- Flashcard engine (shared vocab + grammar) ---------- */
+function makeFlash(opts){
+  /* opts: main, items, classKey('vocabClass'|'grammarClass'), keyOf(item), frontHTML, backHTML, title, sub, prioritise */
+  let order=opts.items.map((_,i)=>i);
+  const p=pget();
+  if(opts.prioritise){ /* still-learning + new first */
+    order.sort((a,b)=>rankClass(p[opts.classKey][opts.keyOf(opts.items[a])])-rankClass(p[opts.classKey][opts.keyOf(opts.items[b])]));
+  }
+  let idx=0;
+  const main=opts.main;
+  main.innerHTML=`<h2 class="sec">${opts.title}</h2><p class="sub">${opts.sub}</p>
+    <div class="fc-stage">
+      <div class="fc-hint">Tap the card to flip • ${opts.items.length} cards</div>
+      <div class="flashcard" id="flashcard" onclick="this.classList.toggle('flipped')">
+        <div class="fc-inner">
+          <div class="fc-face fc-front" id="fcFront"></div>
+          <div class="fc-face fc-back" id="fcBack"></div>
+        </div>
+      </div>
+      <div class="fc-controls">
+        <button class="btn btn-ghost btn-sm" id="fcPrev">◀ Prev</button>
+        <span style="font-size:13px;align-self:center;color:var(--color-text-secondary)" id="fcCount"></span>
+        <button class="btn btn-ghost btn-sm" id="fcNext">Next ▶</button>
+        <button class="btn btn-ghost btn-sm" id="fcShuffle">🔀 Shuffle</button>
+        <button class="btn btn-ghost btn-sm" id="fcRestart">↻ Restart</button>
+      </div>
+      <p style="text-align:center;font-size:12px;color:var(--color-text-secondary);margin-bottom:8px">How well do you know this one?</p>
+      <div class="classify" id="fcClassify">
+        <button data-c="mastered">✅ Mastered</button>
+        <button data-c="remembered">🟦 Remembered</button>
+        <button data-c="learning">🟧 Still learning</button>
+        <button data-c="new">🟥 New to me</button>
+      </div>
+      <div class="class-counts" id="fcCounts"></div>
+      <div class="row" style="justify-content:center;margin-top:18px">${opts.nextBtn||''}</div>
+    </div>`;
+  function cur(){return opts.items[order[idx]];}
+  function draw(){
+    const card=document.getElementById('flashcard');card.classList.remove('flipped');
+    document.getElementById('fcFront').innerHTML=opts.frontHTML(cur());
+    document.getElementById('fcBack').innerHTML=opts.backHTML(cur());
+    document.getElementById('fcCount').textContent=`${idx+1} / ${order.length}`;
+    const pp=pget(),sel=pp[opts.classKey][opts.keyOf(cur())];
+    document.querySelectorAll('#fcClassify button').forEach(b=>b.classList.toggle('sel',b.dataset.c===sel));
+    drawCounts();
+  }
+  function drawCounts(){
+    const pp=pget();const c={mastered:0,remembered:0,learning:0,new:0};
+    opts.items.forEach(it=>{const v=pp[opts.classKey][opts.keyOf(it)];if(v)c[v]++;});
+    document.getElementById('fcCounts').innerHTML=
+     `<span class="cc mastered">Mastered ${c.mastered}</span><span class="cc remembered">Remembered ${c.remembered}</span><span class="cc learning">Still learning ${c.learning}</span><span class="cc new">New ${c.new}</span>`;
+  }
+  document.getElementById('fcPrev').onclick=()=>{idx=(idx-1+order.length)%order.length;draw();};
+  document.getElementById('fcNext').onclick=()=>{idx=(idx+1)%order.length;draw();};
+  document.getElementById('fcShuffle').onclick=()=>{order=shuffle(order);idx=0;draw();toast('Shuffled');};
+  document.getElementById('fcRestart').onclick=()=>{order=opts.items.map((_,i)=>i);idx=0;draw();};
+  document.querySelectorAll('#fcClassify button').forEach(b=>b.onclick=()=>{
+    const pp=pget();pp[opts.classKey][opts.keyOf(cur())]=b.dataset.c;pset(pp);
+    draw();renderProgressBox();
+    setTimeout(()=>{if(idx<order.length-1){idx++;draw();}},250);
+  });
+  draw();
+}
+function rankClass(c){return({new:0,learning:1,remembered:2,mastered:3})[c]??-1;}
+
+/* ---------- Step 2: Vocabulary flashcards ---------- */
+function renderVocabFlash(){
+  makeFlash({
+    main:document.getElementById('practice-main'),
+    items:VOCAB,classKey:'vocabClass',keyOf:v=>v.w,
+    title:"2 · Vocabulary flashcards",sub:"Flip each card, then rate how well you know it. Your ratings are saved and used to prioritise weak words later.",
+    frontHTML:v=>`<div class="w">${esc(v.w)}</div><div class="ipa">${esc(v.pos)} &nbsp; ${esc(v.ipa)}</div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:14px" onclick="event.stopPropagation();speak('${esc(v.w).replace(/'/g,"\\'")}')">🔊 Listen</button>`,
+    backHTML:v=>`<div class="w">${esc(v.w)} <button class="spk" onclick="event.stopPropagation();speak('${esc(v.w).replace(/'/g,"\\'")}')">🔊</button></div>
+      <div class="def">${esc(v.def)}</div><div class="vi">${esc(v.vi)}</div>
+      <div class="ex">“${esc(v.ex)}”<br><span style="color:var(--color-text-secondary)">${esc(v.exvi)}</span></div>`,
+    nextBtn:`<button class="btn btn-primary" onclick="markStep(1);gotoStep(2)">Done → Vocabulary exercises</button>`
+  });
+}
+
+/* ---------- Step 5: Grammar flashcards ---------- */
+function renderGrammarFlash(){
+  makeFlash({
+    main:document.getElementById('practice-main'),
+    items:GRAMMAR,classKey:'grammarClass',keyOf:g=>g.id,
+    title:"5 · Grammar flashcards",sub:"Recall the structure, then reveal its meaning, an example and a common-error warning. Rate each one.",
+    frontHTML:g=>`<div class="w" style="font-size:19px">${esc(g.name)}</div><div class="ipa" style="margin-top:10px;font-family:ui-monospace,monospace;font-size:12px;white-space:pre-line">${esc(g.form.split('\n')[0])}</div>`,
+    backHTML:g=>`<div class="w" style="font-size:15px">${esc(g.name)}</div>
+      <div class="def">${g.en}</div><div class="vi">${g.vi}</div>
+      <div class="ex">“${esc(g.ex[0][0])}”<br><span style="color:var(--color-text-secondary)">${esc(g.ex[0][1])}</span></div>
+      <div class="gnote mistake" style="margin-top:8px">⚠ ${g.mistake}</div>`,
+    nextBtn:`<button class="btn btn-primary" onclick="markStep(4);gotoStep(5)">Done → Grammar exercises</button>`
+  });
+}
+
+/* ---------- Step 4: Grammar study ---------- */
+function renderGrammarStudy(){
+  const main=document.getElementById('practice-main');
+  const p=pget();
+  main.innerHTML=`<h2 class="sec">4 · Grammar structures</h2>
+   <p class="sub">The ${GRAMMAR.length} structures you need for this test, explained in English and Vietnamese with examples and common mistakes. No mock-test answers are shown here.</p>
+   ${GRAMMAR.map(g=>`<div class="gcard">
+      <h3>${esc(g.name)}</h3>
+      <p>${g.en}</p><p class="vi">${g.vi}</p>
+      <div class="form">${esc(g.form)}</div>
+      <ul class="exlist">${g.ex.map(e=>`<li>“${esc(e[0])}”<span class="t">${esc(e[1])}</span></li>`).join('')}</ul>
+      <div class="gnote"><b>Usage:</b> ${esc(g.usage)}</div>
+      <div class="gnote mistake"><b>Common mistake:</b> ${g.mistake}</div>
+      <div class="row" style="margin-top:10px"><button class="btn btn-ghost btn-sm" onclick="markGrammar('${g.id}')">${p.grammarClass[g.id]?'✓ Reviewed':'Mark reviewed'}</button></div>
+    </div>`).join('')}
+   <div class="row" style="margin-top:8px"><button class="btn btn-primary" onclick="markStep(3);gotoStep(4)">Continue → Grammar flashcards</button></div>`;
+}
+function markGrammar(id){const p=pget();if(!p.grammarClass[id])p.grammarClass[id]='remembered';pset(p);renderGrammarStudy();renderProgressBox();toast('Marked reviewed');}
+
+/* ---------- Exercise engine ---------- */
+function recordEx(store_key,exId,correct,total){const p=pget();p[store_key][exId]={correct,total};pset(p);renderProgressBox();}
+
+function renderExerciseSet(container,data,storeKey,stepIndex,nextLabel,nextStep){
+  container.innerHTML=data.map((ex,i)=>`<div class="ex-block" id="exb-${storeKey}-${i}"></div>`).join('')+
+    `<div class="row" style="margin-top:8px"><button class="btn btn-primary" onclick="markStep(${stepIndex});gotoStep(${nextStep})">${nextLabel}</button></div>`;
+  data.forEach((ex,i)=>buildExercise(document.getElementById(`exb-${storeKey}-${i}`),ex,storeKey,i));
+}
+function buildExercise(el,ex,storeKey,exId){
+  const uid=storeKey+'-'+exId;
+  let html=`<h4>${esc(ex.title)}</h4><div class="eh-sub">${esc(ex.sub)}</div>`;
+  if(ex.type==='mcq'||ex.type==='context'||ex.type==='verbform'){
+    const items=ex._order||(ex._order=ex.items.map((_,k)=>k));
+    html+=items.map((qi,pos)=>{const it=ex.items[qi];
+      const opts=(it.before!==undefined)?it.opts:it.opts;
+      const stem=(it.before!==undefined)?`${esc(it.before)}<b>______</b>${esc(it.after)}`:it.q;
+      return `<div class="qitem" data-qi="${qi}"><div class="qtext">${pos+1}. ${stem}</div>
+        <div class="opts">${it.opts.map((o,oi)=>`<button class="opt" data-oi="${oi}" onclick="pickOpt(this)">${esc(o)}</button>`).join('')}</div>
+        <div class="fb" data-fb></div></div>`;}).join('');
+  } else if(ex.type==='fill'||ex.type==='transform'||ex.type==='error'){
+    html+=ex.items.map((it,qi)=>{
+      const stem=(it.before!==undefined)?`${esc(it.before)}<input class="blankinput" data-in>${esc(it.after)}`
+        : it.prompt?`${it.q?`<div style="margin-bottom:4px">${it.q}</div>`:''}${it.prompt.replace('______','<input class="blankinput" data-in>')}`
+        : `${it.q} → <input class="blankinput" data-in placeholder="correction">`;
+      return `<div class="qitem" data-qi="${qi}"><div class="qtext">${qi+1}. ${stem}</div><div class="fb" data-fb></div></div>`;
+    }).join('');
+  } else if(ex.type==='cloze'){
+    let t=esc(ex.text);
+    ex.gaps.forEach(g=>{t=t.replace('###'+g.n+'###',`<select class="selinline" data-gap="${g.n}"><option value="">— (${g.n}) —</option>${shuffle(g.opts).map(o=>`<option>${esc(o)}</option>`).join('')}</select>`);});
+    html+=`<div class="qitem" style="line-height:2.2">${t}</div>`;
+  } else if(ex.type==='match'||ex.type==='halves'){
+    const rights=shuffle(ex.pairs.map(p=>p[1]));
+    html+=`<div class="matchgrid">${ex.pairs.map((p,pi)=>`<div class="mleft">${pi+1}. ${esc(p[0])}</div>
+      <select class="selinline" data-match="${pi}"><option value="">—</option>${rights.map((r,ri)=>`<option value="${esc(r)}">${String.fromCharCode(65+ri)}. ${esc(r)}</option>`).join('')}</select>`).join('')}</div>`;
+  } else if(ex.type==='order'){
+    html+=ex.items.map((it,qi)=>`<div class="qitem" data-qi="${qi}"><div class="qtext">${qi+1}. Arrange:</div>
+      <div style="margin:4px 0;font-size:13px;color:var(--color-text-secondary)">Words: ${shuffle(it.words).map(w=>`<span style="display:inline-block;background:var(--color-background-tertiary);border-radius:5px;padding:2px 8px;margin:2px">${esc(w)}</span>`).join('')}</div>
+      <input class="blankinput" data-in style="width:100%;text-align:left;border:1px solid var(--color-border-secondary);border-radius:6px;padding:6px" placeholder="Type the full sentence…"><div class="fb" data-fb></div></div>`).join('');
+  }
+  html+=`<div class="ex-actions"><button class="btn btn-teal btn-sm" onclick="checkExercise(this,'${storeKey}',${exId})">Check answers</button>
+    <button class="btn btn-ghost btn-sm" onclick="resetExercise(this,'${storeKey}',${exId})">Reset</button>
+    <span class="ex-score" data-score></span></div>`;
+  el.innerHTML=html;el._ex=ex;
+}
+function pickOpt(btn){const box=btn.closest('.opts');box.querySelectorAll('.opt').forEach(o=>o.classList.remove('sel'));btn.classList.add('sel');}
+function checkExercise(btn,storeKey,exId){
+  const el=btn.closest('.ex-block'),ex=el._ex;let correct=0,total=0;
+  if(ex.type==='mcq'||ex.type==='context'||ex.type==='verbform'){
+    el.querySelectorAll('.qitem').forEach(qi=>{
+      const idx=+qi.dataset.qi,it=ex.items[idx];total++;
+      const sel=qi.querySelector('.opt.sel'),fb=qi.querySelector('[data-fb]');
+      qi.querySelectorAll('.opt').forEach((o,oi)=>{o.classList.remove('correct','wrong');if(oi===it.a)o.classList.add('correct');});
+      if(sel){const oi=+sel.dataset.oi;if(oi===it.a){correct++;fb.className='fb ok show';fb.textContent='✓ Correct. '+(it.ex||'');}
+        else{sel.classList.add('wrong');fb.className='fb no show';fb.textContent='✗ '+(it.ex||'');}}
+      else{fb.className='fb no show';fb.textContent='No answer. '+(it.ex||'');}
+    });
+  } else if(ex.type==='fill'||ex.type==='transform'||ex.type==='error'){
+    el.querySelectorAll('.qitem').forEach(qi=>{
+      const idx=+qi.dataset.qi,it=ex.items[idx];total++;
+      const inp=qi.querySelector('[data-in]'),fb=qi.querySelector('[data-fb]');
+      const ok=it.a.map(norm).includes(norm(inp.value));
+      if(ok){correct++;inp.style.borderColor='var(--good)';fb.className='fb ok show';fb.textContent='✓ Correct. '+(it.ex||'');}
+      else{inp.style.borderColor='var(--bad)';fb.className='fb no show';fb.textContent=`✗ Answer: ${it.a[0]}. ${it.ex||''}`;}
+    });
+  } else if(ex.type==='order'){
+    el.querySelectorAll('.qitem').forEach(qi=>{
+      const idx=+qi.dataset.qi,it=ex.items[idx];total++;
+      const inp=qi.querySelector('[data-in]'),fb=qi.querySelector('[data-fb]');
+      const ok=norm(inp.value).replace(/\s+/g,' ')===norm(it.a).replace(/\s+/g,' ');
+      if(ok){correct++;inp.style.borderColor='var(--good)';fb.className='fb ok show';fb.textContent='✓ Correct. '+(it.ex||'');}
+      else{inp.style.borderColor='var(--bad)';fb.className='fb no show';fb.textContent=`✗ Answer: ${it.a}. ${it.ex||''}`;}
+    });
+  } else if(ex.type==='cloze'){
+    ex.gaps.forEach(g=>{const s=el.querySelector(`[data-gap="${g.n}"]`);total++;
+      if(norm(s.value)===norm(g.a)){correct++;s.style.borderColor='var(--good)';}
+      else{s.style.borderColor='var(--bad)';}});
+    el.querySelector('[data-score]').insertAdjacentHTML('beforebegin','');
+  } else if(ex.type==='match'||ex.type==='halves'){
+    el.querySelectorAll('[data-match]').forEach(s=>{const pi=+s.dataset.match;total++;
+      if(s.value===ex.pairs[pi][1]){correct++;s.style.borderColor='var(--good)';}else{s.style.borderColor='var(--bad)';}});
+  }
+  el.querySelector('[data-score]').textContent=`Score: ${correct} / ${total}`;
+  recordEx(storeKey,exId,correct,total);
+  if(ex.type==='cloze'||ex.type==='match'||ex.type==='halves'){
+    // show answers inline for these types
+    if(ex.type==='cloze'){el.querySelectorAll('[data-gap]').forEach(s=>{const g=ex.gaps.find(x=>x.n==s.dataset.gap);if(norm(s.value)!==norm(g.a))s.title='Answer: '+g.a;});}
+  }
+}
+function resetExercise(btn,storeKey,exId){
+  const el=btn.closest('.ex-block');buildExercise(el,el._ex,storeKey,exId);
+}
+
+/* ---------- Step 3 & 6: exercises ---------- */
+function renderVocabExercises(){
+  const main=document.getElementById('practice-main');
+  main.innerHTML=`<h2 class="sec">3 · Vocabulary exercises</h2><p class="sub">Practise the target words with instant feedback. Order is randomised each time. Your best scores feed the progress panel.</p><div id="vexwrap"></div>`;
+  renderExerciseSet(document.getElementById('vexwrap'),VOCAB_EX,'vocabEx',2,'Done → Grammar study',3);
+}
+function renderGrammarExercises(){
+  const main=document.getElementById('practice-main');
+  main.innerHTML=`<h2 class="sec">6 · Grammar exercises</h2><p class="sub">Apply the structures. Each activity gives instant feedback, correct answers and a short explanation.</p><div id="gexwrap"></div>`;
+  renderExerciseSet(document.getElementById('gexwrap'),GRAMMAR_EX,'grammarEx',5,'Done → Review difficult items',6);
+}
+
+/* ---------- Step 7: review difficult ---------- */
+function renderReviewDifficult(){
+  const main=document.getElementById('practice-main');const p=pget();
+  const weakV=VOCAB.filter(v=>['learning','new'].includes(p.vocabClass[v.w]));
+  const weakG=GRAMMAR.filter(g=>['learning','new'].includes(p.grammarClass[g.id]));
+  main.innerHTML=`<h2 class="sec">7 · Review difficult vocabulary &amp; grammar</h2>
+   <p class="sub">Focus on what you marked <b>Still learning</b> or <b>New to me</b>. ${weakV.length+weakG.length===0?'Nothing flagged yet — rate some flashcards first, or move on.':''}</p>
+   ${weakV.length?`<h4 style="margin:6px 0 10px">Vocabulary to review (${weakV.length})</h4><div class="vgrid">${weakV.map(v=>`<div class="vcard"><div class="top"><span class="w">${esc(v.w)}</span><span class="ipa">${esc(v.ipa)}</span><button class="spk" onclick="speak('${esc(v.w).replace(/'/g,"\\'")}')">🔊</button></div><div class="def">${esc(v.def)}</div><div class="vi">${esc(v.vi)}</div></div>`).join('')}</div>`:''}
+   ${weakG.length?`<h4 style="margin:18px 0 10px">Grammar to review (${weakG.length})</h4>${weakG.map(g=>`<div class="gcard"><h3>${esc(g.name)}</h3><p>${g.en}</p><div class="form">${esc(g.form.split('\n')[0])}</div><div class="gnote mistake">⚠ ${g.mistake}</div></div>`).join('')}`:''}
+   <div class="row" style="margin-top:18px">
+     ${weakV.length?'<button class="btn btn-ghost" onclick="reviewWeakVocab()">🔁 Flashcard weak vocab</button>':''}
+     <button class="btn btn-primary" onclick="markStep(6);gotoStep(7)">I'm ready → Mock test</button>
+   </div>`;
+}
+function reviewWeakVocab(){
+  const p=pget();const weakV=VOCAB.filter(v=>['learning','new'].includes(p.vocabClass[v.w]));
+  if(!weakV.length){toast('No weak vocab to review');return;}
+  makeFlash({main:document.getElementById('practice-main'),items:weakV,classKey:'vocabClass',keyOf:v=>v.w,prioritise:true,
+    title:"Weak vocabulary review",sub:"Only the words you still need to learn. Re-rate as you improve.",
+    frontHTML:v=>`<div class="w">${esc(v.w)}</div><div class="ipa">${esc(v.ipa)}</div>`,
+    backHTML:v=>`<div class="w">${esc(v.w)}</div><div class="def">${esc(v.def)}</div><div class="vi">${esc(v.vi)}</div><div class="ex">“${esc(v.ex)}”</div>`,
+    nextBtn:`<button class="btn btn-ghost" onclick="renderReviewDifficult()">← Back to review</button>`});
+}
+
+/* ---------- Step 8: ready ---------- */
+function renderReadyStep(){
+  const main=document.getElementById('practice-main');const p=pget();
+  const vExS=exSummary(p.vocabEx),gExS=exSummary(p.grammarEx);
+  main.innerHTML=`<div class="card pad" style="text-align:center">
+     <div style="font-size:40px">🎯</div>
+     <h2 class="sec" style="margin-top:8px">You're ready for the mock test</h2>
+     <p class="sub" style="max-width:520px;margin:8px auto 0">Here's your practice summary. When you start the test, the timer begins and study aids are hidden — but you can still highlight, flag and take notes.</p>
+     <div class="sectiongrid" style="max-width:560px;margin:18px auto">
+       <div class="sbox"><h4>Vocabulary practice</h4><div class="big">${vExS.pct}%</div><div class="sub" style="margin:0">${vExS.correct}/${vExS.total} correct</div></div>
+       <div class="sbox"><h4>Grammar practice</h4><div class="big">${gExS.pct}%</div><div class="sub" style="margin:0">${gExS.correct}/${gExS.total} correct</div></div>
+     </div>
+     <button class="btn btn-primary" style="font-size:16px;padding:14px 28px" onclick="markStep(7);setMode('test')">I'm ready — start the mock test →</button>
+   </div>`;
+}
+
+function updateHomeStats(){
+  const p=pget();
+  const ht=document.getElementById('home-title');if(ht&&META)ht.textContent=META.title?('VSAT English — '+META.title):'VSAT English';
+  const hs=document.getElementById('home-sub');if(hs&&META&&(META.institution||META.subtitle))hs.textContent=[META.institution,META.subtitle].filter(Boolean).join(' · ')+'. Study the vocabulary & grammar, then take the mock test under exam conditions.';
+  const vClass=Object.keys(p.vocabClass).length;
+  const stepsPct=Math.round(Object.keys(p.stepsDone).length/STEPS.length*100);
+  document.getElementById('home-practice-stats').innerHTML=`<span class="chip">${VOCAB.length} words</span><span class="chip">${GRAMMAR.length} grammar points</span><span class="chip">${stepsPct}% complete</span>`;
+  const ts=store.get('testState',null),res=store.get('testResult',null);
+  let tchip;
+  if(res){const raw=res.raw!==undefined?res.raw:res.total,mx=res.maxRaw||res.max||150,pc=res.pct!=null?res.pct:Math.round(raw/mx*100);const rawStr=Number.isInteger(raw)?raw:(+raw).toFixed(1);tchip=`<span class="chip">Last score: ${rawStr}/${mx} (${pc}%)</span>`;}
+  else tchip=(ts&&Object.keys(ts.answers||{}).length?`<span class="chip">In progress…</span>`:`<span class="chip">Not started</span>`);
+  document.getElementById('home-test-stats').innerHTML=`<span class="chip">25 questions · 150 pts</span><span class="chip">60 min</span>${tchip}`;
+}
+
+/* ================================================================
+   RESET FUNCTIONS
+   ================================================================ */
+function resetPractice(){if(confirm('Reset all Practice Mode progress (studied words, flashcard ratings, exercise scores)?')){store.del('progress');store.del('curStep');curStep=0;toast('Practice progress reset');if(currentMode==='practice')renderPractice();updateHomeStats();}}
+function resetTest(){if(confirm('Reset your Mock Test answers, timer and result?')){store.del('testState');store.del('testResult');toast('Mock test reset');if(currentMode==='test'){enterTest();}updateHomeStats();}}
+function resetAnnotations(){if(confirm('Clear all highlights and notes from the mock test?')){const ts=store.get('testState',{});ts.highlights={};ts.notes={};ts.flags={};store.set('testState',ts);store.del('notepad');npText.value='';toast('Annotations cleared');if(currentMode==='test')enterTest();}}
+function resetAll(){if(confirm('Reset EVERYTHING — practice progress, test answers, notes and highlights? This cannot be undone.')){store.clearAll();curStep=0;npText.value='';toast('All progress reset');location.reload();}}
+</script>
+
+<script>
+/* ================================================================
+   MOCK TEST MODE
+   ================================================================ */
+/* ================================================================
+   VSAT REUSABLE ENGINE — data layer (content-driven)
+   The interface, scoring and review logic are unchanged; only the
+   CONTENT is supplied by an exam data object (see vsat-exam schema).
+   ================================================================ */
+
+/* ---- Modular question-type registry (add new types without touching core) ----
+   Each type provides: render(block)->html, index(block,part,ctx) to register
+   answers/explanations/QMAP entries. Scoring stays keyed by the internal code
+   the indexer emits (tf | mc | match | gap), each handled by SCORERS below. */
+const gapCard=b=>'card'+b.nums[0];
+const gapFillInputs=text=>text.replace(/\{\{(\d+)\}\}/g,(m,n)=>`<input class="gi" id="g${n}" placeholder="(${n})">`);
+const VSAT_TYPES={
+  passage:{render:b=>`<div class="qb"><div class="pb hlable">${b.html}</div></div>`,index:()=>{}},
+  truefalse:{
+    render:b=>card('card'+b.n,b.title||('Question '+b.n+' (Statements 1–4)'),(b.notice?`<div class="nb hlable">${b.notice}</div>`:'')+tfTable('q'+b.n,b.statements)),
+    index:(b,code,x)=>{b.statements.forEach((s,i)=>x.ANS.tf['q'+b.n+'-'+(i+1)]=s.a);x.EXPL[b.n]=b.explanation||'';x.QMAP.push({n:b.n,card:'card'+b.n,part:code,type:'tf',items:b.statements.map((s,i)=>'q'+b.n+'-'+(i+1))});}
+  },
+  mcq:{
+    render:b=>card('card'+b.n,b.title||('Question '+b.n),mcq(b.n,'q'+b.n,b.question,b.options)),
+    index:(b,code,x)=>{x.ANS.mc['q'+b.n]=b.answer;x.EXPL[b.n]=b.explanation||'';x.QMAP.push({n:b.n,card:'card'+b.n,part:code,type:'mc',items:['q'+b.n]});}
+  },
+  matching:{
+    render:b=>card('card'+b.n,b.title||('Question '+b.n),matchBlock('q'+b.n,b.prompts,b.options)),
+    index:(b,code,x)=>{b.answers.forEach((a,i)=>x.ANS.match['q'+b.n+'-'+(i+1)]=a);x.EXPL[b.n]=b.explanation||'';x.QMAP.push({n:b.n,card:'card'+b.n,part:code,type:'match',items:b.answers.map((a,i)=>'q'+b.n+'-'+(i+1))});}
+  },
+  gapfill:{
+    render:b=>card(gapCard(b),b.title||'Gap-fill',`<div class="gft">${gapFillInputs(b.text)}</div>`),
+    index:(b,code,x)=>{const cd=gapCard(b);b.nums.forEach(num=>{x.ANS.gap['g'+num]=String(b.answers[num]);x.EXPL[num]=(b.explanations&&b.explanations[num])||'';x.QMAP.push({n:num,card:cd,part:code,type:'gap',items:['g'+num]});});}
+  }
+};
+function registerVsatType(name,def){VSAT_TYPES[name]=def;}   // extension point for future types
+
+/* ---- Active exam state (populated by applyExam) ---- */
+let META={},MOCK={parts:[]},ANS={tf:{},mc:{},match:{},gap:{}},EXPL={},QMAP=[],PARTINFO={};
+
+function buildIndexes(){
+  const x={ANS:{tf:{},mc:{},match:{},gap:{}},EXPL:{},QMAP:[]};
+  PARTINFO={};
+  (MOCK.parts||[]).forEach(part=>{
+    (part.blocks||[]).forEach(b=>{const t=VSAT_TYPES[b.type];if(t&&t.index)t.index(b,part.code,x);});
+    const ns=x.QMAP.filter(q=>q.part===part.code).map(q=>q.n);
+    PARTINFO[part.code]={name:part.shortName||part.title||part.code,qs:ns.length?[Math.min(...ns),Math.max(...ns)]:[0,0]};
+  });
+  ANS=x.ANS;EXPL=x.EXPL;QMAP=x.QMAP;
+}
+
+/* ---- Exam library (localStorage) + loader ---- */
+function examLib(){return store.get('examLib',{});}
+function saveExamToLib(exam){const lib=examLib();lib[exam.meta.id]=exam;store.set('examLib',lib);}
+function removeExam(id){const lib=examLib();delete lib[id];store.set('examLib',lib);if(store.get('activeExam','')===id)store.del('activeExam');}
+/* Exams come from the database now (see loadExamList / fetchExam). The
+   bundled DEFAULT_EXAM stays only as a fallback so the page is never blank. */
+function allExams(){const out={};out[DEFAULT_EXAM.meta.id]=DEFAULT_EXAM;return out;}
+function getActiveExam(){return DEFAULT_EXAM;}
+function applyExam(exam){
+  META=exam.meta||{};
+  MOCK=exam.mock||{parts:[]};
+  const p=exam.practice||{};
+  VOCAB=p.vocab||[];GRAMMAR=p.grammar||[];VOCAB_EX=p.vocabExercises||[];GRAMMAR_EX=p.grammarExercises||[];
+  buildIndexes();
+}
+function setActiveExam(id,keepProgress){
+  const all=allExams();if(!all[id])return;
+  if(!keepProgress){store.del('testState');store.del('testResult');store.del('progress');store.del('curStep');curStep=0;}
+  store.set('activeExam',id);applyExam(all[id]);
+  toast('Loaded: '+(all[id].meta.title||id));
+  updateHomeStats();renderExamBar();
+  if(currentMode==='practice')renderPractice();
+  if(currentMode==='test')enterTest();
+}
+function loadExamFile(input){
+  const f=input.files&&input.files[0];if(!f)return;
+  const rd=new FileReader();
+  rd.onload=()=>{try{const exam=JSON.parse(rd.result);const errs=validateExam(exam);
+    if(errs.length){alert('Không thể nạp đề thi:\n\n'+errs.slice(0,8).join('\n'));return;}
+    saveExamToLib(exam);setActiveExam(exam.meta.id,false);
+  }catch(e){alert('Tệp không hợp lệ: '+e.message);}};
+  rd.readAsText(f);input.value='';
+}
+/* Minimal structural validation used by the engine loader (admin does full validation). */
+function validateExam(ex){
+  const e=[];
+  if(!ex||typeof ex!=='object'){e.push('• Dữ liệu rỗng.');return e;}
+  if(!ex.meta||!ex.meta.id)e.push('• Thiếu meta.id.');
+  if(!ex.meta||!ex.meta.title)e.push('• Thiếu meta.title.');
+  if(!ex.mock||!Array.isArray(ex.mock.parts)||!ex.mock.parts.length)e.push('• Thiếu mock.parts.');
+  (ex.mock&&ex.mock.parts||[]).forEach((p,i)=>{
+    if(!p.code)e.push(`• Phần ${i+1} thiếu "code".`);
+    (p.blocks||[]).forEach(b=>{if(b.type&&!VSAT_TYPES[b.type])e.push(`• Loại câu hỏi chưa hỗ trợ: "${b.type}".`);});
+  });
+  return e;
+}
+function renderExamBar(){
+  const bar=document.getElementById('examBar');if(!bar)return;
+  /* Phase 50: the list comes from the database (VEXAMS), not this device.
+     Premium exams the learner cannot open are shown but disabled, so they
+     know the exam exists — the picker below explains how to unlock it. */
+  const list=(typeof VEXAMS!=='undefined'&&VEXAMS.length)?VEXAMS:[];
+  const activeId=store.get('activeExam','');
+  if(!list.length){bar.innerHTML='';return;}
+  const opts=list.map(m=>{
+    const open=(typeof canOpen==='function')?canOpen(m):true;
+    return `<option value="${esc(m.exam_id)}" ${m.exam_id===activeId?'selected':''} ${open?'':'disabled'}>`+
+           `${esc(m.title||m.exam_id)}${m.premium?' 👑':''}${open?'':' — cần mở khoá'}</option>`;
+  }).join('');
+  const staffPick=(typeof VSTAFF!=='undefined'&&VSTAFF)
+    ? `<label class="icon-btn btn-sm" style="cursor:pointer">📂 Mở đề (.vsat.json)<input type="file" accept=".json,.vsat.json,application/json" style="display:none" onchange="loadExamFile(this)"></label>`
+    : '';
+  bar.innerHTML=`<span style="font-size:13px;color:var(--color-text-secondary)">Đề thi:</span>
+    <select class="msel" style="max-width:320px;width:auto" onchange="onExamPick(this.value)">${opts}</select>
+    ${staffPick}`;
+}
+function onExamPick(id){
+  if(typeof chooseExam==='function'){chooseExam(id);return;}   // platform path
+  setActiveExam(id,false);
+}
+/* Embedded default exam (this file works standalone). Practice arrays reference the
+   literals above; mock + meta are embedded below. Other exams load from .vsat.json. */
+const DEFAULT_META={"id":"vsat-en-exam-2-2025","title":"Đề Thi Minh Họa (Đề số 2)","subtitle":"Bài Thi Đánh Giá Đầu Vào Đại Học Trên Máy Tính Năm 2025","institution":"Trường Đại Học Cần Thơ","subject":"Tiếng Anh","durationMinutes":60,"pages":5,"maxScore":150,"scoreVersion":2,"language":"en","hasEssay":false};
+const DEFAULT_MOCK={"parts":[{"code":"P1","title":"PART 1 — Questions 1–7","instruction":"Read the notices/messages/advertisements and decide if the statements are TRUE or FALSE.","blocks":[{"type":"truefalse","n":1,"title":"Question 1 (Statements 1–4)","statements":[{"t":"1. The museum is open seven days a week.","a":"F"},{"t":"2. Senior citizens can enter the museum at no cost.","a":"T"},{"t":"3. Photography is banned throughout the entire museum.","a":"F"},{"t":"4. Guided tours start from the main entrance.","a":"T"}],"explanation":"Museum opens Tue–Sun (6 days); free for seniors; photography allowed except one gallery; tours from main entrance.","notice":"<strong>CITY MUSEUM — VISITOR INFORMATION</strong>Opening hours: Tuesday to Sunday, 9:00 a.m. – 5:30 p.m. (last entry 5:00 p.m.)<br>Admission: Free for children under 12 and senior citizens. Adults: £8.<br>Photography is permitted in all areas except the Ancient Artefacts Gallery.<br>Guided tours depart every hour from the main entrance."},{"type":"truefalse","n":2,"title":"Question 2 (Statements 1–4)","statements":[{"t":"1. The café offers food suitable for vegans.","a":"T"},{"t":"2. All customers receive a 10% discount.","a":"F"},{"t":"3. Customers ordering takeaway should expect a short wait.","a":"T"},{"t":"4. The café opens at 8:00 a.m.","a":"F"}],"explanation":"Vegan options exist; discount only for students; takeaway needs a short wait; opens 7:30 (not 8:00).","notice":"<strong>GREEN LEAF CAFÉ</strong>Serving fresh, locally sourced food daily from 7:30 a.m.<br>Vegetarian and vegan options available all day.<br>10% discount for students with valid ID.<br>Takeaway orders: please allow 15 minutes preparation time."},{"type":"truefalse","n":3,"title":"Question 3 (Statements 1–4)","statements":[{"t":"1. The sports day will take place on a weekend.","a":"T"},{"t":"2. Parents can watch the event from 8:00 a.m.","a":"F"},{"t":"3. Lunch will be provided for both students and parents.","a":"F"},{"t":"4. Students must wear their sports clothing on the day.","a":"T"}],"explanation":"Sports day is a Saturday; spectators from 9:00 (not 8:00); lunch for students only; PE kit required.","notice":"<strong>From: Mr. Tran (Class Teacher) &nbsp;&nbsp; To: Parents of Class 12A</strong>Dear parents, please be reminded that the school annual sports day will be held on Saturday, 8 June. Students are expected to arrive by 8:00 a.m. in their PE kit. Spectators are welcome from 9:00 a.m. Lunch will be provided for students only. Please bring your own refreshments."},{"type":"truefalse","n":4,"title":"Question 4 (Statements 1–4)","statements":[{"t":"1. Buddy went missing on a Wednesday morning.","a":"F"},{"t":"2. The dog is wearing a collar with identification.","a":"T"},{"t":"3. A financial reward is available for finding Buddy.","a":"T"},{"t":"4. Buddy is described as an aggressive dog.","a":"F"}],"explanation":"Buddy went missing Tuesday evening; wears a collar with a name tag; reward offered; he is friendly (not aggressive).","notice":"<strong>LOST: GOLDEN RETRIEVER — \"BUDDY\"</strong>Missing since Tuesday evening near Riverside Park. Buddy is 3 years old, wearing a red collar with a name tag. He is friendly and responds to his name. If found, please call Mai on 0901 234 567. Reward offered."},{"type":"truefalse","n":5,"title":"Question 5 (Statements 1–4)","statements":[{"t":"1. Classes are held three times a week.","a":"F"},{"t":"2. The course fee may be reduced for some learners.","a":"T"},{"t":"3. Students must register before the 15th of September.","a":"T"},{"t":"4. Only beginner-level classes are available.","a":"F"}],"explanation":"Classes twice a week (Mon+Wed); concessions reduce fees; register before 15 Sept; three levels offered.","notice":"<strong>COMMUNITY ENGLISH CLASSES — AUTUMN TERM</strong>Classes run every Monday and Wednesday evening, 6:30 – 8:00 p.m.<br>Levels: Beginner, Intermediate, Advanced.<br>Fee: £40 per month. Concessions available for unemployed learners.<br>Register online at www.communitylearn.org before 15 September."},{"type":"truefalse","n":6,"title":"Question 6 (Statements 1–4)","statements":[{"t":"1. Linh has already made a reservation at the restaurant.","a":"T"},{"t":"2. The dinner is planned for Saturday evening.","a":"F"},{"t":"3. Minh does not eat meat.","a":"T"},{"t":"4. Only two people will attend the birthday dinner.","a":"F"}],"explanation":"Linh has booked; dinner is Friday (not Saturday); Minh is vegetarian; six people attend.","notice":"<strong>From: Linh &nbsp;&nbsp; To: Minh</strong>Hi Minh! I've booked us a table at Pho 24 for your birthday dinner this Friday at 7 p.m. There will be six of us in total. I told them you're vegetarian, so they'll have a special menu ready. See you there!"},{"type":"truefalse","n":7,"title":"Question 7 (Statements 1–4)","statements":[{"t":"1. The lift will be out of service for one week.","a":"F"},{"t":"2. People can still reach upper floors using the stairs.","a":"T"},{"t":"3. The lift will be working again on Thursday.","a":"T"},{"t":"4. The lift is broken due to a mechanical fault.","a":"F"}],"explanation":"Out of service Mon–Wed (3 days); stairs still available; back Thursday; it's a safety inspection, not a fault.","notice":"<strong>NOTICE: LIFT OUT OF SERVICE</strong>The lift in Block B will be undergoing safety inspection from Monday 3rd to Wednesday 5th June. During this period, please use the staircase on the eastern side of the building. We apologise for the inconvenience. Normal service will resume on Thursday 6th June."}]},{"code":"P2","title":"PART 2 — Questions 8–15","instruction":"Read the passage and answer questions 8–15.","blocks":[{"type":"passage","id":"p2","html":"<p>Every year, millions of tonnes of food are thrown away across the world while hundreds of millions of people go hungry. This paradox lies at the heart of a growing global movement to reduce food waste — and increasingly, technology is being called upon to help solve the problem.</p>\n     <p>In supermarkets and large food retailers, artificial intelligence is already being used to predict demand more accurately. By analysing sales data, weather patterns, and local events, AI systems can tell store managers exactly how much of each product to order on any given day. This reduces the amount of perishable food — such as fruit, vegetables, and dairy products — that is ordered in excess and ultimately discarded. Some retailers report a reduction in food waste of up to 30 percent since adopting these systems.</p>\n     <p>[A] On a smaller scale, smartphone applications are helping individual consumers manage their own food more efficiently. Apps such as these allow users to log the contents of their fridge, track expiry dates, and receive notifications when food is about to go off. [B] Some apps also suggest recipes based on ingredients that are nearing their use-by date, encouraging users to cook with what they already have rather than buying more. [C] A related innovation is the development of \"smart packaging\" — edible or biodegradable wrappers embedded with sensors that change colour to indicate the freshness of the food inside, removing the guesswork from expiry dates. [D]</p>\n     <p>At the community level, digital platforms are connecting households with surplus food to local food banks, charities, and neighbours. Rather than discarding a loaf of bread or a box of vegetables that will not be consumed in time, users can post available items on these platforms and arrange collection within hours. In some cities, restaurants and cafés are also participating, uploading details of unsold meals at the end of each day at heavily discounted prices.</p>\n     <p>Yet for all these advances, experts caution that technology alone cannot solve the problem of food waste. Consumer behaviour, retail pricing strategies, and agricultural supply chains all play significant roles. What technology can do, however, is make the right choice the easier choice — and in doing so, bring us meaningfully closer to a world where far less food ends up in the bin.</p>"},{"type":"truefalse","n":8,"title":"Question 8 — based on paragraph 1","statements":[{"t":"1. A large amount of food is wasted globally each year.","a":"T"},{"t":"2. Food waste is no longer considered a serious global issue.","a":"F"},{"t":"3. Technology is increasingly seen as part of the solution to food waste.","a":"T"},{"t":"4. The passage says food waste only affects developing countries.","a":"F"}],"explanation":"Para 1 says a large amount is wasted and technology is part of the solution; the issue is still serious and global.","passageRef":"p2"},{"type":"truefalse","n":9,"title":"Question 9 — based on paragraph 2","statements":[{"t":"1. AI systems help retailers order more appropriate quantities of food.","a":"T"},{"t":"2. AI in supermarkets focuses only on reducing the cost of packaging.","a":"F"},{"t":"3. Some supermarkets have cut food waste by nearly a third using AI.","a":"T"},{"t":"4. AI systems in supermarkets only analyse weather data.","a":"F"}],"explanation":"AI orders better quantities and cut waste by up to ~30%; it analyses several data types, not just weather or packaging.","passageRef":"p2"},{"type":"mcq","n":10,"title":"Question 10","question":"In paragraph 3, the word \"perishable\" is closest in meaning to ______.","options":[{"v":"A","t":"long-lasting"},{"v":"B","t":"nutritious"},{"v":"C","t":"likely to decay quickly"},{"v":"D","t":"expensive to produce"}],"answer":"C","explanation":"'Perishable' = likely to decay quickly (C)."},{"type":"mcq","n":11,"title":"Question 11","question":"In paragraph 3, the word \"these\" refers to ______.","options":[{"v":"A","t":"expiry dates"},{"v":"B","t":"smartphone applications"},{"v":"C","t":"individual consumers"},{"v":"D","t":"supermarkets"}],"answer":"B","explanation":"'these' refers to smartphone applications (B)."},{"type":"mcq","n":12,"title":"Question 12","question":"According to paragraph 3, what is the purpose of \"smart packaging\"?","options":[{"v":"A","t":"To make food packaging more attractive to consumers."},{"v":"B","t":"To replace the need for refrigeration in supermarkets."},{"v":"C","t":"To clearly show whether food is still fresh by changing colour."},{"v":"D","t":"To reduce the weight of food products during transport."}],"answer":"C","explanation":"Smart packaging shows freshness by changing colour (C)."},{"type":"mcq","n":13,"title":"Question 13","question":"In which space (marked A, B, C, or D) does the following sentence best fit?<br><span style=\"font-style:italic;font-weight:400\">\"One popular feature sends a weekly summary showing how much food the user has saved compared to the previous month.\"</span>","options":[{"v":"A","t":"[A]"},{"v":"B","t":"[B]"},{"v":"C","t":"[C]"},{"v":"D","t":"[D]"}],"answer":"B","explanation":"The sentence about a weekly summary fits gap [B], among the app features."},{"type":"mcq","n":14,"title":"Question 14","question":"Which of the following can be inferred from the last paragraph?","options":[{"v":"A","t":"Experts believe technology is entirely sufficient to eliminate food waste."},{"v":"B","t":"Changing human behaviour is just as important as technological innovation in tackling food waste."},{"v":"C","t":"Agricultural supply chains have no role to play in reducing food waste."},{"v":"D","t":"Retail pricing has already been successfully reformed to reduce waste."}],"answer":"B","explanation":"Last paragraph: behaviour change matters as much as technology (B)."},{"type":"mcq","n":15,"title":"Question 15","question":"Which sentence best summarises the main idea of the passage?","options":[{"v":"A","t":"Supermarkets are the only sector successfully using technology to reduce food waste globally."},{"v":"B","t":"Food waste is a minor issue that technology will soon completely resolve."},{"v":"C","t":"Technology offers powerful tools to combat food waste at multiple levels, though it must be supported by wider changes in behaviour and systems."},{"v":"D","t":"Smartphone apps are the most important technology in the fight against food waste."}],"answer":"C","explanation":"Main idea: technology helps at many levels but needs wider change (C)."}]},{"code":"P3","title":"PART 3 — Questions 16–20","instruction":"Match each item (1–4) with its most suitable option (A–F). One letter in each set is NOT used.","blocks":[{"type":"matching","n":16,"title":"Question 16 — exchanges & responses","prompts":["I'm sorry — I've spilled coffee on your notebook!","How do you feel about starting university next month?","Could you pass the salt, please?","Have you heard that Lan got the scholarship?"],"options":["Honestly, I'm a bit nervous but very excited.","It was on Thursday afternoon, I think.","Of course, here you go!","I'd love to, but I'm busy that evening.","Oh, don't worry about it — it's just a notebook!","Really? That's wonderful news — she deserves it!"],"answers":["E","A","C","F"],"explanation":"Apology→E; feeling about university→A; request→C; good news→F."},{"type":"matching","n":17,"title":"Question 17 — cause and effect","prompts":["The rapid expansion of cities ______","A lack of regular physical activity ______","The introduction of stricter traffic laws ______","Excessive use of social media by teenagers ______"],"options":["is strongly associated with an increased risk of cardiovascular disease.","stems from a failure to invest in public transport infrastructure.","has been linked to disrupted sleep patterns and declining academic performance.","has led to the destruction of natural habitats and a reduction in biodiversity.","is expected to create thousands of new jobs in the renewable energy sector.","has resulted in a significant decrease in road accident fatalities."],"answers":["D","A","F","C"],"explanation":"Cause–effect: expansion→D; inactivity→A; stricter laws→F; social media→C."},{"type":"matching","n":18,"title":"Question 18 — conditional sentences","prompts":["Were the government to invest more in public transport, ______","Should you finish the report early, ______","Had Minh practised more consistently, ______","Had it not been for her mentor's advice, ______"],"options":["the research team would have disbanded two years ago.","please send it to me so I can review it before the meeting.","the factory would have been forced to shut down immediately.","he would have performed far better in the final competition.","fewer people would rely on private cars for their daily commute.","she might never have pursued a career in medicine."],"answers":["E","B","D","F"],"explanation":"Inversion conditionals: Were…→E; Should…→B; Had Minh…→D; Had it not been for…→F."},{"type":"matching","n":19,"title":"Question 19 — relative clauses","prompts":["The documentary won several international awards, ______","Dr. Pham is a renowned cardiologist ______","The new community centre has a rooftop garden, ______","My neighbour has a son ______"],"options":["whose research into heart disease has transformed treatment globally.","in which case the entire budget will need to be reviewed.","which brought its director to the attention of major film studios worldwide.","who recently published his first novel at the age of nineteen.","most of whose paintings have been acquired by national galleries.","which has become a popular meeting spot for local residents."],"answers":["C","A","F","D"],"explanation":"Relative clauses: won awards→C; cardiologist whose→A; rooftop garden which→F; a son who→D."},{"type":"matching","n":20,"title":"Question 20 — emphasis and manner","prompts":["He handled the criticism ______","It is the dedication of the nursing staff ______","The student completed the assignment ______","It was the unexpected plot twist ______"],"options":["as impressively as she always does.","with a maturity and calmness that surprised everyone in the room.","that made the film one of the most talked-about of the decade.","the way a seasoned diplomat would approach a tense negotiation.","that keeps this hospital running so smoothly day after day.","exactly the way the instructions specified, without missing a single step."],"answers":["B","E","F","C"],"explanation":"Cleft/manner: handled with maturity→B; It is the dedication…that→E; completed exactly the way→F; It was the plot twist that→C."}]},{"code":"P4","title":"PART 4 — Questions 21–25","instruction":"Read the text and fill in ONE word which best fits each gap.","blocks":[{"type":"gapfill","title":"Questions 21–25 — gap-fill","nums":[21,22,23,24,25],"text":"In recent years, cycling has experienced a remarkable revival in cities around the world. Once seen as a mode of transport suited only to the young or the very fit, it has now attracted a much wider {{21}} of riders. City councils have played a significant role in this shift by investing in dedicated cycling lanes, {{22}} it safer and more convenient for people to travel by bike. Environmental concerns have also driven many commuters to make the {{23}} from cars to bicycles, particularly in the aftermath of rising fuel prices. Beyond the environmental benefits, regular cycling has been shown to have a positive {{24}} on mental health, reducing stress and improving overall mood. For cities looking to reduce congestion and pollution, promoting cycling is widely regarded {{25}} one of the most cost-effective solutions available.","answers":{"21":"range","22":"making","23":"switch","24":"effect","25":"as"},"explanations":{"21":"'range' — a wider range of riders (a range OF).","22":"'making' — …lanes, making it safer (participle = which makes).","23":"'switch' — make the switch from cars to bicycles.","24":"'effect' — a positive effect ON mental health.","25":"'as' — regarded AS one of the solutions."}}]}]};
+const DEFAULT_EXAM={schema:'vsat-exam/1.0',meta:DEFAULT_META,mock:DEFAULT_MOCK,practice:{vocab:VOCAB,grammar:GRAMMAR,vocabExercises:VOCAB_EX,grammarExercises:GRAMMAR_EX}};
+
+/* ---- test state ---- */
+function tget(){return store.get('testState',{answers:{},flags:{},notes:{},highlights:{},timeLeft:3600,running:false,submitted:false});}
+function tset(t){store.set('testState',t);}
+
+let timerInt=null, currentHL='yellow';
+
+function enterTest(){
+  const rr=document.getElementById('review-root');if(rr){rr.classList.add('hidden');rr.innerHTML='';}
+  const tl=document.querySelector('.testlayout');if(tl)tl.style.display='';
+  const t=tget();
+  if(t.submitted && store.get('testResult',null)){showResults();return;}
+  document.getElementById('testbar').style.display='';
+  buildTestDOM();
+  restoreTest();
+  bindTestEvents();
+  buildNavigator();
+  updateNav();
+  startTimer(t.running!==false);
+  document.body.classList.remove('hide-annos');
+  document.getElementById('annoToggle').textContent='Hide notes';
+}
+
+/* Build the exam DOM (original questions preserved), wrapped in cards */
+function tfTable(qp,rows){
+  return `<table class="tft"><thead><tr><th>Statements</th><th>T</th><th>F</th></tr></thead><tbody>`+
+    rows.map((r,i)=>{const k=qp+'-'+(i+1);
+      return `<tr data-ans="${r.a}"><td class="hlable">${r.t}</td>
+        <td><input type="checkbox" class="tfc" data-q="${k}" data-v="T"></td>
+        <td><input type="checkbox" class="tfc" data-q="${k}" data-v="F"></td></tr>`;}).join('')+
+    `</tbody></table>`;
+}
+function card(id,title,body){
+  return `<div class="qb qcard" id="${id}">
+    <div class="qcard-head"><span class="qtitle">${title}</span>
+      <div class="tools">
+        <button class="qtool" data-flag="${id}" onclick="toggleFlag('${id}')">⚑ Flag</button>
+        <button class="qtool" data-noteb="${id}" onclick="toggleNote('${id}')">🗒 Note</button>
+      </div></div>
+    ${body}
+    <div class="note-area" id="note-${id}"><div class="nlbl">Your note for this question:</div><textarea data-note="${id}" oninput="saveNote('${id}',this.value)" placeholder="Type a personal note…"></textarea></div>
+  </div>`;
+}
+function mcq(qn,name,question,opts){
+  return `<div class="mcq hlable">${question}</div><div class="mco">`+
+    opts.map(o=>`<label class="mcop"><input type="radio" name="${name}" value="${o.v}"> <span class="hlable">${o.v}. ${o.t}</span></label>`).join('')+`</div>`;
+}
+function matchBlock(qp,rows,options){
+  const L=['A','B','C','D','E','F'];
+  return `<div class="ms">
+    <div class="match-instruction">Hướng dẫn: Ghép mỗi câu ở cột bên trái với câu trả lời phù hợp ở cột bên phải. Nhập chữ cái A–F vào ô tương ứng với mỗi câu. Có hai phương án không được sử dụng.</div>
+    <div class="match-cols">
+      <div class="match-col"><h5>Câu hỏi</h5>${rows.map((r,i)=>`<div class="mp hlable"><span class="num">${i+1}.</span>${r}</div>`).join('')}</div>
+      <div class="match-col"><h5>Phương án (A–F)</h5>${options.map((o,i)=>`<div class="mo hlable"><span class="lt">${L[i]}.</span>${o}</div>`).join('')}</div>
+    </div>
+    <div class="match-answers">
+      <div class="ma-label">Nhập đáp án:</div>
+      <div class="ma-boxes">${rows.map((r,i)=>`<div class="ma-box"><span>${i+1}</span><input class="minput" data-q="${qp}-${i+1}" maxlength="1" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Đáp án cho câu ${i+1}, nhập chữ cái A đến F"></div>`).join('')}</div>
+      <div class="ma-msg" data-msg></div>
+    </div>
+  </div>`;
+}
+
+function buildExamHTML(){
+  const m=META||{};
+  const line2=[m.subject?('Bài thi: '+esc(m.subject)):'',m.durationMinutes?('Thời gian làm bài: '+m.durationMinutes+' phút'):'',m.pages?('(Đề thi có '+String(m.pages).padStart(2,'0')+' trang)'):''].filter(Boolean).join(' &nbsp;|&nbsp; ');
+  let h=`<div class="eh">${m.institution?`<h1>${esc(m.institution)}${m.title?' — '+esc(m.title):''}</h1>`:''}
+    ${m.subtitle?`<h2>${esc(m.subtitle)}</h2>`:(m.title&&!m.institution?`<h2>${esc(m.title)}</h2>`:'')}
+    ${line2?`<p>${line2}</p>`:''}</div>
+   <div class="banner">📝 Mock test conditions: no vocabulary, grammar or answer support is shown. Use the highlighter, flags and notes as you work. Your progress saves automatically.</div>`;
+  (MOCK.parts||[]).forEach(part=>{
+    h+=`<div class="pt">${esc(part.title||part.code)}</div>`+(part.instruction?`<div class="pi">${esc(part.instruction)}</div>`:'');
+    (part.blocks||[]).forEach(b=>{const t=VSAT_TYPES[b.type];if(t&&t.render)h+=t.render(b);});
+  });
+  return h;
+}
+function buildTestDOM(){
+  const m=document.getElementById('test-main');
+  m.innerHTML=buildExamHTML();
+  document.querySelectorAll('#test-main .hlable').forEach((el,i)=>el.dataset.hl='h'+i);
+}
+
+/* ---- events, autosave ---- */
+function bindTestEvents(){
+  const m=document.getElementById('test-main');
+  m.querySelectorAll('.tfc').forEach(cb=>cb.addEventListener('change',function(){
+    const q=this.dataset.q;m.querySelectorAll(`.tfc[data-q="${q}"]`).forEach(c=>{if(c!==this)c.checked=false;});
+    captureAnswers();
+  }));
+  m.querySelectorAll('input[type=radio]').forEach(x=>x.addEventListener('change',captureAnswers));
+  m.querySelectorAll('.minput').forEach(inp=>{inp.addEventListener('input',onMatchInput);inp.addEventListener('keydown',onMatchKeydown);});
+  m.querySelectorAll('.gi').forEach(i=>i.addEventListener('input',captureAnswers));
+  m.addEventListener('mouseup',onSelect);
+  m.addEventListener('touchend',onSelect);
+  m.addEventListener('click',onEraseClick);
+}
+function captureAnswers(){
+  const t=tget(),a={};
+  document.querySelectorAll('#test-main .tfc:checked').forEach(c=>a[c.dataset.q]=c.dataset.v);
+  document.querySelectorAll('#test-main input[type=radio]:checked').forEach(r=>a[r.name]=r.value);
+  document.querySelectorAll('#test-main .minput').forEach(s=>{if(s.value)a[s.dataset.q]=s.value;});
+  ['g21','g22','g23','g24','g25'].forEach(k=>{const i=document.getElementById(k);if(i&&i.value.trim())a[k]=i.value.trim();});
+  t.answers=a;tset(t);updateNav();
+}
+function restoreTest(){
+  const t=tget();
+  Object.entries(t.answers||{}).forEach(([k,v])=>{
+    if(k.indexOf('-')>0 && k[0]==='q' && /q\d+-\d+/.test(k) && ANS.tf[k]!==undefined){
+      const cb=document.querySelector(`#test-main .tfc[data-q="${k}"][data-v="${v}"]`);if(cb)cb.checked=true;
+    } else if(ANS.mc[k]!==undefined){const r=document.querySelector(`#test-main input[name="${k}"][value="${v}"]`);if(r)r.checked=true;}
+    else if(ANS.match[k]!==undefined){const s=document.querySelector(`#test-main .minput[data-q="${k}"]`);if(s)s.value=v;}
+    else if(ANS.gap[k]!==undefined){const i=document.getElementById(k);if(i)i.value=v;}
+  });
+  Object.entries(t.notes||{}).forEach(([id,txt])=>{const ta=document.querySelector(`#test-main [data-note="${id}"]`);if(ta){ta.value=txt;if(txt){document.getElementById('note-'+id).classList.add('show');document.querySelector(`[data-noteb="${id}"]`).classList.add('noteon');}}});
+  Object.keys(t.flags||{}).forEach(id=>{if(t.flags[id]){const b=document.querySelector(`[data-flag="${id}"]`);if(b)b.classList.add('flagged');}});
+  Object.entries(t.highlights||{}).forEach(([hid,html])=>{const el=document.querySelector(`#test-main [data-hl="${hid}"]`);if(el)el.innerHTML=html;});
+  document.querySelectorAll('#test-main .ms').forEach(ms=>validateMatchGroup(ms,false));
+}
+/* ---- matching letter-input behaviour ---- */
+function onMatchInput(e){
+  const inp=e.target,raw=inp.value;
+  let v=raw.toUpperCase().replace(/[^A-F]/g,'');
+  if(v.length>1)v=v.slice(-1);
+  const invalid=raw.trim()!==''&&v==='';
+  inp.value=v;
+  const ms=inp.closest('.ms');
+  validateMatchGroup(ms,invalid);
+  if(v){const boxes=[...inp.closest('.ma-boxes').querySelectorAll('.minput')];const idx=boxes.indexOf(inp);if(idx<boxes.length-1)boxes[idx+1].focus();}
+  captureAnswers();
+}
+function onMatchKeydown(e){
+  if(e.key==='Backspace'&&e.target.value===''){
+    const boxes=[...e.target.closest('.ma-boxes').querySelectorAll('.minput')];const idx=boxes.indexOf(e.target);
+    if(idx>0){e.preventDefault();const prev=boxes[idx-1];prev.value='';prev.focus();validateMatchGroup(e.target.closest('.ms'),false);captureAnswers();}
+  }
+}
+function validateMatchGroup(ms,invalidFlag){
+  const boxes=[...ms.querySelectorAll('.minput')];
+  boxes.forEach(b=>b.classList.remove('dup','invalid','unanswered'));
+  const counts={};boxes.forEach(b=>{if(b.value)counts[b.value]=(counts[b.value]||0)+1;});
+  let dup=false;boxes.forEach(b=>{if(b.value&&counts[b.value]>1){b.classList.add('dup');dup=true;}});
+  const msgEl=ms.querySelector('[data-msg]');if(!msgEl)return;
+  if(invalidFlag){msgEl.textContent='Vui lòng chỉ nhập một chữ cái từ A đến F.';}
+  else if(dup){msgEl.textContent='Mỗi phương án chỉ được sử dụng một lần. Vui lòng kiểm tra lại đáp án.';}
+  else{msgEl.textContent='';}
+}
+function markUnansweredMatches(){
+  let any=false;
+  document.querySelectorAll('#test-main .ms').forEach(ms=>{
+    const boxes=[...ms.querySelectorAll('.minput')];let emptyHere=false;
+    boxes.forEach(b=>{if(!b.value){b.classList.add('unanswered');emptyHere=true;any=true;}});
+    if(emptyHere){const msgEl=ms.querySelector('[data-msg]');if(msgEl&&!msgEl.textContent)msgEl.textContent='Bạn chưa trả lời tiểu mục này.';}
+  });
+  return any;
+}
+
+/* ---- flags & notes ---- */
+function toggleFlag(id){const t=tget();t.flags[id]=!t.flags[id];tset(t);document.querySelector(`[data-flag="${id}"]`).classList.toggle('flagged',t.flags[id]);updateNav();}
+function toggleNote(id){const area=document.getElementById('note-'+id);area.classList.toggle('show');document.querySelector(`[data-noteb="${id}"]`).classList.toggle('noteon',area.classList.contains('show'));}
+function saveNote(id,val){const t=tget();t.notes[id]=val;tset(t);document.querySelector(`[data-noteb="${id}"]`).classList.toggle('noteon',!!val.trim());}
+
+/* ---- highlighting ---- */
+function setHL(c){currentHL=c;document.querySelectorAll('.hl-swatch').forEach(s=>s.classList.toggle('sel',s.dataset.color===c));}
+function onSelect(){
+  if(currentHL==='erase')return;
+  const sel=window.getSelection();
+  if(!sel||sel.isCollapsed||!sel.toString().trim())return;
+  const range=sel.getRangeAt(0);
+  let anc=range.commonAncestorContainer;if(anc.nodeType===3)anc=anc.parentNode;
+  const container=anc.closest('.hlable');
+  if(!container||!container.contains(range.endContainer))return;
+  // reject if selection contains form controls
+  const frag=range.cloneContents();
+  if(frag.querySelector&&frag.querySelector('input,select,textarea,button')){sel.removeAllRanges();return;}
+  try{
+    const ext=range.extractContents();
+    const span=document.createElement('span');span.className='hl-'+currentHL;span.appendChild(ext);
+    range.insertNode(span);
+  }catch(e){sel.removeAllRanges();return;}
+  container.normalize();
+  sel.removeAllRanges();
+  saveHighlights(container);
+}
+function onEraseClick(e){
+  const span=e.target.closest('span[class^="hl-"]');
+  if(!span)return;
+  if(currentHL!=='erase')return;
+  const container=span.closest('.hlable');
+  const parent=span.parentNode;
+  while(span.firstChild)parent.insertBefore(span.firstChild,span);
+  parent.removeChild(span);container.normalize();
+  saveHighlights(container);
+}
+function saveHighlights(container){const t=tget();t.highlights[container.dataset.hl]=container.innerHTML;tset(t);}
+function clearAllHL(){
+  const t=tget();
+  document.querySelectorAll('#test-main span[class^="hl-"]').forEach(span=>{const p=span.parentNode;while(span.firstChild)p.insertBefore(span.firstChild,span);p.removeChild(span);});
+  document.querySelectorAll('#test-main .hlable').forEach(el=>el.normalize());
+  t.highlights={};tset(t);toast('All highlights cleared');
+}
+function toggleAnnos(){document.body.classList.toggle('hide-annos');const on=document.body.classList.contains('hide-annos');document.getElementById('annoToggle').textContent=on?'Show notes':'Hide notes';}
+
+/* ---- timer ---- */
+function startTimer(run){
+  clearInterval(timerInt);
+  const t=tget();t.running=run;tset(t);
+  document.getElementById('timerToggle').textContent=run?'Pause':'Resume';
+  drawTimer();
+  if(run)timerInt=setInterval(tick,1000);
+}
+function tick(){
+  const t=tget();t.timeLeft=Math.max(0,t.timeLeft-1);tset(t);drawTimer();
+  if(t.timeLeft<=0){clearInterval(timerInt);toast("Time's up — submitting");doSubmit(true);}
+}
+function drawTimer(){
+  const t=tget();const el=document.getElementById('timer');
+  const mm=String(Math.floor(t.timeLeft/60)).padStart(2,'0'),ss=String(t.timeLeft%60).padStart(2,'0');
+  el.textContent=`${mm}:${ss}`;
+  el.className='timer'+(t.timeLeft<=60?' danger':t.timeLeft<=300?' warn':'');
+}
+function toggleTimer(){const t=tget();startTimer(!(t.running!==false));}
+
+/* ---- navigator ---- */
+function buildNavigator(){
+  document.getElementById('navgrid').innerHTML=QMAP.map(q=>`<button class="navbtn" id="nav-${q.n}" onclick="goToQ(${q.n})">${q.n}</button>`).join('');
+}
+function qStatus(q){
+  const t=tget();const answered=q.items.filter(k=>t.answers[k]!==undefined&&t.answers[k]!=='').length;
+  if(answered===0)return'none';if(answered<q.items.length)return'partial';return'answered';
+}
+function updateNav(){
+  const t=tget();
+  QMAP.forEach(q=>{const b=document.getElementById('nav-'+q.n);if(!b)return;
+    b.className='navbtn';const st=qStatus(q);if(st==='answered')b.classList.add('answered');else if(st==='partial')b.classList.add('partial');
+    if(t.flags[q.card])b.classList.add('flagged');
+  });
+}
+function goToQ(n){const q=QMAP.find(x=>x.n===n);const el=document.getElementById(q.card);if(el){el.scrollIntoView({behavior:'smooth',block:'start'});el.style.transition='box-shadow .4s';el.style.boxShadow='0 0 0 3px var(--accent)';setTimeout(()=>el.style.boxShadow='',900);}}
+
+/* ---- submit & results ---- */
+function attemptSubmit(){
+  markUnansweredMatches();
+  const unanswered=QMAP.filter(q=>qStatus(q)==='none').map(q=>q.n);
+  const partial=QMAP.filter(q=>qStatus(q)==='partial').map(q=>q.n);
+  let msg='Submit your test?';
+  if(unanswered.length||partial.length){
+    msg='⚠ You still have unfinished questions:\n';
+    if(unanswered.length)msg+=`• Not answered: ${unanswered.join(', ')}\n`;
+    if(partial.length)msg+=`• Partly answered: ${partial.join(', ')}\n`;
+    msg+='\nSubmit anyway?';
+  }
+  if(confirm(msg))doSubmit(false);
+}
+/* Official V-SAT scoring. Max raw = 150.
+   T/F: 0/1/2/3 correct -> that many points; 4 correct -> 6 (max 6).
+   Matching: 1.5 per correct sub-item (max 6). MCQ & Short answer: 6 if correct else 0. */
+const SCORE_VERSION=2;
+const TF_POINTS=[0,1,2,3,6];
+function fmtPts(n){return Number.isInteger(n)?String(n):n.toFixed(1);}
+function ptLabel(pts,type){return type==='match'?pts.toFixed(1):fmtPts(pts);}
+function maxLabel(type){return type==='match'?'6.0':'6';}
+function typeKey(tp){return tp==='mc'?'mcq':tp==='gap'?'short':tp;}
+
+function computeResult(t,auto){
+  const answers=t.answers||{};
+  const detail={};
+  function grade(k,key){const raw=answers[k];const got=(raw===undefined||raw==='')?undefined:raw;const ok=got!==undefined&&norm(got)===norm(key);detail[k]={got,key,ok};}
+  Object.keys(ANS.tf).forEach(k=>grade(k,ANS.tf[k]));
+  Object.keys(ANS.mc).forEach(k=>grade(k,ANS.mc[k]));
+  Object.keys(ANS.match).forEach(k=>grade(k,ANS.match[k]));
+  Object.keys(ANS.gap).forEach(k=>grade(k,ANS.gap[k]));
+  const questions=QMAP.map(q=>{
+    const items=q.items;
+    if(q.type==='match'){ // duplicated letters score 0 for the affected sub-items
+      const counts={};items.forEach(k=>{const g=detail[k].got;if(g)counts[g]=(counts[g]||0)+1;});
+      items.forEach(k=>{const d=detail[k];if(d.got&&counts[d.got]>1){d.dup=true;d.ok=false;}});
+    }
+    const correctCount=items.filter(k=>detail[k].ok).length;
+    const answeredCount=items.filter(k=>detail[k].got!==undefined).length;
+    let points,maxPoints=6;
+    if(q.type==='tf')points=TF_POINTS[correctCount];
+    else if(q.type==='match')points=correctCount*1.5;
+    else points=detail[items[0]].ok?6:0;               // mc & gap
+    const status=answeredCount===0?'unanswered':(points===maxPoints?'correct':'incorrect');
+    return {n:q.n,type:q.type,card:q.card,part:q.part,items,correctCount,itemCount:items.length,answeredCount,points,maxPoints,status};
+  });
+  const raw=questions.reduce((s,q)=>s+q.points,0);
+  const maxRaw=questions.reduce((s,q)=>s+q.maxPoints,0);   // 150
+  const byType={tf:[0,0],mcq:[0,0],match:[0,0],short:[0,0]};
+  const bySection={};(MOCK.parts||[]).forEach(p=>bySection[p.code]=[0,0]);
+  questions.forEach(q=>{const tk=typeKey(q.type);byType[tk][0]+=q.points;byType[tk][1]+=q.maxPoints;if(!bySection[q.part])bySection[q.part]=[0,0];bySection[q.part][0]+=q.points;bySection[q.part][1]+=q.maxPoints;});
+  const items=Object.values(detail);
+  const correctItems=items.filter(d=>d.ok).length;
+  const blankItems=items.filter(d=>d.got===undefined).length;
+  const incorrectItems=items.length-correctItems-blankItems;
+  const pct=Math.round(raw/maxRaw*100);
+  return {ver:SCORE_VERSION,raw,maxRaw,autoSubtotal:raw,finalScore:raw,hasEssay:false,pct,detail,questions,byType,bySection,
+    counts:{correctItems,incorrectItems,blankItems,totalItems:items.length},auto,at:Date.now()};
+}
+/* Re-score any result saved under an older scoring version, from saved answers if possible. */
+function ensureResultCurrent(){
+  let r=store.get('testResult',null);
+  if(r && r.ver!==SCORE_VERSION){
+    const t=tget();
+    if(t.answers && Object.keys(t.answers).length){r=computeResult(t,r.auto);store.set('testResult',r);}
+    else{r.outdated=true;store.set('testResult',r);}
+  }
+  return r;
+}
+function doSubmit(auto){
+  clearInterval(timerInt);
+  const t=tget();t.submitted=true;t.running=false;tset(t);
+  const result=computeResult(t,!!auto);
+  store.set('testResult',result);
+  try{recordAttempt(result);}catch(e){}          // save to the account (no-op for guests)
+  showResults();updateHomeStats();
+}
+
+function showResults(){
+  const r=ensureResultCurrent();if(!r){enterTest();return;}
+  const t=tget();
+  document.getElementById('testbar').style.display='none';
+  const rr=document.getElementById('review-root');if(rr){rr.classList.add('hidden');rr.innerHTML='';}
+  const tl=document.querySelector('.testlayout');tl.style.display='';
+  clearInterval(timerInt);
+  if(r.outdated||!r.questions||!r.bySection){
+    tl.innerHTML=`<div style="grid-column:1/-1"><div class="card pad">
+      <div class="banner" style="background:var(--warn-soft);border-color:var(--warn);color:#92610a">⚠ This saved result was created under an earlier scoring version and the original answers are no longer available to recalculate it. Please retake the test for an accurate V-SAT raw score out of 150.</div>
+      <div class="row"><button class="btn btn-primary" onclick="retryTest()">↻ Start a fresh test</button></div>
+    </div></div>`;
+    window.scrollTo(0,0);return;
+  }
+  const grade=r.pct>=90?'Excellent':r.pct>=75?'Good':r.pct>=55?'Satisfactory':'Needs improvement';
+  const secName={};Object.keys(PARTINFO).forEach(k=>secName[k]=PARTINFO[k].name);Object.keys(r.bySection).forEach(k=>{if(!secName[k])secName[k]=k;});
+  const typeName={tf:'True/False',mcq:'Multiple choice',match:'Matching',short:'Short answer'};
+  const c=r.counts;
+  const weak=[];
+  const ratio=p=>r.bySection[p]&&r.bySection[p][1]?r.bySection[p][0]/r.bySection[p][1]:1;
+  Object.keys(r.bySection).forEach(p=>{if(ratio(p)<0.7)weak.push(`${secName[p]} — review this section (scored ${Math.round(ratio(p)*100)}%). Revisit the related vocabulary and grammar in Practice Mode.`);});
+  if(!weak.length)weak.push("Great work — no weak area stands out. Keep revising the flashcards you rated 'Still learning'.");
+  const notes=Object.entries(t.notes||{}).filter(([,v])=>v&&v.trim());
+  const hlCount=Object.keys(t.highlights||{}).length;
+  const secBox=p=>{const s=r.bySection[p],pc=Math.round(s[0]/s[1]*100);return `<div class="sbox"><h4>${secName[p]}</h4><div class="big">${fmtPts(s[0])} / ${s[1]}</div><div class="pbar"><span style="width:${pc}%;background:${pc>=70?'var(--good)':pc>=50?'var(--warn)':'var(--bad)'}"></span></div><div class="sub" style="margin:4px 0 0">${pc}%</div></div>`;};
+  const typeBox=k=>{const s=r.byType[k],pc=Math.round(s[0]/s[1]*100);return `<div class="sbox"><h4>${typeName[k]}</h4><div class="big">${fmtPts(s[0])} / ${s[1]}</div><div class="sub" style="margin:4px 0 0">${pc}%</div></div>`;};
+
+  tl.innerHTML=`<div style="grid-column:1/-1">
+    <div class="card">
+      ${r.outdated?`<div class="banner" style="background:var(--warn-soft);border-color:var(--warn);color:#92610a;border-radius:var(--border-radius-lg) var(--border-radius-lg) 0 0">⚠ This score was recalculated (or was saved under an earlier scoring version). Retake the test for a fully verified V-SAT score.</div>`:''}
+      <div class="result-hero">
+        ${gaugeSVG(r.pct)}
+        <div class="result-score">${fmtPts(r.raw)} / ${r.maxRaw}</div>
+        <div class="result-pct"><b>Raw score (Điểm thô)</b> · ${r.pct}% · ${grade}${r.auto?' · (auto-submitted, time up)':''}</div>
+      </div>
+      <div class="pad" style="padding-top:0">
+        <div class="sectiongrid" style="grid-template-columns:1fr 1fr 1fr">
+          <div class="sbox"><h4>Automatically scored</h4><div class="big">${fmtPts(r.autoSubtotal)} / ${r.maxRaw}</div><div class="sub" style="margin:0">objective items</div></div>
+          <div class="sbox"><h4>Final score</h4><div class="big">${fmtPts(r.finalScore)} / ${r.maxRaw}</div><div class="sub" style="margin:0">${r.hasEssay?'incl. essay':'no essay in this test'}</div></div>
+          <div class="sbox"><h4>Ability score (Điểm năng lực)</h4><div class="big" style="font-size:15px;color:var(--color-text-secondary)">Not available</div><div class="sub" style="margin:0">no official conversion table in this file</div></div>
+        </div>
+        <h3 style="margin:22px 0 10px;font-size:16px">Item overview</h3>
+        <div class="sectiongrid">
+          <div class="sbox"><h4>Correct items</h4><div class="big" style="color:var(--good)">${c.correctItems}</div><div class="sub" style="margin:0">of ${c.totalItems}</div></div>
+          <div class="sbox"><h4>Incorrect items</h4><div class="big" style="color:var(--bad)">${c.incorrectItems}</div></div>
+          <div class="sbox"><h4>Unanswered items</h4><div class="big" style="color:var(--warn)">${c.blankItems}</div></div>
+          <div class="sbox"><h4>Questions</h4><div class="big">${r.questions.filter(q=>q.status==='correct').length}/${r.questions.length}</div><div class="sub" style="margin:0">fully correct</div></div>
+        </div>
+        <h3 style="margin:22px 0 10px;font-size:16px">Score by section</h3>
+        <div class="sectiongrid">${Object.keys(r.bySection).map(secBox).join('')}</div>
+        <h3 style="margin:22px 0 10px;font-size:16px">Score by question type</h3>
+        <div class="sectiongrid">${['tf','mcq','match','short'].filter(k=>r.byType[k][1]>0).map(typeBox).join('')}</div>
+        <h3 style="margin:22px 0 10px;font-size:16px">📌 Vocabulary &amp; grammar to review</h3>
+        <ul class="weaklist">${weak.map(w=>`<li>${esc(w)}</li>`).join('')}</ul>
+        <div class="row" style="margin:18px 0">
+          <button class="btn btn-primary" onclick="openReview()">🔍 Open complete test review</button>
+          <button class="btn btn-teal" onclick="setMode('practice');gotoStep(6)">Practise weak areas first</button>
+          <button class="btn btn-ghost" onclick="retryTest()">↻ Retry the whole test</button>
+          <button class="btn btn-ghost" onclick="toggleReviewDetail()">Quick answer overview ▾</button>
+        </div>
+        <div id="reviewDetail" class="hidden">
+          <h3 style="margin:10px 0;font-size:16px">Quick answer overview</h3>
+          <p class="sub">A compact summary. For the full test with original texts, use <b>Open complete test review</b> above.</p>
+          ${reviewByQuestion(r)}
+          ${notes.length?`<h3 style="margin:22px 0 10px;font-size:16px">🗒 Your question notes</h3>${notes.map(([id,v])=>`<div class="review-item"><b>${qLabel(id)}:</b> ${esc(v)}</div>`).join('')}`:''}
+          <p class="sub" style="margin-top:16px">You made ${hlCount>0?`highlights in ${hlCount} passage(s)`:'no highlights'}. All highlights and notes are shown inside the complete review.</p>
+        </div>
+      </div>
+    </div></div>`;
+  window.scrollTo(0,0);
+}
+function qLabel(id){const q=QMAP.find(x=>x.items.includes(id));return q?('Question '+q.card.replace('card','').replace('21','21–25')):id;}
+function toggleReviewDetail(){document.getElementById('reviewDetail').classList.toggle('hidden');}
+function reviewByQuestion(r){
+  return r.questions.map(q=>{
+    const rows=q.items.map(k=>{const d=r.detail[k];const cls=d.got===undefined?'blank':d.ok?'ok':'no';const lbl=d.got===undefined?'—':d.ok?'✓':'✗';
+      const label=q.type==='tf'?k.split('-')[1]+'. ':(q.type==='gap'?'('+k.replace('g','')+') ':'');
+      return `<div style="margin:3px 0"><span class="badge ${cls}">${lbl}</span>${label}Your: <b>${d.got===undefined?'—':esc(d.got)}</b> · Correct: <b style="color:var(--good)">${esc(d.key)}</b></div>`;}).join('');
+    const pill=q.status==='correct'?'ok':q.status==='unanswered'?'blank':'no';
+    return `<div class="review-item"><div><b>Question ${q.n}</b> <span class="badge ${pill}">${ptLabel(q.points,q.type)} / ${maxLabel(q.type)} pts · ${q.type==='tf'||q.type==='match'?q.correctCount+'/'+q.itemCount+' sub-items':q.status}</span></div>${rows}<div class="expl">💡 ${esc(EXPL[q.n]||'')}</div></div>`;
+  }).join('');
+}
+function gaugeSVG(pct){
+  const R=52,C=2*Math.PI*R,off=C*(1-pct/100);
+  const col=pct>=75?'var(--good)':pct>=55?'var(--warn)':'var(--bad)';
+  return `<svg class="gauge" viewBox="0 0 120 120"><circle cx="60" cy="60" r="${R}" fill="none" stroke="var(--color-border-tertiary)" stroke-width="12"/>
+    <circle cx="60" cy="60" r="${R}" fill="none" stroke="${col}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${off}" transform="rotate(-90 60 60)"/>
+    <text x="60" y="66" text-anchor="middle" font-size="24" font-weight="800" fill="var(--color-text-primary)">${pct}%</text></svg>`;
+}
+function retryTest(){if(confirm('Retry the whole test? Your answers, timer, flags, notes and highlights will be cleared.')){store.del('testState');store.del('testResult');document.querySelector('.testlayout').innerHTML=`<div id="test-main"></div><aside><div class="navigator"><h4>Question navigator</h4><div class="navgrid" id="navgrid"></div><div class="navlegend"><div><span class="dot" style="background:var(--good)"></span>Answered</div><div><span class="dot" style="background:var(--warn)"></span>Partly answered</div><div><span class="dot" style="background:#fff;border:1px solid var(--color-border-secondary)"></span>Not answered</div><div><span class="dot" style="background:var(--flag);border-radius:50%"></span>Flagged</div></div></div></aside>`;enterTest();}}
+
+/* ================================================================
+   COMPLETE TEST REVIEW MODE (read-only full replay)
+   ================================================================ */
+const RV_TYPENAME={tf:'True/False',mc:'Multiple choice',match:'Matching',gap:'Short answer'};
+function openReview(){
+  const r=ensureResultCurrent()||store.get('testResult',null);
+  if(!r){enterTest();return;}
+  if(!r.questions){toast('Please retake the test to review it under the current scoring.');return;}
+  const t=tget();
+  document.getElementById('testbar').style.display='none';
+  const tl=document.querySelector('.testlayout');if(tl)tl.style.display='none';
+  const root=document.getElementById('review-root');
+  root.classList.remove('hidden');
+  root.innerHTML=`
+    <div class="review-topbar"><div class="review-topbar-in">
+      <button class="icon-btn btn-sm" onclick="closeReview()">← Back to summary</button>
+      <div class="review-filters">
+        <button data-f="all" class="active" onclick="setReviewFilter('all')">All</button>
+        <button data-f="correct" onclick="setReviewFilter('correct')">Correct</button>
+        <button data-f="incorrect" onclick="setReviewFilter('incorrect')">Incorrect</button>
+        <button data-f="unanswered" onclick="setReviewFilter('unanswered')">Unanswered</button>
+        <button data-f="flagged" onclick="setReviewFilter('flagged')">Flagged</button>
+      </div>
+      <span class="ro-badge">🔒 Read-only · answers &amp; score locked</span>
+    </div></div>
+    <div class="review-grid">
+      <main class="review-main" id="review-main"></main>
+      <aside>
+        <div class="navigator"><h4>Review navigator</h4><div class="navgrid" id="rvnav"></div>
+          <div class="navlegend">
+            <div><span class="dot" style="background:var(--good)"></span>Correct</div>
+            <div><span class="dot" style="background:var(--bad)"></span>Incorrect</div>
+            <div><span class="dot" style="background:#fff;border:1px solid var(--color-border-secondary)"></span>Not answered</div>
+            <div><span class="dot" style="background:var(--flag);border-radius:50%"></span>Flagged</div>
+          </div>
+        </div>
+        <div class="progress-box review-gennotes"><h4>General notes</h4>
+          <textarea oninput="saveGeneralNotes(this.value)" placeholder="Your general notepad — editable during review…">${esc(store.get('notepad',''))}</textarea>
+        </div>
+      </aside>
+    </div>`;
+  const main=document.getElementById('review-main');
+  main.innerHTML=buildExamHTML();
+  const banner=main.querySelector('.banner');if(banner)banner.remove();
+  main.querySelectorAll('.hlable').forEach((el,i)=>el.dataset.hl='h'+i);
+  applyReviewAnswers(main,t.answers||{});
+  Object.entries(t.highlights||{}).forEach(([hid,html])=>{const el=main.querySelector(`[data-hl="${hid}"]`);if(el)el.innerHTML=html;});
+  main.querySelectorAll('.tfc,input[type=radio],.minput,.gi').forEach(x=>{x.disabled=true;});
+  annotateReview(main,r);
+  wrapPart2Split(main);
+  applyReviewFlagsNotes(main,t);
+  buildReviewNav(r,t);
+  setReviewFilter('all');
+  window.scrollTo(0,0);
+}
+function closeReview(){
+  const root=document.getElementById('review-root');root.classList.add('hidden');root.innerHTML='';
+  const tl=document.querySelector('.testlayout');if(tl)tl.style.display='';
+  window.scrollTo(0,0);
+}
+function saveGeneralNotes(v){store.set('notepad',v);if(typeof npText!=='undefined'&&npText)npText.value=v;}
+function applyReviewAnswers(main,answers){
+  Object.entries(answers).forEach(([k,v])=>{
+    if(/^q\d+-\d+$/.test(k)&&ANS.tf[k]!==undefined){const cb=main.querySelector(`.tfc[data-q="${k}"][data-v="${v}"]`);if(cb)cb.checked=true;}
+    else if(ANS.mc[k]!==undefined){const rd=main.querySelector(`input[name="${k}"][value="${v}"]`);if(rd)rd.checked=true;}
+    else if(ANS.match[k]!==undefined){const s=main.querySelector(`.minput[data-q="${k}"]`);if(s)s.value=v;}
+    else if(ANS.gap[k]!==undefined){const i=main.querySelector('#'+k);if(i)i.value=v;}
+  });
+}
+function annotateReview(main,r){
+  r.questions.forEach(q=>{
+    const card=document.getElementById(q.card);if(!card)return;
+    if(q.type==='tf'){
+      const rows=card.querySelectorAll('tr[data-ans]');
+      q.items.forEach((k,i)=>{const row=rows[i];if(!row)return;const tds=row.children;const cor=ANS.tf[k];const got=r.detail[k].got;
+        (cor==='T'?tds[1]:tds[2]).classList.add('rv-correct');
+        if(got&&got!==cor)(got==='T'?tds[1]:tds[2]).classList.add('rv-wrong');});
+    } else if(q.type==='mc'){
+      const cor=ANS.mc[q.items[0]],got=r.detail[q.items[0]].got;
+      card.querySelectorAll('.mcop').forEach(l=>{const v=l.querySelector('input').value;if(v===cor)l.classList.add('rv-correct');if(got&&v===got&&got!==cor)l.classList.add('rv-wrong');});
+    } else if(q.type==='match'){
+      const boxes=card.querySelectorAll('.minput');
+      q.items.forEach((k,i)=>{const b=boxes[i];if(!b)return;const d=r.detail[k];if(d.got===undefined)return;b.classList.add(d.ok?'rvok':'rvno');});
+    } else if(q.type==='gap'){
+      q.items.forEach(k=>{const i=document.getElementById(k);if(!i)return;const d=r.detail[k];i.style.outline='2px solid '+(d.ok?'var(--good)':'var(--bad)');i.style.borderRadius='4px';});
+    }
+    const panel=document.createElement('div');panel.className='rv-panel';panel.innerHTML=panelHTML(q,r);
+    const noteArea=card.querySelector('.note-area');
+    if(noteArea)card.insertBefore(panel,noteArea);else card.appendChild(panel);
+  });
+}
+function ansCell(d){const yr=d.got===undefined?'Not answered':esc(d.got);const cls=d.got===undefined?'':(d.ok?'rv-cor':'rv-inc');const mk=d.got===undefined?'<span style="color:var(--warn)">•</span>':(d.ok?'✓':'✗');return {yr,cls,mk};}
+function panelHTML(q,r){
+  let sub='';
+  if(q.type==='match'){
+    const vi=`<div style="font-weight:600;color:var(--accent-2);margin-bottom:6px">Ghép hợp: ${q.correctCount}/4 tiểu mục đúng → ${q.points.toFixed(1).replace('.',',')}/6 điểm</div>`;
+    sub=vi+q.items.map((k,i)=>{const d=r.detail[k];const a=ansCell(d);const dup=d.dup?' <span class="rv-inc">(trùng lặp — 0 điểm)</span>':'';return `<span class="si">${i+1}. Your answer: <b class="${a.cls}">${a.yr}</b> ${a.mk}${dup} &nbsp;·&nbsp; Correct: <b class="rv-cor">${esc(d.key)}</b></span>`;}).join('');
+  } else if(q.type==='tf'){
+    sub=q.items.map((k,i)=>{const d=r.detail[k];const a=ansCell(d);return `<span class="si">${i+1}. Your answer: <b class="${a.cls}">${a.yr}</b> ${a.mk} &nbsp;·&nbsp; Correct: <b class="rv-cor">${esc(d.key)}</b></span>`;}).join('');
+  } else if(q.type==='mc'){
+    const d=r.detail[q.items[0]],a=ansCell(d);sub=`<span class="si">Your answer: <b class="${a.cls}">${a.yr}</b> ${a.mk} &nbsp;·&nbsp; Correct: <b class="rv-cor">${esc(d.key)}</b></span>`;
+  } else {
+    const k=q.items[0],d=r.detail[k],a=ansCell(d);sub=`<span class="si">(${k.replace('g','')}) Your answer: <b class="${a.cls}">${a.yr}</b> ${a.mk} &nbsp;·&nbsp; Correct: <b class="rv-cor">${esc(d.key)}</b></span>`;
+  }
+  const statusLabel=q.status==='correct'?'Correct':q.status==='unanswered'?'Not answered':'Incorrect';
+  const subCount=(q.type==='tf'||q.type==='match')?` · ${q.correctCount}/${q.itemCount} sub-items`:'';
+  return `<div class="rv-head">
+      <span class="status-pill ${q.status}">${statusLabel}</span>
+      <span style="color:var(--color-text-secondary)">Q${q.n} · ${RV_TYPENAME[q.type]}${subCount}</span>
+      <span class="rv-pts">${ptLabel(q.points,q.type)} / ${maxLabel(q.type)} pts</span>
+    </div>
+    <div class="rv-sub">${sub}</div>
+    <button class="rv-exbtn" onclick="toggleExpl(${q.n})">▲ Hide explanation</button>
+    <div class="rv-expl" id="expl-${q.n}">💡 ${esc(EXPL[q.n]||'')}</div>`;
+}
+function toggleExpl(n){const ex=document.getElementById('expl-'+n);if(!ex)return;const col=ex.classList.toggle('collapsed');const btn=ex.previousElementSibling;if(btn&&btn.classList.contains('rv-exbtn'))btn.textContent=col?'▼ Show explanation':'▲ Hide explanation';}
+/* Generic: every passage groups with the question cards that follow it (until the
+   next passage or part title) into a split-screen block. Works for any exam. */
+function wrapPart2Split(main){
+  const passages=[...main.querySelectorAll('.pb')].map(pb=>pb.closest('.qb')).filter(Boolean);
+  passages.forEach(passageQb=>{
+    const split=document.createElement('div');split.className='rsplit';
+    const textWrap=document.createElement('div');textWrap.className='rsplit-text';
+    const qWrap=document.createElement('div');qWrap.className='rsplit-q';
+    passageQb.parentNode.insertBefore(split,passageQb);
+    textWrap.appendChild(passageQb);
+    let node=split.nextSibling;
+    while(node){
+      const next=node.nextSibling;
+      if(node.nodeType===1){
+        if(node.classList.contains('pt')||(node.querySelector&&node.querySelector('.pb')))break;
+        if(node.classList.contains('qcard')){qWrap.appendChild(node);node=next;continue;}
+      }
+      break;
+    }
+    split.appendChild(textWrap);split.appendChild(qWrap);
+  });
+}
+function applyReviewFlagsNotes(main,t){
+  main.querySelectorAll('.qcard').forEach(c=>{
+    const id=c.id;
+    const fb=c.querySelector('[data-flag]');
+    if(fb){fb.style.pointerEvents='none';if(t.flags&&t.flags[id])fb.classList.add('flagged');}
+    const note=(t.notes||{})[id];const ta=c.querySelector('[data-note]');const area=c.querySelector('.note-area');
+    if(ta){ta.value=note||'';if(note&&note.trim()){if(area)area.classList.add('show');const nb=c.querySelector('[data-noteb]');if(nb)nb.classList.add('noteon');}}
+  });
+}
+function buildReviewNav(r,t){
+  const cls={correct:'nvc',incorrect:'nvi',unanswered:''};
+  document.getElementById('rvnav').innerHTML=r.questions.map(q=>`<button class="navbtn ${cls[q.status]} ${t.flags&&t.flags[q.card]?'flagged':''}" onclick="reviewGoTo('${q.card}')" title="Q${q.n}: ${q.status}">${q.n}</button>`).join('');
+}
+function reviewGoTo(card){const el=document.getElementById(card);if(el){el.scrollIntoView({behavior:'smooth',block:'start'});el.style.transition='box-shadow .4s';el.style.boxShadow='0 0 0 3px var(--accent)';setTimeout(()=>el.style.boxShadow='',900);}}
+function setReviewFilter(f){
+  const r=store.get('testResult',null);if(!r||!r.questions)return;const t=tget();
+  document.querySelectorAll('#review-root .review-filters button').forEach(b=>b.classList.toggle('active',b.dataset.f===f));
+  const cardStatus={};r.questions.forEach(q=>{(cardStatus[q.card]=cardStatus[q.card]||[]).push(q.status);});
+  document.querySelectorAll('#review-root .qcard').forEach(c=>{
+    const sts=cardStatus[c.id]||[];const flagged=!!(t.flags&&t.flags[c.id]);
+    let show=f==='all'?true:(f==='flagged'?flagged:sts.includes(f));
+    c.classList.toggle('filtered-out',!show);
+  });
+  document.querySelectorAll('#review-root .rsplit').forEach(sp=>{const any=[...sp.querySelectorAll('.qcard')].some(c=>!c.classList.contains('filtered-out'));sp.classList.toggle('filtered-out',!any);});
+}
+
+/* ================================================================
+   INIT
+   ================================================================ */
+applyExam(getActiveExam());          // fallback content so nothing is ever blank
+setMode(currentMode==='home'?'home':currentMode);
+
+/* ==========================================================================
+   PLATFORM LAYER (Phase 50)
+   Wraps the exam engine without changing how it works. It supplies:
+     • who the learner is (or that they are a guest)
+     • the exam library, from the database instead of this device
+     • free / premium gating, using the shared premium.js popup
+     • progress + results saved to the account
+   The engine's own logic — rendering, timer, scoring, review — is untouched.
+   ========================================================================== */
+const DB = (typeof sb !== "undefined" && sb) ? sb : (window.sb || null);
+let VUSER = null, VGUEST = true, VSTAFF = false, VPREMIUM = false;
+let VEXAMS = [];                       // list rows (no exam content)
+let VENTITLED = new Set();             // exam ids this learner may open
+
+/* the engine calls store.set on every keystroke; push to the cloud on a
+   trailing debounce so a 60-minute exam is a handful of writes, not thousands */
+schedulePush = function () {
+  if (VGUEST || !DB) return;
+  clearTimeout(pushT);
+  pushT = setTimeout(pushProgress, 3000);
+};
+async function pushProgress() {
+  if (VGUEST || !DB) return;
+  const id = rawStore.get("activeExam", "");
+  if (!id) return;
+  try {
+    await DB.from("vsat_progress").upsert({
+      student_id: VUSER.id, exam_id: id,
+      practice: { progress: rawStore.get("progress", {}), curStep: rawStore.get("curStep", 0) },
+      test_state: { testState: rawStore.get("testState", null), testResult: rawStore.get("testResult", null) },
+      updated_at: new Date().toISOString()
+    }, { onConflict: "student_id,exam_id" });
+  } catch (e) { /* offline: the local copy is still correct */ }
+}
+async function pullProgress(examId) {
+  if (VGUEST || !DB) return;
+  try {
+    const { data } = await DB.from("vsat_progress").select("practice,test_state")
+      .eq("student_id", VUSER.id).eq("exam_id", examId).maybeSingle();
+    if (!data) return;
+    const p = data.practice || {}, t = data.test_state || {};
+    if (p.progress) rawStore.set("progress", p.progress);
+    if (p.curStep != null) rawStore.set("curStep", p.curStep);
+    if (t.testState) rawStore.set("testState", t.testState);
+    if (t.testResult) rawStore.set("testResult", t.testResult);
+  } catch (e) {}
+}
+
+/* ---- the exam library now lives in the database ---- */
+async function loadExamList() {
+  if (!DB) return [];
+  try {
+    const { data, error } = await DB.rpc("public_vsat_list");
+    if (error) throw error;
+    VEXAMS = Array.isArray(data) ? data : [];
+  } catch (e) { VEXAMS = []; }
+  return VEXAMS;
+}
+/* RLS decides what may be opened: a row comes back only if the learner is
+   entitled to it, so "can I open this?" is answered by the database. */
+async function fetchExam(examId) {
+  if (!DB) return null;
+  try {
+    const { data, error } = await DB.from("vsat_exams").select("data").eq("exam_id", examId).maybeSingle();
+    if (error || !data) return null;
+    return data.data || null;
+  } catch (e) { return null; }
+}
+function examMeta(id) { return VEXAMS.find(e => e.exam_id === id) || null; }
+function canOpen(m) { return m && (!m.premium || VSTAFF || VPREMIUM || VENTITLED.has(m.exam_id)); }
+
+/* ---- the exam picker on the home screen ---- */
+function renderExamPick() {
+  const box = document.getElementById("examPick");
+  if (!box) return;
+  if (!VEXAMS.length) {
+    box.innerHTML = '<div class="exempty">Chưa có đề thi nào được đăng. ' +
+      (VSTAFF ? 'Vào <b>Bảng điều khiển → V-SAT</b> để tải đề lên.' : 'Vui lòng quay lại sau.') + '</div>';
+    return;
+  }
+  const active = rawStore.get("activeExam", "");
+  box.innerHTML = '<h3>Chọn đề thi</h3><div class="exgrid">' + VEXAMS.map(m => {
+    const open = canOpen(m);
+    return '<div class="excard' + (m.exam_id === active ? " on" : "") + (open ? "" : " locked") +
+      '" data-exam="' + esc(m.exam_id) + '">' +
+      '<span class="extag ' + (m.premium ? "prem" : "free") + '">' +
+        (m.premium ? "👑 Premium" : "Miễn phí") + '</span>' +
+      '<h4>' + esc(m.title) + '</h4>' +
+      (m.subtitle ? '<p class="sub">' + esc(m.subtitle) + '</p>' : "") +
+      '<div class="meta">' +
+        (m.questions ? '<span>📝 ' + m.questions + " câu</span>" : "") +
+        (m.duration_min ? '<span>⏱ ' + m.duration_min + " phút</span>" : "") +
+        (m.max_raw ? '<span>🎯 ' + m.max_raw + " điểm</span>" : "") +
+      '</div></div>';
+  }).join("") + "</div>";
+}
+
+async function chooseExam(examId) {
+  const m = examMeta(examId);
+  if (!m) return;
+  if (!canOpen(m)) {
+    /* the same upgrade popup the rest of the site uses */
+    if (window.Premium) Premium.open({ section: "vsat", reason: "Đề thi này thuộc khoá luyện thi V-SAT." });
+    else toast("Đề này cần khoá luyện thi V-SAT.");
+    return;
+  }
+  toast("Đang mở đề…");
+  const exam = await fetchExam(examId);
+  if (!exam) { toast("Không mở được đề — kiểm tra kết nối"); return; }
+  const prev = rawStore.get("activeExam", "");
+  rawStore.set("activeExam", examId);
+  if (prev !== examId) {                 // a different exam scores independently
+    rawStore.del("testState"); rawStore.del("testResult");
+    rawStore.del("progress"); rawStore.del("curStep"); curStep = 0;
+    await pullProgress(examId);          // …unless this learner already started it
+  }
+  applyExam(exam);
+  renderExamPick(); updateHomeStats(); renderExamBar();
+  if (currentMode === "practice") renderPractice();
+  if (currentMode === "test") enterTest();
+  toast("Đã mở: " + (exam.meta && exam.meta.title || examId));
+}
+document.addEventListener("click", e => {
+  const c = e.target.closest && e.target.closest(".excard");
+  if (c) chooseExam(c.dataset.exam);
+});
+
+/* ---- results go to the account, reusing the platform's attempt history ---- */
+async function recordAttempt(result) {
+  if (VGUEST || !DB) return;
+  const id = rawStore.get("activeExam", "");
+  if (!id || !result) return;
+  const t = rawStore.get("testState", {}) || {};
+  const spent = Math.max(0, (META.durationMinutes || 60) * 60 - (t.timeLeft || 0));
+  try {
+    await DB.rpc("record_vsat_attempt", {
+      p_exam_id: id,
+      p_raw: result.raw, p_max_raw: result.maxRaw,
+      p_correct: result.counts.correctItems, p_incorrect: result.counts.incorrectItems,
+      p_blank: result.counts.blankItems, p_total: result.counts.totalItems,
+      p_answers: t.answers || {},
+      p_detail: (result.questions || []).map(q => ({ n: q.n, type: q.type, part: q.part,
+        points: q.points, max: q.maxPoints, status: q.status })),
+      p_meta: { pct: result.pct, byType: result.byType, bySection: result.bySection,
+                auto: !!result.auto, title: META.title || "" },
+      p_seconds: spent
+    });
+  } catch (e) { /* the result is still shown locally */ }
+}
+
+/* ---- boot: identify the learner, then hand over to the engine ---- */
+async function vsatBoot() {
+  const who = document.getElementById("leWho"),
+        auth = document.getElementById("leAuth"),
+        back = document.getElementById("leBack");
+  let session = null;
+  try { session = DB ? (await DB.auth.getSession()).data.session : null; } catch (e) {}
+
+  if (session) {
+    VGUEST = false; VUSER = session.user; VNS = VUSER.id.slice(0, 8);
+    try {
+      const { data: p } = await DB.from("profiles").select("full_name,role,is_premium").eq("id", VUSER.id).maybeSingle();
+      if (p) {
+        VSTAFF = ["owner", "admin", "teacher"].includes(p.role);
+        VPREMIUM = !!p.is_premium;
+        who.textContent = p.full_name || VUSER.email || "";
+      }
+    } catch (e) {}
+    /* which VSAT courses is this learner enrolled in? */
+    try {
+      const { data: en } = await DB.from("enrollments").select("course_id").eq("student_id", VUSER.id);
+      const mine = new Set((en || []).map(x => x.course_id));
+      VEXAMS.forEach(m => { if (m.course_id && mine.has(m.course_id)) VENTITLED.add(m.exam_id); });
+    } catch (e) {}
+    if (auth) auth.hidden = true;
+  } else {
+    VGUEST = true; VNS = "anon";
+    who.textContent = "Khách";
+    if (auth) auth.hidden = false;
+    if (back) { back.textContent = "← Xem khóa học"; back.href = "course.html"; }
+  }
+
+  await loadExamList();
+  /* re-check entitlements now that the list is in */
+  if (!VGUEST) {
+    try {
+      const { data: en } = await DB.from("enrollments").select("course_id").eq("student_id", VUSER.id);
+      const mine = new Set((en || []).map(x => x.course_id));
+      VEXAMS.forEach(m => { if (m.course_id && mine.has(m.course_id)) VENTITLED.add(m.exam_id); });
+    } catch (e) {}
+  }
+
+  const want = new URLSearchParams(location.search).get("exam") || rawStore.get("activeExam", "");
+  const pick = examMeta(want) && canOpen(examMeta(want)) ? want
+             : (VEXAMS.find(m => canOpen(m)) || {}).exam_id;
+  renderExamPick();
+  if (pick) {
+    if (!VGUEST) await pullProgress(pick);
+    const exam = await fetchExam(pick);
+    if (exam) { rawStore.set("activeExam", pick); applyExam(exam); }
+  }
+  updateHomeStats(); renderExamBar(); renderExamPick();
+  if (currentMode === "practice") renderPractice();
+  if (currentMode === "test") enterTest();
+}
+
+
+/* the platform layer is fully declared by this point — now take over */
+vsatBoot();
+</script>
+</body>
+</html>
