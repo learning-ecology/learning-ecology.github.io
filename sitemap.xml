@@ -21,6 +21,12 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://learningecology.io.vn/vsat.html</loc>
+    <lastmod>2026-08-08</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://learningecology.io.vn/shadow.html</loc>
     <lastmod>2026-08-04</lastmod>
     <changefreq>monthly</changefreq>

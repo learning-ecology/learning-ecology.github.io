@@ -9,7 +9,7 @@
 //  - Requests to other origins (Supabase, CDNs) are not touched.
 // ------------------------------------------------------------
 
-const CACHE = "learning-ecology-v7";
+const CACHE = "learning-ecology-v8";
 
 // Phase 43: how long a navigation waits for the network before the last good
 // copy is shown instead. On a healthy connection the network always wins, so
@@ -36,6 +36,7 @@ const CORE = [
   "./shadow.html",
   "./writing.html",
   "./dictation.html",
+  "./vsat.html",
   "./cert.html",
   "./styles.css",
   "./ui.js",

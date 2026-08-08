@@ -410,6 +410,19 @@ body.hide-annos .note-area{display:none!important}
 #leTop .le-a.le-p{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
 @media (max-width:640px){ #leTop .le-page,#leTop .le-who{display:none} }
 
+#examHist{max-width:1000px;margin:18px auto 0;padding:0 16px}
+#examHist h3{font-size:15px;margin:0 0 10px;color:var(--color-text-secondary);font-weight:700;
+  text-transform:uppercase;letter-spacing:.05em}
+.htable{width:100%;border-collapse:collapse;font-size:13.5px;background:var(--color-background-primary);
+  border:1px solid var(--color-border-secondary);border-radius:var(--border-radius-lg);overflow:hidden}
+.htable th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--color-text-secondary);padding:9px 12px;background:var(--color-background-tertiary)}
+.htable td{padding:9px 12px;border-top:1px solid var(--color-border-tertiary)}
+.htable .sc{font-weight:800;color:var(--accent)}
+.hpct{display:inline-block;min-width:44px;text-align:center;padding:1px 7px;border-radius:999px;
+  font-size:11.5px;font-weight:800}
+.hpct.good{background:#e2f4e9;color:#146c3d}.hpct.mid{background:#fdeadc;color:#9c4700}
+.hpct.low{background:#fde3e3;color:#a32020}
 #examPick{max-width:1000px;margin:14px auto 0;padding:0 16px}
 #examPick h3{font-size:15px;margin:0 0 10px;color:var(--color-text-secondary);font-weight:700;
   text-transform:uppercase;letter-spacing:.05em}
@@ -476,6 +489,7 @@ body.hide-annos .note-area{display:none!important}
   </div>
   <div id="examBar" class="row" style="justify-content:center;margin:6px 0 2px;gap:10px;flex-wrap:wrap"></div>
   <div id="examPick"></div>
+  <div id="examHist"></div>
   <div class="home-grid">
     <div class="home-tile practice" onclick="setMode('practice')">
       <div class="ico">📚</div>
@@ -2018,6 +2032,46 @@ document.addEventListener("click", e => {
   if (c) chooseExam(c.dataset.exam);
 });
 
+/* ---- past attempts, read back from the platform's attempt history ---- */
+function fmtWhen(iso){
+  try{ return new Date(iso).toLocaleString('vi-VN',{dateStyle:'short',timeStyle:'short'}); }
+  catch(e){ return ''; }
+}
+function fmtMMSS(sec){
+  if(!sec && sec !== 0) return '—';
+  const m = Math.floor(sec/60), x = sec%60;
+  return m + "'" + String(x).padStart(2,'0') + '"';
+}
+async function renderHistory(){
+  const box = document.getElementById('examHist');
+  if(!box) return;
+  if(VGUEST || !DB){
+    box.innerHTML = '<h3>Lịch sử làm bài</h3><div class="exempty">' +
+      'Đăng nhập để lưu điểm và xem lại tiến bộ qua từng lần thi. ' +
+      '<a href="login.html" style="color:var(--accent);font-weight:700">Đăng nhập</a></div>';
+    return;
+  }
+  let rows = [];
+  try{
+    const { data } = await DB.rpc('my_vsat_attempts', { p_exam_id: null });
+    rows = Array.isArray(data) ? data : [];
+  }catch(e){ rows = []; }
+  if(!rows.length){ box.innerHTML = ''; return; }
+  const pctCls = p => p >= 70 ? 'good' : p >= 40 ? 'mid' : 'low';
+  box.innerHTML = '<h3>Lịch sử làm bài</h3><table class="htable">' +
+    '<tr><th>Đề thi</th><th>Lần</th><th>Điểm</th><th>%</th><th>Đúng</th><th>Thời gian</th><th>Ngày</th></tr>' +
+    rows.slice(0,20).map(a=>{
+      const pct = (a.meta && a.meta.pct != null) ? Math.round(a.meta.pct) : null;
+      return '<tr><td>'+esc(a.test_name||a.exam_id||'')+'</td>'+
+        '<td>#'+(a.attempt_no||1)+'</td>'+
+        '<td class="sc">'+esc(String(a.raw ?? '—'))+' / '+esc(String(a.max_raw ?? ''))+'</td>'+
+        '<td>'+(pct!=null?'<span class="hpct '+pctCls(pct)+'">'+pct+'%</span>':'—')+'</td>'+
+        '<td>'+(a.correct??0)+'</td>'+
+        '<td>'+fmtMMSS(a.seconds)+'</td>'+
+        '<td>'+esc(fmtWhen(a.at))+'</td></tr>';
+    }).join('') + '</table>';
+}
+
 /* ---- results go to the account, reusing the platform's attempt history ---- */
 async function recordAttempt(result) {
   if (VGUEST || !DB) return;
@@ -2039,6 +2093,7 @@ async function recordAttempt(result) {
       p_seconds: spent
     });
   } catch (e) { /* the result is still shown locally */ }
+  renderHistory();
 }
 
 /* ---- boot: identify the learner, then hand over to the engine ---- */
@@ -2093,6 +2148,7 @@ async function vsatBoot() {
     if (exam) { rawStore.set("activeExam", pick); applyExam(exam); }
   }
   updateHomeStats(); renderExamBar(); renderExamPick();
+  renderHistory();
   if (currentMode === "practice") renderPractice();
   if (currentMode === "test") enterTest();
 }
