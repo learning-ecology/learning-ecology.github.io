@@ -97,6 +97,122 @@
       return rows;
     }
 
+    /* ===== V-SAT Excel parser — lifted unchanged from vsat_admin.html =====
+       It only needs the XLSX global, which loadXLSX() below already provides,
+       so the same spreadsheet the offline admin accepts works here too. */
+/* ===== VSAT Excel → exam JSON parser (shared by admin + tests) ===== */
+(function(root){
+function aoa(ws){return XLSX.utils.sheet_to_json(ws,{header:1,blankrows:false,defval:''});}
+function objRows(ws,headers){
+  if(!ws)return [];
+  const rows=aoa(ws); const h0=headers[0];
+  let hi=rows.findIndex(r=>r.map(x=>String(x).trim()).includes(h0));
+  if(hi<0)return [];
+  const head=rows[hi].map(x=>String(x).trim());
+  const idx={}; headers.forEach(h=>idx[h]=head.indexOf(h));
+  const out=[];
+  for(let i=hi+1;i<rows.length;i++){const r=rows[i]; if(r.every(c=>String(c).trim()===''))continue;
+    const o={}; headers.forEach(h=>{o[h]=idx[h]>=0?r[idx[h]]:'';}); out.push(o);}
+  return out;
+}
+const S=v=>v==null?'':String(v).trim();
+const NUM=v=>{const n=Number(v);return isNaN(n)?v:n;};
+function parseKV(str){const m={};S(str).split('|').forEach(p=>{const i=p.indexOf('=');if(i>0)m[S(p.slice(0,i))]=S(p.slice(i+1));});return m;}
+
+function parseWorkbook(wb){
+  const sh=n=>wb.Sheets[n];
+  // meta
+  const meta={}; objRows(sh('Meta'),['Field','Value']).forEach(r=>{if(S(r.Field))meta[S(r.Field)]=r.Value;});
+  ['durationMinutes','pages','maxScore','scoreVersion'].forEach(k=>{if(meta[k]!=='')meta[k]=NUM(meta[k]);});
+  if(typeof meta.hasEssay==='string')meta.hasEssay=/^(true|1|yes|có)$/i.test(meta.hasEssay);
+  // parts
+  const parts=objRows(sh('Parts'),['code','title','instruction']).map(r=>({code:S(r.code),title:S(r.title),instruction:S(r.instruction),blocks:[],_bl:[]}));
+  const partByCode={}; parts.forEach(p=>partByCode[p.code]=p);
+  const push=(code,order,block)=>{const p=partByCode[code];if(p)p._bl.push({order:Number(order)||0,block});};
+  // truefalse
+  objRows(sh('TrueFalse'),['part','order','n','title','notice','s1','s2','s3','s4','a1','a2','a3','a4','explanation']).forEach(r=>{
+    const b={type:'truefalse',n:NUM(r.n),title:S(r.title)||('Question '+r.n+' (Statements 1–4)'),
+      statements:[1,2,3,4].map(i=>({t:S(r['s'+i]),a:S(r['a'+i]).toUpperCase()})),explanation:S(r.explanation)};
+    if(S(r.notice))b.notice=S(r.notice); push(r.part,r.order,b);});
+  // passage
+  objRows(sh('Passage'),['part','order','id','html']).forEach(r=>push(r.part,r.order,{type:'passage',id:S(r.id),html:S(r.html)}));
+  // mcq
+  objRows(sh('MCQ'),['part','order','n','title','question','A','B','C','D','E','F','answer','explanation']).forEach(r=>{
+    const opts=['A','B','C','D','E','F'].filter(v=>S(r[v])!=='').map(v=>({v,t:S(r[v])}));
+    push(r.part,r.order,{type:'mcq',n:NUM(r.n),title:S(r.title)||('Question '+r.n),question:S(r.question),options:opts,answer:S(r.answer).toUpperCase(),explanation:S(r.explanation)});});
+  // matching
+  objRows(sh('Matching'),['part','order','n','title','prompt1','prompt2','prompt3','prompt4','A','B','C','D','E','F','ans1','ans2','ans3','ans4','explanation']).forEach(r=>{
+    push(r.part,r.order,{type:'matching',n:NUM(r.n),title:S(r.title)||('Question '+r.n),
+      prompts:[1,2,3,4].map(i=>S(r['prompt'+i])),options:['A','B','C','D','E','F'].map(v=>S(r[v])),
+      answers:[1,2,3,4].map(i=>S(r['ans'+i]).toUpperCase()),explanation:S(r.explanation)});});
+  // gapfill
+  objRows(sh('GapFill'),['part','order','title','text','answers','explanations']).forEach(r=>{
+    const ans=parseKV(r.answers), expl=parseKV(r.explanations);
+    const nums=Object.keys(ans).map(Number).sort((a,b)=>a-b);
+    push(r.part,r.order,{type:'gapfill',title:S(r.title)||'Gap-fill',text:S(r.text),nums,
+      answers:Object.fromEntries(nums.map(n=>[n,ans[n]])),explanations:Object.fromEntries(nums.map(n=>[n,expl[n]||'']))});});
+  parts.forEach(p=>{p._bl.sort((a,b)=>a.order-b.order);p.blocks=p._bl.map(x=>x.block);delete p._bl;});
+  // practice
+  const vocab=objRows(sh('Vocab'),['word','pos','ipa','def','vi','ex','exvi','forms','sec']).map(r=>({w:S(r.word),pos:S(r.pos),ipa:S(r.ipa),def:S(r.def),vi:S(r.vi),ex:S(r.ex),exvi:S(r.exvi),forms:S(r.forms),sec:S(r.sec)})).filter(v=>v.w);
+  const grammar=objRows(sh('Grammar'),['id','name','en','vi','form','examples','usage','mistake']).map((r,i)=>({id:S(r.id)||('g'+(i+1)),name:S(r.name),en:S(r.en),vi:S(r.vi),form:S(r.form),
+    ex:S(r.examples).split('||').map(s=>s.trim()).filter(Boolean).map(pair=>{const parts=pair.split('~~');return [S(parts[0]),S(parts[1]||'')];}),usage:S(r.usage),mistake:S(r.mistake)})).filter(g=>g.name);
+  const exam={schema:'vsat-exam/1.0',meta,mock:{parts:parts.map(p=>({code:p.code,title:p.title,instruction:p.instruction,blocks:p.blocks}))},practice:{vocab,grammar,vocabExercises:[],grammarExercises:[]}};
+  return exam;
+}
+
+/* Auto-generate simple Practice exercises from vocab/grammar when not supplied. */
+function autogenExercises(exam){
+  const V=exam.practice.vocab||[], G=exam.practice.grammar||[];
+  const ve=[], ge=[];
+  if(V.length>=3){
+    ve.push({type:'match',title:'Word–definition matching',sub:'Match each word with its meaning.',pairs:V.slice(0,6).map(v=>[v.w,v.def])});
+    const pool=V.slice(0,8);
+    ve.push({type:'mcq',title:'Meaning — multiple choice',sub:'Choose the correct meaning.',items:pool.slice(0,6).map((v,i)=>{
+      const others=pool.filter(x=>x!==v).slice(0,2).map(x=>x.def);const opts=[v.def,...others];
+      return {q:'<b>'+v.w+'</b> — ?',opts,a:0,ex:v.w+' = '+v.def};})});
+    if(V.some(v=>v.vi)) ve.push({type:'match',title:'Từ – nghĩa tiếng Việt',sub:'Ghép mỗi từ với nghĩa tiếng Việt.',pairs:V.filter(v=>v.vi).slice(0,6).map(v=>[v.w,v.vi])});
+  }
+  if(G.length>=2){
+    ge.push({type:'match',title:'Grammar — structure & form',sub:'Match each structure with its form.',pairs:G.slice(0,6).map(g=>[g.name,(g.form||'').split('\n')[0]])});
+  }
+  if(!exam.practice.vocabExercises||!exam.practice.vocabExercises.length)exam.practice.vocabExercises=ve;
+  if(!exam.practice.grammarExercises||!exam.practice.grammarExercises.length)exam.practice.grammarExercises=ge;
+  return exam;
+}
+
+/* Full validation with detailed, teacher-friendly messages (VN). */
+function validateExamFull(ex){
+  const errs=[],warns=[];
+  const need=(c,m)=>{if(!c)errs.push(m);};
+  need(ex&&ex.meta,'Thiếu phần Meta.');
+  if(ex&&ex.meta){need(S(ex.meta.id),'Meta: thiếu "id" (mã đề duy nhất).');need(S(ex.meta.title),'Meta: thiếu "title" (tiêu đề đề thi).');}
+  need(ex&&ex.mock&&ex.mock.parts&&ex.mock.parts.length,'Không có phần thi nào (sheet Parts trống).');
+  let qn=0,max=0; const seenN=new Set();
+  (ex.mock&&ex.mock.parts||[]).forEach((p,pi)=>{
+    need(S(p.code),`Phần thứ ${pi+1}: thiếu "code".`);
+    (p.blocks||[]).forEach(b=>{
+      if(b.type==='truefalse'){qn++;max+=6;
+        if(seenN.has(b.n))errs.push(`Trùng số câu: ${b.n}.`);seenN.add(b.n);
+        b.statements.forEach((s,i)=>{if(!S(s.t))errs.push(`Câu ${b.n}: tiểu mục ${i+1} trống.`);if(!['T','F'].includes(s.a))errs.push(`Câu ${b.n}: đáp án tiểu mục ${i+1} phải là T hoặc F (đang là "${s.a}").`);});}
+      else if(b.type==='mcq'){qn++;max+=6;if(seenN.has(b.n))errs.push(`Trùng số câu: ${b.n}.`);seenN.add(b.n);
+        if(b.options.length<2)errs.push(`Câu ${b.n}: cần ít nhất 2 lựa chọn.`);
+        if(!b.options.some(o=>o.v===b.answer))errs.push(`Câu ${b.n}: đáp án "${b.answer}" không nằm trong các lựa chọn.`);}
+      else if(b.type==='matching'){qn++;max+=6;if(seenN.has(b.n))errs.push(`Trùng số câu: ${b.n}.`);seenN.add(b.n);
+        if(b.prompts.filter(S).length!==4)errs.push(`Câu ${b.n} (ghép hợp): cần đúng 4 câu (prompt1..4).`);
+        if(b.options.filter(S).length<4)errs.push(`Câu ${b.n} (ghép hợp): cần ít nhất 4 phương án.`);
+        b.answers.forEach((a,i)=>{if(!/^[A-F]$/.test(a))errs.push(`Câu ${b.n}: đáp án ans${i+1} phải là chữ cái A–F.`);});
+        if(new Set(b.answers).size!==b.answers.length)warns.push(`Câu ${b.n}: có đáp án ghép hợp trùng nhau.`);}
+      else if(b.type==='gapfill'){b.nums.forEach(n=>{qn++;max+=6;});
+        b.nums.forEach(n=>{if(!S(b.answers[n]))errs.push(`Điền từ: chỗ trống ${n} thiếu đáp án.`);if(b.text.indexOf('{{'+n+'}}')<0)errs.push(`Điền từ: text thiếu token {{${n}}}.`);});}
+      else if(b.type==='passage'){if(!S(b.html))warns.push('Có một Passage trống.');}
+    });
+  });
+  if(ex.meta&&ex.meta.maxScore&&Number(ex.meta.maxScore)!==max)warns.push(`Meta.maxScore (${ex.meta.maxScore}) khác tổng điểm tính được (${max}). Sẽ dùng ${max}.`);
+  return {errs,warns,stats:{questions:qn,maxScore:max,vocab:(ex.practice&&ex.practice.vocab||[]).length,grammar:(ex.practice&&ex.practice.grammar||[]).length}};
+}
+root.VSATParser={parseWorkbook,autogenExercises,validateExamFull};
+})(typeof window!=='undefined'?window:globalThis);
+
     function loadXLSX() {
       return new Promise((res, rej) => {
         if (window.XLSX) return res(window.XLSX);
@@ -1470,7 +1586,7 @@
         { data: enrollments }, { data: anns }, { data: skeys }, { data: orgs },
         { data: allLics }, { data: events }, { data: activity }, { data: lockEvents },
         cardsRes, { data: pageViews }, rtRes0, raRes, rsRes, svRes, saRes, ssRes, ddRes,
-        cpRes, psRes, spRes
+        cpRes, psRes, spRes, vsRes
       ] = await Promise.all([
         sb.from("lessons").select("*").order("sort_order").order("created_at"),
         // Every student's progress, joined with names + lesson titles.
@@ -1524,12 +1640,16 @@
         // course pricing + payment settings (need migration 46)
         sb.from("course_pricing").select("course_id, config"),
         sb.from("payment_settings").select("config").eq("id", 1).maybeSingle(),
-        sb.from("section_pricing").select("section, config")
+        sb.from("section_pricing").select("section, config"),
+        sb.from("vsat_exams").select("*").order("sort_order").order("created_at")
       ]);
 
       /* `lang` only exists after migration51. If the column is missing the
          reading query fails, so ask again without it: the Reading tab keeps
          working and simply finds no English texts until the migration runs. */
+      /* vsat_exams only exists after migration52 — until then the tab shows
+         an empty list instead of breaking the whole dashboard */
+      let vsRows = (vsRes && !vsRes.error && vsRes.data) ? vsRes.data : [];
       let rtRes = rtRes0;
       if (rtRes.error && /lang/i.test(rtRes.error.message || "")) {
         rtRes = await sb.from("reading_texts")
@@ -2071,6 +2191,24 @@
         </div>
 
         <div class="tabpane" data-tab="classes"><div id="oc-root"></div></div>
+
+        <div class="tabpane" data-tab="vsat">
+          <div class="card">
+            <h2>📝 Luyện thi V-SAT</h2>
+            <p class="kind" style="margin:0 0 0.7rem;">Mỗi đề là một tệp <b>.vsat.json</b> (xuất từ <code>vsat_admin.html</code>) hoặc một tệp <b>Excel</b> theo mẫu V-SAT — tải lên đây là học viên vào <code>vsat.html</code> làm được ngay. Giao diện làm bài, bấm giờ, chấm điểm và phần xem lại <b>không đổi</b>; chỉ nội dung đề là mới.</p>
+            <div class="form-row">
+              <label class="btn" style="cursor:pointer;">⬆ Tải đề lên (.vsat.json hoặc .xlsx)
+                <input type="file" id="vs-file" accept=".json,.vsat.json,.xlsx,.xls" hidden multiple /></label>
+              <a class="ghost btn" href="vsat.html" target="_blank" rel="noopener" style="text-decoration:none;">👁 Mở trang luyện thi</a>
+              <span class="kind" id="vs-hint" style="align-self:center; text-transform:none; letter-spacing:0;"></span>
+            </div>
+            <p id="vs-msg" class="msg"></p>
+          </div>
+          <div class="card">
+            <h2>Đề đã đăng <span class="kind" id="vs-count"></span></h2>
+            <div id="vs-list"><p class="empty">Đang tải…</p></div>
+          </div>
+        </div>
 
         <div class="tabpane" data-tab="pricing">
         <div class="card">
@@ -3136,6 +3274,7 @@
           { id: "courses", label: "Courses (" + (courses || []).length + ")", icon: "layers", group: "Content" },
           { id: "flash", label: "Flashcards" + (cards.length ? " (" + cards.length + ")" : ""), icon: "wallet-cards", group: "Content" },
           { id: "reading", label: "Reading" + ((rtRes.data || []).length ? " (" + rtRes.data.length + ")" : ""), icon: "library", group: "Content" },
+          { id: "vsat", label: "V-SAT" + (vsRows.length ? " (" + vsRows.length + ")" : ""), icon: "file-check", group: "Content" },
           { id: "shadow", label: "Shadowing" + ((svRes.data || []).length ? " (" + svRes.data.length + ")" : ""), icon: "video", group: "Content" },
           { id: "dict", label: "Dictation", icon: "headphones", group: "Content" },
           { id: "landing", label: "Landing Page", icon: "globe", group: "Content" },
@@ -5053,6 +5192,139 @@
         window.__modInit = load;   // called when the tab is opened
       })();
       // =============== END MODULE SWITCHES ===============
+
+
+      // ================= V-SAT EXAM MANAGEMENT (Phase 50) =================
+      // Uploading an exam does not touch the test engine: vsat.html renders
+      // whatever data it is given. Here we only store, order and gate it.
+      (function () {
+        const listEl = document.getElementById("vs-list");
+        if (!listEl) return;
+        const msg = document.getElementById("vs-msg");
+        const said = (t, err) => { msg.textContent = t; msg.className = "msg" + (err ? " err" : ""); };
+        const countEl = document.getElementById("vs-count");
+
+        function questionCount(exam) {
+          let n = 0;
+          (((exam || {}).mock || {}).parts || []).forEach(p => (p.blocks || []).forEach(b => {
+            if (b.type === "gapfill") n += (b.nums || []).length;
+            else if (b.type !== "passage") n += 1;
+          }));
+          return n;
+        }
+
+        function renderVs() {
+          countEl.textContent = vsRows.length ? "(" + vsRows.length + ")" : "";
+          if (!vsRows.length) {
+            listEl.innerHTML = '<p class="empty">Chưa có đề nào. Tải lên tệp <b>.vsat.json</b> hoặc <b>.xlsx</b> ở trên.</p>';
+            return;
+          }
+          listEl.innerHTML = vsRows.map(e => `
+            <div class="lesson" style="flex-wrap:wrap;">
+              <div class="meta">
+                <div class="title">${esc(e.title)}${e.published ? "" : ' <span class="pill off">nháp</span>'}</div>
+                <span class="kind">${esc(e.subtitle || "")}${e.questions ? " · " + e.questions + " câu" : ""}${e.duration_min ? " · " + e.duration_min + " phút" : ""}${e.max_raw ? " · tối đa " + e.max_raw + " điểm" : ""}</span>
+              </div>
+              <input type="number" class="vs-ord" data-id="${e.id}" value="${e.sort_order ?? 0}" min="0" title="Thứ tự hiển thị" style="max-width:70px; flex:none;" />
+              <select class="vs-tier" data-id="${e.id}" style="max-width:110px;" title="Miễn phí hay Premium">
+                <option value="free" ${e.tier === "free" ? "selected" : ""}>Miễn phí</option>
+                <option value="premium" ${e.tier !== "free" ? "selected" : ""}>👑 Premium</option>
+              </select>
+              <select class="vs-course" data-id="${e.id}" style="max-width:190px;" title="Gắn với khoá học (học viên của khoá này mở được)">
+                <option value="">— không gắn khoá —</option>
+                ${(courses || []).map(c => `<option value="${c.id}" ${e.course_id === c.id ? "selected" : ""}>${esc(c.title)}</option>`).join("")}
+              </select>
+              <label style="font-size:0.85rem; color:var(--muted); white-space:nowrap;">
+                <input type="checkbox" class="vs-pub" data-id="${e.id}" ${e.published ? "checked" : ""} /> đăng</label>
+              <a class="ghost btn" href="vsat.html?exam=${encodeURIComponent(e.exam_id)}" target="_blank" rel="noopener" style="text-decoration:none;">👁</a>
+              <button class="ghost" data-vsdel="${e.id}" style="color:var(--danger); border-color:var(--danger);">🗑</button>
+            </div>`).join("");
+        }
+
+        async function patch(id, fields) {
+          const { error } = await sb.from("vsat_exams").update(fields).eq("id", id);
+          if (error) { said("Không lưu được: " + error.message, true); return false; }
+          const row = vsRows.find(r => r.id === id);
+          if (row) Object.assign(row, fields);
+          return true;
+        }
+
+        listEl.addEventListener("change", async e => {
+          const t = e.target;
+          if (t.classList.contains("vs-tier")) { if (await patch(t.dataset.id, { tier: t.value })) said("Đã đổi loại truy cập ✓"); }
+          if (t.classList.contains("vs-pub")) { if (await patch(t.dataset.id, { published: t.checked })) said(t.checked ? "Đã đăng ✓" : "Đã gỡ xuống ✓"); }
+          if (t.classList.contains("vs-ord")) { if (await patch(t.dataset.id, { sort_order: Number(t.value) || 0 })) said("Đã đổi thứ tự ✓"); }
+          if (t.classList.contains("vs-course")) { if (await patch(t.dataset.id, { course_id: t.value || null })) said("Đã gắn khoá học ✓"); }
+        });
+        listEl.addEventListener("click", async e => {
+          const b = e.target.closest("[data-vsdel]"); if (!b) return;
+          const row = vsRows.find(r => r.id === b.dataset.vsdel); if (!row) return;
+          const ok = await UI.confirmDialog({ title: "Xoá đề này?", danger: true, okText: "Xoá",
+            body: `“${row.title}” sẽ bị xoá khỏi thư viện. Kết quả học viên đã làm vẫn được giữ.` });
+          if (!ok) return;
+          const { error } = await sb.from("vsat_exams").delete().eq("id", row.id);
+          if (error) { said("Không xoá được: " + error.message, true); return; }
+          vsRows = vsRows.filter(r => r.id !== row.id);
+          renderVs(); said("Đã xoá ✓");
+        });
+
+        /* ---- upload: .vsat.json straight in, .xlsx through the ported parser ---- */
+        document.getElementById("vs-file").addEventListener("change", async ev => {
+          const files = [...(ev.target.files || [])];
+          ev.target.value = "";
+          if (!files.length) return;
+          let added = 0, failed = 0;
+          for (const f of files) {
+            said("Đang xử lý " + f.name + "…");
+            let exam = null;
+            try {
+              if (/\.(xlsx|xls)$/i.test(f.name)) {
+                const XLSXlib = await loadXLSX();
+                const wb = XLSXlib.read(await f.arrayBuffer(), { type: "array" });
+                exam = window.VSATParser.parseWorkbook(wb);
+                if (exam && window.VSATParser.autogenExercises) window.VSATParser.autogenExercises(exam);
+              } else {
+                exam = JSON.parse(await f.text());
+              }
+            } catch (err) { said(f.name + ": không đọc được — " + err.message, true); failed++; continue; }
+
+            const errs = (window.VSATParser && window.VSATParser.validateExamFull)
+              ? window.VSATParser.validateExamFull(exam) : [];
+            if (errs && errs.length) { said(f.name + ": " + errs.slice(0, 3).join(" "), true); failed++; continue; }
+            if (!exam || !exam.meta || !exam.meta.id) { said(f.name + ": thiếu meta.id", true); failed++; continue; }
+
+            const q = questionCount(exam);
+            const row = {
+              exam_id: exam.meta.id,
+              title: exam.meta.title || exam.meta.id,
+              subtitle: exam.meta.subtitle || "",
+              institution: exam.meta.institution || "",
+              subject: exam.meta.subject || "",
+              duration_min: Number(exam.meta.durationMinutes) || 60,
+              questions: q,
+              max_raw: Number(exam.meta.maxScore) || q * 6,
+              data: exam,
+              sort_order: vsRows.length,
+              created_by: user.id
+            };
+            /* re-uploading the same exam_id replaces its content but keeps the
+               tier / published / order the teacher already set */
+            const { data: ins, error } = await sb.from("vsat_exams")
+              .upsert(row, { onConflict: "exam_id" }).select().single();
+            if (error) { said(f.name + ": " + error.message, true); failed++; continue; }
+            const i = vsRows.findIndex(r => r.exam_id === ins.exam_id);
+            if (i >= 0) vsRows[i] = ins; else vsRows.push(ins);
+            added++;
+          }
+          renderVs();
+          said(added + " đề đã tải lên" + (failed ? " · " + failed + " tệp lỗi" : "") +
+               (added ? " — nhớ tick “đăng” để học viên thấy." : ""), failed && !added);
+        });
+
+        document.getElementById("vs-hint").textContent =
+          "Tải lại cùng một đề sẽ cập nhật nội dung, giữ nguyên cài đặt.";
+        renderVs();
+      })();
 
       // ================= LANDING PAGE CMS =================
       // Owner-only by RLS (migration35). One generic list+form engine drives
