@@ -1841,6 +1841,35 @@
         </div>
 
         <div class="tabpane" data-tab="reading">
+        <div class="card">
+          <h2>🖼 Ảnh bìa tự động</h2>
+          <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
+            Tự tìm ảnh minh hoạ cho những bài <b>chưa có ảnh bìa</b>. Ảnh lấy từ
+            <b>Pexels</b> (miễn phí cho mọi mục đích, kể cả thương mại), được thu nhỏ và
+            lưu vào kho ảnh của chính thầy nên không sợ mất link. Mỗi bài một ảnh khác nhau.
+            Chạy được nhiều lần: bài nào đã có ảnh sẽ tự bỏ qua.</p>
+          <div class="form-row" id="cv-setup">
+            <div class="field" style="min-width:260px;"><label>Khoá Pexels API (miễn phí)</label>
+              <input id="cv-key" type="password" placeholder="dán khoá vào đây" autocomplete="off" /></div>
+            <button class="ghost" id="cv-savekey" style="flex:none;">💾 Lưu khoá</button>
+            <a class="ghost btn" href="https://www.pexels.com/api/" target="_blank" rel="noopener"
+               style="text-decoration:none; flex:none;">Lấy khoá miễn phí ↗</a>
+          </div>
+          <div class="form-row" style="margin-top:0.6rem; align-items:center;">
+            <button id="cv-start">▶ Bắt đầu tìm ảnh</button>
+            <button class="ghost" id="cv-stop" disabled>⏸ Tạm dừng</button>
+            <span class="kind" id="cv-scope" style="text-transform:none; letter-spacing:0;"></span>
+          </div>
+          <div id="cv-bar" hidden style="margin-top:0.7rem; height:8px; border-radius:5px; background:var(--line); overflow:hidden;">
+            <div id="cv-fill" style="height:100%; width:0; background:var(--accent); transition:width .3s ease;"></div>
+          </div>
+          <p id="cv-msg" class="msg"></p>
+          <details style="margin-top:0.4rem;">
+            <summary style="cursor:pointer; font-size:0.88rem; color:var(--accent-ink); font-weight:600;">📋 Nhật ký</summary>
+            <pre id="cv-log" style="max-height:260px; overflow:auto; font-size:0.78rem; line-height:1.5;
+              background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:0.6rem; margin:0.5rem 0 0;"></pre>
+          </details>
+        </div>
         <div class="card" style="padding-bottom:0.9rem;">
           <div class="form-row" style="align-items:center; gap:0.6rem;">
             <b style="font-size:0.95rem;">Thư viện đang mở:</b>
@@ -4015,6 +4044,279 @@
           applyRlang();
         }));
 
+        /* Vietnamese tag → English stock-photo query. These are IMAGE-SEARCH terms,
+           not translations: abstract ideas get a concrete visual proxy, because a
+           photo library has no picture of "ego" but plenty of "mirror reflection". */
+        const COVER_Q = {
+        "sức khỏe":"healthy lifestyle wellness","công nghệ":"technology device modern","gia đình":"family together home",
+        "ẩm thực":"food dish cooking table","học tập":"studying student books desk","đời thường":"everyday street life candid",
+        "du lịch":"travel journey landscape","văn hóa":"culture heritage traditional","xã hội":"crowd people society street",
+        "thành phố":"city skyline urban","ký ức":"old photographs memories nostalgia","thói quen":"morning routine habit",
+        "sở thích":"hobby craft leisure","công việc":"office work desk professional","hành trình":"road trip journey path",
+        "sinh hoạt":"daily life home living","lễ hội trung quốc":"chinese festival lantern celebration",
+        "nấu ăn":"cooking kitchen home chef","nghỉ ngơi":"relaxing rest calm hammock","người lạ":"strangers street portrait",
+        "quán ăn":"small restaurant eatery noodle","mua bán":"market trade shopping stall","đi làm":"commute morning commuter",
+        "cuối tuần":"weekend leisure park","mẹ":"mother child warmth","ngoại ngữ":"language learning dictionary",
+        "hàng xóm":"neighbours alley community","bệnh viện":"hospital clinic corridor","thầy cô":"teacher classroom",
+        "đại học":"university campus students","cộng đồng":"community gathering people","chị em":"sisters siblings together",
+        "tự học":"self study notebook learning","tàu hỏa":"train railway window","tình cha con":"father child bonding",
+        "bà":"grandmother elderly hands","kiên trì":"perseverance climbing effort","con cái":"children playing family",
+        "tâm lý":"psychology mind thoughtful","môi trường":"environment nature green","giáo dục":"education classroom learning",
+        "ngôn ngữ":"letters alphabet writing","thời gian":"clock time passing","tự lập":"independence young adult alone",
+        "khoa học":"science laboratory research","đô thị":"urban city street architecture","thể thao":"sport running fitness",
+        "sống một mình":"living alone small apartment","đi chợ":"wet market vegetables vendor","xa nhà":"suitcase leaving home station",
+        "người trẻ":"young people youth","truyền thông":"media news broadcast","đạo đức":"ethics balance scales",
+        "thích nghi":"adapting change new city","ảnh cũ":"vintage photo album","mạng xã hội":"social media phone screen",
+        "trải nghiệm":"experience adventure discovery","lịch sử":"history ancient ruins","nông nghiệp":"farming agriculture field",
+        "nghề nghiệp":"career profession workplace","thế hệ":"generations old young together","thể chế":"government building institution",
+        "trưởng thành":"growing up milestone","kinh tế":"economy finance charts","bố":"father parenting",
+        "động viên":"encouragement support hand","truyền thống":"tradition ritual heritage","đời sống":"life everyday people",
+        "kiến trúc":"architecture building design","thiên nhiên":"nature forest landscape","y học":"medicine doctor stethoscope",
+        "nghệ thuật":"art painting studio","văn học":"literature books reading","bản sắc":"identity portrait culture",
+        "tương lai":"future futuristic horizon","di cư":"migration moving suitcase","phát triển":"growth development construction",
+        "năng lượng":"energy solar wind power","rủi ro":"risk uncertainty balance","phụ huynh":"parents child school",
+        "kiên nhẫn":"patience waiting calm","cảm xúc":"emotion expression portrait","mua sắm":"shopping store bags",
+        "lễ tết":"lunar new year celebration","ý nghĩa":"meaning reflection thoughtful","nhân vật":"portrait person character",
+        "hạnh phúc":"happiness joy smiling","thiết kế":"design workspace creative","nghề thủ công":"handicraft artisan hands",
+        "âm nhạc":"music instrument performance","thống kê":"statistics data charts","bản ngã":"mirror reflection portrait",
+        "nghi lễ":"ceremony ritual incense","đổi mới":"innovation idea lightbulb","cân bằng":"balance stones calm",
+        "lựa chọn":"choice crossroads path","áp lực":"stress pressure deadline","im lặng":"silence quiet solitude",
+        "hôn nhân":"marriage wedding couple","vợ chồng":"couple together home","hợp tác":"teamwork collaboration hands",
+        "giao tiếp":"conversation talking people","nghị lực":"determination strength climb","truyền cảm hứng":"inspiration sunrise open road",
+        "trí nhớ":"memory brain notes","thời sự":"newspaper current affairs","triết lý sống":"philosophy contemplation path",
+        "khoa học công nghệ":"science technology laboratory","pháp luật xã hội":"law justice courthouse",
+        "giao thoa văn hóa":"cultural exchange diversity","kỹ năng":"skills hands working craft",
+        "lịch sử tư tưởng":"old books library philosophy","tư tưởng cổ điển":"classical scroll calligraphy",
+        "sinh thái":"ecosystem nature wildlife","toàn cầu hóa":"globalisation world map connection",
+        "văn học cổ điển":"classic literature old book","tổ chức":"organisation team meeting","kết nối":"connection network people",
+        "cái đẹp":"beauty aesthetic minimal","sự chú ý":"focus attention concentration","cuộc sống":"life moments everyday",
+        "sức khỏe tinh thần":"mental health calm mindfulness","tiêu dùng":"consumer shopping products","điện thoại":"smartphone screen hand",
+        "bài tập nhóm":"group project students working","phương pháp":"method process planning","suy ngẫm":"contemplation thinking window",
+        "phong tục":"custom tradition ceremony","khám phá":"exploration discovery map","xu hướng":"trend modern lifestyle",
+        "trách nhiệm":"responsibility duty hands","dữ liệu":"data analytics screen","động lực":"motivation running sunrise",
+        "thẩm mỹ":"aesthetic minimal design","tư duy":"thinking mind ideas","chính sách":"policy government meeting",
+        "tàu điện ngầm":"subway metro station","hiệu suất":"productivity workspace focus","quan sát":"observing watching window",
+        "nghề cũ":"old craft traditional trade","người già":"elderly senior portrait","giấc ngủ":"sleeping bedroom night",
+        "hoài niệm":"nostalgia vintage memories","thay đổi":"change transition seasons","giao thông":"traffic road transport",
+        "vũ trụ":"space galaxy stars","não bộ":"brain neuroscience mind","sáng tạo":"creativity art ideas",
+        "nuôi dạy con":"parenting raising children","việc làm":"job interview employment","nhận thức":"awareness perception mind",
+        "quy hoạch":"urban planning city model","tuổi tác":"ageing generations hands","quan hệ":"relationship people together",
+        "nghiên cứu":"research laboratory study","học hỏi":"learning curiosity books","căng thẳng":"stress anxiety tired",
+        "con người":"people portrait humanity","triết học":"philosophy statue thinking","cãi nhau":"argument conflict discussion",
+        "môn toán":"mathematics blackboard numbers","lớp học đêm":"evening class classroom night","khởi nghiệp":"startup entrepreneur office",
+        "họp hành":"meeting conference room","văn phòng":"office workspace desk","thành phố nhỏ":"small town street",
+        "thu nhập":"income money salary","kinh nghiệm":"experience craftsman hands","quý châu":"guizhou china mountains village",
+        "nam bắc":"china landscape north south","đồ ăn giao":"food delivery courier","bác sĩ":"doctor medical consultation",
+        "tập trung":"concentration focused work","thử nghiệm":"experiment testing laboratory","khu dân cư":"residential neighbourhood housing",
+        "trí tuệ nhân tạo":"artificial intelligence robot","so sánh":"comparison side by side","tiết kiệm":"saving money piggy bank",
+        "nông thôn":"countryside rural village","lòng tốt":"kindness helping hand","bảo tồn":"conservation heritage preservation",
+        "chim":"birds wildlife nature","lòng tin":"trust handshake together","du học":"study abroad international student",
+        "trung thực":"honesty integrity","kỷ niệm":"anniversary memories celebration","tai nạn":"accident caution safety",
+        "công trình":"construction site building","di sản":"heritage historic monument","hội họa":"painting art canvas",
+        "thơ đường":"chinese poetry calligraphy","thực vật":"plants botanical green","dịch vụ":"service customer shop",
+        "khí hậu":"climate weather clouds","quyết định":"decision crossroads choice","buồn chán":"boredom waiting empty",
+        "công bằng":"fairness justice balance","đánh giá":"evaluation review checklist","đồ vật":"objects still life",
+        "chú ý":"attention focus detail","dịch thuật":"translation dictionary languages","đặt tên":"naming letters nameplate",
+        "không gian công cộng":"public space plaza park","mưu sinh":"street vendor livelihood","trẻ em":"children playing kids",
+        "kiểm chứng":"fact checking magnifier","thủ công":"handmade craft workshop","minh bạch":"transparency glass clear",
+        "tha thứ":"forgiveness reconciliation hands","tiểu thuyết":"novel book reading","y tế công cộng":"public health clinic",
+        "dự báo":"forecast weather prediction","đa dạng":"diversity people colourful","hồi phục":"recovery healing rest",
+        "tranh chấp":"dispute negotiation","niềm tin":"belief faith hope light","pháp luật":"law legal books gavel",
+        "quyền riêng tư":"privacy lock security","thất bại":"failure setback resilience","y đức":"medical ethics doctor care",
+        "làm việc từ xa":"remote work laptop home","tiến bộ":"progress steps upward","lưu trữ":"archive storage boxes",
+        "thương mại":"commerce trade business","toàn cầu":"global world map","đo lường":"measurement ruler precision",
+        "định kiến":"prejudice bias perspective","cô đơn":"loneliness solitude alone","vận động":"exercise movement fitness",
+        "gắn bó":"bonding closeness together"
+        };
+
+        /* ==================================================================
+           AUTOMATIC COVER IMAGES
+           Finds a relevant photo for every reading text that has none.
+
+           Why it searches the TAGS and not the title: the titles are literary
+           ("The Art of Being Wrong", 为什么便宜的东西反而更贵) and produce nothing
+           useful in a photo library, while every text already carries concrete
+           Vietnamese tags. Each text is searched on its RAREST tag, so the
+           query is as specific as the data allows.
+
+           Pexels allows 200 requests/hour, so search results are cached per
+           query — ~220 searches cover all 700 texts, and texts sharing a
+           concept each take a DIFFERENT photo from the same result page.
+           ================================================================== */
+        const CV = {
+          key: "", running: false, stop: false,
+          cache: new Map(),          // query -> array of photos
+          used: new Set(),           // photo ids already assigned
+          log: [], done: 0, failed: 0, skipped: 0, total: 0
+        };
+        const cvEl = id => document.getElementById(id);
+        const cvSay = (t, err) => { const m = cvEl("cv-msg"); m.textContent = t; m.className = "msg" + (err ? " err" : ""); };
+        function cvLog(line) {
+          CV.log.push(line);
+          if (CV.log.length > 400) CV.log.shift();
+          const el = cvEl("cv-log");
+          el.textContent = CV.log.join("\n");
+          el.scrollTop = el.scrollHeight;
+        }
+        const cvSleep = ms => new Promise(r => setTimeout(r, ms));
+
+        /* pick the most specific tag we have an English query for */
+        function cvQueryFor(t) {
+          const terms = [...(t.tags || []).map(x => String(x).trim().toLowerCase())];
+          const cat = String(t.category || "").trim().toLowerCase();
+          if (cat && !terms.includes(cat)) terms.push(cat);
+          const known = terms.filter(x => COVER_Q[x]);
+          if (!known.length) return null;
+          known.sort((a, b) => (CV.freq[a] || 0) - (CV.freq[b] || 0));   // rarest first
+          return { term: known[0], q: COVER_Q[known[0]] };
+        }
+
+        async function cvSearch(q) {
+          if (CV.cache.has(q)) return CV.cache.get(q);
+          const url = "https://api.pexels.com/v1/search?per_page=30&orientation=landscape&size=medium&query="
+            + encodeURIComponent(q);
+          const r = await fetch(url, { headers: { Authorization: CV.key } });
+          if (r.status === 429) { throw new Error("RATE"); }
+          if (!r.ok) throw new Error("Pexels HTTP " + r.status);
+          const j = await r.json();
+          const photos = (j.photos || []).filter(p => p.width >= 800 && p.width > p.height);
+          CV.cache.set(q, photos);
+          return photos;
+        }
+
+        /* fetch → shrink to a card-sized JPEG → upload to our own bucket, so the
+           cover keeps working even if the source ever disappears */
+        async function cvStore(photo, textId) {
+          const src = (photo.src && (photo.src.large || photo.src.medium)) || photo.url;
+          const res = await fetch(src);
+          if (!res.ok) throw new Error("download HTTP " + res.status);
+          const blob = await res.blob();
+          const bmp = await createImageBitmap(blob);
+          const W = 800, H = Math.round(W * 9 / 16);
+          const cv = document.createElement("canvas");
+          cv.width = W; cv.height = H;
+          const ctx = cv.getContext("2d");
+          const scale = Math.max(W / bmp.width, H / bmp.height);
+          const dw = bmp.width * scale, dh = bmp.height * scale;
+          ctx.drawImage(bmp, (W - dw) / 2, (H - dh) / 2, dw, dh);
+          const out = await new Promise(r => cv.toBlob(r, "image/jpeg", 0.82));
+          const path = textId + ".jpg";
+          const up = await sb.storage.from("reading-covers")
+            .upload(path, out, { upsert: true, contentType: "image/jpeg", cacheControl: "31536000" });
+          if (up.error) throw up.error;
+          return sb.storage.from("reading-covers").getPublicUrl(path).data.publicUrl + "?v=" + Date.now();
+        }
+
+        async function cvRun() {
+          CV.running = true; CV.stop = false;
+          cvEl("cv-start").disabled = true; cvEl("cv-stop").disabled = false;
+          cvEl("cv-bar").hidden = false;
+
+          /* tag frequency drives "rarest tag wins" */
+          CV.freq = {};
+          rtexts.forEach(t => {
+            [...(t.tags || []), t.category].filter(Boolean)
+              .forEach(x => { const k = String(x).trim().toLowerCase(); CV.freq[k] = (CV.freq[k] || 0) + 1; });
+          });
+          /* never hand out a photo that is already on another text */
+          const { data: taken } = await sb.from("reading_texts")
+            .select("cover_photo_id").neq("cover_photo_id", "");
+          (taken || []).forEach(r => CV.used.add(String(r.cover_photo_id)));
+
+          const todo = rtexts.filter(t => !t.cover_url);
+          CV.total = todo.length; CV.done = CV.failed = CV.skipped = 0;
+          cvLog("=== " + new Date().toLocaleString("vi-VN") + " — " + todo.length + " bài cần ảnh ===");
+
+          for (let i = 0; i < todo.length; i++) {
+            if (CV.stop) { cvLog("⏸ Đã tạm dừng — bấm Bắt đầu để chạy tiếp."); break; }
+            const t = todo[i];
+            const pct = Math.round((i / todo.length) * 100);
+            cvEl("cv-fill").style.width = pct + "%";
+            cvSay(`Đang xử lý ${i + 1}/${todo.length} — ${CV.done} xong · ${CV.skipped} bỏ qua · ${CV.failed} lỗi`);
+
+            const qq = cvQueryFor(t);
+            if (!qq) {
+              CV.skipped++; cvLog("⊘ " + t.title + " — không có thẻ nào tra được");
+              await sb.from("cover_jobs").upsert({ text_id: t.id, status: "skipped", note: "no usable tag" });
+              continue;
+            }
+            try {
+              let photos = await cvSearch(qq.q);
+              let pick = photos.find(p => !CV.used.has(String(p.id)));
+              if (!pick) {                       // this concept is exhausted — widen once
+                const wider = qq.q.split(" ").slice(0, 2).join(" ");
+                photos = await cvSearch(wider);
+                pick = photos.find(p => !CV.used.has(String(p.id)));
+                await cvSleep(400);
+              }
+              if (!pick) {
+                CV.failed++; cvLog("✗ " + t.title + " — hết ảnh mới cho “" + qq.q + "”");
+                await sb.from("cover_jobs").upsert({ text_id: t.id, status: "failed", query: qq.q, note: "no unused photo" });
+                continue;
+              }
+              CV.used.add(String(pick.id));
+              const url = await cvStore(pick, t.id);
+              const patch = {
+                cover_url: url,
+                cover_alt: t.title,
+                cover_source: "pexels",
+                cover_author: pick.photographer || "",
+                cover_link: pick.url || "",
+                cover_license: "Pexels License",
+                cover_photo_id: String(pick.id),
+                cover_query: qq.q
+              };
+              const { error } = await sb.from("reading_texts").update(patch).eq("id", t.id);
+              if (error) throw error;
+              Object.assign(t, patch);
+              CV.done++;
+              cvLog("✓ " + t.title + "  ←  “" + qq.q + "” · " + (pick.photographer || "?"));
+              await sb.from("cover_jobs").upsert({ text_id: t.id, status: "done", query: qq.q, note: pick.photographer || "" });
+            } catch (e) {
+              if (String(e.message) === "RATE") {
+                cvLog("⏳ Pexels báo quá giới hạn — nghỉ 60 giây rồi thử lại…");
+                await cvSleep(60000); i--; continue;      // retry this text
+              }
+              CV.failed++;
+              cvLog("✗ " + t.title + " — " + (e.message || e));
+              await sb.from("cover_jobs").upsert({ text_id: t.id, status: "failed", query: qq.q, note: String(e.message || e).slice(0, 180) });
+            }
+            await cvSleep(350);                  // gentle on Pexels and on Storage
+          }
+
+          cvEl("cv-fill").style.width = "100%";
+          cvSay(`Xong: ${CV.done} bài có ảnh mới · ${CV.skipped} bỏ qua · ${CV.failed} lỗi.`);
+          cvLog(`=== Kết thúc: ${CV.done} xong, ${CV.skipped} bỏ qua, ${CV.failed} lỗi ===`);
+          CV.running = false;
+          cvEl("cv-start").disabled = false; cvEl("cv-stop").disabled = true;
+          renderRt();
+        }
+
+        (async () => {
+          const { data: cs } = await sb.from("cover_settings").select("pexels_key").eq("id", 1).maybeSingle();
+          if (cs && cs.pexels_key) { CV.key = cs.pexels_key; cvEl("cv-key").value = "••••••••••••"; }
+          const n = rtexts.filter(t => !t.cover_url).length;
+          cvEl("cv-scope").textContent = n + " bài chưa có ảnh bìa / " + rtexts.length + " bài";
+        })().catch(() => {});
+
+        cvEl("cv-savekey").addEventListener("click", async () => {
+          const v = cvEl("cv-key").value.trim();
+          if (!v || v.startsWith("•")) { cvSay("Dán khoá Pexels vào ô bên cạnh trước.", true); return; }
+          const { error } = await sb.from("cover_settings").update({ pexels_key: v, updated_at: new Date().toISOString() }).eq("id", 1);
+          if (error) { cvSay("Không lưu được: " + error.message + " — chạy migration52 trước.", true); return; }
+          CV.key = v; cvEl("cv-key").value = "••••••••••••";
+          cvSay("Đã lưu khoá ✓");
+        });
+        cvEl("cv-stop").addEventListener("click", () => { CV.stop = true; cvSay("Đang dừng sau bài hiện tại…"); });
+        cvEl("cv-start").addEventListener("click", async () => {
+          if (CV.running) return;
+          if (!CV.key) { cvSay("Cần khoá Pexels trước — bấm “Lấy khoá miễn phí” rồi dán vào và Lưu.", true); return; }
+          if (!rtexts.filter(t => !t.cover_url).length) { cvSay("Mọi bài đã có ảnh bìa 🎉"); return; }
+          try { await cvRun(); }
+          catch (e) { cvSay("Dừng vì lỗi: " + (e.message || e), true); CV.running = false;
+            cvEl("cv-start").disabled = false; cvEl("cv-stop").disabled = true; }
+        });
+
         document.getElementById("rt-add").addEventListener("click", async () => {
           const title = document.getElementById("rt-title").value.trim();
           const content = document.getElementById("rt-content").value;
@@ -4376,7 +4678,8 @@
           "course_pricing", "payment_settings", "section_pricing",
           /* landing page content — was missing from the backup until Phase 44 */
           "landing_settings", "landing_trials", "landing_courses", "landing_classes",
-          "landing_teachers", "landing_achievements", "landing_feedback", "landing_gallery"];
+          "landing_teachers", "landing_achievements", "landing_feedback", "landing_gallery",
+          "cover_settings", "cover_jobs"];
         const backup = { app: "Learning Ecology", exported_at: new Date().toISOString(), tables: {} };
         const problems = [];
         for (let i = 0; i < TABLES.length; i++) {
