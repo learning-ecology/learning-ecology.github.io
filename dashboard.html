@@ -4147,6 +4147,7 @@
           key: "", running: false, stop: false,
           cache: new Map(),          // query -> array of photos
           used: new Set(),           // photo ids already assigned
+          missing: new Map(),        // tags with no English mapping yet
           log: [], done: 0, failed: 0, skipped: 0, total: 0
         };
         const cvEl = id => document.getElementById(id);
@@ -4160,15 +4161,35 @@
         }
         const cvSleep = ms => new Promise(r => setTimeout(r, ms));
 
-        /* pick the most specific tag we have an English query for */
+        /* Generic but pleasant queries for a text whose tags are all new. The
+           dedupe rule still guarantees a different photo each time. */
+        const CV_GENERIC = ["reading books study", "chinese culture daily life",
+          "city street asia morning", "people conversation everyday",
+          "notebook desk learning", "landscape nature calm"];
+        let cvGenericI = 0;
+
+        /* Pick the most specific tag we have an English query for. Nothing is
+           ever skipped: unmapped tags are recorded (so they can be added to
+           COVER_Q later) and the text still gets a reasonable image. */
         function cvQueryFor(t) {
           const terms = [...(t.tags || []).map(x => String(x).trim().toLowerCase())];
           const cat = String(t.category || "").trim().toLowerCase();
           if (cat && !terms.includes(cat)) terms.push(cat);
           const known = terms.filter(x => COVER_Q[x]);
-          if (!known.length) return null;
-          known.sort((a, b) => (CV.freq[a] || 0) - (CV.freq[b] || 0));   // rarest first
-          return { term: known[0], q: COVER_Q[known[0]] };
+          if (known.length) {
+            known.sort((a, b) => (CV.freq[a] || 0) - (CV.freq[b] || 0));   // rarest first
+            return { term: known[0], q: COVER_Q[known[0]], exact: true };
+          }
+          /* remember the words we could not translate, so they can be reported */
+          terms.forEach(x => { if (x) CV.missing.set(x, (CV.missing.get(x) || 0) + 1); });
+          /* an English text can search on its own title — it is already English */
+          if ((t.lang || "zh") === "en" && t.title) {
+            const words = String(t.title).replace(/[^A-Za-z ]/g, " ").split(/\s+/)
+              .filter(w => w.length > 3 && !/^(the|and|that|with|your|from|this|what|when|why|how|for|our)$/i.test(w));
+            if (words.length) return { term: "(tiêu đề)", q: words.slice(0, 4).join(" ").toLowerCase(), exact: false };
+          }
+          const g = CV_GENERIC[cvGenericI++ % CV_GENERIC.length];
+          return { term: "(chung)", q: g, exact: false };
         }
 
         async function cvSearch(q) {
@@ -4235,11 +4256,6 @@
             cvSay(`Đang xử lý ${i + 1}/${todo.length} — ${CV.done} xong · ${CV.skipped} bỏ qua · ${CV.failed} lỗi`);
 
             const qq = cvQueryFor(t);
-            if (!qq) {
-              CV.skipped++; cvLog("⊘ " + t.title + " — không có thẻ nào tra được");
-              await sb.from("cover_jobs").upsert({ text_id: t.id, status: "skipped", note: "no usable tag" });
-              continue;
-            }
             try {
               let photos = await cvSearch(qq.q);
               let pick = photos.find(p => !CV.used.has(String(p.id)));
@@ -4270,7 +4286,7 @@
               if (error) throw error;
               Object.assign(t, patch);
               CV.done++;
-              cvLog("✓ " + t.title + "  ←  “" + qq.q + "” · " + (pick.photographer || "?"));
+              cvLog((qq.exact ? "✓ " : "≈ ") + t.title + "  ←  “" + qq.q + "” · " + (pick.photographer || "?"));
               await sb.from("cover_jobs").upsert({ text_id: t.id, status: "done", query: qq.q, note: pick.photographer || "" });
             } catch (e) {
               if (String(e.message) === "RATE") {
@@ -4287,6 +4303,14 @@
           cvEl("cv-fill").style.width = "100%";
           cvSay(`Xong: ${CV.done} bài có ảnh mới · ${CV.skipped} bỏ qua · ${CV.failed} lỗi.`);
           cvLog(`=== Kết thúc: ${CV.done} xong, ${CV.skipped} bỏ qua, ${CV.failed} lỗi ===`);
+          if (CV.missing.size) {
+            const list = [...CV.missing.entries()].sort((a, b) => b[1] - a[1]);
+            cvLog("");
+            cvLog("── " + list.length + " thẻ chưa có trong bản đồ tìm ảnh ──");
+            cvLog("   (những bài này vẫn có ảnh, nhưng là ảnh chung chung — dấu ≈ ở trên)");
+            cvLog("   " + list.map(([k, n]) => k + " ×" + n).join(" · "));
+            cvLog("   → Gửi danh sách này cho Claude để bổ sung, ảnh sẽ sát chủ đề hơn.");
+          }
           CV.running = false;
           cvEl("cv-start").disabled = false; cvEl("cv-stop").disabled = true;
           renderRt();
