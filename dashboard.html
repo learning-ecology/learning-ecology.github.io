@@ -336,6 +336,248 @@ function validateExamFull(ex){
 root.VSATParser={parseWorkbook,autogenExercises,validateExamFull};
 })(typeof window!=='undefined'?window:globalThis);
 
+/* ===== VSTEP Reading: Excel → exam JSON (Phase 53) =====================
+   Cùng cách làm với V-SAT: mỗi sheet là một loại dữ liệu, cột `bank` chọn
+   Từ vựng hay Ngữ pháp, và 5 sheet bài tập đều KHÔNG bắt buộc — bỏ trống thì
+   hệ thống tự sinh bài tập từ hai sheet Vocab & Grammar.
+   Chỉ cần XLSX toàn cục mà loadXLSX() đã nạp sẵn.
+   ===================================================================== */
+(function(root){
+function aoa(ws){return XLSX.utils.sheet_to_json(ws,{header:1,blankrows:false,defval:''});}
+function objRows(ws,headers){
+  if(!ws)return [];
+  const rows=aoa(ws); const h0=headers[0];
+  let hi=rows.findIndex(r=>r.map(x=>String(x).trim()).includes(h0));
+  if(hi<0)return [];
+  const head=rows[hi].map(x=>String(x).trim());
+  const idx={}; headers.forEach(h=>idx[h]=head.indexOf(h));
+  const out=[];
+  for(let i=hi+1;i<rows.length;i++){const r=rows[i]; if(r.every(c=>String(c).trim()===''))continue;
+    const o={}; headers.forEach(h=>{o[h]=idx[h]>=0?r[idx[h]]:'';}); out.push(o);}
+  return out;
+}
+const S=v=>v==null?'':String(v).trim();
+const N=v=>{const n=Number(v);return isNaN(n)?0:n;};
+const PIPE=v=>S(v).split('|').map(x=>x.trim()).filter(x=>x!=='');
+
+function parseWorkbook(wb){
+  const sh=n=>wb.Sheets[n];
+
+  /* ---- Meta ---- */
+  const meta={};
+  objRows(sh('Meta'),['Field','Value']).forEach(r=>{ if(S(r.Field)) meta[S(r.Field)]=r.Value; });
+  ['durationMinutes','scorePerQuestion'].forEach(k=>{ if(meta[k]!=='' && meta[k]!=null) meta[k]=Number(meta[k]); });
+  if(!meta.durationMinutes)  meta.durationMinutes=60;    // VSTEP Reading chuẩn
+  if(!meta.scorePerQuestion) meta.scorePerQuestion=0.25; // 40 câu × 0,25 = 10 điểm
+  meta.skill='reading';
+
+  /* ---- Bài đọc: MỘT DÒNG = MỘT ĐOẠN VĂN ----
+     Đoạn văn VSTEP rất dài, nhét cả bài vào một ô Excel thì không đọc và
+     không sửa nổi; tách theo đoạn cũng chính là cách bộ máy lưu trữ. */
+  const byP={};
+  objRows(sh('Passages'),['passage','para','title','text','bold']).forEach(r=>{
+    const pn=N(r.passage)||1;
+    if(!byP[pn]) byP[pn]={id:pn,number:pn,title:'',bold:{},paragraphs:[],questions:[]};
+    if(S(r.title)&&!byP[pn].title) byP[pn].title=S(r.title);
+    const txt=S(r.text); if(txt==='') return;
+    const i=byP[pn].paragraphs.length;
+    byP[pn].paragraphs.push(txt);
+    /* "word" = lần xuất hiện đầu tiên; "word#2" = lần thứ 2 */
+    const b=PIPE(r.bold).map(w=>{ const m=w.match(/^(.*)#(\d+)$/); return m?[m[1].trim(),Number(m[2])]:w; });
+    if(b.length) byP[pn].bold[i]=b;
+  });
+
+  /* ---- Câu hỏi: trắc nghiệm A–D, kèm giải thích và bằng chứng ---- */
+  objRows(sh('Questions'),['passage','number','question','A','B','C','D','answer','explanation','evidenceType','evidenceText'])
+   .forEach(r=>{
+    const pn=N(r.passage)||1;
+    if(!byP[pn]) byP[pn]={id:pn,number:pn,title:'',bold:{},paragraphs:[],questions:[]};
+    if(S(r.question)==='') return;
+    byP[pn].questions.push({
+      text:S(r.question),
+      options:{A:S(r.A),B:S(r.B),C:S(r.C),D:S(r.D)},
+      correct:S(r.answer).toUpperCase(),
+      explanation:S(r.explanation),
+      evidence:{ type:(S(r.evidenceType)||'direct').toLowerCase(), text:S(r.evidenceText) }
+    });
+  });
+  const reading=Object.keys(byP).map(Number).sort((a,b)=>a-b).map(n=>byP[n]);
+  reading.forEach((p,i)=>{ p.number=i+1; p.id=i+1; });
+
+  /* ---- Ngân hàng từ vựng & ngữ pháp cho Chế độ Luyện tập ---- */
+  const vocab=objRows(sh('Vocab'),['word','pos','ipa','def','vi','ex','exVi','forms'])
+    .map(r=>({w:S(r.word),word:S(r.word),pos:S(r.pos),ipa:S(r.ipa),def:S(r.def),vi:S(r.vi),
+              ex:S(r.ex),exVi:S(r.exVi),forms:S(r.forms)}))
+    .filter(v=>v.word);
+  const grammar=objRows(sh('Grammar'),['id','name','en','vi','form','examples','usage','mistakes'])
+    .map((r,i)=>({id:S(r.id)||('g'+(i+1)),name:S(r.name),en:S(r.en),vi:S(r.vi),form:S(r.form),
+      /* "EN ~~ VI || EN ~~ VI" */
+      examples:S(r.examples).split('||').map(x=>x.trim()).filter(Boolean).map(pair=>{
+        const q=pair.split('~~'); return {en:S(q[0]),vi:S(q[1]||'')}; }),
+      usage:S(r.usage),mistakes:S(r.mistakes)}))
+    .filter(g=>g.name);
+
+  /* ---- Bài tập thầy tự soạn (5 sheet, đều không bắt buộc) ---- */
+  const EX={vocab:[],grammar:[]};
+  const bankOf=r=>/gram|ngữ|ngu/i.test(S(r.bank))?'grammar':'vocab';
+
+  // 1) ExChoice — trắc nghiệm
+  objRows(sh('ExChoice'),['bank','q','A','B','C','D','answer','explain']).forEach(r=>{
+    const letters=['A','B','C','D'].filter(L=>S(r[L])!=='');
+    if(letters.length<2||S(r.q)==='')return;
+    const ai=Math.max(0,letters.indexOf(S(r.answer).toUpperCase()));
+    EX[bankOf(r)].push({type:'mcq',q:S(r.q),options:letters.map(L=>S(r[L])),answer:ai,explain:S(r.explain)});
+  });
+  // 2) ExType — gõ đáp án: fill (điền từ) hoặc error (sửa lỗi sai)
+  objRows(sh('ExType'),['bank','kind','q','sentence','hint','answers','explain']).forEach(r=>{
+    const ans=PIPE(r.answers); if(!ans.length||S(r.q)==='')return;
+    const kind=/err|lỗi|loi/i.test(S(r.kind))?'error':'fill';
+    const it={type:kind,q:S(r.q),answer:ans,explain:S(r.explain)};
+    if(kind==='error'){ it.sentence=S(r.sentence); it.hint=S(r.hint); }
+    EX[bankOf(r)].push(it);
+  });
+  // 3) ExOrder — sắp xếp từ thành câu (bộ máy tự tách câu đúng theo dấu cách)
+  objRows(sh('ExOrder'),['bank','q','answer','explain']).forEach(r=>{
+    if(S(r.answer)==='')return;
+    EX[bankOf(r)].push({type:'order',q:S(r.q)||'Sắp xếp thành câu đúng:',answer:S(r.answer),explain:S(r.explain)});
+  });
+  // 4) ExMatch — ghép cặp, gom các dòng cùng `set` thành MỘT bài
+  const mSets={};
+  objRows(sh('ExMatch'),['bank','set','instruction','left','right','explain']).forEach(r=>{
+    if(S(r.left)===''||S(r.right)==='')return;
+    const b=bankOf(r), key=b+'|'+(S(r.set)||'1');
+    if(!mSets[key]){ mSets[key]={type:'match',instruction:S(r.instruction)||'Nối các cặp phù hợp:',pairs:[],explain:S(r.explain)}; EX[b].push(mSets[key]); }
+    mSets[key].pairs.push([S(r.left),S(r.right)]);
+  });
+  // 5) ExCloze — đoạn văn điền từ; text ở dòng đầu, chỗ trống đánh {0} {1} {2}…
+  const cSets={};
+  objRows(sh('ExCloze'),['bank','set','instruction','text','blank','options','answer','explain']).forEach(r=>{
+    const b=bankOf(r), key=b+'|'+(S(r.set)||'1');
+    if(!cSets[key]){ cSets[key]={type:'cloze',instruction:S(r.instruction)||'Điền vào chỗ trống:',text:'',blanks:[],explain:S(r.explain)}; EX[b].push(cSets[key]); }
+    if(S(r.text)!==''&&!cSets[key].text) cSets[key].text=S(r.text);
+    const opts=PIPE(r.options); if(opts.length<2)return;
+    const bi=N(r.blank);
+    let ai=opts.indexOf(S(r.answer)); if(ai<0) ai=0;
+    cSets[key].blanks[bi]={options:opts,answer:ai};
+  });
+  // bỏ bài tập rỗng (đặt tiêu đề nhưng chưa nhập dòng nào)
+  const alive=x=>x.type==='match'?x.pairs.length>0:(x.type==='cloze'?(x.text&&x.blanks.filter(Boolean).length>0):true);
+  EX.vocab=EX.vocab.filter(alive); EX.grammar=EX.grammar.filter(alive);
+
+  return { schema:'vstep-exam/1.0', meta, reading,
+           practice:{ vocab, grammar, vocabExercises:EX.vocab, grammarExercises:EX.grammar } };
+}
+
+/* Tự sinh bài tập từ hai sheet Vocab / Grammar khi thầy không tự soạn.
+   Giống Phase 52 của V-SAT nhưng dựng theo đúng hình dạng dữ liệu của
+   bộ máy VSTEP (mcq dùng CHỈ SỐ đáp án, fill dùng MẢNG đáp án). */
+function autogenExercises(exam){
+  const V=(exam.practice&&exam.practice.vocab)||[], G=(exam.practice&&exam.practice.grammar)||[];
+  const ve=[], ge=[], take=(a,n)=>a.slice(0,n);
+  /* xoay lựa chọn để đáp án đúng không luôn nằm ở vị trí đầu */
+  const rot=(a,k)=>{const n=a.length,s=((k%n)+n)%n;return a.slice(s).concat(a.slice(0,s));};
+  const shifted=(correct,others,i)=>{const o=[correct].concat(others),n=o.length,s=i%n;return {options:rot(o,n-s),answer:s};};
+  const foils=(list,i,get,n)=>{const out=[],mine=get(list[i]);
+    for(let k=1;out.length<n&&k<list.length;k++){const x=get(list[(i+k)%list.length]);
+      if(x&&x!==mine&&out.indexOf(x)<0)out.push(x);} return out;};
+  const uniq=ps=>{const seen={},out=[];ps.forEach(p=>{if(p[0]&&p[1]&&!seen[p[1]]){seen[p[1]]=1;out.push(p);}});return out;};
+  /* chỗ trống phải trùm hết TỪ, không cắt giữa chừng */
+  const gapOf=(sent,word)=>{const s=String(sent||''),w=String(word||'');
+    if(!s||!w)return null; let i=s.toLowerCase().indexOf(w.toLowerCase()); if(i<0)return null;
+    let j=i+w.length; const isL=c=>/[A-Za-zÀ-ÿ'’\-]/.test(c||'');
+    while(i>0&&isL(s[i-1]))i--; while(j<s.length&&isL(s[j]))j++;
+    return {before:s.slice(0,i),after:s.slice(j),hit:s.slice(i,j)};};
+
+  if(V.length>=3){
+    const pool=take(V.filter(v=>v.def),8);
+    if(pool.length>=3) take(pool,6).forEach((v,i)=>{
+      const s=shifted(v.def,foils(pool,i,x=>x.def,2),i);
+      ve.push({type:'mcq',q:'“'+v.word+'” nghĩa là gì?',options:s.options,answer:s.answer,
+               explain:v.word+' = '+(v.vi||v.def)});
+    });
+    const wd=uniq(V.map(v=>[v.word,v.def]));
+    if(wd.length>=3) ve.push({type:'match',instruction:'Nối từ với định nghĩa đúng:',pairs:take(wd,6),explain:''});
+    const vi=uniq(V.filter(v=>v.vi).map(v=>[v.word,v.vi]));
+    if(vi.length>=3) ve.push({type:'match',instruction:'Nối từ với nghĩa tiếng Việt:',pairs:take(vi,6),explain:''});
+    const gp=V.map(v=>({v,g:gapOf(v.ex,v.word)})).filter(x=>x.g);
+    take(gp,5).forEach(x=>{
+      ve.push({type:'fill',q:x.g.before+'______'+x.g.after,
+               answer:[x.g.hit,x.v.word].filter((s,i,a)=>a.indexOf(s)===i),
+               explain:x.v.word+' = '+(x.v.vi||x.v.def||'')});
+    });
+  }
+  if(G.length>=2){
+    const gf=uniq(G.map(g=>[g.name,String(g.form||'').split('\n')[0]]));
+    if(gf.length>=2) ge.push({type:'match',instruction:'Nối cấu trúc với công thức:',pairs:take(gf,6),explain:''});
+    const pairs=[]; G.forEach(g=>(g.examples||[]).forEach(e=>{ if(e&&e.en&&e.vi) pairs.push([e.en,e.vi]); }));
+    const up=uniq(pairs);
+    if(up.length>=3) ge.push({type:'match',instruction:'Nối câu ví dụ với bản dịch:',pairs:take(up,6),explain:''});
+    const named=G.filter(g=>g.name&&g.examples&&g.examples.length&&g.examples[0].en);
+    if(named.length>=3) take(named,6).forEach((g,i)=>{
+      const s=shifted(g.name,foils(named,i,x=>x.name,2),i);
+      ge.push({type:'mcq',q:'Câu sau dùng cấu trúc nào? “'+g.examples[0].en+'”',
+               options:s.options,answer:s.answer,
+               explain:g.name+(g.form?(' — '+String(g.form).split('\n')[0]):'')});
+    });
+  }
+  if(!exam.practice.vocabExercises||!exam.practice.vocabExercises.length)   exam.practice.vocabExercises=ve;
+  if(!exam.practice.grammarExercises||!exam.practice.grammarExercises.length) exam.practice.grammarExercises=ge;
+  return exam;
+}
+
+/* Kiểm tra trước khi đăng — thông báo bằng tiếng Việt, chỉ rõ dòng nào sai. */
+function validateExamFull(ex){
+  const errs=[], warns=[];
+  if(!ex||!ex.meta||!S(ex.meta.id)) errs.push('Thiếu Meta → id (mã đề, phải là duy nhất).');
+  if(!S((ex.meta||{}).title)) warns.push('Thiếu Meta → title (tên đề hiển thị cho học viên).');
+  const R=(ex&&ex.reading)||[];
+  if(!R.length){ errs.push('Không đọc được bài đọc nào — kiểm tra sheet Passages.');
+                 return {errs,warns,stats:{passages:0,questions:0}}; }
+
+  let total=0;
+  R.forEach((p,pi)=>{
+    const label='Bài đọc '+(pi+1);
+    if(!p.paragraphs.length) errs.push(label+': chưa có đoạn văn nào.');
+    if(!S(p.title)) warns.push(label+': chưa đặt tiêu đề (cột title ở sheet Passages).');
+    const qs=p.questions||[];
+    total+=qs.length;
+    if(!qs.length) errs.push(label+': chưa có câu hỏi nào.');
+    const joined=p.paragraphs.join('\n');
+    qs.forEach((q,qi)=>{
+      const at=label+' · câu '+(qi+1);
+      if(!S(q.text)) errs.push(at+': thiếu nội dung câu hỏi.');
+      ['A','B','C','D'].forEach(L=>{ if(!S(q.options[L])) errs.push(at+': thiếu phương án '+L+'.'); });
+      if(['A','B','C','D'].indexOf(q.correct)<0) errs.push(at+': cột answer phải là A, B, C hoặc D (đang là “'+q.correct+'”).');
+      if(!S(q.explanation)) warns.push(at+': chưa có giải thích — học viên sẽ không thấy phần “Vì sao đúng”.');
+      const evT=S(q.evidence&&q.evidence.text);
+      if(!evT) warns.push(at+': chưa có evidenceText — sẽ không tô sáng được câu dẫn chứng trong bài đọc.');
+      /* Lỗi âm thầm nguy hiểm nhất: câu dẫn chứng phải là MỘT ĐOẠN CHỮ CÓ
+         THẬT trong bài đọc, nếu không phần xem lại sẽ không tô được gì mà
+         cũng chẳng báo lỗi. */
+      else if(joined.indexOf(evT)<0)
+        errs.push(at+': evidenceText không khớp nguyên văn trong bài đọc — hãy sao chép đúng từng chữ từ đoạn văn.');
+      const ty=S(q.evidence&&q.evidence.type);
+      if(ty && ['direct','inferred','vocab'].indexOf(ty)<0)
+        warns.push(at+': evidenceType nên là direct, inferred hoặc vocab (đang là “'+ty+'”).');
+    });
+  });
+
+  /* Cấu trúc chuẩn VSTEP Reading: 4 bài đọc × 10 câu = 40 câu.
+     Báo nhắc chứ không chặn, phòng khi thầy cố ý ra đề luyện ngắn hơn. */
+  if(R.length!==4) warns.push('Đề chuẩn VSTEP Reading có 4 bài đọc; đề này có '+R.length+'.');
+  R.forEach((p,i)=>{ const n=(p.questions||[]).length;
+    if(n!==10) warns.push('Bài đọc '+(i+1)+' có '+n+' câu; chuẩn VSTEP là 10 câu mỗi bài.'); });
+
+  const scale=Number((ex.meta||{}).scorePerQuestion)||0.25;
+  return {errs,warns,stats:{passages:R.length,questions:total,
+          maxScore:+(total*scale).toFixed(2),
+          vocab:((ex.practice||{}).vocab||[]).length,
+          grammar:((ex.practice||{}).grammar||[]).length}};
+}
+
+root.VSTEPParser={parseWorkbook,autogenExercises,validateExamFull};
+})(typeof window!=='undefined'?window:globalThis);
+
     function loadXLSX() {
       return new Promise((res, rej) => {
         if (window.XLSX) return res(window.XLSX);
@@ -1772,7 +2014,12 @@ root.VSATParser={parseWorkbook,autogenExercises,validateExamFull};
          working and simply finds no English texts until the migration runs. */
       /* vsat_exams only exists after migration52 — until then the tab shows
          an empty list instead of breaking the whole dashboard */
-      let vsRows = (vsRes && !vsRes.error && vsRes.data) ? vsRes.data : [];
+      /* migration53: vsat_exams là kho chung cho nhiều kỳ thi, cột `kind`
+         quyết định đề thuộc kỳ nào. Đề tải lên TRƯỚC migration53 chưa có
+         cột này nên mặc định coi là V-SAT. */
+      const vsAll = (vsRes && !vsRes.error && vsRes.data) ? vsRes.data : [];
+      let vsRows = vsAll.filter(r => !r.kind || r.kind === "vsat");
+      let vpRows = vsAll.filter(r => r.kind && String(r.kind).indexOf("vstep") === 0);
       let rtRes = rtRes0;
       if (rtRes.error && /lang/i.test(rtRes.error.message || "")) {
         rtRes = await sb.from("reading_texts")
@@ -2330,6 +2577,27 @@ root.VSATParser={parseWorkbook,autogenExercises,validateExamFull};
           <div class="card">
             <h2>Đề đã đăng <span class="kind" id="vs-count"></span></h2>
             <div id="vs-list"><p class="empty">Đang tải…</p></div>
+          </div>
+        </div>
+
+        <div class="tabpane" data-tab="vstep">
+          <div class="card">
+            <h2>📖 Luyện thi VSTEP Reading</h2>
+            <p class="kind" style="margin:0 0 0.7rem;">Cấu trúc chuẩn: <b>4 bài đọc × 10 câu = 40 câu · 60 phút · mỗi câu 0,25 điểm</b>.
+              Điền nội dung vào tệp Excel mẫu rồi tải lên đây — học viên vào <code>vstep.html</code> làm được ngay.
+              Giao diện đọc chia đôi màn hình, bút tô sáng, ghi chú, chấm điểm và phần xem lại có tô sáng câu dẫn chứng <b>không đổi</b>; chỉ nội dung đề là mới.</p>
+            <div class="form-row">
+              <a class="ghost btn" href="vstep-reading-template.xlsx" download style="text-decoration:none;">⬇ Tải tệp Excel mẫu</a>
+              <label class="btn" style="cursor:pointer;">⬆ Tải đề lên (.xlsx hoặc .json)
+                <input type="file" id="vp-file" accept=".json,.xlsx,.xls" hidden multiple /></label>
+              <a class="ghost btn" href="vstep.html" target="_blank" rel="noopener" style="text-decoration:none;">👁 Mở trang luyện thi</a>
+            </div>
+            <p id="vp-msg" class="msg"></p>
+            <div id="vp-report" style="margin-top:0.6rem;"></div>
+          </div>
+          <div class="card">
+            <h2>Đề đã đăng <span class="kind" id="vp-count"></span></h2>
+            <div id="vp-list"><p class="empty">Đang tải…</p></div>
           </div>
         </div>
 
@@ -3398,6 +3666,7 @@ root.VSATParser={parseWorkbook,autogenExercises,validateExamFull};
           { id: "flash", label: "Flashcards" + (cards.length ? " (" + cards.length + ")" : ""), icon: "wallet-cards", group: "Content" },
           { id: "reading", label: "Reading" + ((rtRes.data || []).length ? " (" + rtRes.data.length + ")" : ""), icon: "library", group: "Content" },
           { id: "vsat", label: "V-SAT" + (vsRows.length ? " (" + vsRows.length + ")" : ""), icon: "file-check", group: "Content" },
+          { id: "vstep", label: "VSTEP" + (vpRows.length ? " (" + vpRows.length + ")" : ""), icon: "book-open", group: "Content" },
           { id: "shadow", label: "Shadowing" + ((svRes.data || []).length ? " (" + svRes.data.length + ")" : ""), icon: "video", group: "Content" },
           { id: "dict", label: "Dictation", icon: "headphones", group: "Content" },
           { id: "landing", label: "Landing Page", icon: "globe", group: "Content" },
@@ -5448,6 +5717,157 @@ root.VSATParser={parseWorkbook,autogenExercises,validateExamFull};
         document.getElementById("vs-hint").textContent =
           "Tải lại cùng một đề sẽ cập nhật nội dung, giữ nguyên cài đặt.";
         renderVs();
+      })();
+
+      // ================= VSTEP EXAM MANAGEMENT (Phase 53) =================
+      // Cùng khuôn với tab V-SAT: chỉ lưu, sắp xếp và phân quyền đề. Bộ máy
+      // làm bài (vstep.html) hiển thị bất cứ nội dung nào được đưa cho nó.
+      // Đề VSTEP nằm chung bảng vsat_exams, phân biệt bằng cột kind.
+      (function () {
+        const listEl = document.getElementById("vp-list");
+        if (!listEl) return;
+        const msg = document.getElementById("vp-msg");
+        const report = document.getElementById("vp-report");
+        const countEl = document.getElementById("vp-count");
+        const said = (t, err) => { msg.textContent = t; msg.className = "msg" + (err ? " err" : ""); };
+
+        function renderVp() {
+          countEl.textContent = vpRows.length ? "(" + vpRows.length + ")" : "";
+          if (!vpRows.length) {
+            listEl.innerHTML = '<p class="empty">Chưa có đề VSTEP nào. Tải tệp Excel mẫu ở trên, điền nội dung rồi tải lên.</p>';
+            return;
+          }
+          listEl.innerHTML = vpRows.map(e => `
+            <div class="lesson" style="flex-wrap:wrap;">
+              <div class="meta">
+                <div class="title">${esc(e.title)}${e.published ? "" : ' <span class="pill off">nháp</span>'}</div>
+                <span class="kind">${esc(e.subtitle || "")}${e.questions ? " · " + e.questions + " câu" : ""}${e.duration_min ? " · " + e.duration_min + " phút" : ""}${e.max_raw ? " · tối đa " + e.max_raw + " điểm" : ""}</span>
+              </div>
+              <input type="number" class="vp-ord" data-id="${e.id}" value="${e.sort_order == null ? 0 : e.sort_order}" min="0" title="Thứ tự hiển thị" style="max-width:70px; flex:none;" />
+              <select class="vp-tier" data-id="${e.id}" style="max-width:110px;" title="Miễn phí hay Premium">
+                <option value="free" ${e.tier === "free" ? "selected" : ""}>Miễn phí</option>
+                <option value="premium" ${e.tier !== "free" ? "selected" : ""}>👑 Premium</option>
+              </select>
+              <select class="vp-course" data-id="${e.id}" style="max-width:190px;" title="Gắn với khoá học (học viên của khoá này mở được)">
+                <option value="">— không gắn khoá —</option>
+                ${(courses || []).map(c => `<option value="${c.id}" ${e.course_id === c.id ? "selected" : ""}>${esc(c.title)}</option>`).join("")}
+              </select>
+              <label style="font-size:0.85rem; color:var(--muted); white-space:nowrap;">
+                <input type="checkbox" class="vp-pub" data-id="${e.id}" ${e.published ? "checked" : ""} /> đăng</label>
+              <a class="ghost btn" href="vstep.html?exam=${encodeURIComponent(e.exam_id)}" target="_blank" rel="noopener" style="text-decoration:none;" title="Xem thử">👁</a>
+              <button class="ghost" data-vpdel="${e.id}" style="color:var(--danger); border-color:var(--danger);">🗑</button>
+            </div>`).join("");
+        }
+
+        async function patch(id, fields) {
+          const { error } = await sb.from("vsat_exams").update(fields).eq("id", id);
+          if (error) { said("Không lưu được: " + error.message, true); return false; }
+          const row = vpRows.find(r => r.id === id);
+          if (row) Object.assign(row, fields);
+          return true;
+        }
+
+        listEl.addEventListener("change", async e => {
+          const t = e.target;
+          if (t.classList.contains("vp-tier")) { if (await patch(t.dataset.id, { tier: t.value })) said("Đã đổi loại truy cập ✓"); }
+          if (t.classList.contains("vp-pub"))  { if (await patch(t.dataset.id, { published: t.checked })) said(t.checked ? "Đã đăng ✓" : "Đã gỡ xuống ✓"); }
+          if (t.classList.contains("vp-ord"))  { if (await patch(t.dataset.id, { sort_order: Number(t.value) || 0 })) said("Đã đổi thứ tự ✓"); }
+          if (t.classList.contains("vp-course")) { if (await patch(t.dataset.id, { course_id: t.value || null })) said("Đã gắn khoá học ✓"); }
+        });
+        listEl.addEventListener("click", async e => {
+          const b = e.target.closest("[data-vpdel]"); if (!b) return;
+          const row = vpRows.find(r => r.id === b.dataset.vpdel); if (!row) return;
+          const ok = await UI.confirmDialog({ title: "Xoá đề này?", danger: true, okText: "Xoá",
+            body: `“${row.title}” sẽ bị xoá khỏi thư viện. Kết quả học viên đã làm vẫn được giữ.` });
+          if (!ok) return;
+          const { error } = await sb.from("vsat_exams").delete().eq("id", row.id);
+          if (error) { said("Không xoá được: " + error.message, true); return; }
+          vpRows = vpRows.filter(r => r.id !== row.id);
+          renderVp(); said("Đã xoá ✓");
+        });
+
+        /* Bảng kiểm tra hiện TRƯỚC khi thầy tick "đăng": lỗi thì không tải lên,
+           nhắc thì vẫn tải nhưng nói rõ chỗ nào lệch chuẩn VSTEP. */
+        function showReport(name, v, ok) {
+          const box = document.createElement("div");
+          box.className = "card";
+          box.style.cssText = "margin:0.5rem 0 0; padding:0.7rem 0.9rem;";
+          const s = v.stats || {};
+          box.innerHTML =
+            `<div style="font-weight:700; margin-bottom:0.35rem;">${ok ? "✅" : "⛔"} ${esc(name)}</div>` +
+            `<div class="kind" style="text-transform:none; letter-spacing:0; margin-bottom:0.4rem;">` +
+              `${s.passages || 0} bài đọc · ${s.questions || 0} câu · tối đa ${s.maxScore || 0} điểm · ` +
+              `${s.vocab || 0} từ vựng · ${s.grammar || 0} cấu trúc ngữ pháp</div>` +
+            ((v.errs && v.errs.length)
+              ? `<div style="color:var(--danger); font-size:0.85rem;"><b>Lỗi phải sửa (${v.errs.length}):</b><ul style="margin:0.3rem 0 0 1.1rem;">` +
+                v.errs.slice(0, 12).map(x => `<li>${esc(x)}</li>`).join("") +
+                (v.errs.length > 12 ? `<li>… và ${v.errs.length - 12} lỗi nữa</li>` : "") + `</ul></div>` : "") +
+            ((v.warns && v.warns.length)
+              ? `<div style="color:var(--muted); font-size:0.85rem; margin-top:0.35rem;"><b>Nhắc (${v.warns.length}):</b><ul style="margin:0.3rem 0 0 1.1rem;">` +
+                v.warns.slice(0, 8).map(x => `<li>${esc(x)}</li>`).join("") +
+                (v.warns.length > 8 ? `<li>… và ${v.warns.length - 8} mục nữa</li>` : "") + `</ul></div>` : "");
+          report.appendChild(box);
+        }
+
+        document.getElementById("vp-file").addEventListener("change", async ev => {
+          const files = [...(ev.target.files || [])];
+          ev.target.value = "";
+          if (!files.length) return;
+          report.innerHTML = "";
+          let added = 0, failed = 0;
+          for (const f of files) {
+            said("Đang xử lý " + f.name + "…");
+            let exam = null;
+            try {
+              if (/\.(xlsx|xls)$/i.test(f.name)) {
+                const XLSXlib = await loadXLSX();
+                const wb = XLSXlib.read(await f.arrayBuffer(), { type: "array" });
+                exam = window.VSTEPParser.parseWorkbook(wb);
+                window.VSTEPParser.autogenExercises(exam);
+              } else {
+                exam = JSON.parse(await f.text());
+              }
+            } catch (err) { said(f.name + ": không đọc được — " + err.message, true); failed++; continue; }
+
+            const v = window.VSTEPParser.validateExamFull(exam);
+            if (v.errs && v.errs.length) { showReport(f.name, v, false); failed++; continue; }
+
+            const nQ = (exam.reading || []).reduce((a, p) => a + ((p.questions || []).length), 0);
+            const scale = Number(exam.meta.scorePerQuestion) || 0.25;
+            const row = {
+              exam_id: exam.meta.id,
+              title: exam.meta.title || exam.meta.id,
+              subtitle: exam.meta.subtitle || "",
+              institution: exam.meta.institution || "",
+              subject: exam.meta.subject || "Tiếng Anh",
+              duration_min: Number(exam.meta.durationMinutes) || 60,
+              questions: nQ,
+              max_raw: Math.round(nQ * scale),
+              data: exam,
+              kind: "vstep-reading",
+              sort_order: vpRows.length,
+              created_by: user.id
+            };
+            /* tải lại cùng exam_id = cập nhật nội dung, giữ nguyên
+               Miễn phí/Premium, trạng thái đăng và thứ tự thầy đã đặt */
+            const { data: ins, error } = await sb.from("vsat_exams")
+              .upsert(row, { onConflict: "exam_id" }).select().single();
+            if (error) {
+              said(f.name + ": " + error.message +
+                (/kind/.test(error.message || "") ? " — hình như chưa chạy migration53_vstep.sql." : ""), true);
+              failed++; continue;
+            }
+            const i = vpRows.findIndex(r => r.exam_id === ins.exam_id);
+            if (i >= 0) vpRows[i] = ins; else vpRows.push(ins);
+            showReport(f.name, v, true);
+            added++;
+          }
+          renderVp();
+          said(added + " đề đã tải lên" + (failed ? " · " + failed + " tệp lỗi" : "") +
+               (added ? " — bấm 👁 xem thử, rồi tick “đăng” để học viên thấy." : ""), failed && !added);
+        });
+
+        renderVp();
       })();
 
       // ================= LANDING PAGE CMS =================

@@ -189,11 +189,14 @@
       reading: { icon: "📖", name: "Thư viện Đọc hiểu", unit: "bài đọc" },
       shadow:  { icon: "🎤", name: "Luyện nói Shadowing", unit: "video" },
       dict:    { icon: "🎧", name: "Chép chính tả", unit: "video" },
-      vsat:    { icon: "📝", name: "Luyện thi V-SAT", unit: "đề thi" }
+      vsat:    { icon: "📝", name: "Luyện thi V-SAT", unit: "đề thi" },
+      vstep:   { icon: "📖", name: "Luyện thi VSTEP", unit: "đề thi" }
     };
     /* which page opens each tool at full size */
     const SEC_PAGE = { reading: "reading.html", shadow: "shadow.html",
-                       dict: "dictation.html", vsat: "vsat.html" };
+                       dict: "dictation.html", vsat: "vsat.html", vstep: "vstep.html" };
+    /* hai kỳ thi dùng chung một danh sách đề, chỉ khác cột kind */
+    const IS_EXAM = k => k === "vsat" || k === "vstep";
     const secCfg = k => (SECTIONS.find(x => x.section === k) || {}).config || {};
 
     $("cp-theme").addEventListener("click", () => {
@@ -365,13 +368,14 @@
 
       const res = sec === "reading"
         ? await sb.rpc("public_reading_list").then(r => r, () => ({ data: null }))
-        : sec === "vsat"
-        ? await sb.rpc("public_vsat_list").then(r => r, () => ({ data: null }))
+        : IS_EXAM(sec)
+        ? await sb.rpc("public_vsat_list", { p_kind: sec === "vstep" ? "vstep-reading" : "vsat" })
+            .then(r => r, () => ({ data: null }))
         : await sb.rpc("public_video_list", { p_kind: sec }).then(r => r, () => ({ data: null }));
       let items = Array.isArray(res && res.data) ? res.data : [];
       /* V-SAT rows are keyed by exam_id and describe an exam, not a lesson —
          map them onto the same shape the cards already understand */
-      if (sec === "vsat") items = items.map(e => ({
+      if (IS_EXAM(sec)) items = items.map(e => ({
         id: e.exam_id, title: e.title, title_vi: e.subtitle || "",
         premium: !!e.premium, cover_url: "",
         questions: e.questions, duration_min: e.duration_min, max_raw: e.max_raw
@@ -418,16 +422,15 @@
       if (t) t.addEventListener("click", () => {
         const first = items.find(i => !i.premium);
         if (!first) return;
-        if (sec === "vsat") { location.href = "vsat.html?exam=" + encodeURIComponent(first.id); return; }
         const P2 = SEC_PAGE[sec];
-        if (P2) { location.href = P2 + (sec === "vsat" ? "?exam=" : "?open=") + encodeURIComponent(first.id); return; }
+        if (P2) { location.href = P2 + (IS_EXAM(sec) ? "?exam=" : "?open=") + encodeURIComponent(first.id); return; }
         openSecItem(sec, first.id);
       });
       $("cpMain").querySelectorAll("[data-sec-open]").forEach(b =>
         b.addEventListener("click", () => {
           // Đọc hiểu: mở THẲNG giao diện thật để khách trải nghiệm đầy đủ
           const P = SEC_PAGE[sec];
-          if (P) { location.href = P + (sec === "vsat" ? "?exam=" : "?open=") + encodeURIComponent(b.getAttribute("data-sec-open")); return; }
+          if (P) { location.href = P + (IS_EXAM(sec) ? "?exam=" : "?open=") + encodeURIComponent(b.getAttribute("data-sec-open")); return; }
           openSecItem(sec, b.getAttribute("data-sec-open"));
         }));
       $("cpMain").querySelectorAll("[data-sec-lock]").forEach(b => b.addEventListener("click", openBuy));
@@ -437,7 +440,7 @@
       const lvl = it.level ? "HSK " + it.level : "";
       const sub = sec === "reading"
         ? [lvl, it.words ? "✍ " + it.words + " từ" : ""].filter(Boolean).join(" · ")
-        : sec === "vsat"
+        : IS_EXAM(sec)
         ? [it.questions ? "📝 " + it.questions + " câu" : "",
            it.duration_min ? "⏱ " + it.duration_min + " phút" : "",
            it.max_raw ? "🎯 " + it.max_raw + " điểm" : ""].filter(Boolean).join(" · ")
