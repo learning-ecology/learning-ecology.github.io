@@ -965,7 +965,17 @@ npText.addEventListener('input',()=>store.set('notepad',npText.value));
 /* ================================================================
    PROGRESS STATE
    ================================================================ */
-function pget(){return store.get('progress',{stepsDone:{},vocabClass:{},grammarClass:{},vocabEx:{},grammarEx:{}});}
+function pblank(){return{stepsDone:{},vocabClass:{},grammarClass:{},vocabEx:{},grammarEx:{}};}
+function pget(){
+  /* Bản ghi tiến độ có thể THIẾU trường — ví dụ máy chủ gửi về một đối tượng
+     rỗng {} của lần lưu đầu tiên. Trước đây store.get thấy "đã có giá trị"
+     nên bỏ qua khung mặc định, và mọi màn hình luyện tập vỡ ngay ở dòng đầu
+     (p.stepsDone[0] của undefined). Nay luôn ghép lên khung đầy đủ. */
+  const s=store.get('progress',null),d=pblank();
+  if(!s||typeof s!=='object')return d;
+  for(const k in d)if(s[k]&&typeof s[k]==='object')d[k]=s[k];
+  return d;
+}
 function pset(p){store.set('progress',p);}
 function markStep(i){const p=pget();p.stepsDone[i]=true;pset(p);}
 
@@ -986,6 +996,7 @@ let curStep=store.get('curStep',0);
 
 function renderPractice(){
   const p=pget();
+  if(!STEPS[curStep])curStep=0;          // chỉ số bước hỏng thì về bước 1
   const sl=document.getElementById('steplist');
   sl.innerHTML=STEPS.map((s,i)=>`<li><button class="${i===curStep?'active':''} ${p.stepsDone[i]?'done':''}" onclick="gotoStep(${i})"><span class="num">${p.stepsDone[i]?'✓':i+1}</span>${esc(s.t)}</button></li>`).join('');
   STEPS[curStep].render();
@@ -2056,7 +2067,9 @@ async function pushProgress() {
   try {
     await DB.from("vsat_progress").upsert({
       student_id: VUSER.id, exam_id: id,
-      practice: { progress: rawStore.get("progress", {}), curStep: rawStore.get("curStep", 0) },
+      /* pblank(), KHÔNG phải {}: một đối tượng rỗng gửi lên rồi tải về sẽ
+         thành bản ghi thiếu trường và làm hỏng màn hình luyện tập. */
+      practice: { progress: rawStore.get("progress", null) || pblank(), curStep: rawStore.get("curStep", 0) },
       test_state: { testState: rawStore.get("testState", null), testResult: rawStore.get("testResult", null) },
       updated_at: new Date().toISOString()
     }, { onConflict: "student_id,exam_id" });
@@ -2069,8 +2082,13 @@ async function pullProgress(examId) {
       .eq("student_id", VUSER.id).eq("exam_id", examId).maybeSingle();
     if (!data) return;
     const p = data.practice || {}, t = data.test_state || {};
-    if (p.progress) rawStore.set("progress", p.progress);
-    if (p.curStep != null) rawStore.set("curStep", p.curStep);
+    if (p.progress && typeof p.progress === "object") rawStore.set("progress", p.progress);
+    /* cũng phải cập nhật BIẾN curStep, không chỉ chỗ lưu: nếu không, bước
+       học viên đang dở được tải về nhưng màn hình vẫn mở ở bước 1. */
+    if (p.curStep != null) {
+      const n = Math.min(Math.max(0, parseInt(p.curStep, 10) || 0), STEPS.length - 1);
+      rawStore.set("curStep", n); curStep = n;
+    }
     if (t.testState) rawStore.set("testState", t.testState);
     if (t.testResult) rawStore.set("testResult", t.testResult);
   } catch (e) {}
