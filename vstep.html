@@ -1,0 +1,2583 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Luyện thi VSTEP Reading · Learning Ecology</title>
+<meta name="description" content="Luyện thi VSTEP Reading: đề thi thử bám sát định dạng thật, có bấm giờ, chấm điểm tự động, xem lại kèm bằng chứng trong bài đọc và giải thích chi tiết." />
+<link rel="canonical" href="https://learningecology.io.vn/vstep.html" />
+<link rel="icon" type="image/png" href="icons/logo-64.png" />
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#17263e" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="premium.js"></script>
+<!-- =====================================================================
+     VSTEP READING PRACTICE TEST — Self-contained single-file app.
+     No external libraries, fonts, APIs or internet resources are used.
+     Works fully offline in any modern browser.
+
+     ==== FOR TEACHERS: WHERE TO EDIT ==================================
+     * Test content (passages, questions, options, correct answers,
+       Vietnamese explanations, evidence): search for  "TEST_DATA".
+     * Change test duration: search for  "TEST_DURATION_MIN".
+     * Change score scale factor: search for  "SCORE_PER_QUESTION".
+     * Colours / branding: search for  ":root" in the CSS below.
+     ===================================================================== -->
+<style>
+/* ============================ THEME / BRANDING ========================= */
+:root{
+  --navy:#12284c;            /* primary deep blue */
+  --navy-2:#1b3a6b;
+  --accent:#2563eb;          /* interactive blue */
+  --accent-soft:#e8f0fe;
+  --bg:#f4f6fa;              /* light-grey page background */
+  --panel:#ffffff;
+  --text:#1a2233;
+  --muted:#5a6577;
+  --border:#d9dee7;
+  --ok:#188a4d;
+  --ok-soft:#e4f5ea;
+  --bad:#c62b34;
+  --bad-soft:#fdeaea;
+  --warn:#b8860b;
+  --mark:#b45309;
+  --mark-soft:#fdf0d8;
+  --shadow:0 2px 10px rgba(18,40,76,.08);
+  --shadow-lg:0 8px 30px rgba(18,40,76,.16);
+  --radius:14px;
+  --reading-scale:1;         /* driven by font-size controls */
+}
+/* Dark reading mode */
+body.dark{
+  --navy:#8fb4ff;
+  --navy-2:#a9c4ff;
+  --accent:#5b8bf7;
+  --accent-soft:#1e293b;
+  --bg:#0f141c;
+  --panel:#161d29;
+  --text:#e6ebf3;
+  --muted:#9aa7bd;
+  --border:#2a3547;
+  --ok:#4ade80;
+  --ok-soft:#153224;
+  --bad:#f87171;
+  --bad-soft:#3a1c1e;
+  --mark-soft:#3a2f16;
+  --shadow:0 2px 10px rgba(0,0,0,.35);
+  --shadow-lg:0 8px 30px rgba(0,0,0,.5);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;height:100%;}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg);color:var(--text);
+  line-height:1.5;-webkit-font-smoothing:antialiased;
+}
+button{font-family:inherit;cursor:pointer;}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:6px;}
+.hidden{display:none !important;}
+
+/* ============================ START SCREEN ============================ */
+.screen{min-height:100%;}
+.start-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
+.start-card{
+  background:var(--panel);max-width:640px;width:100%;border-radius:var(--radius);
+  box-shadow:var(--shadow-lg);padding:40px;border-top:6px solid var(--navy);
+}
+.start-card h1{color:var(--navy);margin:0 0 4px;font-size:1.7rem;}
+.start-sub{color:var(--muted);margin:0 0 24px;}
+.meta-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin:20px 0;}
+.meta-item{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
+.meta-item .n{font-size:1.5rem;font-weight:700;color:var(--navy);}
+.meta-item .l{font-size:.85rem;color:var(--muted);}
+.instructions{background:var(--accent-soft);border-radius:10px;padding:16px 18px;margin:18px 0;font-size:.95rem;}
+.instructions ul{margin:8px 0 0;padding-left:20px;}
+.instructions li{margin:4px 0;}
+.btn-primary{
+  background:var(--navy);color:#fff;border:none;padding:15px 26px;font-size:1.05rem;
+  font-weight:700;border-radius:12px;width:100%;transition:background .15s,transform .05s;
+}
+.btn-primary:hover{background:var(--navy-2);}
+.btn-primary:active{transform:scale(.99);}
+.resume-note{margin-top:14px;text-align:center;font-size:.88rem;color:var(--muted);}
+.linkbtn{background:none;border:none;color:var(--accent);text-decoration:underline;font-size:.88rem;padding:2px 4px;}
+
+/* ============================ TEST LAYOUT ============================ */
+#testScreen{display:flex;flex-direction:column;height:100vh;}
+.topbar{
+  background:var(--panel);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:14px;padding:8px 16px;flex-wrap:wrap;z-index:20;
+}
+.brand{font-weight:700;color:var(--navy);font-size:1rem;margin-right:auto;}
+.tool-group{display:flex;align-items:center;gap:6px;}
+.tool-btn{
+  background:var(--bg);border:1px solid var(--border);color:var(--text);
+  border-radius:8px;padding:7px 10px;font-size:.85rem;min-width:38px;min-height:38px;
+  display:inline-flex;align-items:center;justify-content:center;gap:4px;
+}
+.tool-btn:hover{background:var(--accent-soft);}
+.tool-btn.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+
+/* Mobile compact header (tabs + timer/progress) */
+.mobile-head{display:none;}
+
+.workarea{flex:1;display:flex;min-height:0;position:relative;}
+.panel{display:flex;flex-direction:column;min-height:0;background:var(--panel);}
+.panel-left{width:50%;min-width:220px;border-right:1px solid var(--border);}
+.panel-right{flex:1;min-width:260px;}
+.divider{
+  width:10px;cursor:col-resize;background:linear-gradient(var(--border),var(--border)) center/2px 100% no-repeat;
+  flex:0 0 10px;position:relative;z-index:5;
+}
+.divider::after{content:"";position:absolute;inset:0;}
+.divider:hover{background:linear-gradient(var(--accent),var(--accent)) center/3px 100% no-repeat;}
+
+/* -------- Left: timer + passage -------- */
+.timer-bar{
+  position:sticky;top:0;background:var(--panel);padding:12px 18px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:12px;z-index:6;
+}
+.timer{
+  font-variant-numeric:tabular-nums;font-weight:700;font-size:1.15rem;color:var(--navy);
+  background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px 14px;
+}
+.timer.warn{color:#fff;background:var(--warn);border-color:var(--warn);}
+.timer.danger{color:#fff;background:var(--bad);border-color:var(--bad);animation:pulse 1s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.55;}}
+.passage-scroll{overflow-y:auto;padding:22px 26px 60px;flex:1;}
+.passage-title{color:var(--navy);font-size:1.25rem;margin:0 0 4px;}
+.passage-tag{color:var(--muted);font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:14px;}
+.passage-body p{margin:0 0 16px;font-size:calc(1.02rem * var(--reading-scale));line-height:1.75;}
+
+/* passage navigation buttons */
+.passage-nav{
+  display:flex;gap:8px;padding:10px 16px;border-top:1px solid var(--border);background:var(--panel);flex-wrap:wrap;
+}
+.pnav-btn{
+  flex:1;min-width:90px;background:var(--bg);border:1px solid var(--border);color:var(--text);
+  border-radius:10px;padding:10px 6px;font-size:.85rem;font-weight:600;position:relative;
+}
+.pnav-btn.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+.pnav-btn .done{
+  position:absolute;top:4px;right:6px;color:var(--ok);font-weight:800;font-size:.9rem;display:none;
+}
+.pnav-btn.complete .done{display:inline;}
+.pnav-btn.active.complete .done{color:#7Cf0a8;}
+
+/* -------- Right: questions -------- */
+.q-head{
+  position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--border);
+  padding:12px 18px;display:flex;align-items:center;gap:12px;z-index:6;flex-wrap:wrap;
+}
+.progress-chip{background:var(--accent-soft);color:var(--navy);border-radius:20px;padding:6px 14px;font-weight:600;font-size:.9rem;}
+.q-scroll{overflow-y:auto;padding:18px 20px 120px;flex:1;}
+.qcard{
+  border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin:0 0 18px;
+  background:var(--panel);box-shadow:var(--shadow);scroll-margin-top:80px;
+}
+.qcard.unanswered{border-left:5px solid var(--border);}
+.qcard.answered{border-left:5px solid var(--accent);}
+.qcard.marked{border-left:5px solid var(--mark);}
+.q-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;}
+.q-num{background:var(--navy);color:#fff;font-weight:700;border-radius:8px;padding:4px 10px;font-size:.9rem;flex:0 0 auto;}
+.q-text{font-size:calc(1rem * var(--reading-scale));font-weight:600;}
+.mark-btn{
+  margin-left:auto;background:var(--bg);border:1px solid var(--border);color:var(--muted);
+  border-radius:20px;padding:6px 12px;font-size:.8rem;white-space:nowrap;flex:0 0 auto;
+}
+.mark-btn.on{background:var(--mark-soft);color:var(--mark);border-color:var(--mark);font-weight:600;}
+.options{display:flex;flex-direction:column;gap:10px;}
+.opt{
+  display:flex;align-items:flex-start;gap:12px;border:1.5px solid var(--border);border-radius:10px;
+  padding:12px 14px;cursor:pointer;transition:border-color .12s,background .12s;background:var(--panel);
+}
+.opt:hover{border-color:var(--accent);background:var(--accent-soft);}
+.opt input{position:absolute;opacity:0;width:1px;height:1px;}
+.opt .letter{
+  flex:0 0 auto;width:28px;height:28px;border-radius:50%;border:2px solid var(--border);
+  display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--muted);font-size:.9rem;
+}
+.opt .otext{font-size:calc(.98rem * var(--reading-scale));padding-top:2px;}
+.opt.selected{border-color:var(--accent);background:var(--accent-soft);}
+.opt.selected .letter{background:var(--accent);color:#fff;border-color:var(--accent);}
+.opt:focus-within{outline:3px solid var(--accent);outline-offset:2px;}
+
+/* submit floating button */
+.submit-fab{
+  position:absolute;right:22px;bottom:20px;background:var(--ok);color:#fff;border:none;
+  font-weight:800;font-size:1rem;padding:15px 26px;border-radius:14px;box-shadow:var(--shadow-lg);z-index:8;
+}
+.submit-fab:hover{filter:brightness(1.06);}
+
+/* ============================ NAVIGATOR ============================ */
+.navigator{
+  position:fixed;right:0;top:0;height:100vh;width:290px;background:var(--panel);
+  border-left:1px solid var(--border);box-shadow:var(--shadow-lg);z-index:40;
+  transform:translateX(100%);transition:transform .22s;display:flex;flex-direction:column;
+}
+.navigator.open{transform:translateX(0);}
+.nav-head{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;}
+.nav-head h3{margin:0;font-size:1rem;color:var(--navy);}
+.nav-close{margin-left:auto;background:none;border:none;font-size:1.4rem;color:var(--muted);line-height:1;}
+.nav-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:14px 16px;overflow-y:auto;}
+.nav-cell{
+  aspect-ratio:1;border:1.5px solid var(--border);border-radius:9px;background:var(--bg);
+  font-weight:700;font-size:.9rem;color:var(--text);display:flex;align-items:center;justify-content:center;position:relative;
+}
+.nav-cell.answered{background:var(--accent);color:#fff;border-color:var(--accent);}
+.nav-cell.marked{background:var(--mark-soft);border-color:var(--mark);color:var(--mark);}
+.nav-cell.marked.answered{background:var(--mark);color:#fff;}
+.nav-cell.current{outline:3px solid var(--navy);outline-offset:1px;}
+.nav-cell.correct{background:var(--ok);color:#fff;border-color:var(--ok);}
+.nav-cell.incorrect{background:var(--bad);color:#fff;border-color:var(--bad);}
+.nav-cell .flag{position:absolute;top:-2px;right:2px;font-size:.7rem;}
+.legend{padding:12px 16px;border-top:1px solid var(--border);font-size:.8rem;}
+.legend .row{display:flex;align-items:center;gap:8px;margin:6px 0;}
+.legend .sw{width:16px;height:16px;border-radius:5px;border:1.5px solid var(--border);flex:0 0 auto;}
+.sw-answered{background:var(--accent);border-color:var(--accent);}
+.sw-marked{background:var(--mark-soft);border-color:var(--mark);}
+.sw-current{background:var(--bg);outline:2px solid var(--navy);}
+.sw-correct{background:var(--ok);border-color:var(--ok);}
+.sw-incorrect{background:var(--bad);border-color:var(--bad);}
+.overlay{position:fixed;inset:0;background:rgba(10,18,32,.45);z-index:30;}
+
+/* ============================ MODAL ============================ */
+.modal-wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:60;padding:20px;}
+.modal-wrap .overlay{position:absolute;}
+.modal{
+  position:relative;background:var(--panel);border-radius:var(--radius);box-shadow:var(--shadow-lg);
+  max-width:520px;width:100%;padding:26px;z-index:61;
+}
+.modal h2{margin:0 0 10px;color:var(--navy);font-size:1.25rem;}
+.modal p{margin:0 0 12px;}
+.modal .qlist{background:var(--bg);border-radius:8px;padding:10px 12px;font-size:.9rem;max-height:120px;overflow:auto;}
+.modal-actions{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;}
+.modal-actions button{flex:1;min-width:130px;padding:13px 16px;border-radius:10px;font-weight:700;font-size:.95rem;border:none;}
+.btn-ghost{background:var(--bg);border:1px solid var(--border) !important;color:var(--text);}
+.btn-danger{background:var(--bad);color:#fff;}
+.btn-go{background:var(--navy);color:#fff;}
+
+/* ============================ RESULTS ============================ */
+.results-wrap{max-width:960px;margin:0 auto;padding:30px 20px 80px;}
+.results-wrap h1{color:var(--navy);text-align:center;margin:0 0 6px;}
+.score-hero{
+  display:flex;gap:20px;flex-wrap:wrap;justify-content:center;margin:24px 0;
+}
+.score-ring{
+  width:180px;height:180px;border-radius:50%;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;color:#fff;box-shadow:var(--shadow-lg);
+}
+.score-ring .big{font-size:2.6rem;font-weight:800;line-height:1;}
+.score-ring .sm{font-size:.9rem;opacity:.9;margin-top:4px;}
+.stat-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;flex:1;min-width:260px;}
+.stat{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:var(--shadow);}
+.stat .v{font-size:1.6rem;font-weight:800;color:var(--navy);}
+.stat .k{font-size:.85rem;color:var(--muted);}
+.bar-summary{display:flex;height:26px;border-radius:8px;overflow:hidden;margin:6px 0 26px;border:1px solid var(--border);}
+.bar-summary span{display:flex;align-items:center;justify-content:center;color:#fff;font-size:.8rem;font-weight:700;}
+.seg-ok{background:var(--ok);}.seg-bad{background:var(--bad);}.seg-un{background:#9aa7bd;}
+.passage-perf{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin:14px 0 24px;}
+.pp-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:var(--shadow);}
+.pp-card h4{margin:0 0 8px;color:var(--navy);font-size:.95rem;}
+.pp-bar{height:10px;background:var(--bg);border-radius:6px;overflow:hidden;margin:8px 0;}
+.pp-bar i{display:block;height:100%;background:var(--ok);}
+.results-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:10px;}
+.results-actions button{padding:14px 22px;border-radius:12px;font-weight:700;font-size:1rem;border:none;}
+
+/* ============================ REVIEW MODE ============================ */
+.review-filters{display:flex;gap:8px;padding:10px 16px;flex-wrap:wrap;border-bottom:1px solid var(--border);background:var(--panel);}
+.filter-btn{background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:20px;padding:8px 14px;font-size:.85rem;font-weight:600;}
+.filter-btn.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+.review-qcard{border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin:0 0 18px;box-shadow:var(--shadow);scroll-margin-top:80px;}
+.review-qcard.correct{border-left:6px solid var(--ok);}
+.review-qcard.incorrect{border-left:6px solid var(--bad);}
+.review-qcard.unanswered{border-left:6px solid #9aa7bd;}
+.status-badge{display:inline-flex;align-items:center;gap:6px;border-radius:20px;padding:4px 12px;font-size:.82rem;font-weight:700;}
+.status-badge.correct{background:var(--ok-soft);color:var(--ok);}
+.status-badge.incorrect{background:var(--bad-soft);color:var(--bad);}
+.status-badge.unanswered{background:var(--bg);color:var(--muted);}
+.review-opt{display:flex;align-items:flex-start;gap:10px;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;margin:8px 0;font-size:calc(.95rem * var(--reading-scale));}
+.review-opt .letter{flex:0 0 auto;width:26px;height:26px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;}
+.review-opt.correct-opt{border-color:var(--ok);background:var(--ok-soft);}
+.review-opt.correct-opt .letter{background:var(--ok);color:#fff;border-color:var(--ok);}
+.review-opt.chosen-wrong{border-color:var(--bad);background:var(--bad-soft);}
+.review-opt.chosen-wrong .letter{background:var(--bad);color:#fff;border-color:var(--bad);}
+.opt-tag{margin-left:auto;font-size:.75rem;font-weight:700;padding:2px 8px;border-radius:12px;align-self:center;}
+.tag-correct{background:var(--ok);color:#fff;}
+.tag-wrong{background:var(--bad);color:#fff;}
+.explain-box{background:var(--bg);border-radius:10px;padding:14px 16px;margin-top:14px;font-size:calc(.94rem * var(--reading-scale));}
+.explain-box h5{margin:0 0 6px;color:var(--navy);font-size:.9rem;}
+.explain-box .evidence{border-left:3px solid var(--accent);padding-left:10px;color:var(--muted);font-style:italic;margin:8px 0;}
+.scroll-evi-btn{background:var(--accent-soft);color:var(--navy);border:1px solid var(--accent);border-radius:8px;padding:8px 12px;font-size:.85rem;font-weight:600;margin-top:8px;}
+.review-nav-btns{display:flex;gap:10px;padding:12px 16px;border-top:1px solid var(--border);background:var(--panel);}
+.review-nav-btns button{flex:1;padding:12px;border-radius:10px;font-weight:700;border:1px solid var(--border);background:var(--bg);color:var(--text);}
+.back-results{background:var(--navy);color:#fff;border:none;}
+
+/* evidence highlight styles */
+mark.evi{border-radius:3px;padding:1px 2px;}
+mark.evi-direct{background:#fff3a0;color:#3a2f00;}
+mark.evi-inferred{background:#cfe8ff;color:#0b3a63;}
+mark.evi-vocab{background:#e3d5ff;color:#3d1d6b;}
+body.dark mark.evi-direct{background:#6b5a10;color:#fff6cf;}
+body.dark mark.evi-inferred{background:#264a68;color:#dbeeff;}
+body.dark mark.evi-vocab{background:#3f2d63;color:#ece0ff;}
+mark.evi.flash{animation:flashHi 1.4s ease;}
+@keyframes flashHi{0%,100%{box-shadow:0 0 0 0 rgba(37,99,235,0);}30%{box-shadow:0 0 0 4px rgba(37,99,235,.5);}}
+.review-evi-legend{display:flex;gap:14px;flex-wrap:wrap;padding:8px 18px;font-size:.78rem;color:var(--muted);border-bottom:1px solid var(--border);}
+.review-evi-legend span{display:inline-flex;align-items:center;gap:5px;}
+.review-evi-legend i{width:14px;height:14px;border-radius:3px;display:inline-block;}
+
+/* ============================ RESPONSIVE ============================ */
+@media(max-width:820px){
+  .divider{display:none;}
+  .panel-left,.panel-right{width:100% !important;flex:1;}
+  .workarea .panel{display:none;}
+  .workarea .panel.mobile-active{display:flex;}
+  .mobile-head{display:flex;flex-direction:column;gap:8px;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--border);}
+  .mobile-tabs{display:flex;gap:8px;}
+  .mtab{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:11px;font-weight:700;color:var(--text);}
+  .mtab.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+  .mobile-status{display:flex;align-items:center;gap:10px;justify-content:space-between;font-size:.85rem;}
+  .timer-bar{display:none;}          /* timer shown in mobile head */
+  .brand{display:none;}
+  .submit-fab{right:14px;bottom:14px;padding:13px 20px;}
+  .navigator{width:100%;}
+  .desktop-only{display:none !important;}
+}
+@media(min-width:821px){ .mobile-only{display:none !important;} }
+@media(max-width:520px){
+  .start-card{padding:26px 20px;}
+  .meta-grid{grid-template-columns:1fr 1fr;}
+  .score-hero{flex-direction:column;align-items:center;}
+}
+
+/* ============================ MODE SELECT ============================ */
+.mode-wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px 20px;gap:22px;}
+.mode-head{text-align:center;}
+.mode-head h1{color:var(--navy);margin:0 0 6px;font-size:1.9rem;}
+.mode-head p{color:var(--muted);margin:0;}
+.mode-cards{display:grid;grid-template-columns:repeat(2,minmax(230px,320px));gap:22px;width:100%;max-width:700px;}
+.mode-card{background:var(--panel);border:1px solid var(--border);border-radius:18px;box-shadow:var(--shadow);
+  padding:28px 24px;cursor:pointer;transition:transform .12s,box-shadow .12s,border-color .12s;text-align:center;}
+.mode-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg);border-color:var(--accent);}
+.mode-card .ic{font-size:2.6rem;}
+.mode-card h2{color:var(--navy);margin:12px 0 6px;font-size:1.3rem;}
+.mode-card p{color:var(--muted);font-size:.9rem;margin:0 0 8px;}
+.mode-card ul{text-align:left;font-size:.85rem;color:var(--text);margin:8px 0 0;padding-left:18px;}
+.mode-card ul li{margin:3px 0;}
+.mode-reset{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
+.mode-reset button{background:var(--bg);border:1px solid var(--border);color:var(--muted);border-radius:20px;padding:8px 14px;font-size:.82rem;}
+.mode-reset button:hover{border-color:var(--bad);color:var(--bad);}
+@media(max-width:640px){ .mode-cards{grid-template-columns:1fr;} }
+
+/* ============================ ANNOTATION TOOLS ======================= */
+.hl{border-radius:2px;padding:0 1px;cursor:pointer;}
+.hl-y{background:#fff3a0;} .hl-g{background:#bdf0cb;} .hl-p{background:#ffcfe1;} .hl-b{background:#cbe6ff;}
+body.dark .hl-y{background:#6b5a10;color:#fff6cf;} body.dark .hl-g{background:#134d2b;color:#d9ffe6;}
+body.dark .hl-p{background:#5a1d38;color:#ffd9ea;} body.dark .hl-b{background:#123a5c;color:#dff0ff;}
+body.annot-hidden .hl{background:transparent !important;color:inherit !important;}
+body.annot-hidden .note-wrap,body.annot-hidden .note-flag,body.annot-hidden #notepadFab,body.annot-hidden #notepadPanel{display:none !important;}
+.hl-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.hl-sw{width:26px;height:26px;border-radius:7px;border:2px solid transparent;cursor:pointer;}
+.hl-sw.active{border-color:var(--navy);box-shadow:0 0 0 2px #fff inset;}
+.hl-y-sw{background:#fff3a0;}.hl-g-sw{background:#bdf0cb;}.hl-p-sw{background:#ffcfe1;}.hl-b-sw{background:#cbe6ff;}
+.hl-eraser{background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:4px 8px;font-size:.8rem;}
+.hl-eraser.active{background:var(--bad);color:#fff;border-color:var(--bad);}
+.note-wrap{margin-top:12px;border-top:1px dashed var(--border);padding-top:10px;}
+.note-toggle{background:var(--bg);border:1px solid var(--border);color:var(--muted);border-radius:18px;padding:6px 12px;font-size:.8rem;}
+.note-toggle.has{background:var(--accent-soft);color:var(--navy);border-color:var(--accent);font-weight:600;}
+.note-edit{margin-top:8px;}
+.note-edit textarea{width:100%;min-height:64px;border:1px solid var(--border);border-radius:8px;padding:8px;font-family:inherit;font-size:.9rem;background:var(--panel);color:var(--text);resize:vertical;}
+.note-edit .row{display:flex;gap:8px;margin-top:6px;}
+.note-edit button{border:none;border-radius:8px;padding:7px 12px;font-size:.82rem;font-weight:600;}
+.n-save{background:var(--navy);color:#fff;} .n-del{background:var(--bad-soft);color:var(--bad);}
+#notepadFab{position:fixed;left:16px;bottom:16px;z-index:35;background:var(--navy);color:#fff;border:none;border-radius:24px;padding:11px 16px;font-weight:700;box-shadow:var(--shadow-lg);font-size:.9rem;}
+#notepadPanel{position:fixed;left:16px;bottom:66px;width:320px;max-width:calc(100vw - 32px);max-height:60vh;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-lg);z-index:36;display:flex;flex-direction:column;overflow:hidden;}
+#notepadPanel header{padding:10px 14px;background:var(--navy);color:#fff;font-weight:700;display:flex;align-items:center;}
+#notepadPanel header button{margin-left:auto;background:none;border:none;color:#fff;font-size:1.2rem;}
+#notepadPanel textarea{border:none;flex:1;padding:12px 14px;font-family:inherit;font-size:.92rem;resize:none;background:var(--panel);color:var(--text);min-height:180px;}
+
+/* ============================ PRACTICE MODE ========================= */
+#practiceScreen{display:flex;flex-direction:column;height:100vh;}
+.pr-top{background:var(--navy);color:#fff;display:flex;align-items:center;gap:12px;padding:10px 16px;flex-wrap:wrap;}
+.pr-top .pr-title{font-weight:700;font-size:1.05rem;margin-right:auto;}
+.pr-top button{background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:.85rem;font-weight:600;}
+.pr-top button:hover{background:rgba(255,255,255,.28);}
+.pr-steps{display:flex;gap:8px;overflow-x:auto;padding:12px 16px;background:var(--panel);border-bottom:1px solid var(--border);}
+.pr-step{flex:0 0 auto;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:20px;padding:8px 14px;font-size:.85rem;font-weight:600;white-space:nowrap;display:flex;align-items:center;gap:6px;}
+.pr-step .dot{width:20px;height:20px;border-radius:50%;background:var(--border);color:#fff;font-size:.72rem;display:flex;align-items:center;justify-content:center;font-weight:700;}
+.pr-step.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+.pr-step.active .dot{background:#fff;color:var(--navy);}
+.pr-step.done .dot{background:var(--ok);}
+.pr-content{flex:1;overflow-y:auto;padding:24px 20px 80px;}
+.pr-inner{max-width:900px;margin:0 auto;}
+.pr-inner h2{color:var(--navy);margin:0 0 4px;}
+.pr-inner h3{color:var(--navy);margin:22px 0 10px;}
+.pr-sub{color:var(--muted);margin:0 0 18px;}
+.prog-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:14px 0 8px;}
+.prog-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:var(--shadow);}
+.prog-card .k{font-size:.82rem;color:var(--muted);}
+.prog-card .v{font-size:1.4rem;font-weight:800;color:var(--navy);}
+.prog-bar{height:8px;background:var(--bg);border-radius:5px;overflow:hidden;margin-top:8px;}
+.prog-bar i{display:block;height:100%;background:var(--accent);}
+.hub-steps{display:grid;gap:10px;margin-top:8px;}
+.hub-step{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);cursor:pointer;}
+.hub-step:hover{border-color:var(--accent);}
+.hub-step .num{width:30px;height:30px;flex:0 0 auto;border-radius:50%;background:var(--navy);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;}
+.hub-step .t{font-weight:600;}
+.hub-step .d{font-size:.84rem;color:var(--muted);}
+.hub-step.done .num{background:var(--ok);}
+.big-cta{display:block;width:100%;max-width:420px;margin:22px auto 0;background:var(--ok);color:#fff;border:none;border-radius:14px;padding:16px;font-size:1.05rem;font-weight:800;box-shadow:var(--shadow-lg);}
+.big-cta:hover{filter:brightness(1.05);}
+
+/* vocab bank cards */
+.vocab-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px 18px;margin-bottom:14px;box-shadow:var(--shadow);}
+.vocab-card .head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;}
+.vocab-card .w{font-size:1.2rem;font-weight:800;color:var(--navy);}
+.vocab-card .pos{font-style:italic;color:var(--muted);font-size:.9rem;}
+.vocab-card .ipa{color:var(--accent);font-size:.95rem;}
+.speak-btn{background:var(--accent-soft);color:var(--navy);border:1px solid var(--accent);border-radius:20px;padding:4px 10px;font-size:.8rem;cursor:pointer;}
+.vocab-card .def{margin:8px 0 2px;}
+.vocab-card .vi{color:var(--muted);}
+.vocab-card .ex{margin-top:8px;padding-left:10px;border-left:3px solid var(--accent);font-size:.94rem;}
+.vocab-card .ex .exvi{color:var(--muted);font-style:italic;}
+.vocab-card .forms{margin-top:8px;font-size:.85rem;color:var(--muted);}
+.vocab-card .forms b{color:var(--text);}
+
+/* flashcards */
+.deck-wrap{display:flex;flex-direction:column;align-items:center;gap:16px;}
+.flashcard{width:100%;max-width:460px;height:280px;perspective:1200px;cursor:pointer;}
+.flash-inner{position:relative;width:100%;height:100%;transition:transform .5s;transform-style:preserve-3d;}
+.flashcard.flipped .flash-inner{transform:rotateY(180deg);}
+.flash-face{position:absolute;inset:0;backface-visibility:hidden;border-radius:18px;border:1px solid var(--border);
+  box-shadow:var(--shadow-lg);background:var(--panel);display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:24px;text-align:center;gap:10px;}
+.flash-front .fw{font-size:1.7rem;font-weight:800;color:var(--navy);}
+.flash-front .fipa{color:var(--accent);}
+.flash-back{transform:rotateY(180deg);overflow-y:auto;}
+.flash-back .bdef{font-weight:600;}
+.flash-back .bvi{color:var(--muted);}
+.flash-back .bex{font-size:.9rem;border-left:3px solid var(--accent);padding-left:10px;margin-top:6px;text-align:left;}
+.flash-hint{color:var(--muted);font-size:.8rem;}
+.deck-controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;}
+.deck-controls button{background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:10px 14px;font-weight:600;font-size:.85rem;}
+.deck-controls button:hover{background:var(--accent-soft);}
+.classify{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;width:100%;max-width:460px;}
+.classify button{border:1px solid var(--border);border-radius:10px;padding:10px;font-weight:600;font-size:.85rem;background:var(--panel);}
+.cf-mastered{color:var(--ok);} .cf-remembered{color:var(--accent);} .cf-learning{color:var(--mark);} .cf-new{color:var(--bad);}
+.classify button.sel{color:#fff;}
+.classify button.cf-mastered.sel{background:var(--ok);border-color:var(--ok);}
+.classify button.cf-remembered.sel{background:var(--accent);border-color:var(--accent);}
+.classify button.cf-learning.sel{background:var(--mark);border-color:var(--mark);}
+.classify button.cf-new.sel{background:var(--bad);border-color:var(--bad);}
+.cat-counts{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;font-size:.82rem;color:var(--muted);}
+.cat-counts span{background:var(--bg);border:1px solid var(--border);border-radius:16px;padding:4px 10px;}
+.deck-meta{color:var(--muted);font-size:.9rem;}
+
+/* exercises */
+.ex-item{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;box-shadow:var(--shadow);}
+.ex-q{font-weight:600;margin-bottom:10px;}
+.ex-opts{display:flex;flex-direction:column;gap:8px;}
+.ex-opt{border:1.5px solid var(--border);border-radius:9px;padding:10px 12px;cursor:pointer;display:flex;gap:8px;align-items:center;}
+.ex-opt:hover{border-color:var(--accent);background:var(--accent-soft);}
+.ex-opt.sel{border-color:var(--accent);background:var(--accent-soft);}
+.ex-opt.correct{border-color:var(--ok);background:var(--ok-soft);}
+.ex-opt.wrong{border-color:var(--bad);background:var(--bad-soft);}
+.ex-opt.locked{cursor:default;}
+.ex-fill input,.cloze-sel{border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-family:inherit;font-size:.95rem;background:var(--panel);color:var(--text);}
+.ex-fill input.correct,.cloze-sel.correct{border-color:var(--ok);background:var(--ok-soft);}
+.ex-fill input.wrong,.cloze-sel.wrong{border-color:var(--bad);background:var(--bad-soft);}
+.ex-fb{margin-top:10px;font-size:.9rem;border-radius:8px;padding:8px 10px;display:none;}
+.ex-fb.show{display:block;}
+.ex-fb.ok{background:var(--ok-soft);color:var(--ok);}
+.ex-fb.no{background:var(--bad-soft);color:var(--bad);}
+.ex-check{background:var(--navy);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-weight:600;margin-top:10px;font-size:.85rem;}
+.match-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.match-col{display:flex;flex-direction:column;gap:8px;}
+.match-item{border:1.5px solid var(--border);border-radius:9px;padding:10px;cursor:pointer;font-size:.9rem;background:var(--panel);}
+.match-item.picked{border-color:var(--accent);background:var(--accent-soft);}
+.match-item.done{border-color:var(--ok);background:var(--ok-soft);cursor:default;color:var(--ok);}
+.match-item.bad{border-color:var(--bad);background:var(--bad-soft);animation:pulse .4s 2;}
+.cloze-p{line-height:2.2;}
+.ex-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+.ex-score{background:var(--accent-soft);color:var(--navy);border-radius:16px;padding:6px 14px;font-weight:700;font-size:.9rem;}
+.ex-toolbar button{background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:8px 14px;font-weight:600;font-size:.85rem;}
+.grammar-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px;box-shadow:var(--shadow);}
+.grammar-card h4{color:var(--navy);margin:0 0 8px;font-size:1.15rem;}
+.grammar-card .lbl{font-weight:700;color:var(--navy);font-size:.85rem;text-transform:uppercase;letter-spacing:.03em;margin-top:12px;}
+.grammar-card .form-box{background:var(--bg);border-radius:8px;padding:10px 12px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.9rem;margin-top:4px;}
+.grammar-card .ex-line{margin:4px 0;padding-left:10px;border-left:3px solid var(--accent);}
+.grammar-card .ex-line .vi{color:var(--muted);font-style:italic;}
+.grammar-card .warn{background:var(--bad-soft);color:var(--bad);border-radius:8px;padding:8px 12px;margin-top:8px;font-size:.88rem;}
+.review-cta{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;}
+@media(max-width:600px){ .match-grid{grid-template-columns:1fr;} .classify{grid-template-columns:1fr;} .flashcard{height:320px;} }
+
+/* ===== Platform shell (Phase 53): header, exam picker, history ===== */
+#leTop{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--panel);
+  border-bottom:1px solid var(--border);font-size:14px;flex-wrap:wrap}
+#leTop .le-brand{display:inline-flex;align-items:center;gap:7px;font-weight:800;color:var(--text);text-decoration:none}
+#leTop .le-brand img{border-radius:6px}
+#leTop .le-sep{color:var(--muted)}
+#leTop .le-page{color:var(--accent)}
+#leTop .le-spacer{margin-left:auto}
+#leTop .le-who{color:var(--muted);font-size:13px}
+#leTop .le-a{color:var(--accent);text-decoration:none;font-size:13px;white-space:nowrap;
+  border:1px solid var(--border);border-radius:8px;padding:5px 10px}
+#leTop .le-a.le-p{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+@media (max-width:640px){ #leTop .le-page,#leTop .le-who{display:none} }
+
+#examPick h3,#examHist h3{font-size:14px;margin:0 0 10px;color:var(--muted);font-weight:700;
+  text-transform:uppercase;letter-spacing:.05em}
+.exgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.excard{position:relative;text-align:left;background:var(--panel);border:1px solid var(--border);
+  border-radius:14px;padding:16px 17px;cursor:pointer;transition:transform .15s,box-shadow .15s}
+.excard:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.excard:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.excard h4{margin:0 0 3px;font-size:16px;color:var(--navy)}
+.excard .sub{color:var(--muted);font-size:12.5px;margin:0 0 9px}
+.excard .meta{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.excard .pick{margin-top:11px;font-weight:700;font-size:12.5px;color:var(--accent)}
+.excard.locked{opacity:.85}
+.excard.locked::after{content:"🔒";position:absolute;top:13px;right:14px;font-size:15px}
+.excard.locked .pick{color:var(--muted)}
+.extag{display:inline-block;font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;margin-bottom:8px}
+.extag.free{background:var(--ok-soft);color:var(--ok)}
+.extag.prem{background:linear-gradient(135deg,#f4d68a,#d9a53c);color:#713f12}
+.exempty{color:var(--muted);font-size:14px;padding:16px;border:1px dashed var(--border);
+  border-radius:14px;text-align:center}
+#examHist{margin-top:26px}
+.htable{width:100%;border-collapse:collapse;font-size:13.5px;background:var(--panel);
+  border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.htable th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--muted);padding:9px 12px;background:var(--bg)}
+.htable td{padding:9px 12px;border-top:1px solid var(--border)}
+.htable .sc{font-weight:800;color:var(--accent)}
+.hpct{display:inline-block;min-width:44px;text-align:center;padding:1px 7px;border-radius:999px;font-size:11.5px;font-weight:800}
+.hpct.good{background:var(--ok-soft);color:var(--ok)}
+.hpct.mid{background:var(--mark-soft);color:var(--mark)}
+.hpct.low{background:var(--bad-soft);color:var(--bad)}
+.mode-back{display:flex;justify-content:center;margin:6px 0 14px}
+.mode-back button{border:1px solid var(--border);background:var(--panel);color:var(--muted);
+  font-family:inherit;font-weight:600;font-size:13px;padding:8px 16px;border-radius:999px;cursor:pointer}
+.mode-back button:hover{color:var(--accent);border-color:var(--accent)}
+</style>
+</head>
+<body>
+
+<!-- ================= PLATFORM HEADER (Phase 53) ================= -->
+<header id="leTop">
+  <a class="le-brand" href="index.html"><img src="icons/logo-64.png" alt="" width="26" height="26">Learning Ecology</a>
+  <span class="le-sep">·</span>
+  <b class="le-page">Luyện thi VSTEP</b>
+  <span class="le-spacer"></span>
+  <span class="le-who" id="leWho"></span>
+  <span id="leAuth" hidden>
+    <a class="le-a" href="login.html">Đăng nhập</a>
+    <a class="le-a le-p" href="login.html">Đăng ký miễn phí</a>
+  </span>
+  <a class="le-a" id="leBack" href="dashboard.html">← Bảng điều khiển</a>
+</header>
+
+<!-- ======================= PICK-A-TEST SCREEN ======================= -->
+<div id="pickScreen" class="screen">
+  <div class="mode-wrap">
+    <div class="mode-head">
+      <h1>Luyện thi VSTEP Reading</h1>
+      <p>Chọn một đề thi bên dưới. Sau khi chọn, bạn có thể luyện tập trước rồi làm bài thi thử.</p>
+    </div>
+    <div id="examPick"></div>
+    <div id="examHist"></div>
+  </div>
+</div>
+
+<!-- ======================= MODE SELECT SCREEN ======================= -->
+<div id="modeScreen" class="screen">
+  <div class="mode-wrap">
+    <div class="mode-head">
+      <h1>VSTEP Reading — Test 1</h1>
+      <p>Chọn chế độ học. Bạn có thể luyện tập trước rồi làm bài thi thử.</p>
+    </div>
+    <div class="mode-cards">
+      <div class="mode-card" id="goPractice" role="button" tabindex="0">
+        <div class="ic">📚</div>
+        <h2>Chế độ Luyện tập</h2>
+        <p>Học từ vựng và ngữ pháp trọng tâm trước khi thi.</p>
+        <ul>
+          <li>Từ vựng, phiên âm &amp; phát âm</li>
+          <li>Thẻ ghi nhớ (flashcard)</li>
+          <li>Bài tập từ vựng &amp; ngữ pháp</li>
+          <li>Theo dõi tiến độ</li>
+        </ul>
+      </div>
+      <div class="mode-card" id="goMock" role="button" tabindex="0">
+        <div class="ic">📝</div>
+        <h2>Chế độ Thi thử</h2>
+        <p>Làm bài trong điều kiện thi thật, có bấm giờ.</p>
+        <ul>
+          <li>60 phút · 4 bài đọc · 40 câu</li>
+          <li>Công cụ tô sáng &amp; ghi chú</li>
+          <li>Đánh dấu &amp; điều hướng câu hỏi</li>
+          <li>Chấm điểm &amp; xem giải thích</li>
+        </ul>
+      </div>
+    </div>
+    <div class="mode-back"><button id="goPick" type="button">← Chọn đề khác</button></div>
+    <div class="mode-reset">
+      <button id="rstPractice">Đặt lại Luyện tập</button>
+      <button id="rstMock">Đặt lại Thi thử</button>
+      <button id="rstAnnot">Xóa tô sáng &amp; ghi chú</button>
+      <button id="rstAll">Xóa toàn bộ tiến độ</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======================= START SCREEN ======================= -->
+<div id="startScreen" class="screen hidden">
+  <div class="start-wrap">
+    <div class="start-card">
+      <h1>VSTEP Reading Practice Test 1</h1>
+      <p class="start-sub">Bài luyện thi Đọc hiểu — Trình độ B1–B2</p>
+
+      <div class="meta-grid">
+        <div class="meta-item"><div class="n">60</div><div class="l">phút làm bài</div></div>
+        <div class="meta-item"><div class="n">4</div><div class="l">bài đọc</div></div>
+        <div class="meta-item"><div class="n">40</div><div class="l">câu hỏi</div></div>
+        <div class="meta-item"><div class="n">A–D</div><div class="l">4 lựa chọn / câu</div></div>
+      </div>
+
+      <div class="instructions">
+        <strong>Hướng dẫn làm bài</strong>
+        <ul>
+          <li>Bài thi gồm 4 bài đọc, mỗi bài có 10 câu hỏi trắc nghiệm.</li>
+          <li>Với mỗi câu, chọn đáp án đúng nhất trong bốn phương án A, B, C, D.</li>
+          <li>Đồng hồ đếm ngược 60 phút bắt đầu khi bạn nhấn “Bắt đầu làm bài”.</li>
+          <li>Bạn có thể đánh dấu câu để xem lại và đổi đáp án trước khi nộp.</li>
+          <li>Tiến độ được lưu tự động; nếu tải lại trang, bài làm sẽ được khôi phục.</li>
+          <li>Hết giờ, bài thi sẽ tự động được nộp.</li>
+        </ul>
+      </div>
+
+      <button class="btn-primary" id="startBtn">BẮT ĐẦU LÀM BÀI</button>
+      <div class="resume-note" id="resumeNote"></div>
+      <div style="text-align:center;margin-top:10px"><button class="linkbtn" id="toModes1">← Về màn hình chọn chế độ</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================= TEST SCREEN ======================= -->
+<div id="testScreen" class="screen hidden">
+  <!-- top toolbar (desktop) -->
+  <div class="topbar">
+    <div class="brand">VSTEP Reading — Test 1</div>
+
+    <!-- Mobile compact header -->
+    <div class="mobile-head mobile-only" style="width:100%;">
+      <div class="mobile-status">
+        <span class="timer" id="timerMobile">Thời gian còn lại: 60:00</span>
+        <span class="progress-chip" id="progMobile">Đã trả lời: 0/40</span>
+      </div>
+      <div class="mobile-tabs">
+        <button class="mtab active" data-mtab="left">Bài đọc</button>
+        <button class="mtab" data-mtab="right">Câu hỏi</button>
+      </div>
+    </div>
+
+    <div class="tool-group">
+      <button class="tool-btn" id="fontDec" aria-label="Giảm cỡ chữ" title="Giảm cỡ chữ">A−</button>
+      <button class="tool-btn" id="fontReset" aria-label="Cỡ chữ mặc định" title="Cỡ chữ mặc định">A</button>
+      <button class="tool-btn" id="fontInc" aria-label="Tăng cỡ chữ" title="Tăng cỡ chữ">A+</button>
+    </div>
+    <div class="tool-group hl-toolbar" aria-label="Công cụ tô sáng">
+      <span style="font-size:.8rem;color:var(--muted)">Tô sáng:</span>
+      <button class="hl-sw hl-y-sw" data-hl="hl-y" title="Vàng" aria-label="Tô sáng vàng"></button>
+      <button class="hl-sw hl-g-sw" data-hl="hl-g" title="Xanh lá" aria-label="Tô sáng xanh lá"></button>
+      <button class="hl-sw hl-p-sw" data-hl="hl-p" title="Hồng" aria-label="Tô sáng hồng"></button>
+      <button class="hl-sw hl-b-sw" data-hl="hl-b" title="Xanh dương" aria-label="Tô sáng xanh dương"></button>
+      <button class="hl-eraser" id="hlEraser" title="Tẩy tô sáng">Tẩy</button>
+      <button class="hl-eraser" id="hlClear" title="Xóa tất cả tô sáng">Xóa hết</button>
+    </div>
+    <div class="tool-group">
+      <button class="tool-btn" id="annotHideBtn" title="Ẩn/hiện chú thích">👁 Chú thích</button>
+      <button class="tool-btn" id="themeBtn" aria-label="Chế độ sáng/tối" title="Chế độ sáng/tối">🌙 Nền tối</button>
+      <button class="tool-btn" id="fsBtn" aria-label="Toàn màn hình" title="Toàn màn hình">⛶ Toàn màn hình</button>
+      <button class="tool-btn" id="navBtn" aria-label="Bảng câu hỏi" title="Bảng câu hỏi">☰ Câu hỏi</button>
+    </div>
+  </div>
+
+  <div class="workarea" id="workarea">
+    <!-- LEFT PANEL: passage -->
+    <section class="panel panel-left mobile-active" id="leftPanel" aria-label="Bài đọc">
+      <div class="timer-bar desktop-only">
+        <span class="timer" id="timer">Thời gian còn lại: 60:00</span>
+      </div>
+      <div class="passage-scroll" id="passageScroll">
+        <div class="passage-tag" id="passageTag"></div>
+        <h2 class="passage-title" id="passageTitle"></h2>
+        <div class="passage-body" id="passageBody"></div>
+      </div>
+      <nav class="passage-nav" id="passageNav" aria-label="Chọn bài đọc"></nav>
+    </section>
+
+    <!-- draggable divider -->
+    <div class="divider desktop-only" id="divider" role="separator" aria-orientation="vertical" aria-label="Kéo để chỉnh kích thước"></div>
+
+    <!-- RIGHT PANEL: questions -->
+    <section class="panel panel-right" id="rightPanel" aria-label="Câu hỏi">
+      <div class="q-head desktop-only">
+        <span class="progress-chip" id="progress">Đã trả lời: 0/40</span>
+        <span class="progress-chip" id="markedChip" style="background:var(--mark-soft);color:var(--mark);">Đánh dấu: 0</span>
+      </div>
+      <div class="q-scroll" id="qScroll"></div>
+      <button class="submit-fab" id="submitBtn">NỘP BÀI</button>
+    </section>
+  </div>
+</div>
+
+<!-- ======================= RESULTS SCREEN ======================= -->
+<div id="resultsScreen" class="screen hidden">
+  <div class="results-wrap" id="resultsBody"></div>
+</div>
+
+<!-- ======================= REVIEW SCREEN ======================= -->
+<div id="reviewScreen" class="screen hidden">
+  <div class="topbar">
+    <div class="brand">Xem lại bài làm</div>
+    <div class="mobile-head mobile-only" style="width:100%;">
+      <div class="mobile-tabs">
+        <button class="mtab active" data-rmtab="left">Bài đọc &amp; bằng chứng</button>
+        <button class="mtab" data-rmtab="right">Đáp án &amp; giải thích</button>
+      </div>
+    </div>
+    <div class="tool-group">
+      <button class="tool-btn" id="rFontDec">A−</button>
+      <button class="tool-btn" id="rFontReset">A</button>
+      <button class="tool-btn" id="rFontInc">A+</button>
+      <button class="tool-btn" id="rThemeBtn">🌙 Nền tối</button>
+      <button class="tool-btn" id="rNavBtn">☰ Câu hỏi</button>
+      <button class="tool-btn" id="backResultsTop">← Kết quả</button>
+    </div>
+  </div>
+  <div class="workarea">
+    <section class="panel panel-left mobile-active" id="rLeftPanel" aria-label="Bài đọc và bằng chứng">
+      <div class="review-evi-legend">
+        <span><i style="background:#fff3a0"></i>Bằng chứng trực tiếp</span>
+        <span><i style="background:#cfe8ff"></i>Suy luận</span>
+        <span><i style="background:#e3d5ff"></i>Từ vựng / từ thay thế</span>
+      </div>
+      <div class="passage-scroll" id="rPassageScroll">
+        <div class="passage-tag" id="rPassageTag"></div>
+        <h2 class="passage-title" id="rPassageTitle"></h2>
+        <div class="passage-body" id="rPassageBody"></div>
+      </div>
+      <nav class="passage-nav" id="rPassageNav" aria-label="Chọn bài đọc"></nav>
+    </section>
+    <div class="divider desktop-only" id="rDivider" role="separator" aria-orientation="vertical"></div>
+    <section class="panel panel-right" id="rRightPanel" aria-label="Đáp án và giải thích">
+      <div class="review-filters" id="reviewFilters"></div>
+      <div class="q-scroll" id="rScroll"></div>
+      <div class="review-nav-btns">
+        <button id="prevQ">← Câu trước</button>
+        <button class="back-results" id="backResults">Quay lại kết quả</button>
+        <button id="nextQ">Câu tiếp theo →</button>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- ======================= PRACTICE SCREEN ======================= -->
+<div id="practiceScreen" class="screen hidden">
+  <div class="pr-top">
+    <span class="pr-title">📚 Chế độ Luyện tập</span>
+    <button id="prToMock">Bắt đầu thi thử →</button>
+    <button id="prToModes">← Chọn chế độ</button>
+  </div>
+  <div class="pr-steps" id="prSteps"></div>
+  <div class="pr-content"><div class="pr-inner" id="prContent"></div></div>
+</div>
+
+<!-- personal notepad (mock test) -->
+<button id="notepadFab" class="hidden">🗒 Sổ tay</button>
+<div id="notepadPanel" class="hidden">
+  <header>Sổ tay cá nhân <button id="notepadClose" aria-label="Đóng">×</button></header>
+  <textarea id="notepadText" placeholder="Ghi chú chung của bạn trong lúc làm bài…"></textarea>
+</div>
+
+<!-- navigator (shared) -->
+<div class="navigator" id="navigator" aria-hidden="true">
+  <div class="nav-head">
+    <h3>Bảng câu hỏi</h3>
+    <button class="nav-close" id="navClose" aria-label="Đóng">×</button>
+  </div>
+  <div class="nav-grid" id="navGrid"></div>
+  <div class="legend" id="navLegend"></div>
+</div>
+
+<!-- modal mount point -->
+<div id="modalMount"></div>
+
+<script>
+/* =====================================================================
+   CONFIGURATION (teachers can edit)
+   ===================================================================== */
+/* Phase 53: các con số này KHÔNG còn cố định trong tệp — mỗi đề tải từ cơ sở
+   dữ liệu mang theo thời gian làm bài và hệ số quy đổi điểm của riêng nó. */
+let TEST_DURATION_MIN = 60;        // phút, lấy từ meta của đề
+let SCORE_PER_QUESTION = 0.25;     // hệ số thang 10 (số câu đúng × hệ số)
+
+/* Chỗ lưu tiến độ tách theo TỪNG HỌC VIÊN và TỪNG ĐỀ, để hai đề không ghi đè
+   nhau và máy dùng chung không lẫn bài của người khác. */
+let VNS = "anon", VEXAM_ID = "";
+const nsKey = k => "vstep_" + VNS + "_" + (VEXAM_ID || "none") + "_" + k;
+let pushT = null, schedulePush = () => {};   // lớp nền tảng ở cuối tệp thay hàm này
+
+/* =====================================================================
+   TEST_DATA — all content lives here.
+   To replace a passage: edit `paragraphs` (array of paragraph strings).
+   To replace a question: edit its `text`, `options`, `correct`,
+     `explanation` (Vietnamese) and `evidence`.
+   `correct` is "A" | "B" | "C" | "D".
+   `evidence.text` MUST be an exact substring of one paragraph so it can
+     be highlighted; `evidence.type` is "direct" | "inferred" | "vocab".
+   ===================================================================== */
+/* Nội dung đề nằm trong cơ sở dữ liệu, applyExam() đổ vào các biến này. */
+let TEST_DATA = [];
+
+/* =====================================================================
+   STATE
+   ===================================================================== */
+/* Bộ đề có thể có số bài đọc và số câu mỗi bài KHÁC nhau, nên chỉ số câu
+   toàn bài được dựng lại từ chính dữ liệu đề thay vì tính bằng p*10+q. */
+let TOTAL_Q = 0, QOFF = [];
+function rebuildIndex(){
+  QOFF = []; let n = 0;
+  (TEST_DATA||[]).forEach(p => { QOFF.push(n); n += ((p.questions)||[]).length; });
+  TOTAL_Q = n;
+}
+let state = {
+  started:false, submitted:false,
+  endTime:null,                         // epoch ms when time runs out
+  answers:{},                           // {globalIndex(0-39): "A".."D"}
+  marked:{},                            // {globalIndex: true}
+  currentPassage:0,
+  scrollPos:{},          // per-passage passage scroll
+  qScrollPos:{},
+  fontStep:0, dark:false,
+  results:null,                         // filled after submit
+  timeUsedSec:null,
+  highlights:{},                        // {passageIdx: [{para,start,end,color}]}
+  notes:{},                             // {globalIndex: "note text"}
+  notepad:"",                           // general notepad text
+  annotHidden:false
+};
+let timerInterval = null;
+let activeHl = null;                    // active highlight colour class or 'eraser'
+
+/* global index helpers */
+const gIndex = (p,q)=>(QOFF[p]||0)+q;
+const passageOf = gi => { for(let i=QOFF.length-1;i>=0;i--) if(gi>=QOFF[i]) return i; return 0; };
+const localOf = gi => gi-(QOFF[passageOf(gi)]||0);
+const qCount = p => ((TEST_DATA[p]&&TEST_DATA[p].questions)||[]).length;
+const firstQNo = p => (QOFF[p]||0)+1, lastQNo = p => (QOFF[p]||0)+qCount(p);
+const questionAt = gi => TEST_DATA[passageOf(gi)].questions[localOf(gi)];
+
+/* =====================================================================
+   PERSISTENCE
+   ===================================================================== */
+function save(){
+  try{ localStorage.setItem(nsKey("mock"), JSON.stringify(state)); schedulePush(); }catch(e){}
+}
+function load(){
+  try{
+    const raw = localStorage.getItem(nsKey("mock"));
+    if(!raw) return null;
+    return JSON.parse(raw);
+  }catch(e){ return null; }
+}
+function clearSaved(){
+  try{ localStorage.removeItem(nsKey("mock")); }catch(e){}
+}
+
+/* =====================================================================
+   START SCREEN
+   ===================================================================== */
+const startScreen=document.getElementById('startScreen');
+const testScreen=document.getElementById('testScreen');
+const resultsScreen=document.getElementById('resultsScreen');
+const reviewScreen=document.getElementById('reviewScreen');
+
+function initStart(){
+  const saved = load();
+  const note=document.getElementById('resumeNote');
+  if(saved && saved.started){
+    if(saved.submitted){
+      note.innerHTML='Có kết quả đã lưu. <button class="linkbtn" id="viewSavedResults">Xem kết quả</button> · <button class="linkbtn" id="clearSaved1">Xóa tiến độ đã lưu</button>';
+    } else {
+      note.innerHTML='Đã có bài làm dở dang. Nhấn nút trên để tiếp tục. · <button class="linkbtn" id="clearSaved1">Xóa tiến độ đã lưu</button>';
+    }
+    setTimeout(()=>{
+      const v=document.getElementById('viewSavedResults');
+      if(v) v.onclick=()=>{ state=Object.assign(state,saved); applyFontTheme(); showResults(); };
+      const c=document.getElementById('clearSaved1');
+      if(c) c.onclick=()=>confirmClear();
+      document.getElementById('startBtn').textContent = saved.submitted ? 'LÀM LẠI BÀI (bài mới)' : 'TIẾP TỤC LÀM BÀI';
+    },0);
+  }
+}
+document.getElementById('startBtn').onclick=()=>{
+  const saved=load();
+  if(saved && saved.started && !saved.submitted){
+    state=Object.assign(state,saved);
+  } else {
+    // fresh start
+    clearSaved();
+    state.started=true; state.submitted=false; state.answers={}; state.marked={};
+    state.currentPassage=0; state.results=null;
+    state.endTime = Date.now() + TEST_DURATION_MIN*60*1000;
+  }
+  save();
+  enterTest();
+};
+
+/* =====================================================================
+   ENTER TEST
+   ===================================================================== */
+function enterTest(){
+  document.getElementById('modeScreen').classList.add('hidden');
+  document.getElementById('practiceScreen').classList.add('hidden');
+  startScreen.classList.add('hidden');
+  resultsScreen.classList.add('hidden');
+  reviewScreen.classList.add('hidden');
+  testScreen.classList.remove('hidden');
+  applyFontTheme();
+  document.body.classList.toggle('annot-hidden',!!state.annotHidden);
+  document.getElementById('annotHideBtn').classList.toggle('active',!!state.annotHidden);
+  activeHl=null; syncHlToolbar();
+  document.getElementById('notepadText').value=state.notepad||'';
+  setNotepadVisible(true);
+  buildPassageNav();
+  renderPassage();
+  renderQuestions();
+  updateProgress();
+  startTimer();
+}
+
+/* =====================================================================
+   TIMER
+   ===================================================================== */
+function fmt(sec){
+  sec=Math.max(0,sec);
+  const m=Math.floor(sec/60), s=sec%60;
+  return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+function startTimer(){
+  if(timerInterval){ clearInterval(timerInterval); timerInterval=null; } // prevent multiple timers
+  tickTimer();
+  timerInterval=setInterval(tickTimer,1000);
+}
+function tickTimer(){
+  const remain = Math.round((state.endTime - Date.now())/1000);
+  const t=document.getElementById('timer');
+  const tm=document.getElementById('timerMobile');
+  const label='Thời gian còn lại: '+fmt(remain);
+  if(t) t.textContent=label;
+  if(tm) tm.textContent=label;
+  [t,tm].forEach(el=>{ if(!el)return; el.classList.remove('warn','danger');
+    if(remain<=60) el.classList.add('danger');
+    else if(remain<=600) el.classList.add('warn');
+  });
+  if(remain<=0){
+    clearInterval(timerInterval); timerInterval=null;
+    autoSubmit();
+  }
+}
+
+/* =====================================================================
+   PASSAGE RENDERING
+   ===================================================================== */
+function buildPassageNav(){
+  const nav=document.getElementById('passageNav');
+  nav.innerHTML='';
+  TEST_DATA.forEach((p,i)=>{
+    const b=document.createElement('button');
+    b.className='pnav-btn'+(i===state.currentPassage?' active':'');
+    b.innerHTML='Bài đọc '+(i+1)+'<span class="done" aria-label="đã hoàn thành">✓</span>';
+    b.setAttribute('aria-pressed', i===state.currentPassage);
+    b.onclick=()=>switchPassage(i);
+    nav.appendChild(b);
+  });
+  refreshPassageNavState();
+}
+function refreshPassageNavState(){
+  const btns=document.querySelectorAll('#passageNav .pnav-btn');
+  btns.forEach((b,i)=>{
+    b.classList.toggle('active', i===state.currentPassage);
+    let complete=true;
+    for(let q=0;q<qCount(i);q++){ if(!state.answers[gIndex(i,q)]){complete=false;break;} }
+    b.classList.toggle('complete', complete);
+  });
+}
+function renderPassage(){
+  const p=TEST_DATA[state.currentPassage];
+  document.getElementById('passageTag').textContent='PASSAGE '+p.number+' — Questions '+firstQNo(state.currentPassage)+'-'+lastQNo(state.currentPassage);
+  document.getElementById('passageTitle').textContent='Passage '+p.number+': '+p.title;
+  const body=document.getElementById('passageBody');
+  body.innerHTML='';
+  p.paragraphs.forEach((txt,pi)=>{
+    const el=document.createElement('p');
+    el.id='tpara-'+state.currentPassage+'-'+pi;
+    el.setAttribute('data-pi',pi);
+    el.innerHTML=buildParaHTML(txt,getBold(state.currentPassage,pi),null,false,getHls(state.currentPassage,pi));
+    body.appendChild(el);
+  });
+  // restore scroll
+  const sc=document.getElementById('passageScroll');
+  sc.scrollTop = state.scrollPos[state.currentPassage]||0;
+  sc.onscroll=()=>{ state.scrollPos[state.currentPassage]=sc.scrollTop; };
+}
+function switchPassage(i){
+  if(i===state.currentPassage) return;
+  // save current scrolls
+  state.scrollPos[state.currentPassage]=document.getElementById('passageScroll').scrollTop;
+  state.qScrollPos[state.currentPassage]=document.getElementById('qScroll').scrollTop;
+  state.currentPassage=i;
+  save();
+  renderPassage();
+  renderQuestions();
+  refreshPassageNavState();
+  document.getElementById('qScroll').scrollTop = state.qScrollPos[i]||0;
+}
+
+/* =====================================================================
+   QUESTIONS RENDERING
+   ===================================================================== */
+const LETTERS=['A','B','C','D'];
+function renderQuestions(){
+  const wrap=document.getElementById('qScroll');
+  wrap.innerHTML='';
+  const p=TEST_DATA[state.currentPassage];
+  p.questions.forEach((q,qi)=>{
+    const gi=gIndex(state.currentPassage,qi);
+    const num=gi+1;
+    const answered=!!state.answers[gi];
+    const marked=!!state.marked[gi];
+    const card=document.createElement('div');
+    card.className='qcard '+(marked?'marked':(answered?'answered':'unanswered'));
+    card.id='qcard-'+gi;
+    card.setAttribute('data-gi',gi);
+
+    const top=document.createElement('div'); top.className='q-top';
+    top.innerHTML='<span class="q-num">Câu '+num+'</span><span class="q-text">'+escapeHtml(q.text)+'</span>';
+    const mbtn=document.createElement('button');
+    mbtn.className='mark-btn'+(marked?' on':'');
+    mbtn.type='button';
+    mbtn.innerHTML=(marked?'★ Đã đánh dấu':'☆ Đánh dấu xem lại');
+    mbtn.setAttribute('aria-pressed',marked);
+    mbtn.onclick=()=>toggleMark(gi);
+    top.appendChild(mbtn);
+    card.appendChild(top);
+
+    const opts=document.createElement('div'); opts.className='options';
+    opts.setAttribute('role','radiogroup');
+    opts.setAttribute('aria-label','Câu '+num);
+    LETTERS.forEach(L=>{
+      const sel=state.answers[gi]===L;
+      // Accessible custom radio (role="radio") — reliable click selection,
+      // no native <input> nesting (which caused a click-handling loop).
+      const o=document.createElement('div');
+      o.className='opt'+(sel?' selected':'');
+      o.setAttribute('role','radio');
+      o.setAttribute('aria-checked',sel?'true':'false');
+      o.setAttribute('tabindex','0');
+      o.setAttribute('data-l',L);
+      o.innerHTML='<span class="letter">'+L+'</span><span class="otext">'+escapeHtml(q.options[L])+'</span>';
+      o.addEventListener('click',()=>{ selectAnswer(gi,L); rerenderCard(gi); });
+      o.addEventListener('keydown',e=>{
+        if(e.key===' '||e.key==='Enter'){ e.preventDefault(); selectAnswer(gi,L); rerenderCard(gi); }
+      });
+      opts.appendChild(o);
+    });
+    card.appendChild(opts);
+
+    // per-question personal note
+    const nw=document.createElement('div'); nw.className='note-wrap';
+    const hasNote=!!(state.notes[gi]&&state.notes[gi].trim());
+    nw.innerHTML='<button class="note-toggle'+(hasNote?' has':'')+'" type="button">'+
+      (hasNote?'📝 Ghi chú của bạn':'📝 Thêm ghi chú')+'</button>'+
+      '<div class="note-edit" style="display:none">'+
+        '<textarea placeholder="Ghi chú riêng cho câu này…">'+escapeHtml(state.notes[gi]||'')+'</textarea>'+
+        '<div class="row"><button class="n-save" type="button">Lưu</button><button class="n-del" type="button">Xóa</button></div>'+
+      '</div>';
+    const tgl=nw.querySelector('.note-toggle'), edit=nw.querySelector('.note-edit'),
+          ta=nw.querySelector('textarea'), sv=nw.querySelector('.n-save'), dl=nw.querySelector('.n-del');
+    tgl.onclick=()=>{ edit.style.display = edit.style.display==='none'?'block':'none'; if(edit.style.display==='block') ta.focus(); };
+    sv.onclick=()=>{ const v=ta.value.trim(); if(v) state.notes[gi]=v; else delete state.notes[gi];
+      save(); tgl.classList.toggle('has',!!v); tgl.textContent=v?'📝 Ghi chú của bạn':'📝 Thêm ghi chú'; edit.style.display='none'; };
+    dl.onclick=()=>{ delete state.notes[gi]; ta.value=''; save(); tgl.classList.remove('has'); tgl.textContent='📝 Thêm ghi chú'; edit.style.display='none'; };
+    card.appendChild(nw);
+
+    // keyboard: number keys + arrows + M when card focused
+    card.tabIndex=0;
+    card.addEventListener('keydown',e=>handleQKey(e,gi));
+    wrap.appendChild(card);
+  });
+  // restore question scroll
+  wrap.scrollTop = state.qScrollPos[state.currentPassage]||0;
+  wrap.onscroll=()=>{ state.qScrollPos[state.currentPassage]=wrap.scrollTop; };
+}
+function handleQKey(e,gi){
+  if(state.submitted) return;
+  const k=e.key;
+  if(['1','2','3','4'].includes(k)){ selectAnswer(gi,LETTERS[+k-1]); rerenderCard(gi); e.preventDefault(); }
+  else if(k.toLowerCase()==='m'){ toggleMark(gi); e.preventDefault(); }
+  else if(k==='ArrowDown'||k==='ArrowRight'){
+    const cur=state.answers[gi]?LETTERS.indexOf(state.answers[gi]):-1;
+    selectAnswer(gi,LETTERS[Math.min(3,cur+1)]); rerenderCard(gi); e.preventDefault();
+  }
+  else if(k==='ArrowUp'||k==='ArrowLeft'){
+    const cur=state.answers[gi]?LETTERS.indexOf(state.answers[gi]):1;
+    selectAnswer(gi,LETTERS[Math.max(0,cur-1)]); rerenderCard(gi); e.preventDefault();
+  }
+}
+function rerenderCard(gi){
+  const card=document.getElementById('qcard-'+gi);
+  if(!card) return;
+  const answered=!!state.answers[gi], marked=!!state.marked[gi];
+  card.className='qcard '+(marked?'marked':(answered?'answered':'unanswered'));
+  card.querySelectorAll('.opt').forEach(o=>{
+    const L=o.getAttribute('data-l');
+    const sel=state.answers[gi]===L;
+    o.classList.toggle('selected',sel);
+    o.setAttribute('aria-checked',sel?'true':'false');
+  });
+  const mb=card.querySelector('.mark-btn');
+  mb.classList.toggle('on',marked);
+  mb.innerHTML=(marked?'★ Đã đánh dấu':'☆ Đánh dấu xem lại');
+  mb.setAttribute('aria-pressed',marked);
+}
+function selectAnswer(gi,L){
+  if(state.submitted) return;
+  state.answers[gi]=L;
+  save();
+  updateProgress();
+  refreshPassageNavState();
+  refreshNavigator();
+}
+function toggleMark(gi){
+  if(state.submitted) return;
+  state.marked[gi]=!state.marked[gi];
+  if(!state.marked[gi]) delete state.marked[gi];
+  save();
+  rerenderCard(gi);
+  updateProgress();
+  refreshNavigator();
+}
+function updateProgress(){
+  const answered=Object.keys(state.answers).length;
+  const markedN=Object.keys(state.marked).length;
+  const lab='Đã trả lời: '+answered+'/'+TOTAL_Q;
+  ['progress','progMobile'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=lab;});
+  const mc=document.getElementById('markedChip'); if(mc) mc.textContent='Đánh dấu: '+markedN;
+}
+function escapeHtml(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+/* Return the bold-word list for a given passage/paragraph (or []). */
+function getBold(passageIdx,paraIdx){
+  const b=TEST_DATA[passageIdx].bold;
+  return (b && b[paraIdx]) ? b[paraIdx] : [];
+}
+/* find start index of the nth (1-based) occurrence of sub in text; -1 if absent */
+function nthIndexOf(text,sub,n){
+  let idx=-1;
+  for(let i=0;i<n;i++){ idx=text.indexOf(sub,idx+1); if(idx<0) return -1; }
+  return idx;
+}
+/* Build safe paragraph HTML from plain text, applying <strong> for bold words
+   and (optionally) an evidence <mark>. Handles overlaps character-by-character. */
+function buildParaHTML(text, boldArr, ev, flash, hls){
+  const n=text.length;
+  const boldFlag=new Array(n).fill(false);
+  const eviFlag=new Array(n).fill(false);
+  const hlArr=new Array(n).fill(null);   // per-char highlight colour class
+  let eviType='direct';
+  (boldArr||[]).forEach(entry=>{
+    let sub=entry, occ=1;
+    if(Array.isArray(entry)){ sub=entry[0]; occ=entry[1]||1; }
+    const i=nthIndexOf(text,sub,occ);
+    if(i>=0) for(let k=i;k<i+sub.length;k++) boldFlag[k]=true;
+  });
+  (hls||[]).forEach(h=>{
+    const a=Math.max(0,h.start), b=Math.min(n,h.end);
+    for(let k=a;k<b;k++) hlArr[k]=h.color;
+  });
+  if(ev && ev.text){
+    const i=text.indexOf(ev.text);
+    if(i>=0){ eviType=ev.type||'direct'; for(let k=i;k<i+ev.text.length;k++) eviFlag[k]=true; }
+  }
+  let html='', k=0;
+  while(k<n){
+    const b=boldFlag[k], e=eviFlag[k], h=hlArr[k];
+    let j=k+1;
+    while(j<n && boldFlag[j]===b && eviFlag[j]===e && hlArr[j]===h) j++;
+    let seg=escapeHtml(text.slice(k,j));
+    if(e) seg='<mark class="evi evi-'+eviType+(flash?' flash':'')+'">'+seg+'</mark>';
+    if(b) seg='<strong>'+seg+'</strong>';
+    if(h) seg='<span class="hl '+h+'" data-hlstart="'+k+'">'+seg+'</span>';
+    html+=seg; k=j;
+  }
+  return html;
+}
+
+/* =====================================================================
+   FONT SIZE + THEME + FULLSCREEN
+   ===================================================================== */
+function applyFontTheme(){
+  const scale=1+state.fontStep*0.09;
+  document.documentElement.style.setProperty('--reading-scale',scale.toFixed(2));
+  document.body.classList.toggle('dark',state.dark);
+  const label=state.dark?'☀️ Nền sáng':'🌙 Nền tối';
+  ['themeBtn','rThemeBtn'].forEach(id=>{const b=document.getElementById(id);if(b)b.textContent=label;});
+}
+function fontInc(){ state.fontStep=Math.min(5,state.fontStep+1); applyFontTheme(); save(); }
+function fontDec(){ state.fontStep=Math.max(-2,state.fontStep-1); applyFontTheme(); save(); }
+function fontReset(){ state.fontStep=0; applyFontTheme(); save(); }
+function toggleTheme(){ state.dark=!state.dark; applyFontTheme(); save(); }
+['fontInc','rFontInc'].forEach(id=>document.getElementById(id).onclick=fontInc);
+['fontDec','rFontDec'].forEach(id=>document.getElementById(id).onclick=fontDec);
+['fontReset','rFontReset'].forEach(id=>document.getElementById(id).onclick=fontReset);
+['themeBtn','rThemeBtn'].forEach(id=>document.getElementById(id).onclick=toggleTheme);
+document.getElementById('fsBtn').onclick=()=>{
+  if(!document.fullscreenElement){ document.documentElement.requestFullscreen?.(); }
+  else { document.exitFullscreen?.(); }
+};
+
+/* =====================================================================
+   DIVIDER DRAG (desktop / tablet)
+   ===================================================================== */
+function setupDivider(dividerId,leftId){
+  const divider=document.getElementById(dividerId);
+  const left=document.getElementById(leftId);
+  if(!divider) return;
+  let dragging=false;
+  const start=()=>{dragging=true;document.body.style.userSelect='none';document.body.style.cursor='col-resize';};
+  const end=()=>{dragging=false;document.body.style.userSelect='';document.body.style.cursor='';};
+  const move=(clientX)=>{
+    if(!dragging) return;
+    const wa=divider.parentElement.getBoundingClientRect();
+    let pct=(clientX-wa.left)/wa.width*100;
+    pct=Math.max(25,Math.min(75,pct));
+    left.style.width=pct+'%';
+  };
+  divider.addEventListener('mousedown',start);
+  window.addEventListener('mousemove',e=>move(e.clientX));
+  window.addEventListener('mouseup',end);
+  divider.addEventListener('touchstart',start,{passive:true});
+  window.addEventListener('touchmove',e=>{if(dragging&&e.touches[0])move(e.touches[0].clientX);},{passive:true});
+  window.addEventListener('touchend',end);
+}
+setupDivider('divider','leftPanel');
+setupDivider('rDivider','rLeftPanel');
+
+/* =====================================================================
+   MOBILE TABS
+   ===================================================================== */
+document.querySelectorAll('[data-mtab]').forEach(btn=>{
+  btn.onclick=()=>{
+    document.querySelectorAll('[data-mtab]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const which=btn.getAttribute('data-mtab');
+    document.getElementById('leftPanel').classList.toggle('mobile-active',which==='left');
+    document.getElementById('rightPanel').classList.toggle('mobile-active',which==='right');
+  };
+});
+document.querySelectorAll('[data-rmtab]').forEach(btn=>{
+  btn.onclick=()=>{
+    document.querySelectorAll('[data-rmtab]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const which=btn.getAttribute('data-rmtab');
+    document.getElementById('rLeftPanel').classList.toggle('mobile-active',which==='left');
+    document.getElementById('rRightPanel').classList.toggle('mobile-active',which==='right');
+  };
+});
+function mobileShow(side, review){
+  const sel = review? '[data-rmtab]' : '[data-mtab]';
+  document.querySelectorAll(sel).forEach(b=>{
+    b.classList.toggle('active', b.getAttribute(review?'data-rmtab':'data-mtab')===side);
+  });
+  const L=document.getElementById(review?'rLeftPanel':'leftPanel');
+  const R=document.getElementById(review?'rRightPanel':'rightPanel');
+  L.classList.toggle('mobile-active',side==='left');
+  R.classList.toggle('mobile-active',side==='right');
+}
+
+/* =====================================================================
+   NAVIGATOR
+   ===================================================================== */
+const navigator_=document.getElementById('navigator');
+let navMode='test'; // 'test' | 'review'
+function openNav(mode){ navMode=mode; refreshNavigator(); navigator_.classList.add('open');
+  navigator_.setAttribute('aria-hidden','false'); showOverlay(closeNav); }
+function closeNav(){ navigator_.classList.remove('open'); navigator_.setAttribute('aria-hidden','true'); hideOverlay(); }
+document.getElementById('navBtn').onclick=()=>openNav('test');
+document.getElementById('rNavBtn').onclick=()=>openNav('review');
+document.getElementById('navClose').onclick=closeNav;
+
+function refreshNavigator(){
+  const grid=document.getElementById('navGrid');
+  grid.innerHTML='';
+  for(let gi=0;gi<TOTAL_Q;gi++){
+    const cell=document.createElement('button');
+    cell.className='nav-cell';
+    cell.textContent=gi+1;
+    const answered=!!state.answers[gi], marked=!!state.marked[gi];
+    if(navMode==='review' && state.results){
+      const r=state.results.perQ[gi];
+      if(r.status==='correct') cell.classList.add('correct');
+      else if(r.status==='incorrect') cell.classList.add('incorrect');
+      if(marked) cell.innerHTML=(gi+1)+'<span class="flag">★</span>';
+    } else {
+      if(answered) cell.classList.add('answered');
+      if(marked){ cell.classList.add('marked'); cell.innerHTML=(gi+1)+'<span class="flag">★</span>'; }
+      if(passageOf(gi)===state.currentPassage) cell.classList.add('current');
+    }
+    cell.onclick=()=>{ navMode==='review'?gotoReviewQuestion(gi):gotoQuestion(gi); closeNav(); };
+    grid.appendChild(cell);
+  }
+  const legend=document.getElementById('navLegend');
+  if(navMode==='review'){
+    legend.innerHTML=
+      '<div class="row"><span class="sw sw-correct"></span>Trả lời đúng</div>'+
+      '<div class="row"><span class="sw sw-incorrect"></span>Trả lời sai</div>'+
+      '<div class="row"><span class="sw"></span>Chưa trả lời</div>'+
+      '<div class="row"><span class="sw" style="position:relative"><span style="position:absolute;top:-6px;right:-4px">★</span></span>Đã đánh dấu</div>';
+  } else {
+    legend.innerHTML=
+      '<div class="row"><span class="sw"></span>Chưa trả lời</div>'+
+      '<div class="row"><span class="sw sw-answered"></span>Đã trả lời</div>'+
+      '<div class="row"><span class="sw sw-marked"></span>Đánh dấu xem lại</div>'+
+      '<div class="row"><span class="sw sw-current"></span>Câu hiện tại</div>';
+  }
+}
+function gotoQuestion(gi){
+  const p=passageOf(gi);
+  if(p!==state.currentPassage) switchPassage(p);
+  mobileShow('right',false);
+  requestAnimationFrame(()=>{
+    const card=document.getElementById('qcard-'+gi);
+    if(card){ card.scrollIntoView({behavior:'smooth',block:'center'});
+      card.style.transition='box-shadow .3s'; card.style.boxShadow='0 0 0 3px var(--accent)';
+      setTimeout(()=>card.style.boxShadow='',1200); card.focus({preventScroll:true}); }
+  });
+}
+
+/* overlay */
+function showOverlay(onClick){
+  let ov=document.getElementById('sharedOverlay');
+  if(!ov){ ov=document.createElement('div'); ov.className='overlay'; ov.id='sharedOverlay'; document.body.appendChild(ov); }
+  ov.style.display='block'; ov.onclick=onClick;
+}
+function hideOverlay(){ const ov=document.getElementById('sharedOverlay'); if(ov) ov.style.display='none'; }
+
+/* =====================================================================
+   MODALS
+   ===================================================================== */
+function modal(html){
+  const mount=document.getElementById('modalMount');
+  mount.innerHTML='<div class="modal-wrap"><div class="overlay"></div><div class="modal" role="dialog" aria-modal="true">'+html+'</div></div>';
+  return mount;
+}
+function closeModal(){ document.getElementById('modalMount').innerHTML=''; }
+
+/* =====================================================================
+   SUBMISSION
+   ===================================================================== */
+document.getElementById('submitBtn').onclick=()=>attemptSubmit();
+function attemptSubmit(){
+  const unanswered=[];
+  for(let gi=0;gi<TOTAL_Q;gi++) if(!state.answers[gi]) unanswered.push(gi+1);
+  if(unanswered.length>0){
+    modal(
+      '<h2>Bạn còn '+unanswered.length+' câu chưa trả lời</h2>'+
+      '<p>Các câu chưa trả lời:</p>'+
+      '<div class="qlist">Câu '+unanswered.join(', ')+'</div>'+
+      '<div class="modal-actions">'+
+        '<button class="btn-ghost" id="mBack">Quay lại làm tiếp</button>'+
+        '<button class="btn-danger" id="mSubmit">Vẫn nộp bài</button>'+
+      '</div>'
+    );
+    document.getElementById('mBack').onclick=()=>{ closeModal(); if(unanswered.length){ gotoQuestion(unanswered[0]-1);} };
+    document.getElementById('mSubmit').onclick=()=>{ closeModal(); finalConfirm(); };
+  } else {
+    finalConfirm();
+  }
+}
+function finalConfirm(){
+  modal(
+    '<h2>Xác nhận nộp bài</h2>'+
+    '<p>Bạn có chắc chắn muốn nộp bài không? Sau khi nộp, bạn sẽ không thể thay đổi đáp án.</p>'+
+    '<div class="modal-actions">'+
+      '<button class="btn-ghost" id="mCancel">Quay lại làm tiếp</button>'+
+      '<button class="btn-go" id="mConfirm">Nộp bài</button>'+
+    '</div>'
+  );
+  document.getElementById('mCancel').onclick=closeModal;
+  document.getElementById('mConfirm').onclick=()=>{ closeModal(); doSubmit(); };
+}
+function autoSubmit(){
+  if(state.submitted) return;
+  modal('<h2>Đã hết giờ</h2><p>Thời gian làm bài đã kết thúc. Bài thi của bạn được nộp tự động.</p>'+
+    '<div class="modal-actions"><button class="btn-go" id="mOk">Xem kết quả</button></div>');
+  document.getElementById('mOk').onclick=()=>{ closeModal(); };
+  doSubmit();
+}
+function doSubmit(){
+  if(state.submitted) return;
+  if(timerInterval){ clearInterval(timerInterval); timerInterval=null; }
+  state.submitted=true;
+  const usedSec = TEST_DURATION_MIN*60 - Math.max(0,Math.round((state.endTime-Date.now())/1000));
+  state.timeUsedSec = Math.max(0,Math.min(TEST_DURATION_MIN*60, usedSec));
+  computeResults();
+  save();
+  showResults();
+}
+function computeResults(){
+  let correct=0, incorrect=0, unanswered=0;
+  const perQ={}, perPassage=TEST_DATA.map((p,i)=>({correct:0,total:qCount(i)}));
+  for(let gi=0;gi<TOTAL_Q;gi++){
+    const q=questionAt(gi);
+    const ans=state.answers[gi]||null;
+    let status;
+    if(!ans){ status='unanswered'; unanswered++; }
+    else if(ans===q.correct){ status='correct'; correct++; perPassage[passageOf(gi)].correct++; }
+    else { status='incorrect'; incorrect++; }
+    perQ[gi]={status,answer:ans,correct:q.correct};
+  }
+  state.results={correct,incorrect,unanswered,perQ,perPassage,
+    marked:Object.keys(state.marked).length};
+}
+
+/* =====================================================================
+   RESULTS SCREEN
+   ===================================================================== */
+function classifyQ(q){
+  const t=q.text.toLowerCase();
+  if(/closest in meaning|the word|opposite|meaning to/.test(t)) return "Từ vựng trong ngữ cảnh";
+  if(/refer to|refers to/.test(t)) return "Từ tham chiếu (ngữ pháp)";
+  if(/main idea|best title|main topic|purpose|writer/.test(t)) return "Ý chính & mục đích";
+  if(/infer|imply|implied|inferred|attitude/.test(t)) return "Suy luận & thái độ";
+  if(/express the information|best expresses/.test(t)) return "Diễn đạt lại (paraphrase)";
+  return "Thông tin chi tiết";
+}
+function showResults(){
+  document.getElementById('modeScreen').classList.add('hidden');
+  document.getElementById('practiceScreen').classList.add('hidden');
+  testScreen.classList.add('hidden');
+  reviewScreen.classList.add('hidden');
+  startScreen.classList.add('hidden');
+  resultsScreen.classList.remove('hidden');
+  setNotepadVisible(false);
+  if(!state.results) computeResults();
+  const r=state.results;
+  const pct=Math.round(r.correct/TOTAL_Q*100);
+  const scaled=(r.correct*SCORE_PER_QUESTION).toFixed(2);
+  const used=state.timeUsedSec!=null?state.timeUsedSec:0;
+  const ringColor = pct>=75?'var(--ok)':(pct>=50?'#d18f00':'var(--bad)');
+
+  let passageHtml='';
+  r.perPassage.forEach((pp,i)=>{
+    const w=Math.round(pp.correct/pp.total*100);
+    passageHtml+='<div class="pp-card"><h4>Bài đọc '+(i+1)+': '+escapeHtml(TEST_DATA[i].title)+'</h4>'+
+      '<div class="pp-bar"><i style="width:'+w+'%"></i></div>'+
+      '<div style="font-size:.9rem;color:var(--muted)">'+pp.correct+'/'+pp.total+' câu đúng</div></div>';
+  });
+
+  const okW=r.correct/TOTAL_Q*100, badW=r.incorrect/TOTAL_Q*100, unW=r.unanswered/TOTAL_Q*100;
+
+  // --- vocabulary & grammar points to review (from wrong/blank answers) ---
+  const areas={};
+  for(let gi=0;gi<TOTAL_Q;gi++){ const st=r.perQ[gi].status; if(st==='incorrect'||st==='unanswered'){
+    const a=classifyQ(questionAt(gi)); (areas[a]=areas[a]||[]).push(gi+1); } }
+  let reviewListHtml='';
+  const areaKeys=Object.keys(areas);
+  if(areaKeys.length){
+    reviewListHtml='<h3 style="color:var(--navy)">Từ vựng & ngữ pháp cần ôn</h3><div class="passage-perf">'+
+      areaKeys.map(k=>'<div class="pp-card"><h4>'+escapeHtml(k)+'</h4>'+
+        '<div style="font-size:.88rem;color:var(--muted)">Các câu: '+areas[k].join(', ')+'</div></div>').join('')+'</div>';
+  } else {
+    reviewListHtml='<h3 style="color:var(--navy)">Từ vựng & ngữ pháp cần ôn</h3><p style="color:var(--ok)">Xuất sắc! Bạn không có câu nào sai hoặc bỏ trống.</p>';
+  }
+  // --- student's highlights & notes ---
+  let hlCount=0; Object.values(state.highlights||{}).forEach(a=>hlCount+=a.length);
+  const noteEntries=Object.keys(state.notes||{}).filter(k=>state.notes[k]&&state.notes[k].trim());
+  let annotHtml='<h3 style="color:var(--navy)">Tô sáng & ghi chú của bạn</h3>'+
+    '<p style="color:var(--muted)">Số đoạn đã tô sáng: <b>'+hlCount+'</b> · Số câu có ghi chú: <b>'+noteEntries.length+'</b></p>';
+  if(noteEntries.length){
+    annotHtml+='<div class="passage-perf">'+noteEntries.map(k=>'<div class="pp-card"><h4>Câu '+(+k+1)+'</h4>'+
+      '<div style="font-size:.9rem">'+escapeHtml(state.notes[k])+'</div></div>').join('')+'</div>';
+  }
+  if(state.notepad&&state.notepad.trim()){
+    annotHtml+='<div class="pp-card" style="margin-top:6px"><h4>Sổ tay cá nhân</h4><div style="font-size:.9rem;white-space:pre-wrap">'+escapeHtml(state.notepad)+'</div></div>';
+  }
+
+  document.getElementById('resultsBody').innerHTML=
+    '<h1>Kết quả bài thi</h1>'+
+    '<p style="text-align:center;color:var(--muted)">VSTEP Reading Practice Test 1</p>'+
+    '<div class="score-hero">'+
+      '<div class="score-ring" style="background:'+ringColor+'">'+
+        '<div class="big">'+r.correct+'/'+TOTAL_Q+'</div><div class="sm">'+pct+'% chính xác</div></div>'+
+      '<div class="stat-cards">'+
+        '<div class="stat"><div class="v">'+scaled+'</div><div class="k">Điểm quy đổi (thang 10)</div></div>'+
+        '<div class="stat"><div class="v">'+fmt(used)+'</div><div class="k">Thời gian đã dùng</div></div>'+
+        '<div class="stat"><div class="v">'+r.unanswered+'</div><div class="k">Câu chưa trả lời</div></div>'+
+        '<div class="stat"><div class="v">'+r.marked+'</div><div class="k">Câu đã đánh dấu</div></div>'+
+      '</div>'+
+    '</div>'+
+    '<h3 style="color:var(--navy)">Tổng quan</h3>'+
+    '<div class="bar-summary">'+
+      (okW>0?'<span class="seg-ok" style="width:'+okW+'%">'+r.correct+' đúng</span>':'')+
+      (badW>0?'<span class="seg-bad" style="width:'+badW+'%">'+r.incorrect+' sai</span>':'')+
+      (unW>0?'<span class="seg-un" style="width:'+unW+'%">'+r.unanswered+' bỏ</span>':'')+
+    '</div>'+
+    '<h3 style="color:var(--navy)">Kết quả theo từng bài đọc</h3>'+
+    '<div class="passage-perf">'+passageHtml+'</div>'+
+    reviewListHtml+
+    annotHtml+
+    '<div class="results-actions">'+
+      '<button class="btn-go" id="reviewBtn">Xem lại & giải thích chi tiết</button>'+
+      '<button class="btn-ghost" style="border:1px solid var(--border)" id="weakBtn">Luyện phần yếu trước</button>'+
+      '<button class="btn-ghost" style="border:1px solid var(--border)" id="retryBtn">Làm lại toàn bộ bài</button>'+
+      '<button class="btn-danger" id="clearBtn">Xóa tiến độ đã lưu</button>'+
+    '</div>'+
+    '<div style="text-align:center;margin-top:14px"><button class="linkbtn" id="toModes2">← Về màn hình chọn chế độ</button></div>';
+
+  document.getElementById('reviewBtn').onclick=enterReview;
+  document.getElementById('retryBtn').onclick=confirmRetry;
+  document.getElementById('clearBtn').onclick=confirmClear;
+  document.getElementById('weakBtn').onclick=()=>{ curPractice='review'; enterPractice(); };
+  document.getElementById('toModes2').onclick=goModes;
+}
+function confirmRetry(){
+  modal('<h2>Làm lại bài</h2><p>Bắt đầu lại từ đầu với 60 phút mới? Bài làm hiện tại sẽ bị xóa.</p>'+
+    '<div class="modal-actions"><button class="btn-ghost" id="rc">Hủy</button><button class="btn-go" id="ro">Làm lại</button></div>');
+  document.getElementById('rc').onclick=closeModal;
+  document.getElementById('ro').onclick=()=>{
+    closeModal(); clearSaved();
+    state={started:true,submitted:false,endTime:Date.now()+TEST_DURATION_MIN*60*1000,
+      answers:{},marked:{},currentPassage:0,scrollPos:{},qScrollPos:{},
+      fontStep:state.fontStep,dark:state.dark,results:null,timeUsedSec:null,
+      highlights:{},notes:{},notepad:"",annotHidden:state.annotHidden};
+    save(); enterTest();
+  };
+}
+function confirmClear(){
+  modal('<h2>Xóa tiến độ đã lưu</h2><p>Thao tác này sẽ xóa toàn bộ đáp án và tiến độ đã lưu trên trình duyệt. Bạn có chắc không?</p>'+
+    '<div class="modal-actions"><button class="btn-ghost" id="cc">Hủy</button><button class="btn-danger" id="co">Xóa tất cả</button></div>');
+  document.getElementById('cc').onclick=closeModal;
+  document.getElementById('co').onclick=()=>{
+    closeModal(); clearSaved();
+    if(timerInterval){clearInterval(timerInterval);timerInterval=null;}
+    state={started:false,submitted:false,endTime:null,answers:{},marked:{},currentPassage:0,
+      scrollPos:{},qScrollPos:{},fontStep:0,dark:false,results:null,timeUsedSec:null,
+      highlights:{},notes:{},notepad:"",annotHidden:false};
+    testScreen.classList.add('hidden');resultsScreen.classList.add('hidden');reviewScreen.classList.add('hidden');
+    document.getElementById('modeScreen').classList.add('hidden');practiceScreen.classList.add('hidden');
+    startScreen.classList.remove('hidden');setNotepadVisible(false);
+    applyFontTheme();
+    document.getElementById('resumeNote').innerHTML='';
+    document.getElementById('startBtn').textContent='BẮT ĐẦU LÀM BÀI';
+  };
+}
+
+/* =====================================================================
+   REVIEW MODE
+   ===================================================================== */
+let reviewFilter='all';
+let reviewCurrentPassage=0;
+function enterReview(){
+  resultsScreen.classList.add('hidden');
+  reviewScreen.classList.remove('hidden');
+  reviewCurrentPassage=0;
+  buildReviewFilters();
+  buildReviewPassageNav();
+  renderReviewPassage();
+  renderReviewQuestions();
+  const first=firstVisibleReviewGi();
+  if(first!=null) gotoReviewQuestion(first,false);
+}
+function buildReviewFilters(){
+  const wrap=document.getElementById('reviewFilters');
+  const defs=[['all','Tất cả'],['correct','Câu đúng'],['incorrect','Câu sai'],['unanswered','Chưa trả lời'],['marked','Đã đánh dấu']];
+  wrap.innerHTML='';
+  defs.forEach(([k,l])=>{
+    const b=document.createElement('button');
+    b.className='filter-btn'+(reviewFilter===k?' active':'');
+    b.textContent=l;
+    b.onclick=()=>{ reviewFilter=k; buildReviewFilters(); renderReviewQuestions();
+      const f=firstVisibleReviewGi(); if(f!=null) gotoReviewQuestion(f,false); };
+    wrap.appendChild(b);
+  });
+}
+function passMatchesFilter(gi){
+  const r=state.results.perQ[gi];
+  if(reviewFilter==='all') return true;
+  if(reviewFilter==='marked') return !!state.marked[gi];
+  return r.status===reviewFilter;
+}
+function buildReviewPassageNav(){
+  const nav=document.getElementById('rPassageNav');
+  nav.innerHTML='';
+  TEST_DATA.forEach((p,i)=>{
+    const b=document.createElement('button');
+    b.className='pnav-btn'+(i===reviewCurrentPassage?' active':'');
+    b.textContent='Bài đọc '+(i+1);
+    b.onclick=()=>{ reviewCurrentPassage=i; buildReviewPassageNav(); renderReviewPassage(); renderReviewQuestions(); };
+    nav.appendChild(b);
+  });
+}
+function renderReviewPassage(highlightGi){
+  const p=TEST_DATA[reviewCurrentPassage];
+  document.getElementById('rPassageTag').textContent='PASSAGE '+p.number+' — Questions '+firstQNo(reviewCurrentPassage)+'-'+lastQNo(reviewCurrentPassage);
+  document.getElementById('rPassageTitle').textContent='Passage '+p.number+': '+p.title;
+  const body=document.getElementById('rPassageBody');
+  body.innerHTML='';
+  p.paragraphs.forEach((txt,pi)=>{
+    const el=document.createElement('p'); el.id='rpara-'+reviewCurrentPassage+'-'+pi;
+    el.innerHTML=buildParaHTML(txt,getBold(reviewCurrentPassage,pi),null,false,getHls(reviewCurrentPassage,pi));
+    body.appendChild(el);
+  });
+  if(highlightGi!=null) highlightEvidence(highlightGi);
+}
+function highlightEvidence(gi){
+  const q=questionAt(gi);
+  const ev=q.evidence;
+  const p=TEST_DATA[reviewCurrentPassage];
+  const body=document.getElementById('rPassageBody');
+  // Re-render every paragraph (bold preserved), adding the evidence mark to the one that contains it.
+  const paras=body.querySelectorAll('p');
+  let target=null;
+  paras.forEach((pel,pi)=>{
+    const txt=p.paragraphs[pi];
+    const hasEvi = ev && ev.text && txt.indexOf(ev.text)>=0;
+    pel.innerHTML=buildParaHTML(txt,getBold(reviewCurrentPassage,pi), hasEvi?ev:null, hasEvi, getHls(reviewCurrentPassage,pi));
+    if(hasEvi) target=pel;
+  });
+  if(target){
+    const mk=target.querySelector('mark.evi');
+    if(mk) requestAnimationFrame(()=>{ mk.scrollIntoView({behavior:'smooth',block:'center'}); });
+  }
+}
+function renderReviewQuestions(){
+  const wrap=document.getElementById('rScroll');
+  wrap.innerHTML='';
+  const p=TEST_DATA[reviewCurrentPassage];
+  let any=false;
+  p.questions.forEach((q,qi)=>{
+    const gi=gIndex(reviewCurrentPassage,qi);
+    if(!passMatchesFilter(gi)) return;
+    any=true;
+    const r=state.results.perQ[gi];
+    const num=gi+1;
+    const card=document.createElement('div');
+    card.className='review-qcard '+r.status;
+    card.id='rqcard-'+gi;
+
+    const badge = r.status==='correct'?'<span class="status-badge correct">&#10004; Đúng</span>':
+      (r.status==='incorrect'?'<span class="status-badge incorrect">&#10008; Sai</span>':
+        '<span class="status-badge unanswered">— Chưa trả lời</span>');
+    card.innerHTML='<div class="q-top"><span class="q-num">Câu '+num+'</span>'+
+      '<span class="q-text">'+escapeHtml(q.text)+'</span></div>'+
+      '<div style="margin:4px 0 12px">'+badge+
+      (state.marked[gi]?' <span class="status-badge" style="background:var(--mark-soft);color:var(--mark)">★ Đã đánh dấu</span>':'')+
+      '</div>';
+
+    LETTERS.forEach(L=>{
+      const isCorrect=(L===q.correct);
+      const isChosen=(r.answer===L);
+      let cls='review-opt';
+      if(isCorrect) cls+=' correct-opt';
+      else if(isChosen) cls+=' chosen-wrong';
+      let tag='';
+      if(isCorrect) tag='<span class="opt-tag tag-correct">Đáp án đúng</span>';
+      else if(isChosen) tag='<span class="opt-tag tag-wrong">Bạn chọn</span>';
+      const o=document.createElement('div'); o.className=cls;
+      o.innerHTML='<span class="letter">'+L+'</span><span style="flex:1">'+escapeHtml(q.options[L])+'</span>'+tag;
+      card.appendChild(o);
+    });
+
+    const yourAns = r.answer? ('Đáp án của bạn: <strong>'+r.answer+'</strong>') : 'Bạn chưa trả lời câu này.';
+    let whyWrong='';
+    if(r.status==='incorrect'){
+      whyWrong='<p style="margin:6px 0 0"><strong>Vì sao đáp án bạn chọn ('+r.answer+') chưa đúng:</strong> phương án này không khớp với thông tin trong bài; hãy đối chiếu với đoạn được tô sáng bên trái.</p>';
+    }
+    const box=document.createElement('div'); box.className='explain-box';
+    box.innerHTML='<h5>Giải thích</h5>'+
+      '<p style="margin:0 0 6px">'+yourAns+' · Đáp án đúng: <strong>'+q.correct+'</strong></p>'+
+      '<p style="margin:0 0 6px"><strong>Vì sao đúng:</strong> '+escapeHtml(q.explanation)+'</p>'+
+      whyWrong+
+      '<div class="evidence">"'+escapeHtml(q.evidence.text)+'"</div>'+
+      '<button class="scroll-evi-btn" data-gi="'+gi+'">Xem bằng chứng trong bài đọc →</button>';
+    card.appendChild(box);
+    box.querySelector('.scroll-evi-btn').onclick=()=>{ mobileShow('left',true); highlightEvidence(gi); };
+
+    wrap.appendChild(card);
+  });
+  if(!any){ wrap.innerHTML='<p style="color:var(--muted);padding:20px">Không có câu nào phù hợp với bộ lọc này trong bài đọc hiện tại.</p>'; }
+}
+function firstVisibleReviewGi(){
+  for(let gi=0;gi<TOTAL_Q;gi++){ if(passMatchesFilter(gi)) return gi; }
+  return null;
+}
+function gotoReviewQuestion(gi,scrollQ=true){
+  const p=passageOf(gi);
+  if(p!==reviewCurrentPassage){ reviewCurrentPassage=p; buildReviewPassageNav(); renderReviewPassage(); }
+  if(!passMatchesFilter(gi)){ reviewFilter='all'; buildReviewFilters(); }
+  renderReviewQuestions();
+  renderReviewPassage(gi);        // highlights evidence + scrolls passage
+  requestAnimationFrame(()=>{
+    const card=document.getElementById('rqcard-'+gi);
+    if(card && scrollQ){ card.scrollIntoView({behavior:'smooth',block:'start'});
+      card.style.boxShadow='0 0 0 3px var(--accent)'; setTimeout(()=>card.style.boxShadow='',1200); }
+  });
+}
+document.getElementById('prevQ').onclick=()=>stepReview(-1);
+document.getElementById('nextQ').onclick=()=>stepReview(1);
+function stepReview(dir){
+  const list=[]; for(let gi=0;gi<TOTAL_Q;gi++) if(passMatchesFilter(gi)) list.push(gi);
+  if(!list.length) return;
+  let cur=list.find(gi=>passageOf(gi)===reviewCurrentPassage);
+  const visibleCards=[...document.querySelectorAll('#rScroll .review-qcard')];
+  if(visibleCards.length){
+    const sc=document.getElementById('rScroll');
+    const topCard=visibleCards.find(c=>c.getBoundingClientRect().bottom>sc.getBoundingClientRect().top+40);
+    if(topCard) cur=+topCard.id.replace('rqcard-','');
+  }
+  let idx=list.indexOf(cur);
+  if(idx<0) idx=0;
+  idx=Math.max(0,Math.min(list.length-1,idx+dir));
+  gotoReviewQuestion(list[idx]);
+}
+document.getElementById('backResults').onclick=showResults;
+document.getElementById('backResultsTop').onclick=showResults;
+
+/* =====================================================================
+   GLOBAL: warn before leaving during active test
+   ===================================================================== */
+window.addEventListener('beforeunload',e=>{
+  if(state.started && !state.submitted){ save(); e.preventDefault(); e.returnValue=''; }
+});
+
+/* =====================================================================
+   ANNOTATION TOOLS (highlighting, notes, notepad) — Mock Test
+   ===================================================================== */
+function getHls(passage,para){
+  return (state.highlights[passage]||[]).filter(h=>h.para===para);
+}
+function addHl(passage,para,start,end,color){
+  if(!state.highlights[passage]) state.highlights[passage]=[];
+  state.highlights[passage].push({para,start,end,color});
+}
+function offsetInEl(el,container,offset){
+  const r=document.createRange(); r.setStart(el,0); r.setEnd(container,offset);
+  return r.toString().length;
+}
+function applyHighlightFromSelection(){
+  if(!activeHl || activeHl==='eraser') return;
+  const sel=window.getSelection();
+  if(!sel || sel.isCollapsed || sel.rangeCount===0) return;
+  const range=sel.getRangeAt(0);
+  const body=document.getElementById('passageBody');
+  if(!body.contains(range.commonAncestorContainer)) return;
+  let added=false;
+  body.querySelectorAll('p').forEach(pel=>{
+    if(!range.intersectsNode(pel)) return;
+    const pi=+pel.getAttribute('data-pi');
+    const s=pel.contains(range.startContainer)?offsetInEl(pel,range.startContainer,range.startOffset):0;
+    const e=pel.contains(range.endContainer)?offsetInEl(pel,range.endContainer,range.endOffset):pel.textContent.length;
+    if(e>s){ addHl(state.currentPassage,pi,s,e,activeHl); added=true; }
+  });
+  sel.removeAllRanges();
+  if(added){ save(); renderPassage(); }
+}
+function setupAnnotations(){
+  const body=document.getElementById('passageBody');
+  body.addEventListener('mouseup',()=>setTimeout(applyHighlightFromSelection,0));
+  body.addEventListener('touchend',()=>setTimeout(applyHighlightFromSelection,0));
+  // eraser: click a highlight span to remove it
+  body.addEventListener('click',ev=>{
+    if(activeHl!=='eraser') return;
+    const sp=ev.target.closest('.hl'); if(!sp) return;
+    const pel=sp.closest('p'); if(!pel) return;
+    const pi=+pel.getAttribute('data-pi');
+    const k=+sp.getAttribute('data-hlstart');
+    const arr=state.highlights[state.currentPassage]||[];
+    const idx=arr.findIndex(h=>h.para===pi && h.start<=k && k<h.end);
+    if(idx>=0){ arr.splice(idx,1); save(); renderPassage(); }
+  });
+  // highlight colour buttons
+  document.querySelectorAll('.hl-sw').forEach(b=>{
+    b.onclick=()=>{
+      const c=b.getAttribute('data-hl');
+      if(activeHl===c){ activeHl=null; } else { activeHl=c; }
+      syncHlToolbar();
+    };
+  });
+  document.getElementById('hlEraser').onclick=()=>{ activeHl=(activeHl==='eraser')?null:'eraser'; syncHlToolbar(); };
+  document.getElementById('hlClear').onclick=()=>{
+    modal('<h2>Xóa tất cả tô sáng</h2><p>Bạn có chắc muốn xóa toàn bộ phần tô sáng trong tất cả bài đọc không?</p>'+
+      '<div class="modal-actions"><button class="btn-ghost" id="hc">Hủy</button><button class="btn-danger" id="ho">Xóa hết</button></div>');
+    document.getElementById('hc').onclick=closeModal;
+    document.getElementById('ho').onclick=()=>{ state.highlights={}; save(); closeModal(); renderPassage(); };
+  };
+  document.getElementById('annotHideBtn').onclick=()=>{
+    state.annotHidden=!state.annotHidden;
+    document.body.classList.toggle('annot-hidden',state.annotHidden);
+    document.getElementById('annotHideBtn').classList.toggle('active',state.annotHidden);
+    save();
+  };
+  // notepad
+  const fab=document.getElementById('notepadFab'), panel=document.getElementById('notepadPanel'), ta=document.getElementById('notepadText');
+  fab.onclick=()=>{ panel.classList.toggle('hidden'); if(!panel.classList.contains('hidden')){ ta.value=state.notepad||''; ta.focus(); } };
+  document.getElementById('notepadClose').onclick=()=>panel.classList.add('hidden');
+  ta.addEventListener('input',()=>{ state.notepad=ta.value; save(); });
+}
+function syncHlToolbar(){
+  document.querySelectorAll('.hl-sw').forEach(b=>b.classList.toggle('active', b.getAttribute('data-hl')===activeHl));
+  document.getElementById('hlEraser').classList.toggle('active', activeHl==='eraser');
+}
+function setNotepadVisible(v){
+  document.getElementById('notepadFab').classList.toggle('hidden',!v);
+  if(!v) document.getElementById('notepadPanel').classList.add('hidden');
+}
+
+/* =====================================================================
+   SCREEN ROUTING (mode select / practice / mock)
+   ===================================================================== */
+const pickScreen=document.getElementById('pickScreen');
+const modeScreen=document.getElementById('modeScreen');
+const practiceScreen=document.getElementById('practiceScreen');
+function hideAllScreens(){
+  [pickScreen,modeScreen,startScreen,testScreen,resultsScreen,reviewScreen,practiceScreen].forEach(s=>s&&s.classList.add('hidden'));
+}
+function goModes(){
+  if(timerInterval){ /* keep test timer running only while in test; leaving test to modes should not stop a live test unexpectedly */ }
+  hideAllScreens(); modeScreen.classList.remove('hidden'); setNotepadVisible(false);
+}
+function goMockIntro(){ hideAllScreens(); startScreen.classList.remove('hidden'); setNotepadVisible(false); initStart(); }
+document.getElementById('goMock').onclick=goMockIntro;
+document.getElementById('goMock').addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' ')goMockIntro(); });
+document.getElementById('goPractice').onclick=()=>enterPractice();
+document.getElementById('goPractice').addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' ')enterPractice(); });
+document.getElementById('toModes1').onclick=goModes;
+document.getElementById('prToModes').onclick=goModes;
+document.getElementById('prToMock').onclick=goMockIntro;
+
+/* reset options */
+function resetMock(){ clearSaved();
+  state=Object.assign(state,{started:false,submitted:false,endTime:null,answers:{},marked:{},currentPassage:0,
+    scrollPos:{},qScrollPos:{},results:null,timeUsedSec:null,
+    highlights:{},notes:{},notepad:"",annotHidden:false});
+  if(timerInterval){clearInterval(timerInterval);timerInterval=null;}
+}
+document.getElementById('rstMock').onclick=()=>confirmReset('Đặt lại bài thi thử','Xóa toàn bộ đáp án, câu đánh dấu và tiến độ bài thi?',()=>{resetMock();save();});
+document.getElementById('rstAnnot').onclick=()=>confirmReset('Xóa tô sáng & ghi chú','Xóa mọi phần tô sáng, ghi chú câu hỏi và sổ tay?',()=>{
+  state.highlights={};state.notes={};state.notepad="";save();});
+document.getElementById('rstPractice').onclick=()=>confirmReset('Đặt lại Luyện tập','Xóa tiến độ học từ vựng, flashcard và bài tập?',()=>{
+  pstate=freshPractice();savePractice();});
+document.getElementById('rstAll').onclick=()=>confirmReset('Xóa toàn bộ tiến độ','Xóa TẤT CẢ dữ liệu đã lưu (thi thử và luyện tập)?',()=>{
+  resetMock();save();pstate=freshPractice();savePractice();
+  document.getElementById('startBtn').textContent='BẮT ĐẦU LÀM BÀI';document.getElementById('resumeNote').innerHTML='';});
+function confirmReset(title,msg,fn){
+  modal('<h2>'+title+'</h2><p>'+msg+'</p><div class="modal-actions">'+
+    '<button class="btn-ghost" id="crc">Hủy</button><button class="btn-danger" id="cro">Xóa</button></div>');
+  document.getElementById('crc').onclick=closeModal;
+  document.getElementById('cro').onclick=()=>{ fn(); closeModal(); if(!practiceScreen.classList.contains('hidden')) showPractice(curPractice); };
+}
+
+/* =====================================================================
+   TEXT-TO-SPEECH (Speech Synthesis API)
+   ===================================================================== */
+function speak(text,lang){
+  try{ const u=new SpeechSynthesisUtterance(text); u.lang=lang||'en-US'; u.rate=.9;
+    window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
+  }catch(e){}
+}
+function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+/* =====================================================================
+   PRACTICE CONTENT — VOCABULARY BANK
+   Teachers: edit / add entries here. Fields: word, pos, ipa, def (EN),
+   vi (meaning), ex (example), exVi (translation), forms (collocations).
+   ===================================================================== */
+let VOCAB=[];
+
+/* =====================================================================
+   PRACTICE CONTENT — GRAMMAR POINTS
+   ===================================================================== */
+let GRAMMAR=[];
+
+/* =====================================================================
+   PRACTICE CONTENT — VOCABULARY EXERCISES
+   Types: mcq | fill | match | cloze
+   ===================================================================== */
+let VOCAB_EX=[];
+
+/* =====================================================================
+   PRACTICE CONTENT — GRAMMAR EXERCISES
+   Types: mcq | fill | error | order | match
+   ===================================================================== */
+let GRAMMAR_EX=[];
+
+/* =====================================================================
+   PRACTICE STATE + PERSISTENCE
+   ===================================================================== */
+function freshPractice(){ return {vocabSeen:{},grammarSeen:{},flashV:{},flashG:{},vocabEx:{},grammarEx:{},vExDone:false,gExDone:false}; }
+let pstate=freshPractice();
+function savePractice(){ try{ localStorage.setItem(nsKey("practice"),JSON.stringify(pstate)); schedulePush(); }catch(e){} }
+function loadPractice(){ try{ const r=localStorage.getItem(nsKey("practice")); if(r) pstate=Object.assign(freshPractice(),JSON.parse(r)); }catch(e){} }
+
+function pct(n,d){ return d?Math.round(n/d*100):0; }
+function vocabStudyPct(){ return pct(Object.keys(pstate.vocabSeen).length,VOCAB.length); }
+function grammarStudyPct(){ return pct(Object.keys(pstate.grammarSeen).length,GRAMMAR.length); }
+function exAvg(store){ let s=0,t=0; Object.values(store).forEach(o=>{s+=o.score;t+=o.total;}); return pct(s,t); }
+function vocabPracticePct(){ return exAvg(pstate.vocabEx); }
+function grammarPracticePct(){ return exAvg(pstate.grammarEx); }
+function overallPracticePct(){ return Math.round((vocabStudyPct()+grammarStudyPct()+vocabPracticePct()+grammarPracticePct())/4); }
+function mockPct(){ return (state.results)?Math.round(state.results.correct/TOTAL_Q*100):null; }
+
+/* =====================================================================
+   PRACTICE UI
+   ===================================================================== */
+const PR_STEPS=[
+ {id:"hub",label:"Tổng quan"},
+ {id:"vocab-study",label:"1 · Từ vựng"},
+ {id:"vocab-cards",label:"2 · Flashcard từ"},
+ {id:"vocab-ex",label:"3 · Bài tập từ"},
+ {id:"grammar-study",label:"4 · Ngữ pháp"},
+ {id:"grammar-cards",label:"5 · Flashcard NP"},
+ {id:"grammar-ex",label:"6 · Bài tập NP"},
+ {id:"review",label:"7 · Ôn phần khó"}
+];
+let curPractice="hub";
+function stepDone(id){
+  switch(id){
+    case"vocab-study":return vocabStudyPct()>=100;
+    case"vocab-cards":return Object.keys(pstate.flashV).length>=VOCAB.length;
+    case"vocab-ex":return !!pstate.vExDone;
+    case"grammar-study":return grammarStudyPct()>=100;
+    case"grammar-cards":return Object.keys(pstate.flashG).length>=GRAMMAR.length;
+    case"grammar-ex":return !!pstate.gExDone;
+    default:return false;
+  }
+}
+function enterPractice(){ hideAllScreens(); practiceScreen.classList.remove('hidden'); setNotepadVisible(false); applyFontTheme(); showPractice(curPractice); }
+function renderSteps(){
+  const wrap=document.getElementById('prSteps'); wrap.innerHTML='';
+  PR_STEPS.forEach((s,i)=>{
+    const b=document.createElement('button');
+    b.className='pr-step'+(curPractice===s.id?' active':'')+(stepDone(s.id)?' done':'');
+    b.innerHTML='<span class="dot">'+(stepDone(s.id)?'✓':(i||'•'))+'</span>'+s.label;
+    b.onclick=()=>showPractice(s.id);
+    wrap.appendChild(b);
+  });
+}
+function showPractice(id){
+  curPractice=id; renderSteps();
+  const c=document.getElementById('prContent'); c.scrollTop=0;
+  document.querySelector('.pr-content').scrollTop=0;
+  if(id==='hub') renderHub(c);
+  else if(id==='vocab-study') renderVocabStudy(c);
+  else if(id==='vocab-cards') renderFlashcards(c,'vocab');
+  else if(id==='vocab-ex') renderExercises(c,VOCAB_EX,'vocab');
+  else if(id==='grammar-study') renderGrammarStudy(c);
+  else if(id==='grammar-cards') renderFlashcards(c,'grammar');
+  else if(id==='grammar-ex') renderExercises(c,GRAMMAR_EX,'grammar');
+  else if(id==='review') renderReviewDifficult(c);
+}
+function renderHub(c){
+  const m=mockPct();
+  c.innerHTML='<h2>Tổng quan luyện tập</h2>'+
+    '<p class="pr-sub">Học theo trình tự bên dưới, hoặc chuyển tự do giữa từ vựng và ngữ pháp.</p>'+
+    '<div class="prog-grid">'+
+      progCard('Học từ vựng',vocabStudyPct())+
+      progCard('Bài tập từ vựng',vocabPracticePct())+
+      progCard('Học ngữ pháp',grammarStudyPct())+
+      progCard('Bài tập ngữ pháp',grammarPracticePct())+
+      progCard('Tổng luyện tập',overallPracticePct())+
+      progCard('Thi thử',m==null?0:m,m==null?'chưa làm':null)+
+    '</div>'+
+    '<h3>Lộ trình học</h3><div class="hub-steps" id="hubSteps"></div>'+
+    '<button class="big-cta" id="readyBtn">Tôi đã sẵn sàng — Bắt đầu thi thử →</button>';
+  const hs=c.querySelector('#hubSteps');
+  const items=[
+   ["vocab-study","Học từ vựng & collocation quan trọng","Xem nghĩa, phiên âm, ví dụ và nghe phát âm."],
+   ["vocab-cards","Ôn từ vựng bằng flashcard","Lật thẻ và tự phân loại mức độ ghi nhớ."],
+   ["vocab-ex","Làm bài tập từ vựng","Trắc nghiệm, điền từ, nối nghĩa, cloze."],
+   ["grammar-study","Học cấu trúc ngữ pháp trọng tâm","Giải thích, công thức, ví dụ và lỗi thường gặp."],
+   ["grammar-cards","Ôn ngữ pháp bằng flashcard","Phân loại cấu trúc theo mức độ nắm vững."],
+   ["grammar-ex","Làm bài tập ngữ pháp","Trắc nghiệm, sửa lỗi, sắp xếp câu, nối câu."],
+   ["review","Ôn lại phần khó","Tập trung vào từ và cấu trúc bạn chưa nắm chắc."]
+  ];
+  items.forEach((it,i)=>{
+    const d=document.createElement('div'); d.className='hub-step'+(stepDone(it[0])?' done':'');
+    d.innerHTML='<div class="num">'+(stepDone(it[0])?'✓':(i+1))+'</div><div><div class="t">'+it[1]+'</div><div class="d">'+it[2]+'</div></div>';
+    d.onclick=()=>showPractice(it[0]); hs.appendChild(d);
+  });
+  c.querySelector('#readyBtn').onclick=goMockIntro;
+}
+function progCard(k,v,note){
+  return '<div class="prog-card"><div class="k">'+k+'</div><div class="v">'+(note||v+'%')+'</div>'+
+    '<div class="prog-bar"><i style="width:'+v+'%"></i></div></div>';
+}
+function renderVocabStudy(c){
+  let html='<h2>Từ vựng & collocation trọng tâm</h2><p class="pr-sub">Nhấn 🔊 để nghe phát âm. '+VOCAB.length+' mục.</p>';
+  VOCAB.forEach((v,i)=>{ pstate.vocabSeen[i]=1;
+    html+='<div class="vocab-card"><div class="head">'+
+      '<span class="w">'+escapeHtml(v.word)+'</span>'+
+      '<span class="pos">'+escapeHtml(v.pos)+'</span>'+
+      '<span class="ipa">'+escapeHtml(v.ipa)+'</span>'+
+      '<button class="speak-btn" data-say="'+escapeHtml(v.word)+'">🔊 Nghe</button></div>'+
+      '<div class="def">'+escapeHtml(v.def)+'</div>'+
+      '<div class="vi">🇻🇳 '+escapeHtml(v.vi)+'</div>'+
+      '<div class="ex">"'+escapeHtml(v.ex)+'"<div class="exvi">'+escapeHtml(v.exVi)+'</div></div>'+
+      (v.forms?'<div class="forms"><b>Từ liên quan / collocation:</b> '+escapeHtml(v.forms)+'</div>':'')+
+    '</div>';
+  });
+  html+='<button class="big-cta" id="toCards">Tiếp tục: Ôn bằng flashcard →</button>';
+  c.innerHTML=html; savePractice(); renderSteps();
+  c.querySelectorAll('.speak-btn').forEach(b=>b.onclick=()=>speak(b.getAttribute('data-say')));
+  c.querySelector('#toCards').onclick=()=>showPractice('vocab-cards');
+}
+function renderGrammarStudy(c){
+  let html='<h2>Cấu trúc ngữ pháp trọng tâm</h2><p class="pr-sub">Những cấu trúc cần hiểu để làm tốt bài đọc.</p>';
+  GRAMMAR.forEach((g,i)=>{ pstate.grammarSeen[i]=1;
+    html+='<div class="grammar-card"><h4>'+escapeHtml(g.name)+'</h4>'+
+      '<div>'+escapeHtml(g.en)+'</div>'+
+      '<div class="vi" style="color:var(--muted);margin-top:6px">🇻🇳 '+escapeHtml(g.vi)+'</div>'+
+      '<div class="lbl">Công thức</div><div class="form-box">'+escapeHtml(g.form)+'</div>'+
+      '<div class="lbl">Ví dụ</div>'+
+      g.examples.map(e=>'<div class="ex-line">"'+escapeHtml(e.en)+'"<div class="vi">'+escapeHtml(e.vi)+'</div></div>').join('')+
+      '<div class="lbl">Cách dùng</div><div>'+escapeHtml(g.usage)+'</div>'+
+      '<div class="warn">⚠ Lỗi thường gặp: '+escapeHtml(g.mistakes)+'</div>'+
+    '</div>';
+  });
+  html+='<button class="big-cta" id="toGCards">Tiếp tục: Flashcard ngữ pháp →</button>';
+  c.innerHTML=html; savePractice(); renderSteps();
+  c.querySelector('#toGCards').onclick=()=>showPractice('grammar-cards');
+}
+
+/* ---------- FLASHCARDS (vocab & grammar) ---------- */
+const CATS=[["mastered","Đã thành thạo","cf-mastered"],["remembered","Đã nhớ","cf-remembered"],["learning","Đang học","cf-learning"],["new","Còn mới","cf-new"]];
+function renderFlashcards(c,kind){
+  const isV=kind==='vocab';
+  const list=isV?VOCAB:GRAMMAR;
+  const store=isV?pstate.flashV:pstate.flashG;
+  // ordering: prioritise 'learning' and 'new' (and unseen) first
+  const order=list.map((item,idx)=>idx).sort((a,b)=>rank(store,keyOf(list,a))-rank(store,keyOf(list,b)));
+  let deck=order.slice(); let pos=0; let flipped=false;
+  c.innerHTML='<h2>'+(isV?'Flashcard từ vựng':'Flashcard ngữ pháp')+'</h2>'+
+    '<p class="pr-sub">Nhấn thẻ để lật. Sau đó tự đánh giá mức độ ghi nhớ. Thẻ “Đang học” và “Còn mới” được ưu tiên trước.</p>'+
+    '<div class="cat-counts" id="catCounts"></div>'+
+    '<div class="deck-wrap">'+
+      '<div class="deck-meta" id="deckMeta"></div>'+
+      '<div class="flashcard" id="flashcard"><div class="flash-inner">'+
+        '<div class="flash-face flash-front" id="cardFront"></div>'+
+        '<div class="flash-face flash-back" id="cardBack"></div>'+
+      '</div></div>'+
+      '<div class="classify" id="classify"></div>'+
+      '<div class="deck-controls">'+
+        '<button id="cPrev">← Trước</button><button id="cFlip">Lật thẻ</button>'+
+        '<button id="cNext">Sau →</button><button id="cShuffle">🔀 Xáo</button><button id="cRestart">↺ Lại từ đầu</button>'+
+      '</div>'+
+    '</div>'+
+    '<button class="big-cta" id="cDone">Tiếp tục →</button>';
+  const card=c.querySelector('#flashcard'), front=c.querySelector('#cardFront'), back=c.querySelector('#cardBack');
+  function keyk(idx){ return keyOf(list,idx); }
+  function draw(){
+    const idx=deck[pos]; const item=list[idx];
+    flipped=false; card.classList.remove('flipped');
+    if(isV){
+      front.innerHTML='<div class="fw">'+escapeHtml(item.word)+'</div><div class="fipa">'+escapeHtml(item.ipa)+'</div>'+
+        '<button class="speak-btn" data-say="'+escapeHtml(item.word)+'">🔊 Nghe</button><div class="flash-hint">nhấn để xem nghĩa</div>';
+      back.innerHTML='<div class="bdef">'+escapeHtml(item.def)+'</div><div class="bvi">🇻🇳 '+escapeHtml(item.vi)+'</div>'+
+        '<div class="bex">"'+escapeHtml(item.ex)+'"</div>';
+    } else {
+      front.innerHTML='<div class="fw" style="font-size:1.25rem">'+escapeHtml(item.name)+'</div><div class="flash-hint">nhấn để xem cách dùng</div>';
+      back.innerHTML='<div class="bdef">'+escapeHtml(item.form)+'</div><div class="bvi">🇻🇳 '+escapeHtml(item.vi)+'</div>'+
+        '<div class="bex">"'+escapeHtml(item.examples[0].en)+'"</div>'+
+        '<div class="warn" style="margin-top:6px">⚠ '+escapeHtml(item.mistakes)+'</div>';
+    }
+    front.querySelectorAll('.speak-btn').forEach(b=>b.onclick=e=>{e.stopPropagation();speak(b.getAttribute('data-say'));});
+    c.querySelector('#deckMeta').textContent='Thẻ '+(pos+1)+' / '+deck.length;
+    drawClassify(idx); drawCounts();
+  }
+  function drawClassify(idx){
+    const box=c.querySelector('#classify'); box.innerHTML='';
+    const cur=store[keyk(idx)];
+    CATS.forEach(([val,lbl,cls])=>{
+      const b=document.createElement('button'); b.className=cls+(cur===val?' sel':'');
+      b.textContent=lbl; b.onclick=()=>{ store[keyk(idx)]=val; savePractice(); drawClassify(idx); drawCounts(); renderSteps(); };
+      box.appendChild(b);
+    });
+  }
+  function drawCounts(){
+    const cnt={mastered:0,remembered:0,learning:0,new:0};
+    list.forEach((it,idx)=>{ const v=store[keyk(idx)]; if(v) cnt[v]++; });
+    c.querySelector('#catCounts').innerHTML=CATS.map(([v,l])=>'<span>'+l+': <b>'+cnt[v]+'</b></span>').join('')+
+      '<span>Chưa xếp: <b>'+(list.length-Object.keys(store).length)+'</b></span>';
+  }
+  card.onclick=()=>{ flipped=!flipped; card.classList.toggle('flipped',flipped); };
+  c.querySelector('#cFlip').onclick=()=>{ flipped=!flipped; card.classList.toggle('flipped',flipped); };
+  c.querySelector('#cPrev').onclick=()=>{ pos=(pos-1+deck.length)%deck.length; draw(); };
+  c.querySelector('#cNext').onclick=()=>{ pos=(pos+1)%deck.length; draw(); };
+  c.querySelector('#cShuffle').onclick=()=>{ deck=shuffle(deck); pos=0; draw(); };
+  c.querySelector('#cRestart').onclick=()=>{ pos=0; draw(); };
+  c.querySelector('#cDone').onclick=()=>showPractice(isV?'vocab-ex':'grammar-ex');
+  draw();
+}
+function keyOf(list,idx){ return list[idx].word||list[idx].id; }
+function rank(store,key){ const v=store[key]; if(!v) return 1; return ({new:0,learning:1,remembered:2,mastered:3})[v]; }
+
+/* ---------- EXERCISES ENGINE (vocab & grammar) ---------- */
+function renderExercises(c,list,kind){
+  const items=shuffle(list);
+  const total=items.length; let correctSet={};
+  c.innerHTML='<h2>'+(kind==='vocab'?'Bài tập từ vựng':'Bài tập ngữ pháp')+'</h2>'+
+    '<p class="pr-sub">Làm từng câu và nhận phản hồi ngay. Câu và đáp án được xáo trộn.</p>'+
+    '<div class="ex-toolbar"><span class="ex-score" id="exScore">Điểm: 0/'+total+'</span>'+
+      '<button id="exRetry">↺ Làm lại (xáo mới)</button><button id="exReset">Xóa kết quả</button></div>'+
+    '<div id="exList"></div>'+
+    '<button class="big-cta" id="exNext">'+(kind==='vocab'?'Tiếp tục: Học ngữ pháp →':'Tiếp tục: Ôn phần khó →')+'</button>';
+  const listEl=c.querySelector('#exList');
+  function updateScore(){
+    const n=Object.keys(correctSet).length;
+    c.querySelector('#exScore').textContent='Điểm: '+n+'/'+total;
+    if(n>0){ const store=kind==='vocab'?pstate.vocabEx:pstate.grammarEx;
+      store['set']={score:n,total:total};
+      if(n>=Math.ceil(total*0.6)){ if(kind==='vocab')pstate.vExDone=true; else pstate.gExDone=true; }
+      savePractice(); renderSteps();
+    }
+  }
+  items.forEach((it,idx)=>{
+    const box=document.createElement('div'); box.className='ex-item';
+    const done=()=>{ correctSet[idx]=1; updateScore(); };
+    if(it.type==='mcq') buildMCQ(box,it,done);
+    else if(it.type==='fill') buildFill(box,it,done);
+    else if(it.type==='error') buildError(box,it,done);
+    else if(it.type==='order') buildOrder(box,it,done);
+    else if(it.type==='match') buildMatch(box,it,done);
+    else if(it.type==='cloze') buildCloze(box,it,done);
+    listEl.appendChild(box);
+  });
+  c.querySelector('#exRetry').onclick=()=>renderExercises(c,list,kind);
+  c.querySelector('#exReset').onclick=()=>{ const store=kind==='vocab'?pstate.vocabEx:pstate.grammarEx; delete store['set'];
+    if(kind==='vocab')pstate.vExDone=false; else pstate.gExDone=false; savePractice(); renderExercises(c,list,kind); renderSteps(); };
+  c.querySelector('#exNext').onclick=()=>showPractice(kind==='vocab'?'grammar-study':'review');
+}
+function fb(box,ok,msg){ let f=box.querySelector('.ex-fb'); if(!f){ f=document.createElement('div'); f.className='ex-fb'; box.appendChild(f);}
+  f.className='ex-fb show '+(ok?'ok':'no'); f.innerHTML=msg; }
+function buildMCQ(box,it,done){
+  box.innerHTML='<div class="ex-q">'+escapeHtml(it.q)+'</div>';
+  const opts=document.createElement('div'); opts.className='ex-opts';
+  const order=shuffle(it.options.map((o,i)=>i)); let locked=false;
+  order.forEach(oi=>{
+    const o=document.createElement('div'); o.className='ex-opt'; o.textContent=it.options[oi];
+    o.onclick=()=>{ if(locked)return; locked=true;
+      opts.querySelectorAll('.ex-opt').forEach(x=>x.classList.add('locked'));
+      if(oi===it.answer){ o.classList.add('correct'); fb(box,true,'✔ Chính xác. '+escapeHtml(it.explain)); done(); }
+      else { o.classList.add('wrong'); [...opts.children][order.indexOf(it.answer)].classList.add('correct');
+        fb(box,false,'✘ Chưa đúng. Đáp án: <b>'+escapeHtml(it.options[it.answer])+'</b>. '+escapeHtml(it.explain)); }
+    };
+    opts.appendChild(o);
+  });
+  box.appendChild(opts);
+}
+function buildFill(box,it,done){
+  box.innerHTML='<div class="ex-q">'+escapeHtml(it.q)+'</div><div class="ex-fill"><input type="text" placeholder="Nhập câu trả lời…"></div>';
+  const inp=box.querySelector('input'); const btn=document.createElement('button'); btn.className='ex-check'; btn.textContent='Kiểm tra';
+  box.appendChild(btn);
+  btn.onclick=()=>{ const v=inp.value.trim().toLowerCase().replace(/\.$/,'');
+    const ok=it.answer.some(a=>a.toLowerCase()===v);
+    inp.classList.remove('correct','wrong'); inp.classList.add(ok?'correct':'wrong');
+    if(ok){ fb(box,true,'✔ Chính xác. '+escapeHtml(it.explain)); done(); }
+    else fb(box,false,'✘ Chưa đúng. Đáp án: <b>'+escapeHtml(it.answer[0])+'</b>. '+escapeHtml(it.explain)); };
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter') btn.click(); });
+}
+function buildError(box,it,done){
+  box.innerHTML='<div class="ex-q">'+escapeHtml(it.q)+'</div>'+
+    '<div style="margin:6px 0;padding:8px 10px;background:var(--bg);border-radius:8px">'+escapeHtml(it.sentence)+'</div>'+
+    '<div style="font-size:.82rem;color:var(--muted);margin-bottom:6px">Gợi ý: '+escapeHtml(it.hint)+'</div>'+
+    '<div class="ex-fill"><input type="text" placeholder="Viết lại câu đúng…" style="width:100%"></div>';
+  const inp=box.querySelector('input'); const btn=document.createElement('button'); btn.className='ex-check'; btn.textContent='Kiểm tra'; box.appendChild(btn);
+  const norm=s=>s.toLowerCase().replace(/[.,]/g,'').replace(/\s+/g,' ').trim();
+  btn.onclick=()=>{ const v=norm(inp.value); const ok=it.answer.some(a=>norm(a)===v);
+    inp.classList.remove('correct','wrong'); inp.classList.add(ok?'correct':'wrong');
+    if(ok){ fb(box,true,'✔ Chính xác. '+escapeHtml(it.explain)); done(); }
+    else fb(box,false,'✘ Chưa đúng. Câu đúng: <b>'+escapeHtml(it.explain)+'</b>'); };
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter') btn.click(); });
+}
+function buildOrder(box,it,done){
+  const tokens=it.answer.split(' ');
+  box.innerHTML='<div class="ex-q">'+escapeHtml(it.q)+'</div>'+
+    '<div style="min-height:38px;border:1.5px dashed var(--border);border-radius:8px;padding:8px;margin-bottom:8px" id="ansLine"></div>'+
+    '<div id="tokBank" style="display:flex;flex-wrap:wrap;gap:6px"></div>';
+  const bank=box.querySelector('#tokBank'), line=box.querySelector('#ansLine'); let chosen=[];
+  const chip=(t,fromBank,srcBtn)=>{ const b=document.createElement('button'); b.className='ex-check'; b.style.background=fromBank?'var(--bg)':'var(--navy)'; b.style.color=fromBank?'var(--text)':'#fff'; b.style.border='1px solid var(--border)'; b.style.margin='0'; b.textContent=t; return b; };
+  shuffle(tokens.map((t,i)=>i)).forEach(i=>{
+    const b=chip(tokens[i],true); b.onclick=()=>{ b.remove(); chosen.push(tokens[i]);
+      const lb=chip(tokens[i],false); lb.onclick=()=>{ lb.remove(); chosen=chosen.filter((_,k)=>k!==[...line.children].indexOf(lb)); bank.appendChild(b); };
+      line.appendChild(lb); };
+    bank.appendChild(b);
+  });
+  const btn=document.createElement('button'); btn.className='ex-check'; btn.textContent='Kiểm tra'; box.appendChild(btn);
+  btn.onclick=()=>{ const cur=[...line.children].map(x=>x.textContent).join(' ');
+    const ok=cur===it.answer;
+    if(ok){ fb(box,true,'✔ Chính xác. '+escapeHtml(it.explain)); done(); }
+    else fb(box,false,'✘ Chưa đúng. Đáp án: <b>'+escapeHtml(it.answer)+'</b>. '+escapeHtml(it.explain)); };
+}
+function buildMatch(box,it,done){
+  box.innerHTML='<div class="ex-q">'+escapeHtml(it.instruction||'Nối các cặp phù hợp:')+'</div>';
+  const grid=document.createElement('div'); grid.className='match-grid';
+  const left=document.createElement('div'); left.className='match-col';
+  const right=document.createElement('div'); right.className='match-col';
+  grid.appendChild(left); grid.appendChild(right); box.appendChild(grid);
+  const L=it.pairs.map((p,i)=>({t:p[0],i})); const R=shuffle(it.pairs.map((p,i)=>({t:p[1],i})));
+  let pick=null, solved=0;
+  L.forEach(o=>{ const b=document.createElement('div'); b.className='match-item'; b.textContent=o.t; b.dataset.i=o.i;
+    b.onclick=()=>{ if(b.classList.contains('done'))return; left.querySelectorAll('.match-item').forEach(x=>x.classList.remove('picked')); b.classList.add('picked'); pick=b; };
+    left.appendChild(b); });
+  R.forEach(o=>{ const b=document.createElement('div'); b.className='match-item'; b.textContent=o.t; b.dataset.i=o.i;
+    b.onclick=()=>{ if(!pick||b.classList.contains('done'))return;
+      if(b.dataset.i===pick.dataset.i){ b.classList.add('done'); pick.classList.add('done'); pick.classList.remove('picked'); pick=null; solved++;
+        if(solved===it.pairs.length){ fb(box,true,'✔ Hoàn thành! '+escapeHtml(it.explain||'')); done(); } }
+      else { b.classList.add('bad'); setTimeout(()=>b.classList.remove('bad'),500); } };
+    right.appendChild(b); });
+}
+function buildCloze(box,it,done){
+  let html='<div class="ex-q">'+escapeHtml(it.instruction||'Điền vào chỗ trống:')+'</div><div class="cloze-p">';
+  const parts=it.text.split(/(\{\d+\})/g);
+  parts.forEach(pt=>{ const m=pt.match(/\{(\d+)\}/);
+    if(m){ const bi=+m[1]; const bl=it.blanks[bi];
+      html+='<select class="cloze-sel" data-b="'+bi+'"><option value="-1">— chọn —</option>'+
+        shuffle(bl.options.map((o,i)=>i)).map(oi=>'<option value="'+oi+'">'+escapeHtml(bl.options[oi])+'</option>').join('')+'</select>';
+    } else html+=escapeHtml(pt);
+  });
+  html+='</div>';
+  box.innerHTML=html;
+  const btn=document.createElement('button'); btn.className='ex-check'; btn.textContent='Kiểm tra'; box.appendChild(btn);
+  btn.onclick=()=>{ let allok=true;
+    box.querySelectorAll('.cloze-sel').forEach(s=>{ const bi=+s.getAttribute('data-b'); const ok=(+s.value===it.blanks[bi].answer);
+      s.classList.remove('correct','wrong'); s.classList.add(ok?'correct':'wrong'); if(!ok)allok=false; });
+    if(allok){ fb(box,true,'✔ Chính xác. '+escapeHtml(it.explain)); done(); }
+    else fb(box,false,'✘ Còn chỗ chưa đúng (ô đỏ). '+escapeHtml(it.explain)); };
+}
+
+/* ---------- REVIEW DIFFICULT ---------- */
+function renderReviewDifficult(c){
+  const hardV=VOCAB.map((v,i)=>({v,cat:pstate.flashV[v.word]})).filter(x=>x.cat==='learning'||x.cat==='new'||!x.cat);
+  const hardG=GRAMMAR.map((g,i)=>({g,cat:pstate.flashG[g.id]})).filter(x=>x.cat==='learning'||x.cat==='new'||!x.cat);
+  let html='<h2>Ôn lại phần khó</h2><p class="pr-sub">Tập trung vào từ vựng và ngữ pháp bạn đánh dấu “Đang học” / “Còn mới” (hoặc chưa phân loại).</p>';
+  html+='<h3>Từ vựng cần ôn ('+hardV.length+')</h3>';
+  if(!hardV.length) html+='<p style="color:var(--ok)">Tuyệt vời! Bạn đã nắm chắc toàn bộ từ vựng.</p>';
+  hardV.forEach(x=>{ const v=x.v;
+    html+='<div class="vocab-card"><div class="head"><span class="w">'+escapeHtml(v.word)+'</span>'+
+      '<span class="ipa">'+escapeHtml(v.ipa)+'</span><button class="speak-btn" data-say="'+escapeHtml(v.word)+'">🔊</button></div>'+
+      '<div class="def">'+escapeHtml(v.def)+'</div><div class="vi">🇻🇳 '+escapeHtml(v.vi)+'</div></div>'; });
+  html+='<h3>Ngữ pháp cần ôn ('+hardG.length+')</h3>';
+  if(!hardG.length) html+='<p style="color:var(--ok)">Bạn đã nắm chắc các cấu trúc ngữ pháp.</p>';
+  hardG.forEach(x=>{ const g=x.g;
+    html+='<div class="grammar-card"><h4>'+escapeHtml(g.name)+'</h4><div class="form-box">'+escapeHtml(g.form)+'</div>'+
+      '<div class="vi" style="color:var(--muted);margin-top:6px">🇻🇳 '+escapeHtml(g.vi)+'</div></div>'; });
+  html+='<div class="review-cta"><button class="ex-check" id="rvCards">Ôn lại flashcard từ</button>'+
+    '<button class="ex-check" id="rvG" style="background:var(--navy)">Ôn lại flashcard NP</button></div>'+
+    '<button class="big-cta" id="rvReady">Tôi đã sẵn sàng — Bắt đầu thi thử →</button>';
+  c.innerHTML=html;
+  c.querySelectorAll('.speak-btn').forEach(b=>b.onclick=()=>speak(b.getAttribute('data-say')));
+  c.querySelector('#rvCards').onclick=()=>showPractice('vocab-cards');
+  c.querySelector('#rvG').onclick=()=>showPractice('grammar-cards');
+  c.querySelector('#rvReady').onclick=goMockIntro;
+}
+
+/* =====================================================================
+   BOOT: restore session if present
+   ===================================================================== */
+/* Phase 53: KHÔNG tự chạy nữa. Chỗ lưu tiến độ gắn với học viên và với đề,
+   mà hai thứ đó chỉ biết được sau khi đăng nhập và chọn đề — nên lớp nền
+   tảng ở cuối tệp sẽ gọi hàm này đúng lúc. */
+function engineRestore(){
+  loadPractice();
+  setupAnnotations();
+  const saved=load();
+  if(saved){
+    state=Object.assign(state,saved);
+    applyFontTheme();
+    document.body.classList.toggle('annot-hidden',!!state.annotHidden);
+    if(saved.started && !saved.submitted && saved.endTime && saved.endTime<=Date.now()){
+      // time expired while the tab was closed -> finalise the attempt
+      computeResults(); state.submitted=true; state.timeUsedSec=TEST_DURATION_MIN*60; save();
+    }
+    initStart(); // prepares the Mock-Test resume note (shown when user opens Mock Test)
+  }
+}
+
+/* ==========================================================================
+   PLATFORM LAYER (Phase 53)
+   Bọc bên ngoài bộ máy làm bài mà KHÔNG đổi cách nó chạy. Lớp này lo:
+     • học viên là ai (hoặc đang là khách),
+     • kho đề lấy từ cơ sở dữ liệu thay vì nằm trong tệp,
+     • phân biệt đề Miễn phí / Premium bằng popup chung của cả trang,
+     • tiến độ và kết quả gắn với tài khoản.
+   Chấm điểm, bấm giờ, tô sáng, xem lại… vẫn là mã cũ, không đụng tới.
+   ========================================================================== */
+const DB = (typeof sb !== "undefined" && sb) ? sb : (window.sb || null);
+const VKIND = "vstep-reading";          // giá trị cột kind trong bảng vsat_exams
+let VUSER = null, VGUEST = true, VSTAFF = false, VPREMIUM = false;
+let VEXAMS = [], VENTITLED = new Set();
+
+/* bộ máy gọi save() sau mỗi thao tác; gom lại rồi mới đẩy lên mây */
+schedulePush = function () {
+  if (VGUEST || !DB || !VEXAM_ID) return;
+  clearTimeout(pushT);
+  pushT = setTimeout(pushProgress, 3000);
+};
+async function pushProgress() {
+  if (VGUEST || !DB || !VEXAM_ID) return;
+  try {
+    await DB.from("vsat_progress").upsert({
+      student_id: VUSER.id, exam_id: VEXAM_ID,
+      practice: { pstate: JSON.parse(localStorage.getItem(nsKey("practice")) || "null") },
+      test_state: { state: JSON.parse(localStorage.getItem(nsKey("mock")) || "null") },
+      updated_at: new Date().toISOString()
+    }, { onConflict: "student_id,exam_id" });
+  } catch (e) { /* ngoại tuyến: bản trên máy vẫn đúng */ }
+}
+async function pullProgress(examId) {
+  if (VGUEST || !DB) return;
+  try {
+    const { data } = await DB.from("vsat_progress").select("practice,test_state")
+      .eq("student_id", VUSER.id).eq("exam_id", examId).maybeSingle();
+    if (!data) return;
+    const p = data.practice || {}, t = data.test_state || {};
+    if (p.pstate && typeof p.pstate === "object") localStorage.setItem(nsKey("practice"), JSON.stringify(p.pstate));
+    if (t.state  && typeof t.state  === "object") localStorage.setItem(nsKey("mock"),     JSON.stringify(t.state));
+  } catch (e) {}
+}
+
+/* ---- kho đề nằm trong cơ sở dữ liệu ---- */
+async function loadExamList() {
+  if (!DB) return [];
+  try {
+    const { data, error } = await DB.rpc("public_vsat_list", { p_kind: VKIND });
+    if (error) throw error;
+    VEXAMS = Array.isArray(data) ? data : [];
+  } catch (e) { VEXAMS = []; }
+  return VEXAMS;
+}
+/* RLS quyết định đề nào mở được: không có quyền thì câu lệnh trả về rỗng */
+async function fetchExam(examId) {
+  if (!DB) return null;
+  try {
+    const { data, error } = await DB.from("vsat_exams").select("data").eq("exam_id", examId).maybeSingle();
+    if (error || !data) return null;
+    return data.data || null;
+  } catch (e) { return null; }
+}
+function examMeta(id) { return VEXAMS.find(e => e.exam_id === id) || null; }
+function canOpen(m) { return m && (!m.premium || VSTAFF || VPREMIUM || VENTITLED.has(m.exam_id)); }
+
+/* ---- đổ nội dung một đề vào bộ máy ---- */
+function applyExam(exam) {
+  const meta = (exam && exam.meta) || {};
+  const pr   = (exam && exam.practice) || {};
+  TEST_DATA  = (exam && exam.reading) || (exam && exam.passages) || [];
+  VOCAB      = pr.vocab || [];
+  GRAMMAR    = pr.grammar || [];
+  VOCAB_EX   = pr.vocabExercises || [];
+  GRAMMAR_EX = pr.grammarExercises || [];
+  TEST_DURATION_MIN  = Number(meta.durationMinutes) > 0 ? Number(meta.durationMinutes) : 60;
+  SCORE_PER_QUESTION = Number(meta.scorePerQuestion) > 0 ? Number(meta.scorePerQuestion) : 0.25;
+  rebuildIndex();
+  /* các con số in sẵn trong giao diện phải khớp với đề vừa mở */
+  const nP = TEST_DATA.length;
+  const set = (sel, txt) => { const e = document.querySelector(sel); if (e) e.textContent = txt; };
+  /* tiêu đề đề thi thường đã chứa chữ "VSTEP Reading" rồi, đừng ghép thêm lần nữa */
+  const nameOf = t => t || "VSTEP Reading";
+  set("#modeScreen .mode-head h1", nameOf(meta.title));
+  set("#startScreen h1", meta.title || "VSTEP Reading");
+  const sub = document.querySelector("#startScreen .start-sub");
+  if (sub && meta.subtitle) sub.textContent = meta.subtitle;
+  const li = document.querySelector("#goMock ul li");
+  if (li) li.textContent = TEST_DURATION_MIN + " phút · " + nP + " bài đọc · " + TOTAL_Q + " câu";
+  document.querySelectorAll("#startScreen .meta-item .n").forEach((el, i) => {
+    if (i === 0) el.textContent = TEST_DURATION_MIN;
+    if (i === 1) el.textContent = nP;
+    if (i === 2) el.textContent = TOTAL_Q;
+  });
+  ["progress", "progMobile"].forEach(id => {
+    const e = document.getElementById(id); if (e) e.textContent = "Đã trả lời: 0/" + TOTAL_Q;
+  });
+  const brand = document.querySelector("#testScreen .brand");
+  if (brand) brand.textContent = nameOf(meta.title);
+}
+
+/* ---- màn hình chọn đề ---- */
+function renderExamPick() {
+  const box = document.getElementById("examPick");
+  if (!box) return;
+  if (!VEXAMS.length) {
+    box.innerHTML = '<div class="exempty">Chưa có đề VSTEP nào được đăng. ' +
+      (VSTAFF ? 'Vào <b>Bảng điều khiển → VSTEP</b> để tải đề lên.' : 'Vui lòng quay lại sau.') + '</div>';
+    return;
+  }
+  box.innerHTML = '<h3>Chọn đề thi</h3><div class="exgrid">' + VEXAMS.map(m => {
+    const open = canOpen(m);
+    return '<div class="excard' + (open ? "" : " locked") + '" role="button" tabindex="0" data-exam="' +
+      escapeHtml(m.exam_id) + '">' +
+      '<span class="extag ' + (m.premium ? "prem" : "free") + '">' + (m.premium ? "👑 Premium" : "Miễn phí") + '</span>' +
+      '<h4>' + escapeHtml(m.title || m.exam_id) + '</h4>' +
+      (m.subtitle ? '<p class="sub">' + escapeHtml(m.subtitle) + '</p>' : "") +
+      '<div class="meta">' +
+        (m.questions ? '<span>📝 ' + m.questions + " câu</span>" : "") +
+        (m.duration_min ? '<span>⏱ ' + m.duration_min + " phút</span>" : "") +
+      '</div><div class="pick">' + (open ? "Chọn đề này →" : "Mở khoá để làm bài →") + '</div></div>';
+  }).join("") + "</div>";
+}
+function goPick() { hideAllScreens(); pickScreen.classList.remove("hidden"); setNotepadVisible(false); window.scrollTo(0, 0); }
+
+async function chooseExam(examId) {
+  const m = examMeta(examId);
+  if (!m) return;
+  if (!canOpen(m)) {
+    if (window.Premium) Premium.open({ section: "vstep", reason: "Đề thi này thuộc khoá luyện thi VSTEP." });
+    else alert("Đề này cần khoá luyện thi VSTEP.");
+    return;
+  }
+  const exam = await fetchExam(examId);
+  if (!exam) { alert("Không mở được đề — kiểm tra kết nối."); return; }
+  VEXAM_ID = examId;                       // đổi ngăn lưu TRƯỚC khi đọc tiến độ
+  if (!VGUEST) await pullProgress(examId);
+  applyExam(exam);
+  state = {
+    started:false, submitted:false, endTime:null, answers:{}, marked:{}, currentPassage:0,
+    scrollPos:{}, qScrollPos:{}, fontStep:0, dark:false, results:null, timeUsedSec:null,
+    highlights:{}, notes:{}, notepad:"", annotHidden:false
+  };
+  pstate = freshPractice();
+  engineRestore();                          // đọc lại bài làm dở của ĐỀ NÀY
+  applyFontTheme();
+  hideAllScreens(); modeScreen.classList.remove("hidden"); window.scrollTo(0, 0);
+}
+document.addEventListener("click", e => {
+  const c = e.target.closest && e.target.closest(".excard");
+  if (c) chooseExam(c.dataset.exam);
+});
+document.addEventListener("keydown", e => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const t = e.target;
+  if (t && t.classList && t.classList.contains("excard")) { e.preventDefault(); chooseExam(t.dataset.exam); }
+});
+
+/* ---- lịch sử làm bài, đọc từ bảng kết quả chung của cả trang ---- */
+function fmtWhen(iso){ try{ return new Date(iso).toLocaleString('vi-VN',{dateStyle:'short',timeStyle:'short'}); }catch(e){ return ''; } }
+function fmtMMSS(sec){ if(sec==null) return '—'; const m=Math.floor(sec/60), x=sec%60; return m+"'"+String(x).padStart(2,'0')+'"'; }
+async function renderHistory(){
+  const box = document.getElementById('examHist');
+  if(!box) return;
+  if(VGUEST || !DB){
+    box.innerHTML = '<h3>Lịch sử làm bài</h3><div class="exempty">Đăng nhập để lưu điểm và xem lại tiến bộ qua từng lần thi. ' +
+      '<a href="login.html" style="color:var(--accent);font-weight:700">Đăng nhập</a></div>';
+    return;
+  }
+  let rows = [];
+  try { const { data } = await DB.rpc('my_vsat_attempts', { p_exam_id: null, p_kind: VKIND }); rows = Array.isArray(data)?data:[]; }
+  catch(e){ rows = []; }
+  if(!rows.length){ box.innerHTML=''; return; }
+  const cls = p => p>=70?'good':p>=40?'mid':'low';
+  box.innerHTML = '<h3>Lịch sử làm bài</h3><table class="htable">' +
+    '<tr><th>Đề thi</th><th>Lần</th><th>Điểm</th><th>%</th><th>Đúng</th><th>Thời gian</th><th>Ngày</th></tr>' +
+    rows.slice(0,20).map(a=>{
+      const pc = (a.meta && a.meta.pct!=null) ? Math.round(a.meta.pct) : null;
+      return '<tr><td>'+escapeHtml(a.test_name||'')+'</td><td>#'+(a.attempt_no||1)+'</td>'+
+        '<td class="sc">'+escapeHtml(String(a.raw==null?'—':a.raw))+'</td>'+
+        '<td>'+(pc!=null?'<span class="hpct '+cls(pc)+'">'+pc+'%</span>':'—')+'</td>'+
+        '<td>'+(a.correct==null?0:a.correct)+'</td><td>'+fmtMMSS(a.seconds)+'</td><td>'+escapeHtml(fmtWhen(a.at))+'</td></tr>';
+    }).join('') + '</table>';
+}
+
+/* ---- nộp bài: ghi kết quả vào bảng test_attempts có sẵn ---- */
+async function recordAttempt(){
+  if (VGUEST || !DB || !VEXAM_ID || !state.results) return;
+  const r = state.results;
+  try {
+    await DB.rpc("record_vsat_attempt", {
+      p_exam_id: VEXAM_ID,
+      p_raw: +(r.correct * SCORE_PER_QUESTION).toFixed(2),
+      p_max_raw: Math.round(TOTAL_Q * SCORE_PER_QUESTION),
+      p_correct: r.correct, p_incorrect: r.incorrect, p_blank: r.unanswered, p_total: TOTAL_Q,
+      p_answers: state.answers || {},
+      p_detail: Object.keys(r.perQ || {}).map(gi => ({
+        n: (+gi) + 1, passage: passageOf(+gi) + 1,
+        status: r.perQ[gi].status, answer: r.perQ[gi].answer, correct: r.perQ[gi].correct })),
+      p_meta: { pct: Math.round(r.correct / TOTAL_Q * 100),
+                perPassage: r.perPassage, scale: SCORE_PER_QUESTION, skill: "reading" },
+      p_seconds: state.timeUsedSec || 0,
+      p_kind: VKIND
+    });
+  } catch (e) { /* điểm vẫn hiện tại chỗ, chỉ là chưa lưu được */ }
+  renderHistory();
+}
+/* bọc doSubmit của bộ máy — không sửa vào bên trong nó */
+const __engineSubmit = doSubmit;
+doSubmit = function(){ __engineSubmit(); recordAttempt(); };
+
+/* ---- khởi động: nhận diện học viên rồi bàn giao cho bộ máy ---- */
+async function vstepBoot(){
+  const who = document.getElementById("leWho"),
+        auth = document.getElementById("leAuth"),
+        back = document.getElementById("leBack");
+  let session = null;
+  try { session = DB ? (await DB.auth.getSession()).data.session : null; } catch (e) {}
+
+  if (session) {
+    VGUEST = false; VUSER = session.user; VNS = VUSER.id.slice(0, 8);
+    try {
+      const { data: p } = await DB.from("profiles").select("full_name,role,is_premium").eq("id", VUSER.id).maybeSingle();
+      if (p) {
+        VSTAFF = ["owner","admin","teacher"].indexOf(p.role) >= 0;
+        VPREMIUM = !!p.is_premium;
+        if (who) who.textContent = p.full_name || VUSER.email || "";
+      }
+    } catch (e) {}
+    if (auth) auth.hidden = true;
+  } else {
+    VGUEST = true; VNS = "anon";
+    if (who) who.textContent = "Khách";
+    if (auth) auth.hidden = false;
+    if (back) { back.textContent = "← Xem khóa học"; back.href = "course.html"; }
+  }
+
+  await loadExamList();
+  if (!VGUEST) {
+    try {
+      const { data: en } = await DB.from("enrollments").select("course_id").eq("student_id", VUSER.id);
+      const mine = new Set((en || []).map(x => x.course_id));
+      VEXAMS.forEach(m => { if (m.course_id && mine.has(m.course_id)) VENTITLED.add(m.exam_id); });
+    } catch (e) {}
+  }
+  renderExamPick();
+  renderHistory();
+
+  /* Liên kết ?exam=… (từ trang khoá học) mở thẳng đề đó; nếu không thì
+     bắt đầu ở danh sách đề — chưa chọn đề thì chưa có gì để làm. */
+  const want = new URLSearchParams(location.search).get("exam") || "";
+  const m = examMeta(want);
+  if (m && canOpen(m)) { await chooseExam(want); }
+  else { goPick(); }
+}
+const __goPickBtn = document.getElementById("goPick");
+if (__goPickBtn) __goPickBtn.addEventListener("click", goPick);
+
+/* mọi khai báo của lớp nền tảng đã xong — giờ mới tiếp quản */
+vstepBoot();
+</script>
+</body>
+</html>
