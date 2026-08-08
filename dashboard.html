@@ -156,25 +156,148 @@ function parseWorkbook(wb){
   const vocab=objRows(sh('Vocab'),['word','pos','ipa','def','vi','ex','exvi','forms','sec']).map(r=>({w:S(r.word),pos:S(r.pos),ipa:S(r.ipa),def:S(r.def),vi:S(r.vi),ex:S(r.ex),exvi:S(r.exvi),forms:S(r.forms),sec:S(r.sec)})).filter(v=>v.w);
   const grammar=objRows(sh('Grammar'),['id','name','en','vi','form','examples','usage','mistake']).map((r,i)=>({id:S(r.id)||('g'+(i+1)),name:S(r.name),en:S(r.en),vi:S(r.vi),form:S(r.form),
     ex:S(r.examples).split('||').map(s=>s.trim()).filter(Boolean).map(pair=>{const parts=pair.split('~~');return [S(parts[0]),S(parts[1]||'')];}),usage:S(r.usage),mistake:S(r.mistake)})).filter(g=>g.name);
-  const exam={schema:'vsat-exam/1.0',meta,mock:{parts:parts.map(p=>({code:p.code,title:p.title,instruction:p.instruction,blocks:p.blocks}))},practice:{vocab,grammar,vocabExercises:[],grammarExercises:[]}};
+  /* ---- Bài tập Practice do thầy tự soạn (5 sheet, mỗi sheet một KIỂU DỮ LIỆU).
+     Cột `set` gom các dòng thành một bài tập; cột `bank` chọn Từ vựng hay Ngữ pháp;
+     cột `kind` chọn tên kiểu trong nhóm (vd mcq / context / verbform).
+     Sheet để trống = không sao: autogenExercises() sẽ tự sinh bài tập. ---- */
+  const EXB={vocab:[],grammar:[]}, exSets={};
+  function exGet(r,defType,defTitle,shape){
+    const bank=/gram|ngữ|ngu/i.test(S(r.bank))?'grammar':'vocab';
+    const key=bank+'|'+(S(r.set)||'1');
+    if(!exSets[key]){
+      const ex={type:(S(r.kind)||defType).toLowerCase(),title:S(r.title)||defTitle,sub:S(r.sub)};
+      if(shape==='pairs')ex.pairs=[]; else if(shape==='gaps'){ex.text='';ex.gaps=[];} else ex.items=[];
+      exSets[key]=ex; EXB[bank].push(ex);
+    }
+    const ex=exSets[key];
+    if(S(r.title)&&ex.title===defTitle)ex.title=S(r.title);
+    if(S(r.sub)&&!ex.sub)ex.sub=S(r.sub);
+    return ex;
+  }
+  const PIPE=v=>S(v).split('|').map(s=>s.trim()).filter(s=>s!=='');
+
+  // 1) ExChoice — chọn đáp án: mcq / context / verbform
+  objRows(sh('ExChoice'),['bank','set','kind','title','sub','before','q','after','A','B','C','D','answer','explain']).forEach(r=>{
+    const letters=['A','B','C','D'].filter(v=>S(r[v])!=='');
+    if(letters.length<2)return;
+    const ex=exGet(r,'mcq','Multiple choice','items');
+    const it={opts:letters.map(v=>S(r[v])),a:Math.max(0,letters.indexOf(S(r.answer).toUpperCase())),ex:S(r.explain)};
+    if(S(r.before)!==''||S(r.after)!==''){it.before=S(r.before);it.after=S(r.after);} else it.q=S(r.q);
+    ex.items.push(it);
+  });
+  // 2) ExType — học viên GÕ đáp án: fill / transform / error
+  objRows(sh('ExType'),['bank','set','kind','title','sub','before','q','after','prompt','answers','explain']).forEach(r=>{
+    const ans=PIPE(r.answers); if(!ans.length)return;
+    const ex=exGet(r,'fill','Gap-fill','items');
+    const it={a:ans,ex:S(r.explain)};
+    if(S(r.prompt)!==''){it.q=S(r.q);it.prompt=S(r.prompt);}
+    else if(S(r.before)!==''||S(r.after)!==''){it.before=S(r.before);it.after=S(r.after);}
+    else it.q=S(r.q);
+    ex.items.push(it);
+  });
+  // 3) ExMatch — ghép cặp: match / halves
+  objRows(sh('ExMatch'),['bank','set','kind','title','sub','left','right']).forEach(r=>{
+    if(S(r.left)===''||S(r.right)==='')return;
+    exGet(r,'match','Matching','pairs').pairs.push([S(r.left),S(r.right)]);
+  });
+  // 4) ExOrder — sắp xếp từ thành câu
+  objRows(sh('ExOrder'),['bank','set','title','sub','words','answer','explain']).forEach(r=>{
+    const w=PIPE(r.words); if(w.length<2||S(r.answer)==='')return;
+    exGet(r,'order','Sentence ordering','items').items.push({words:w,a:S(r.answer),ex:S(r.explain)});
+  });
+  // 5) ExCloze — một đoạn văn, mỗi chỗ trống một dòng
+  objRows(sh('ExCloze'),['bank','set','title','sub','text','gap','options','answer']).forEach(r=>{
+    const ex=exGet(r,'cloze','Cloze passage','gaps');
+    if(S(r.text)!==''&&!ex.text)ex.text=S(r.text);
+    const opts=PIPE(r.options),n=Number(S(r.gap));
+    if(opts.length<2||!n)return;
+    ex.gaps.push({n,opts,a:S(r.answer)||opts[0]});
+  });
+  // bỏ những bài tập rỗng (thầy đặt tiêu đề nhưng chưa nhập dòng nào)
+  const alive=ex=>(ex.items&&ex.items.length)||(ex.pairs&&ex.pairs.length)||(ex.gaps&&ex.gaps.length&&ex.text);
+  EXB.vocab=EXB.vocab.filter(alive); EXB.grammar=EXB.grammar.filter(alive);
+
+  const exam={schema:'vsat-exam/1.0',meta,mock:{parts:parts.map(p=>({code:p.code,title:p.title,instruction:p.instruction,blocks:p.blocks}))},practice:{vocab,grammar,vocabExercises:EXB.vocab,grammarExercises:EXB.grammar}};
   return exam;
 }
 
-/* Auto-generate simple Practice exercises from vocab/grammar when not supplied. */
+/* Tự sinh bài tập Practice từ hai sheet Vocab / Grammar khi thầy KHÔNG tự soạn.
+   Chỉ dùng dữ liệu đã có sẵn trong hai sheet đó — câu ví dụ thật, nghĩa tiếng
+   Việt, dạng từ, công thức ngữ pháp — nên thầy không phải gõ thêm gì.
+   Hai ngân hàng độc lập nhau: tự soạn bài tập ngữ pháp mà bỏ trống từ vựng thì
+   phần từ vựng vẫn được sinh tự động. */
 function autogenExercises(exam){
   const V=exam.practice.vocab||[], G=exam.practice.grammar||[];
   const ve=[], ge=[];
+  const take=(a,n)=>a.slice(0,n);
+  /* Xoay danh sách lựa chọn theo quy luật để đáp án đúng KHÔNG phải lúc nào
+     cũng nằm ở nút đầu tiên — bản sinh tự động trước đây luôn đặt a:0, học
+     viên chỉ cần bấm ô đầu là đúng hết. */
+  const rot=(arr,k)=>{const n=arr.length,s=((k%n)+n)%n;return arr.slice(s).concat(arr.slice(0,s));};
+  const shifted=(correct,others,i)=>{const o0=[correct,...others],n=o0.length,s=i%n;return {opts:rot(o0,n-s),a:s};};
+  /* lấy n giá trị khác biệt từ các mục lân cận để làm phương án nhiễu */
+  const foils=(list,i,get,n)=>{const out=[],mine=get(list[i]);
+    for(let k=1;out.length<n&&k<list.length;k++){const x=get(list[(i+k)%list.length]);
+      if(x&&x!==mine&&out.indexOf(x)<0)out.push(x);} return out;};
+  /* ghép cặp phải là duy nhất ở vế phải, nếu không hai dòng cùng đáp án */
+  const uniq=pairs=>{const seen={},out=[];pairs.forEach(p=>{if(p[0]&&p[1]&&!seen[p[1]]){seen[p[1]]=1;out.push(p);}});return out;};
+  /* Tách câu ví dụ quanh từ đang học → thành chỗ trống thật.
+     Nới ra hết TỪ để không cắt giữa chừng: "clamp" trong "will be clamped"
+     phải thành "will be ___" (đáp án clamped), chứ không phải "will be ___ed". */
+  const gapOf=(sentence,word)=>{
+    const s=String(sentence||''),w=String(word||'');
+    if(!s||!w)return null;
+    let i=s.toLowerCase().indexOf(w.toLowerCase());
+    if(i<0)return null;
+    let j=i+w.length;
+    const isL=c=>/[A-Za-zÀ-ÿ'’\-]/.test(c||'');
+    while(i>0&&isL(s[i-1]))i--;
+    while(j<s.length&&isL(s[j]))j++;
+    return {before:s.slice(0,i),after:s.slice(j),hit:s.slice(i,j)};
+  };
+
   if(V.length>=3){
-    ve.push({type:'match',title:'Word–definition matching',sub:'Match each word with its meaning.',pairs:V.slice(0,6).map(v=>[v.w,v.def])});
-    const pool=V.slice(0,8);
-    ve.push({type:'mcq',title:'Meaning — multiple choice',sub:'Choose the correct meaning.',items:pool.slice(0,6).map((v,i)=>{
-      const others=pool.filter(x=>x!==v).slice(0,2).map(x=>x.def);const opts=[v.def,...others];
-      return {q:'<b>'+v.w+'</b> — ?',opts,a:0,ex:v.w+' = '+v.def};})});
-    if(V.some(v=>v.vi)) ve.push({type:'match',title:'Từ – nghĩa tiếng Việt',sub:'Ghép mỗi từ với nghĩa tiếng Việt.',pairs:V.filter(v=>v.vi).slice(0,6).map(v=>[v.w,v.vi])});
+    const wd=uniq(V.map(v=>[v.w,v.def]));
+    if(wd.length>=3)ve.push({type:'match',title:'Word–definition matching',sub:'Match each word with its meaning.',pairs:take(wd,6)});
+
+    const pool=take(V.filter(v=>v.def),8);
+    if(pool.length>=3)ve.push({type:'mcq',title:'Meaning — multiple choice',sub:'Choose the correct meaning.',
+      items:take(pool,6).map((v,i)=>{const s=shifted(v.def,foils(pool,i,x=>x.def,2),i);
+        return {q:'<b>'+v.w+'</b> — ?',opts:s.opts,a:s.a,ex:v.w+' = '+v.def};})});
+
+    const vi=uniq(V.filter(v=>v.vi).map(v=>[v.w,v.vi]));
+    if(vi.length>=3)ve.push({type:'match',title:'Từ – nghĩa tiếng Việt',sub:'Ghép mỗi từ với nghĩa tiếng Việt.',pairs:take(vi,6)});
+
+    /* từ nào có câu ví dụ chứa chính nó thì thành hai bài tập dùng câu THẬT */
+    const gp=V.map(v=>({v,g:gapOf(v.ex,v.w)})).filter(x=>x.g);
+    if(gp.length>=3){
+      ve.push({type:'fill',title:'Gap-fill — câu trong đề',sub:'Type ONE word from the vocabulary bank. (Spelling matters.)',
+        items:take(gp,6).map(x=>({before:x.g.before,after:x.g.after,
+          a:[x.g.hit,x.v.w].filter((s,i,a)=>a.indexOf(s)===i),
+          ex:x.v.vi?(x.v.w+' = '+x.v.vi):(x.v.def||'')}))});
+      ve.push({type:'context',title:'Context word selection',sub:'Choose the word that best fits the sentence.',
+        /* phương án nhiễu lấy từ CHÍNH dạng xuất hiện trong câu, để không lộ
+           đáp án chỉ vì ba lựa chọn khác dạng nhau */
+        items:take(gp,6).map((x,i)=>{const s=shifted(x.g.hit,foils(gp,i,y=>y.g.hit,2),i);
+          return {before:x.g.before,after:x.g.after,opts:s.opts,a:s.a,
+                  ex:x.v.vi?(x.v.w+' = '+x.v.vi):(x.v.def||'')};})});
+    }
   }
+
   if(G.length>=2){
-    ge.push({type:'match',title:'Grammar — structure & form',sub:'Match each structure with its form.',pairs:G.slice(0,6).map(g=>[g.name,(g.form||'').split('\n')[0]])});
+    const gf=uniq(G.map(g=>[g.name,String(g.form||'').split('\n')[0]]));
+    if(gf.length>=2)ge.push({type:'match',title:'Grammar — structure & form',sub:'Match each structure with its form.',pairs:take(gf,6)});
+
+    const pairs=[]; G.forEach(g=>(g.ex||[]).forEach(p=>{if(p&&p[0]&&p[1])pairs.push([p[0],p[1]]);}));
+    const up=uniq(pairs);
+    if(up.length>=3)ge.push({type:'match',title:'Ví dụ – nghĩa tiếng Việt',sub:'Ghép mỗi câu ví dụ với bản dịch tiếng Việt.',pairs:take(up,6)});
+
+    const named=G.filter(g=>g.name&&g.ex&&g.ex.length&&g.ex[0][0]);
+    if(named.length>=3)ge.push({type:'mcq',title:'Nhận diện cấu trúc',sub:'Câu sau dùng cấu trúc nào?',
+      items:take(named,6).map((g,i)=>{const s=shifted(g.name,foils(named,i,x=>x.name,2),i);
+        return {q:'“'+g.ex[0][0]+'”',opts:s.opts,a:s.a,ex:g.name+((g.form||'')?' — '+String(g.form).split('\n')[0]:'')};})});
   }
+
   if(!exam.practice.vocabExercises||!exam.practice.vocabExercises.length)exam.practice.vocabExercises=ve;
   if(!exam.practice.grammarExercises||!exam.practice.grammarExercises.length)exam.practice.grammarExercises=ge;
   return exam;
