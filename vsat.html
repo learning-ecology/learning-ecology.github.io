@@ -442,6 +442,54 @@ body.hide-annos .note-area{display:none!important}
 .excard.locked::after{content:"🔒";position:absolute;top:12px;right:13px;font-size:15px}
 .exempty{color:var(--color-text-secondary);font-size:14px;padding:14px;border:1px dashed var(--color-border-secondary);
   border-radius:var(--border-radius-lg);text-align:center}
+
+/* ===== Phase 51 — một luồng duy nhất: chọn đề → chọn chế độ → làm bài ===== */
+
+/* mỗi "bước" trượt nhẹ lên khi hiện ra, để học viên thấy màn hình vừa đổi */
+.stage{animation:stageIn .26s cubic-bezier(.2,.7,.3,1) both}
+/* thanh trên dính ở đỉnh, nên chừa chỗ khi cuộn bước 2 vào tầm nhìn */
+#stage-modes{scroll-margin-top:70px}
+@keyframes stageIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+/* nút lùi một bậc — dùng chung cho "chọn đề khác" và "quay lại chọn chế độ" */
+.backlink{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--color-border-secondary);
+  background:var(--color-background-primary);color:var(--color-text-secondary);
+  font-family:inherit;font-weight:600;font-size:13px;padding:7px 14px;border-radius:999px;cursor:pointer;
+  transition:background .15s,color .15s,border-color .15s}
+.backlink:hover{background:var(--color-background-secondary);color:var(--accent);border-color:var(--accent)}
+.backlink:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.backlink .sm{display:none}
+
+/* thẻ tóm tắt đề đang chọn, đặt ngay trên hai ô chế độ */
+.selhead{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;margin:14px 0 2px;padding:14px 16px;
+  border:1px solid var(--accent);border-radius:var(--border-radius-lg);background:var(--accent-soft)}
+.selhead .ck{width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;flex:0 0 auto;
+  display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800}
+.selhead h3{margin:0;font-size:16px}
+.selhead .sub{font-size:12.5px;color:var(--color-text-secondary);margin-top:2px}
+.selhead .meta{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--color-text-secondary);margin-top:6px}
+
+.excard:focus-visible,.home-tile:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.excard .pick{margin-top:10px;font-weight:700;font-size:12.5px;color:var(--accent)}
+.excard.locked .pick{color:var(--color-text-secondary)}
+
+/* hộp xác nhận trước khi rời bài thi đang làm dở */
+.vdlg-back{position:fixed;inset:0;z-index:300;background:rgba(15,23,42,.45);
+  display:flex;align-items:center;justify-content:center;padding:20px;animation:stageIn .18s ease both}
+.vdlg{background:var(--color-background-primary);border:1px solid var(--color-border-tertiary);
+  border-radius:var(--border-radius-lg);box-shadow:var(--shadow);max-width:430px;width:100%;padding:22px}
+.vdlg h3{margin:0 0 8px;font-size:17px}
+.vdlg p{margin:0 0 18px;font-size:13.5px;color:var(--color-text-secondary);line-height:1.6}
+.vdlg .acts{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+
+@media (max-width:520px){
+  .backlink .lg{display:none}
+  .backlink .sm{display:inline}
+  .vdlg .acts button{flex:1 1 100%}
+}
+@media (prefers-reduced-motion:reduce){
+  .stage,.vdlg-back{animation:none}
+}
 </style>
 </head>
 <body>
@@ -462,10 +510,14 @@ body.hide-annos .note-area{display:none!important}
 </header>
 <div class="topbar">
   <div class="topbar-in">
-    <div class="brand"><span class="logo">V</span><span class="full">VSAT English · Exam 2 (2025)</span></div>
-    <div class="mode-switch">
-      <button id="mode-practice" onclick="setMode('practice')">📚 Practice</button>
-      <button id="mode-test" onclick="setMode('test')">📝 Mock Test</button>
+    <div class="brand"><span class="logo">V</span><span class="full" id="brandExam">Luyện thi V-SAT</span></div>
+    <!-- Phase 51: lùi một bậc trong luồng (chỉ hiện khi đang ở trong một chế độ) -->
+    <button class="backlink hidden" id="backToModes" onclick="backToModes()">
+      ← <span class="lg">Quay lại chọn chế độ</span><span class="sm">Chế độ</span>
+    </button>
+    <div class="mode-switch hidden" id="modeSwitch">
+      <button id="mode-practice" onclick="goMode('practice')">📚 Practice</button>
+      <button id="mode-test" onclick="goMode('test')">📝 Mock Test</button>
     </div>
     <div class="menu-wrap">
       <button class="icon-btn" onclick="toggleMenu(event)">⚙ Reset ▾</button>
@@ -487,23 +539,37 @@ body.hide-annos .note-area{display:none!important}
     <h1 id="home-title">VSAT English</h1>
     <p id="home-sub">Prepare with guided vocabulary &amp; grammar practice, then test yourself under real exam conditions. Your progress is saved automatically on this device.</p>
   </div>
-  <div id="examBar" class="row" style="justify-content:center;margin:6px 0 2px;gap:10px;flex-wrap:wrap"></div>
-  <div id="examPick"></div>
-  <div id="examHist"></div>
-  <div class="home-grid">
-    <div class="home-tile practice" onclick="setMode('practice')">
-      <div class="ico">📚</div>
-      <h3>Practice Mode</h3>
-      <p>Study the vocabulary, collocations and grammar behind the test. Flashcards, exercises and instant feedback — no answers to the exam are revealed.</p>
-      <div class="mini-stats" id="home-practice-stats"></div>
-      <div class="go">Start practising →</div>
+  <!-- BƯỚC 1 — chọn đề thi. Hai ô chế độ chưa xuất hiện ở bước này, để học
+       viên không phải đoán xem chúng thuộc về đề nào. -->
+  <div id="stage-list">
+    <div id="examBar" class="row" style="justify-content:center;margin:6px 0 2px;gap:10px;flex-wrap:wrap"></div>
+    <div id="examPick"></div>
+    <div id="examHist"></div>
+  </div>
+
+  <!-- BƯỚC 2 — chọn chế độ cho ĐỀ VỪA CHỌN -->
+  <div id="stage-modes" class="hidden">
+    <div class="row" style="margin:6px 0 0">
+      <button class="backlink" onclick="backToList()">
+        ← <span class="lg">Chọn đề khác</span><span class="sm">Đề khác</span>
+      </button>
     </div>
-    <div class="home-tile test" onclick="setMode('test')">
-      <div class="ico">📝</div>
-      <h3>Mock Test Mode</h3>
-      <p>25 questions · 60 minutes. Realistic exam conditions with a timer, question navigator, flagging, highlighting and personal notes. Full review after you submit.</p>
-      <div class="mini-stats" id="home-test-stats"></div>
-      <div class="go">Start the mock test →</div>
+    <div class="selhead" id="selHead"></div>
+    <div class="home-grid">
+      <div class="home-tile practice" tabindex="0" role="button" onclick="goMode('practice')">
+        <div class="ico">📚</div>
+        <h3>Practice Mode</h3>
+        <p>Study the vocabulary, collocations and grammar behind the test. Flashcards, exercises and instant feedback — no answers to the exam are revealed.</p>
+        <div class="mini-stats" id="home-practice-stats"></div>
+        <div class="go">Start practising →</div>
+      </div>
+      <div class="home-tile test" tabindex="0" role="button" onclick="goMode('test')">
+        <div class="ico">📝</div>
+        <h3>Mock Test Mode</h3>
+        <p>25 questions · 60 minutes. Realistic exam conditions with a timer, question navigator, flagging, highlighting and personal notes. Full review after you submit.</p>
+        <div class="mini-stats" id="home-test-stats"></div>
+        <div class="go">Start the mock test →</div>
+      </div>
     </div>
   </div>
 </div>
@@ -812,6 +878,15 @@ function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor
 function norm(s){return String(s||'').trim().toLowerCase().replace(/[.,!?;:]$/,'');}
 
 let currentMode=store.get('mode','home');
+
+/* Phase 51 — màn hình chủ có HAI bước, không hiện mọi lựa chọn cùng lúc:
+     'list'  = danh sách đề thi
+     'modes' = đề đã chọn + hai ô Practice / Mock Test
+   STAGE_READY: applyStage() nằm ở lớp nền tảng phía dưới và đọc VEXAMS,
+   nên chưa được gọi trong lúc bộ máy tự khởi động ở giữa tệp. */
+let homeStage=rawStore.get('homeStage','list');
+let STAGE_READY=false;
+
 function setMode(m){
   currentMode=m;store.set('mode',m);
   document.getElementById('view-home').classList.toggle('hidden',m!=='home');
@@ -820,10 +895,63 @@ function setMode(m){
   document.getElementById('mode-practice').classList.toggle('active',m==='practice');
   document.getElementById('mode-test').classList.toggle('active',m==='test');
   document.getElementById('notepadToggle').classList.toggle('hidden',m!=='test');
+  /* thanh trên chỉ hiện nút lùi + công tắc chế độ khi ĐANG ở trong một chế độ,
+     nhờ vậy màn hình chọn đề chỉ còn một cách bấm duy nhất */
+  const bk=document.getElementById('backToModes'),ms=document.getElementById('modeSwitch');
+  if(bk)bk.classList.toggle('hidden',m==='home');
+  if(ms)ms.classList.toggle('hidden',m==='home');
   window.scrollTo(0,0);
   if(m==='practice')renderPractice();
   if(m==='test')enterTest();
   updateHomeStats();
+  if(STAGE_READY)applyStage();
+}
+
+/* Học viên đã bắt đầu làm bài và chưa nộp? */
+function testInProgress(){
+  const t=store.get('testState',null);
+  if(!t||t.submitted)return false;
+  return !!t.running||Object.keys(t.answers||{}).length>0;
+}
+/* Hỏi trước khi rời bài thi đang làm dở. Không dùng confirm() của trình
+   duyệt vì cần đúng chữ tiếng Việt và đúng phong cách giao diện. */
+function confirmLeaveTest(onLeave){
+  const back=document.createElement('div');
+  back.className='vdlg-back';
+  back.innerHTML='<div class="vdlg" role="dialog" aria-modal="true" aria-labelledby="vdlgTitle">'+
+    '<h3 id="vdlgTitle">Bạn có chắc muốn rời bài thi?</h3>'+
+    '<p>Tiến trình làm bài hiện tại có thể bị mất.</p>'+
+    '<div class="acts">'+
+      '<button class="icon-btn" data-act="leave">Rời bài thi</button>'+
+      '<button class="btn btn-primary" data-act="stay">Tiếp tục làm bài</button>'+
+    '</div></div>';
+  const onKey=ev=>{if(ev.key==='Escape')close();};
+  function close(){back.remove();document.removeEventListener('keydown',onKey);}
+  back.addEventListener('click',ev=>{
+    const b=ev.target.closest('[data-act]');
+    if(!b)return;                                  // bấm ra nền: không làm gì
+    close();
+    if(b.dataset.act==='leave')onLeave();
+  });
+  document.addEventListener('keydown',onKey);
+  document.body.appendChild(back);
+  const stay=back.querySelector('[data-act="stay"]');if(stay)stay.focus();
+}
+/* mọi lối RA khỏi bài thi do học viên bấm đều đi qua đây */
+function goMode(m){
+  if(m===currentMode&&m!=='home')return;
+  if(currentMode==='test'&&m!=='test'&&testInProgress()){confirmLeaveTest(()=>setMode(m));return;}
+  setMode(m);
+}
+function backToModes(){
+  const go=()=>{homeStage='modes';rawStore.set('homeStage','modes');setMode('home');};
+  if(currentMode==='test'&&testInProgress()){confirmLeaveTest(go);return;}
+  go();   /* Practice: tiến độ nằm trong store nên quay lại không mất gì */
+}
+function backToList(){
+  homeStage='list';rawStore.set('homeStage','list');
+  if(STAGE_READY)applyStage();
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 function toggleMenu(e){e.stopPropagation();document.getElementById('resetMenu').classList.toggle('hidden');}
 document.addEventListener('click',()=>document.getElementById('resetMenu').classList.add('hidden'));
@@ -1179,8 +1307,18 @@ function renderReadyStep(){
 
 function updateHomeStats(){
   const p=pget();
-  const ht=document.getElementById('home-title');if(ht&&META)ht.textContent=META.title?('VSAT English — '+META.title):'VSAT English';
-  const hs=document.getElementById('home-sub');if(hs&&META&&(META.institution||META.subtitle))hs.textContent=[META.institution,META.subtitle].filter(Boolean).join(' · ')+'. Study the vocabulary & grammar, then take the mock test under exam conditions.';
+  /* Tiêu đề đổi theo bước: ở bước chọn đề nó KHÔNG được mang tên một đề cụ
+     thể, nếu không học viên tưởng đề đó đã được chọn sẵn. */
+  const onModes=(homeStage==='modes');
+  const ht=document.getElementById('home-title');
+  if(ht)ht.textContent=(onModes&&META&&META.title)?('VSAT English — '+META.title):'Luyện thi V-SAT';
+  const hs=document.getElementById('home-sub');
+  if(hs)hs.textContent=(onModes&&META&&(META.institution||META.subtitle))
+    ?[META.institution,META.subtitle].filter(Boolean).join(' · ')+'. Study the vocabulary & grammar, then take the mock test under exam conditions.'
+    :'Chọn một đề thi bên dưới. Sau khi chọn, bạn có thể luyện từ vựng – ngữ pháp hoặc làm bài thi thử theo đúng điều kiện phòng thi.';
+  /* thanh trên cũng chỉ mang tên đề khi đề đó thật sự đang được chọn */
+  const be=document.getElementById('brandExam'),named=(onModes||currentMode!=='home');
+  if(be)be.textContent=(named&&META&&META.title)?('V-SAT · '+META.title):'Luyện thi V-SAT';
   const vClass=Object.keys(p.vocabClass).length;
   const stepsPct=Math.round(Object.keys(p.stepsDone).length/STEPS.length*100);
   document.getElementById('home-practice-stats').innerHTML=`<span class="chip">${VOCAB.length} words</span><span class="chip">${GRAMMAR.length} grammar points</span><span class="chip">${stepsPct}% complete</span>`;
@@ -1299,27 +1437,12 @@ function validateExam(ex){
 }
 function renderExamBar(){
   const bar=document.getElementById('examBar');if(!bar)return;
-  /* Phase 50: the list comes from the database (VEXAMS), not this device.
-     Premium exams the learner cannot open are shown but disabled, so they
-     know the exam exists — the picker below explains how to unlock it. */
-  const list=(typeof VEXAMS!=='undefined'&&VEXAMS.length)?VEXAMS:[];
-  const activeId=store.get('activeExam','');
-  if(!list.length){bar.innerHTML='';return;}
-  const opts=list.map(m=>{
-    const open=(typeof canOpen==='function')?canOpen(m):true;
-    return `<option value="${esc(m.exam_id)}" ${m.exam_id===activeId?'selected':''} ${open?'':'disabled'}>`+
-           `${esc(m.title||m.exam_id)}${m.premium?' 👑':''}${open?'':' — cần mở khoá'}</option>`;
-  }).join('');
-  const staffPick=(typeof VSTAFF!=='undefined'&&VSTAFF)
+  /* Phase 51: các thẻ đề bên dưới CHÍNH LÀ chỗ chọn đề. Ô chọn thả xuống
+     trước đây làm đúng việc đó một lần nữa — hai lối vào cho cùng một
+     hành động — nên đã bỏ. Chỉ giữ nút mở tệp .vsat.json của giáo viên. */
+  bar.innerHTML=(typeof VSTAFF!=='undefined'&&VSTAFF)
     ? `<label class="icon-btn btn-sm" style="cursor:pointer">📂 Mở đề (.vsat.json)<input type="file" accept=".json,.vsat.json,application/json" style="display:none" onchange="loadExamFile(this)"></label>`
     : '';
-  bar.innerHTML=`<span style="font-size:13px;color:var(--color-text-secondary)">Đề thi:</span>
-    <select class="msel" style="max-width:320px;width:auto" onchange="onExamPick(this.value)">${opts}</select>
-    ${staffPick}`;
-}
-function onExamPick(id){
-  if(typeof chooseExam==='function'){chooseExam(id);return;}   // platform path
-  setActiveExam(id,false);
 }
 /* Embedded default exam (this file works standalone). Practice arrays reference the
    literals above; mock + meta are embedded below. Other exams load from .vsat.json. */
@@ -1985,11 +2108,14 @@ function renderExamPick() {
       (VSTAFF ? 'Vào <b>Bảng điều khiển → V-SAT</b> để tải đề lên.' : 'Vui lòng quay lại sau.') + '</div>';
     return;
   }
-  const active = rawStore.get("activeExam", "");
+  /* Ở bước danh sách KHÔNG thẻ nào được tô là "đang chọn": trước đây trang
+     tự mở sẵn một đề, nên học viên tưởng mình đã chọn rồi. Chỉ khi đã sang
+     bước chọn chế độ thì thẻ tương ứng mới sáng lên. */
+  const active = (homeStage === "modes") ? rawStore.get("activeExam", "") : "";
   box.innerHTML = '<h3>Chọn đề thi</h3><div class="exgrid">' + VEXAMS.map(m => {
     const open = canOpen(m);
     return '<div class="excard' + (m.exam_id === active ? " on" : "") + (open ? "" : " locked") +
-      '" data-exam="' + esc(m.exam_id) + '">' +
+      '" role="button" tabindex="0" data-exam="' + esc(m.exam_id) + '">' +
       '<span class="extag ' + (m.premium ? "prem" : "free") + '">' +
         (m.premium ? "👑 Premium" : "Miễn phí") + '</span>' +
       '<h4>' + esc(m.title) + '</h4>' +
@@ -1998,8 +2124,52 @@ function renderExamPick() {
         (m.questions ? '<span>📝 ' + m.questions + " câu</span>" : "") +
         (m.duration_min ? '<span>⏱ ' + m.duration_min + " phút</span>" : "") +
         (m.max_raw ? '<span>🎯 ' + m.max_raw + " điểm</span>" : "") +
-      '</div></div>';
+      '</div>' +
+      '<div class="pick">' + (open ? "Chọn đề này →" : "Mở khoá để làm bài →") + '</div>' +
+      '</div>';
   }).join("") + "</div>";
+}
+
+/* ---- Phase 51: hai bước của màn hình chủ ---- */
+function renderSelHead(m) {
+  const el = document.getElementById("selHead");
+  if (!el) return;
+  const title = (m && m.title) || (META && META.title) || "Đề thi";
+  const sub   = (m && m.subtitle) || (META && META.subtitle) || "";
+  const q  = (m && m.questions)    || 0;
+  const d  = (m && m.duration_min) || (META && META.durationMinutes) || 0;
+  const mx = (m && m.max_raw)      || (META && META.maxScore) || 0;
+  el.innerHTML = '<span class="ck">✓</span><div>' +
+    '<h3>' + esc(title) + '</h3>' +
+    (sub ? '<div class="sub">' + esc(sub) + '</div>' : '') +
+    '<div class="meta">' +
+      (q  ? '<span>📝 ' + q  + ' câu</span>'   : '') +
+      (d  ? '<span>⏱ '  + d  + ' phút</span>'  : '') +
+      (mx ? '<span>🎯 ' + mx + ' điểm</span>'  : '') +
+    '</div></div>';
+}
+/* Hiện đúng một bước, kèm hiệu ứng trượt nhẹ để thấy màn hình vừa đổi. */
+function applyStage() {
+  const list = document.getElementById("stage-list"),
+        modes = document.getElementById("stage-modes");
+  if (!list || !modes) return;
+  const active = rawStore.get("activeExam", "");
+  /* chưa có đề nào mở được thì không thể ở bước chọn chế độ */
+  if (homeStage === "modes" && !active) { homeStage = "list"; rawStore.set("homeStage", "list"); }
+  const onModes = (homeStage === "modes");
+  const shown = onModes ? modes : list, hiddenEl = onModes ? list : modes;
+  hiddenEl.classList.add("hidden");
+  shown.classList.remove("hidden");
+  shown.classList.remove("stage"); void shown.offsetWidth; shown.classList.add("stage");
+  if (onModes) renderSelHead(examMeta(active));
+  else renderExamPick();   /* vẽ lại để không thẻ nào còn sáng "đang chọn" */
+  updateHomeStats();
+}
+function scrollToModes() {
+  const el = document.getElementById("stage-modes");
+  if (!el || el.classList.contains("hidden")) return;
+  try { el.scrollIntoView({ behavior: "smooth", block: "start" }); }
+  catch (e) { el.scrollIntoView(); }
 }
 
 async function chooseExam(examId) {
@@ -2022,14 +2192,26 @@ async function chooseExam(examId) {
     await pullProgress(examId);          // …unless this learner already started it
   }
   applyExam(exam);
-  renderExamPick(); updateHomeStats(); renderExamBar();
+  /* chọn đề xong thì đi tiếp sang bước chọn chế độ, đúng luồng
+     chọn đề → chọn chế độ → làm bài */
+  homeStage = "modes"; rawStore.set("homeStage", "modes");
+  renderExamPick(); renderExamBar(); applyStage();
   if (currentMode === "practice") renderPractice();
   if (currentMode === "test") enterTest();
-  toast("Đã mở: " + (exam.meta && exam.meta.title || examId));
+  if (currentMode === "home") scrollToModes();
+  toast("Đã chọn: " + (exam.meta && exam.meta.title || examId));
 }
 document.addEventListener("click", e => {
   const c = e.target.closest && e.target.closest(".excard");
   if (c) chooseExam(c.dataset.exam);
+});
+/* thẻ đề và ô chế độ đều bấm được bằng bàn phím */
+document.addEventListener("keydown", e => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const t = e.target;
+  if (!t || !t.classList) return;
+  if (t.classList.contains("excard")) { e.preventDefault(); chooseExam(t.dataset.exam); }
+  else if (t.classList.contains("home-tile")) { e.preventDefault(); t.click(); }
 });
 
 /* ---- past attempts, read back from the platform's attempt history ---- */
@@ -2138,7 +2320,10 @@ async function vsatBoot() {
     } catch (e) {}
   }
 
-  const want = new URLSearchParams(location.search).get("exam") || rawStore.get("activeExam", "");
+  const deep = new URLSearchParams(location.search).get("exam") || "";
+  /* sau khi biết học viên là ai, đọc lại bước đang dở trong đúng ngăn của họ */
+  homeStage = rawStore.get("homeStage", homeStage);
+  const want = deep || rawStore.get("activeExam", "");
   const pick = examMeta(want) && canOpen(examMeta(want)) ? want
              : (VEXAMS.find(m => canOpen(m)) || {}).exam_id;
   renderExamPick();
@@ -2147,10 +2332,21 @@ async function vsatBoot() {
     const exam = await fetchExam(pick);
     if (exam) { rawStore.set("activeExam", pick); applyExam(exam); }
   }
-  updateHomeStats(); renderExamBar(); renderExamPick();
+  /* Đi thẳng tới đề nào đó (liên kết từ trang khoá học) = học viên đã chọn
+     rồi, nên vào ngay bước chọn chế độ. Còn vào trang trống thì bắt đầu ở
+     danh sách đề — chưa chọn gì thì chưa hiện chế độ nào. */
+  if (deep && pick === deep) homeStage = "modes";
+  if (!rawStore.get("activeExam", "")) homeStage = "list";
+  rawStore.set("homeStage", homeStage);
+
+  STAGE_READY = true;
+  renderExamBar(); renderExamPick();
   renderHistory();
-  if (currentMode === "practice") renderPractice();
-  if (currentMode === "test") enterTest();
+  /* Dựng lại đúng màn hình học viên đang mở. Phải đọc lại ở đây: lúc tệp
+     mới chạy, VNS còn là "anon" nên currentMode đọc nhầm ngăn của khách —
+     học viên tải lại trang giữa bài thi sẽ bị đẩy về màn hình chủ.
+     setMode() lo cả thanh trên lẫn applyStage(). */
+  setMode(rawStore.get("mode", "home"));
 }
 
 
