@@ -379,7 +379,63 @@ root.VSATParser={parseWorkbook,autogenExercises,validateExamFull};
    Chỉ cần XLSX toàn cục mà loadXLSX() đã nạp sẵn.
    ===================================================================== */
 (function(root){
-function aoa(ws){return XLSX.utils.sheet_to_json(ws,{header:1,blankrows:false,defval:''});}
+/* ---- Đọc ô Excel, GIỮ LẠI chỗ in đậm ------------------------------------
+   Bộ máy VSTEP không nhận HTML trong đoạn văn: nó escape chữ rồi tự tô đậm
+   theo danh sách ở cột `bold`. Nên ở đây in đậm không được biến thành thẻ
+   <b>, mà phải quay về đúng dạng cột `bold` hiểu được.
+
+   Cách làm: đánh dấu tạm hai đầu đoạn in đậm bằng hai ký tự thuộc vùng
+   riêng của Unicode (không bao giờ có trong bài đọc thật), rồi ở phần đọc
+   sheet Passages sẽ tách ra thành chữ thuần + danh sách từ in đậm.
+   Mọi cột khác gọi S() nên các dấu này bị gỡ, không lọt vào nội dung. */
+const BON="", BOFF="";
+function richToMarked(h){
+  return String(h)
+    .replace(/<\/?span[^>]*>/gi,'')
+    .replace(/<b>/gi,BON).replace(/<\/b>/gi,BOFF)
+    .replace(/<\/?(i|u|em|strong)>/gi,'')     /* VSTEP chỉ tô đậm được */
+    .replace(/&lt;/g,'<').replace(/&gt;/g,'>')
+    .replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&');
+}
+function cellText(c){
+  if(!c) return '';
+  if(c.h && /<b>/i.test(c.h)) return richToMarked(c.h);
+  return c.v!=null ? c.v : '';
+}
+function aoa(ws){
+  if(!ws || !ws['!ref']) return [];
+  const R=XLSX.utils.decode_range(ws['!ref']), out=[];
+  for(let r=R.s.r;r<=R.e.r;r++){
+    const row=[]; let any=false;
+    for(let c=R.s.c;c<=R.e.c;c++){
+      const v=cellText(ws[XLSX.utils.encode_cell({r:r,c:c})]);
+      row.push(v); if(String(v).trim()!=='') any=true;
+    }
+    if(any) out.push(row);
+  }
+  return out;
+}
+/* tách chuỗi đã đánh dấu thành chữ thuần + các đoạn in đậm kèm vị trí */
+function splitBold(marked){
+  let plain='', cur='', depth=0; const spans=[];
+  for(let i=0;i<marked.length;i++){
+    const ch=marked[i];
+    if(ch===BON){ if(depth===0) cur=''; depth++; continue; }
+    if(ch===BOFF){ depth--; if(depth<=0){ depth=0; if(cur) spans.push({t:cur,at:plain.length-cur.length}); cur=''; } continue; }
+    plain+=ch; if(depth>0) cur+=ch;
+  }
+  return {plain:plain, spans:spans};
+}
+/* đoạn in đậm này là lần xuất hiện thứ mấy? — đếm y hệt nthIndexOf của bộ máy */
+function occurrenceOf(text,sub,at){
+  let idx=-1;
+  for(let n=1;n<=500;n++){
+    idx=text.indexOf(sub,idx+1);
+    if(idx<0) return 1;
+    if(idx===at) return n;
+  }
+  return 1;
+}
 function objRows(ws,headers){
   if(!ws)return [];
   const rows=aoa(ws); const h0=headers[0];
@@ -392,7 +448,7 @@ function objRows(ws,headers){
     const o={}; headers.forEach(h=>{o[h]=idx[h]>=0?r[idx[h]]:'';}); out.push(o);}
   return out;
 }
-const S=v=>v==null?'':String(v).trim();
+const S=v=>v==null?'':String(v).replace(/[\uE000\uE001]/g,'').trim();
 const N=v=>{const n=Number(v);return isNaN(n)?0:n;};
 const PIPE=v=>S(v).split('|').map(x=>x.trim()).filter(x=>x!=='');
 
@@ -415,12 +471,23 @@ function parseWorkbook(wb){
     const pn=N(r.passage)||1;
     if(!byP[pn]) byP[pn]={id:pn,number:pn,title:'',bold:{},paragraphs:[],questions:[]};
     if(S(r.title)&&!byP[pn].title) byP[pn].title=S(r.title);
-    const txt=S(r.text); if(txt==='') return;
+    const cut=splitBold(String(r.text==null?'':r.text));
+    const txt=cut.plain.trim(); if(txt==='') return;
+    const lead=cut.plain.length-cut.plain.replace(/^\s+/,'').length;   /* trim làm lệch vị trí */
     const i=byP[pn].paragraphs.length;
     byP[pn].paragraphs.push(txt);
-    /* "word" = lần xuất hiện đầu tiên; "word#2" = lần thứ 2 */
+    /* cột bold gõ tay: "word" = lần đầu tiên, "word#2" = lần thứ 2 */
     const b=PIPE(r.bold).map(w=>{ const m=w.match(/^(.*)#(\d+)$/); return m?[m[1].trim(),Number(m[2])]:w; });
-    if(b.length) byP[pn].bold[i]=b;
+    /* và chữ bôi đậm ngay trong ô Excel */
+    cut.spans.forEach(sp=>{
+      const t=sp.t.trim(); if(!t) return;
+      const at=txt.indexOf(t, Math.max(0, sp.at-lead-2));
+      const occ=occurrenceOf(txt, t, at<0?txt.indexOf(t):at);
+      b.push(occ===1 ? t : [t,occ]);
+    });
+    const seen={}, uniq=[];
+    b.forEach(x=>{ const k=JSON.stringify(x); if(!seen[k]){seen[k]=1;uniq.push(x);} });
+    if(uniq.length) byP[pn].bold[i]=uniq;
   });
 
   /* ---- Câu hỏi: trắc nghiệm A–D, kèm giải thích và bằng chứng ---- */
@@ -2623,6 +2690,7 @@ root.VSTEPParser={parseWorkbook,autogenExercises,validateExamFull};
             <p class="kind" style="margin:0 0 0.7rem;">Cấu trúc chuẩn: <b>4 bài đọc × 10 câu = 40 câu · 60 phút · mỗi câu 0,25 điểm</b>.
               Điền nội dung vào tệp Excel mẫu rồi tải lên đây — học viên vào <code>vstep.html</code> làm được ngay.
               Giao diện đọc chia đôi màn hình, bút tô sáng, ghi chú, chấm điểm và phần xem lại có tô sáng câu dẫn chứng <b>không đổi</b>; chỉ nội dung đề là mới.</p>
+            <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;"><b>In đậm trong bài đọc:</b> ở sheet <b>Passages</b>, bôi đen phần chữ cần nhấn mạnh <i>bên trong ô</i> rồi bấm <b>B</b> — hệ thống tự nhận, kể cả khi từ đó xuất hiện nhiều lần (đúng lần được bôi đậm). Cột <code>bold</code> gõ tay vẫn dùng được và chạy song song. Lưu ý: bôi đậm <i>cả ô</i> thì Excel lưu ở phần định dạng ô nên không đọc được — hãy bôi đen phần chữ.</p>
             <div class="form-row">
               <a class="ghost btn" href="vstep-reading-template.xlsx" download style="text-decoration:none;">⬇ Tải tệp Excel mẫu</a>
               <label class="btn" style="cursor:pointer;">⬆ Tải đề lên (.xlsx hoặc .json)
