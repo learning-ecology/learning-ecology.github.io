@@ -102,7 +102,43 @@
        so the same spreadsheet the offline admin accepts works here too. */
 /* ===== VSAT Excel → exam JSON parser (shared by admin + tests) ===== */
 (function(root){
-function aoa(ws){return XLSX.utils.sheet_to_json(ws,{header:1,blankrows:false,defval:''});}
+/* ---- Đọc ô Excel GIỮ ĐƯỢC in đậm / nghiêng / gạch chân ------------------
+   sheet_to_json chỉ trả về .v — phần chữ thuần, mọi định dạng bị bỏ. Đó là
+   lý do bôi đậm trong Excel nhập vào thì mất. SheetJS có sẵn .h (bản dựng
+   HTML của ô) nhưng KHÔNG dùng được cho mọi ô:
+
+     ô thường        → .h escape hết:  "<p>Xin chào</p>" → "&lt;p&gt;…"
+     ô có định dạng  → .h giữ nguyên:  "<p>… <b>đậm</b> …</p>"
+
+   Nên chỉ lấy .h khi ô THẬT SỰ có định dạng, còn lại giữ .v y như trước —
+   nhờ vậy mọi đề đang chạy không đổi một chữ nào.
+
+   Lưu ý: bôi đậm CẢ Ô bằng nút B thì Excel lưu ở phần định dạng ô chứ không
+   nằm trong chữ, và SheetJS bản miễn phí không đọc được. Muốn in đậm thì
+   bôi đen ĐÚNG phần chữ cần đậm ngay trong ô rồi mới bấm B. */
+function richToHtml(h){
+  return String(h)
+    .replace(/<span[^>]*text-decoration:\s*underline[^>]*>([\s\S]*?)<\/span>/gi,'<u>$1</u>')
+    .replace(/<\/?span[^>]*>/gi,'');
+}
+function cellText(c){
+  if(!c) return '';
+  if(c.h && /<(b|i|u)>|text-decoration:\s*underline/i.test(c.h)) return richToHtml(c.h);
+  return c.v!=null ? c.v : '';
+}
+function aoa(ws){
+  if(!ws || !ws['!ref']) return [];
+  const R=XLSX.utils.decode_range(ws['!ref']), out=[];
+  for(let r=R.s.r;r<=R.e.r;r++){
+    const row=[]; let any=false;
+    for(let c=R.s.c;c<=R.e.c;c++){
+      const v=cellText(ws[XLSX.utils.encode_cell({r:r,c:c})]);
+      row.push(v); if(String(v).trim()!=='') any=true;
+    }
+    if(any) out.push(row);      // giống blankrows:false trước đây
+  }
+  return out;
+}
 function objRows(ws,headers){
   if(!ws)return [];
   const rows=aoa(ws); const h0=headers[0];
@@ -2566,6 +2602,7 @@ root.VSTEPParser={parseWorkbook,autogenExercises,validateExamFull};
           <div class="card">
             <h2>📝 Luyện thi V-SAT</h2>
             <p class="kind" style="margin:0 0 0.7rem;">Mỗi đề là một tệp <b>.vsat.json</b> (xuất từ <code>vsat_admin.html</code>) hoặc một tệp <b>Excel</b> theo mẫu V-SAT — tải lên đây là học viên vào <code>vsat.html</code> làm được ngay. Giao diện làm bài, bấm giờ, chấm điểm và phần xem lại <b>không đổi</b>; chỉ nội dung đề là mới.</p>
+            <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;"><b>In đậm trong bài đọc:</b> bôi đen đúng phần chữ cần nhấn mạnh <i>bên trong ô Excel</i> rồi bấm <b>B</b> — chữ in đậm (và in nghiêng, gạch chân) sẽ giữ nguyên khi học viên làm bài. Lưu ý: bôi đậm <i>cả ô</i> thì Excel lưu ở phần định dạng ô nên hệ thống không đọc được — hãy bôi đen phần chữ, đừng chọn cả ô.</p>
             <div class="form-row">
               <label class="btn" style="cursor:pointer;">⬆ Tải đề lên (.vsat.json hoặc .xlsx)
                 <input type="file" id="vs-file" accept=".json,.vsat.json,.xlsx,.xls" hidden multiple /></label>
