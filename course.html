@@ -197,6 +197,7 @@
                        dict: "dictation.html", vsat: "vsat.html", vstep: "vstep.html" };
     /* hai kỳ thi dùng chung một danh sách đề, chỉ khác cột kind */
     const IS_EXAM = k => k === "vsat" || k === "vstep";
+    let LAST_ITEMS = [];
     const secCfg = k => (SECTIONS.find(x => x.section === k) || {}).config || {};
 
     $("cp-theme").addEventListener("click", () => {
@@ -368,9 +369,14 @@
 
       const res = sec === "reading"
         ? await sb.rpc("public_reading_list").then(r => r, () => ({ data: null }))
+        : sec === "vstep"
+        /* mục VSTEP gộp cả Đọc và Nghe — mỗi đề tự biết mở ở trang nào */
+        ? await Promise.all([
+            sb.rpc("public_vsat_list", { p_kind: "vstep-reading"   }).then(r => r, () => ({ data: null })),
+            sb.rpc("public_vsat_list", { p_kind: "vstep-listening" }).then(r => r, () => ({ data: null }))
+          ]).then(rs => ({ data: rs.reduce((a, r) => a.concat(Array.isArray(r && r.data) ? r.data : []), []) }))
         : IS_EXAM(sec)
-        ? await sb.rpc("public_vsat_list", { p_kind: sec === "vstep" ? "vstep-reading" : "vsat" })
-            .then(r => r, () => ({ data: null }))
+        ? await sb.rpc("public_vsat_list", { p_kind: "vsat" }).then(r => r, () => ({ data: null }))
         : await sb.rpc("public_video_list", { p_kind: sec }).then(r => r, () => ({ data: null }));
       let items = Array.isArray(res && res.data) ? res.data : [];
       /* V-SAT rows are keyed by exam_id and describe an exam, not a lesson —
@@ -378,8 +384,11 @@
       if (IS_EXAM(sec)) items = items.map(e => ({
         id: e.exam_id, title: e.title, title_vi: e.subtitle || "",
         premium: !!e.premium, cover_url: "",
-        questions: e.questions, duration_min: e.duration_min, max_raw: e.max_raw
+        questions: e.questions, duration_min: e.duration_min, max_raw: e.max_raw,
+        page: e.kind === "vstep-listening" ? "vstep-listening.html"
+            : e.kind === "vstep-reading"   ? "vstep.html" : "vsat.html"
       }));
+      LAST_ITEMS = items;
       const free = items.filter(i => !i.premium).length, prem = items.length - free;
       const benefits = (cfg.benefits && cfg.benefits.length ? cfg.benefits : []);
       const priceLine = cfg.sale_price || cfg.price
@@ -422,15 +431,17 @@
       if (t) t.addEventListener("click", () => {
         const first = items.find(i => !i.premium);
         if (!first) return;
-        const P2 = SEC_PAGE[sec];
+        const P2 = first.page || SEC_PAGE[sec];
         if (P2) { location.href = P2 + (IS_EXAM(sec) ? "?exam=" : "?open=") + encodeURIComponent(first.id); return; }
         openSecItem(sec, first.id);
       });
       $("cpMain").querySelectorAll("[data-sec-open]").forEach(b =>
         b.addEventListener("click", () => {
           // Đọc hiểu: mở THẲNG giao diện thật để khách trải nghiệm đầy đủ
-          const P = SEC_PAGE[sec];
-          if (P) { location.href = P + (IS_EXAM(sec) ? "?exam=" : "?open=") + encodeURIComponent(b.getAttribute("data-sec-open")); return; }
+          const id = b.getAttribute("data-sec-open");
+          const hit = (LAST_ITEMS || []).find(x => String(x.id) === String(id));
+          const P = (hit && hit.page) || SEC_PAGE[sec];
+          if (P) { location.href = P + (IS_EXAM(sec) ? "?exam=" : "?open=") + encodeURIComponent(id); return; }
           openSecItem(sec, b.getAttribute("data-sec-open"));
         }));
       $("cpMain").querySelectorAll("[data-sec-lock]").forEach(b => b.addEventListener("click", openBuy));

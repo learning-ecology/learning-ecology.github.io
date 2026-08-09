@@ -687,6 +687,185 @@ function validateExamFull(ex){
 root.VSTEPParser={parseWorkbook,autogenExercises,validateExamFull};
 })(typeof window!=='undefined'?window:globalThis);
 
+/* ===== VSTEP Listening: Excel → exam JSON (Phase 55) ===================
+   Sinh ra ĐÚNG hình dạng dữ liệu mà bộ máy Nghe đang dùng, kể cả ba kiểu
+   xếp khác nhau trong cùng một đề:
+     • Phần có audio riêng, câu hỏi nằm thẳng trong phần, lời thoại theo CÂU
+       (Phần 1: hội thoại ngắn)
+     • Phần có audio chung, chia thành các đoạn, lời thoại theo ĐOẠN
+       (Phần 2: hội thoại dài)
+     • Mỗi đoạn một audio riêng, lời thoại theo ĐOẠN
+       (Phần 3: bài nói / bài giảng)
+   Quy tắc: phần nào có dòng ở sheet Sections thì dùng đoạn, không thì câu
+   hỏi nằm thẳng trong phần.
+   ===================================================================== */
+(function(root){
+function aoa(ws){return XLSX.utils.sheet_to_json(ws,{header:1,blankrows:false,defval:''});}
+function objRows(ws,headers){
+  if(!ws)return [];
+  const rows=aoa(ws); const h0=headers[0];
+  let hi=rows.findIndex(r=>r.map(x=>String(x).trim()).includes(h0));
+  if(hi<0)return [];
+  const head=rows[hi].map(x=>String(x).trim());
+  const idx={}; headers.forEach(h=>idx[h]=head.indexOf(h));
+  const out=[];
+  for(let i=hi+1;i<rows.length;i++){const r=rows[i]; if(r.every(c=>String(c).trim()===''))continue;
+    const o={}; headers.forEach(h=>{o[h]=idx[h]>=0?r[idx[h]]:'';}); out.push(o);}
+  return out;
+}
+const S=v=>v==null?'':String(v).trim();
+const N=v=>{const n=Number(v);return isNaN(n)?0:n;};
+
+function parseWorkbook(wb){
+  const sh=n=>wb.Sheets[n];
+
+  const meta={};
+  objRows(sh('Meta'),['Field','Value']).forEach(r=>{ if(S(r.Field)) meta[S(r.Field)]=r.Value; });
+
+  /* ---- Phần thi ---- */
+  const parts=[], byId={};
+  objRows(sh('Parts'),['part','title','instruction','audioFile']).forEach(r=>{
+    const id=N(r.part); if(!id) return;
+    const p={ id:id, title:S(r.title)||('Part '+id), instruction:S(r.instruction) };
+    if(S(r.audioFile)) p.audioUrl=S(r.audioFile);   // dashboard đổi thành đường dẫn thật sau khi tải tệp lên
+    parts.push(p); byId[id]=p;
+  });
+  parts.sort((a,b)=>a.id-b.id);
+
+  /* ---- Đoạn (chỉ những phần có chia đoạn) ---- */
+  const secKey=(p,s)=>p+'|'+s;
+  const secs={};
+  objRows(sh('Sections'),['part','section','title','audioFile','transcript']).forEach(r=>{
+    const p=N(r.part), sid=N(r.section);
+    if(!p||!sid||!byId[p]) return;
+    const sec={ sectionId:sid, title:S(r.title)||('Section '+sid), transcript:S(r.transcript), questions:[] };
+    if(S(r.audioFile)) sec.audioUrl=S(r.audioFile);
+    if(!byId[p].sections) byId[p].sections=[];
+    byId[p].sections.push(sec);
+    secs[secKey(p,sid)]=sec;
+  });
+  Object.keys(byId).forEach(k=>{ if(byId[k].sections) byId[k].sections.sort((a,b)=>a.sectionId-b.sectionId); });
+
+  /* ---- Câu hỏi ---- */
+  const orphans=[];
+  objRows(sh('Questions'),['part','section','number','question','A','B','C','D','answer','explanation','evidence','transcript'])
+   .forEach(r=>{
+    const p=N(r.part);
+    if(!byId[p]){ if(S(r.question)) orphans.push({part:S(r.part),q:S(r.question)}); return; }
+    if(S(r.question)==='') return;
+    const q={
+      question:S(r.question),
+      /* Bộ máy tách chữ cái bằng /^([A-D])\./ — thiếu tiền tố "A. " thì nó
+         lấy tạm ký tự đầu của nội dung, và đáp án sẽ không bao giờ khớp.
+         Vì vậy tiền tố được ghép ở đây, thầy chỉ cần gõ nội dung. */
+      options:['A','B','C','D'].map(L=>L+'. '+S(r[L])),
+      correctAnswer:S(r.answer).toUpperCase(),
+      explanation:S(r.explanation)
+    };
+    if(S(r.evidence)) q.evidence=S(r.evidence);
+    if(S(r.transcript)) q.transcript=S(r.transcript);
+    const sid=N(r.section);
+    if(sid && secs[secKey(p,sid)]) secs[secKey(p,sid)].questions.push(q);
+    else if(byId[p].sections && byId[p].sections.length) (byId[p].sections[0].questions).push(q);
+    else { if(!byId[p].questions) byId[p].questions=[]; byId[p].questions.push(q); }
+  });
+
+  /* ---- đánh số: id trong phần + globalId toàn bài ---- */
+  let g=0;
+  parts.forEach(p=>{
+    let inPart=0;
+    const bump=q=>{ inPart++; g++; q.id=inPart; q.globalId=g; };
+    if(p.questions) p.questions.forEach(bump);
+    (p.sections||[]).forEach(sec=>sec.questions.forEach(bump));
+  });
+
+  return {
+    schema:'vstep-listening/1.0',
+    testId:S(meta.testId)||S(meta.id)||'vstep-listening',
+    title:S(meta.title)||'VSTEP Listening',
+    subtitle:S(meta.subtitle)||'',
+    totalQuestions:g,
+    parts:parts,
+    _orphans:orphans
+  };
+}
+
+/* mọi tên tệp âm thanh đề này cần — dashboard đối chiếu với tệp thầy tải lên */
+function audioFilesNeeded(exam){
+  const out=[];
+  (exam.parts||[]).forEach(p=>{
+    if(p.audioUrl) out.push(p.audioUrl);
+    (p.sections||[]).forEach(s=>{ if(s.audioUrl) out.push(s.audioUrl); });
+  });
+  return out.filter((v,i,a)=>a.indexOf(v)===i);
+}
+/* đổi tên tệp thành đường dẫn thật sau khi tải lên kho */
+function applyAudioUrls(exam, map){
+  (exam.parts||[]).forEach(p=>{
+    if(p.audioUrl && map[p.audioUrl]) p.audioUrl=map[p.audioUrl];
+    (p.sections||[]).forEach(s=>{ if(s.audioUrl && map[s.audioUrl]) s.audioUrl=map[s.audioUrl]; });
+  });
+  return exam;
+}
+
+function validateExamFull(ex, uploadedNames){
+  const errs=[], warns=[];
+  if(!ex||!S(ex.testId)) errs.push('Thiếu Meta → testId (mã đề, phải là duy nhất).');
+  if(!S(ex.title)) warns.push('Thiếu Meta → title (tên đề hiển thị cho học viên).');
+  const P=(ex&&ex.parts)||[];
+  if(!P.length){ errs.push('Không đọc được phần thi nào — kiểm tra sheet Parts.');
+                 return {errs,warns,stats:{parts:0,questions:0}}; }
+  (ex._orphans||[]).forEach(o=>errs.push('Sheet Questions: có câu thuộc phần "'+o.part+'" nhưng phần này chưa khai ở sheet Parts.'));
+
+  let total=0;
+  P.forEach(p=>{
+    const label='Phần '+p.id;
+    const groups = p.sections && p.sections.length ? p.sections : [{__flat:true, questions:p.questions||[], transcript:''}];
+    if(!p.sections && !(p.questions||[]).length) errs.push(label+': chưa có câu hỏi nào.');
+    if(!p.instruction) warns.push(label+': chưa có phần hướng dẫn (cột instruction).');
+    groups.forEach(gp=>{
+      if(!gp.__flat && !(gp.questions||[]).length)
+        errs.push(label+' · đoạn '+gp.sectionId+': chưa có câu hỏi nào.');
+      (gp.questions||[]).forEach(q=>{
+        total++;
+        const at=label+' · câu '+q.globalId;
+        ['A','B','C','D'].forEach((L,i)=>{
+          if(S(q.options[i]).replace(/^[A-D]\.\s*/,'')==='') errs.push(at+': thiếu phương án '+L+'.');
+        });
+        if(['A','B','C','D'].indexOf(q.correctAnswer)<0)
+          errs.push(at+': cột answer phải là A, B, C hoặc D (đang là “'+q.correctAnswer+'”).');
+        if(!S(q.explanation)) warns.push(at+': chưa có giải thích.');
+        const tr=S(q.transcript)||S(gp.transcript);
+        if(!tr) warns.push(at+': chưa có lời thoại (transcript) — học viên sẽ không đọc lại được khi xem đáp án.');
+        else if(S(q.evidence) && tr.indexOf(S(q.evidence))<0)
+          warns.push(at+': evidence không khớp nguyên văn trong lời thoại nên sẽ không tô sáng được.');
+      });
+    });
+  });
+
+  /* âm thanh: mọi tên tệp nhắc trong Excel phải có mặt trong số tệp đã tải lên */
+  const need=audioFilesNeeded(ex);
+  if(!need.length) warns.push('Chưa khai tệp âm thanh nào (cột audioFile ở sheet Parts hoặc Sections).');
+  if(uploadedNames){
+    const have={}; uploadedNames.forEach(n=>have[n]=1);
+    need.forEach(n=>{ if(!/^https?:\/\//i.test(n) && !have[n])
+      errs.push('Thiếu tệp âm thanh “'+n+'” — hãy chọn tệp này cùng lúc với tệp Excel.'); });
+  }
+
+  /* cấu trúc chuẩn VSTEP Listening: 3 phần, 8 + 12 + 15 = 35 câu */
+  if(P.length!==3) warns.push('Đề chuẩn VSTEP Listening có 3 phần; đề này có '+P.length+'.');
+  const want=[8,12,15];
+  P.forEach((p,i)=>{
+    const n=(p.questions||[]).length + (p.sections||[]).reduce((a,s)=>a+(s.questions||[]).length,0);
+    if(want[i]!=null && n!==want[i]) warns.push('Phần '+p.id+' có '+n+' câu; chuẩn VSTEP là '+want[i]+' câu.');
+  });
+
+  return {errs,warns,stats:{parts:P.length,questions:total,audio:need.length}};
+}
+
+root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUrls};
+})(typeof window!=='undefined'?window:globalThis);
+
     function loadXLSX() {
       return new Promise((res, rej) => {
         if (window.XLSX) return res(window.XLSX);
@@ -2128,7 +2307,8 @@ root.VSTEPParser={parseWorkbook,autogenExercises,validateExamFull};
          cột này nên mặc định coi là V-SAT. */
       const vsAll = (vsRes && !vsRes.error && vsRes.data) ? vsRes.data : [];
       let vsRows = vsAll.filter(r => !r.kind || r.kind === "vsat");
-      let vpRows = vsAll.filter(r => r.kind && String(r.kind).indexOf("vstep") === 0);
+      let vpRows = vsAll.filter(r => r.kind === "vstep-reading");
+      let vlRows = vsAll.filter(r => r.kind === "vstep-listening");
       let rtRes = rtRes0;
       if (rtRes.error && /lang/i.test(rtRes.error.message || "")) {
         rtRes = await sb.from("reading_texts")
@@ -2691,6 +2871,12 @@ root.VSTEPParser={parseWorkbook,autogenExercises,validateExamFull};
         </div>
 
         <div class="tabpane" data-tab="vstep">
+          <div class="form-row" style="margin-bottom:0.8rem; gap:0.5rem;">
+            <button class="ghost on" data-vskill="reading" style="flex:none;">📖 Đọc</button>
+            <button class="ghost" data-vskill="listening" style="flex:none;">🎧 Nghe</button>
+          </div>
+
+        <div id="vp-pane-reading">
           <div class="card">
             <h2>📖 Luyện thi VSTEP Reading</h2>
             <p class="kind" style="margin:0 0 0.7rem;">Cấu trúc chuẩn: <b>4 bài đọc × 10 câu = 40 câu · 60 phút · mỗi câu 0,25 điểm</b>.
@@ -2710,6 +2896,33 @@ root.VSTEPParser={parseWorkbook,autogenExercises,validateExamFull};
             <h2>Đề đã đăng <span class="kind" id="vp-count"></span></h2>
             <div id="vp-list"><p class="empty">Đang tải…</p></div>
           </div>
+        </div>
+
+        <div id="vp-pane-listening" hidden>
+          <div class="card">
+            <h2>🎧 Luyện thi VSTEP Listening</h2>
+            <p class="kind" style="margin:0 0 0.7rem;">Cấu trúc chuẩn: <b>3 phần · 8 + 12 + 15 = 35 câu</b>.
+              Điền nội dung vào tệp Excel mẫu, rồi <b>chọn cùng lúc</b> tệp Excel và các tệp <b>mp3</b> của đề đó —
+              hệ thống tự tải âm thanh lên kho và gắn vào đúng phần. Giao diện làm bài, trình phát âm thanh,
+              chấm điểm và phần xem lại kèm lời thoại <b>không đổi</b>; chỉ nội dung đề là mới.</p>
+            <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
+              <b>Lời thoại đặt ở đâu:</b> hội thoại ngắn (mỗi câu một đoạn ghi âm) → cột <code>transcript</code> ở sheet
+              <b>Questions</b>; hội thoại dài và bài giảng (nhiều câu chung một đoạn) → cột <code>transcript</code> ở sheet
+              <b>Sections</b>. Cột <code>evidence</code> phải sao chép đúng từng chữ từ lời thoại thì mới tô sáng được.</p>
+            <div class="form-row">
+              <a class="ghost btn" href="vstep-listening-template.xlsx" download style="text-decoration:none;">⬇ Tải tệp Excel mẫu</a>
+              <label class="btn" style="cursor:pointer;">⬆ Tải đề + audio (.xlsx và .mp3)
+                <input type="file" id="vl-file" accept=".xlsx,.xls,.mp3,.m4a,.wav,.ogg,.webm,.mp4" hidden multiple /></label>
+              <a class="ghost btn" href="vstep-listening.html" target="_blank" rel="noopener" style="text-decoration:none;">👁 Mở trang luyện Nghe</a>
+            </div>
+            <p id="vl-msg" class="msg"></p>
+            <div id="vl-report" style="margin-top:0.6rem;"></div>
+          </div>
+          <div class="card">
+            <h2>Đề Nghe đã đăng <span class="kind" id="vl-count"></span></h2>
+            <div id="vl-list"><p class="empty">Đang tải…</p></div>
+          </div>
+        </div>
         </div>
 
         <div class="tabpane" data-tab="pricing">
@@ -3777,7 +3990,7 @@ root.VSTEPParser={parseWorkbook,autogenExercises,validateExamFull};
           { id: "flash", label: "Flashcards" + (cards.length ? " (" + cards.length + ")" : ""), icon: "wallet-cards", group: "Content" },
           { id: "reading", label: "Reading" + ((rtRes.data || []).length ? " (" + rtRes.data.length + ")" : ""), icon: "library", group: "Content" },
           { id: "vsat", label: "V-SAT" + (vsRows.length ? " (" + vsRows.length + ")" : ""), icon: "file-check", group: "Content" },
-          { id: "vstep", label: "VSTEP" + (vpRows.length ? " (" + vpRows.length + ")" : ""), icon: "book-open", group: "Content" },
+          { id: "vstep", label: "VSTEP" + ((vpRows.length + vlRows.length) ? " (" + (vpRows.length + vlRows.length) + ")" : ""), icon: "book-open", group: "Content" },
           { id: "shadow", label: "Shadowing" + ((svRes.data || []).length ? " (" + svRes.data.length + ")" : ""), icon: "video", group: "Content" },
           { id: "dict", label: "Dictation", icon: "headphones", group: "Content" },
           { id: "landing", label: "Landing Page", icon: "globe", group: "Content" },
@@ -5979,6 +6192,169 @@ root.VSTEPParser={parseWorkbook,autogenExercises,validateExamFull};
         });
 
         renderVp();
+      })();
+
+      // ================= VSTEP LISTENING (Phase 55) =================
+      // Cùng tab VSTEP, chuyển qua lại giữa 📖 Đọc và 🎧 Nghe.
+      // Đề Nghe nằm chung bảng vsat_exams (kind = 'vstep-listening'), chỉ
+      // khác một việc: tệp mp3 phải tải lên kho tệp trước, rồi mới thay tên
+      // tệp trong đề bằng đường dẫn thật.
+      (function () {
+        const listEl = document.getElementById("vl-list");
+        if (!listEl) return;
+        const msg = document.getElementById("vl-msg");
+        const report = document.getElementById("vl-report");
+        const countEl = document.getElementById("vl-count");
+        const said = (t, err) => { msg.textContent = t; msg.className = "msg" + (err ? " err" : ""); };
+
+        /* chuyển Đọc ↔ Nghe */
+        document.querySelectorAll("[data-vskill]").forEach(b => {
+          b.addEventListener("click", () => {
+            const skill = b.dataset.vskill;
+            document.querySelectorAll("[data-vskill]").forEach(x => x.classList.toggle("on", x === b));
+            const r = document.getElementById("vp-pane-reading"), l = document.getElementById("vp-pane-listening");
+            if (r) r.hidden = skill !== "reading";
+            if (l) l.hidden = skill !== "listening";
+          });
+        });
+
+        function renderVl() {
+          countEl.textContent = vlRows.length ? "(" + vlRows.length + ")" : "";
+          if (!vlRows.length) {
+            listEl.innerHTML = '<p class="empty">Chưa có đề Nghe nào. Tải tệp Excel mẫu ở trên, điền nội dung rồi tải lên cùng các tệp mp3.</p>';
+            return;
+          }
+          listEl.innerHTML = vlRows.map(e => `
+            <div class="lesson" style="flex-wrap:wrap;">
+              <div class="meta">
+                <div class="title">${esc(e.title)}${e.published ? "" : ' <span class="pill off">nháp</span>'}</div>
+                <span class="kind">${esc(e.subtitle || "")}${e.questions ? " · " + e.questions + " câu" : ""}</span>
+              </div>
+              <input type="number" class="vl-ord" data-id="${e.id}" value="${e.sort_order == null ? 0 : e.sort_order}" min="0" title="Thứ tự hiển thị" style="max-width:70px; flex:none;" />
+              <select class="vl-tier" data-id="${e.id}" style="max-width:110px;" title="Miễn phí hay Premium">
+                <option value="free" ${e.tier === "free" ? "selected" : ""}>Miễn phí</option>
+                <option value="premium" ${e.tier !== "free" ? "selected" : ""}>👑 Premium</option>
+              </select>
+              <select class="vl-course" data-id="${e.id}" style="max-width:190px;" title="Gắn với khoá học">
+                <option value="">— không gắn khoá —</option>
+                ${(courses || []).map(c => `<option value="${c.id}" ${e.course_id === c.id ? "selected" : ""}>${esc(c.title)}</option>`).join("")}
+              </select>
+              <label style="font-size:0.85rem; color:var(--muted); white-space:nowrap;">
+                <input type="checkbox" class="vl-pub" data-id="${e.id}" ${e.published ? "checked" : ""} /> đăng</label>
+              <a class="ghost btn" href="vstep-listening.html?exam=${encodeURIComponent(e.exam_id)}" target="_blank" rel="noopener" style="text-decoration:none;" title="Xem thử">👁</a>
+              <button class="ghost" data-vldel="${e.id}" style="color:var(--danger); border-color:var(--danger);">🗑</button>
+            </div>`).join("");
+        }
+
+        async function patch(id, fields) {
+          const { error } = await sb.from("vsat_exams").update(fields).eq("id", id);
+          if (error) { said("Không lưu được: " + error.message, true); return false; }
+          const row = vlRows.find(r => r.id === id);
+          if (row) Object.assign(row, fields);
+          return true;
+        }
+        listEl.addEventListener("change", async e => {
+          const t = e.target;
+          if (t.classList.contains("vl-tier")) { if (await patch(t.dataset.id, { tier: t.value })) said("Đã đổi loại truy cập ✓"); }
+          if (t.classList.contains("vl-pub"))  { if (await patch(t.dataset.id, { published: t.checked })) said(t.checked ? "Đã đăng ✓" : "Đã gỡ xuống ✓"); }
+          if (t.classList.contains("vl-ord"))  { if (await patch(t.dataset.id, { sort_order: Number(t.value) || 0 })) said("Đã đổi thứ tự ✓"); }
+          if (t.classList.contains("vl-course")) { if (await patch(t.dataset.id, { course_id: t.value || null })) said("Đã gắn khoá học ✓"); }
+        });
+        listEl.addEventListener("click", async e => {
+          const b = e.target.closest("[data-vldel]"); if (!b) return;
+          const row = vlRows.find(r => r.id === b.dataset.vldel); if (!row) return;
+          const ok = await UI.confirmDialog({ title: "Xoá đề Nghe này?", danger: true, okText: "Xoá",
+            body: `“${row.title}” sẽ bị xoá khỏi thư viện. Tệp âm thanh vẫn còn trong kho; kết quả học viên đã làm vẫn được giữ.` });
+          if (!ok) return;
+          const { error } = await sb.from("vsat_exams").delete().eq("id", row.id);
+          if (error) { said("Không xoá được: " + error.message, true); return; }
+          vlRows = vlRows.filter(r => r.id !== row.id);
+          renderVl(); said("Đã xoá ✓");
+        });
+
+        function showReport(name, v, ok, extra) {
+          const box = document.createElement("div");
+          box.className = "card";
+          box.style.cssText = "margin:0.5rem 0 0; padding:0.7rem 0.9rem;";
+          const s = v.stats || {};
+          box.innerHTML =
+            `<div style="font-weight:700; margin-bottom:0.35rem;">${ok ? "✅" : "⛔"} ${esc(name)}</div>` +
+            `<div class="kind" style="text-transform:none; letter-spacing:0; margin-bottom:0.4rem;">` +
+              `${s.parts || 0} phần · ${s.questions || 0} câu · ${s.audio || 0} tệp âm thanh${extra ? " · " + esc(extra) : ""}</div>` +
+            ((v.errs && v.errs.length)
+              ? `<div style="color:var(--danger); font-size:0.85rem;"><b>Lỗi phải sửa (${v.errs.length}):</b><ul style="margin:0.3rem 0 0 1.1rem;">` +
+                v.errs.slice(0, 12).map(x => `<li>${esc(x)}</li>`).join("") +
+                (v.errs.length > 12 ? `<li>… và ${v.errs.length - 12} lỗi nữa</li>` : "") + `</ul></div>` : "") +
+            ((v.warns && v.warns.length)
+              ? `<div style="color:var(--muted); font-size:0.85rem; margin-top:0.35rem;"><b>Nhắc (${v.warns.length}):</b><ul style="margin:0.3rem 0 0 1.1rem;">` +
+                v.warns.slice(0, 8).map(x => `<li>${esc(x)}</li>`).join("") +
+                (v.warns.length > 8 ? `<li>… và ${v.warns.length - 8} mục nữa</li>` : "") + `</ul></div>` : "");
+          report.appendChild(box);
+        }
+
+        /* Tải lên: chọn CÙNG LÚC một tệp .xlsx và các tệp mp3 của đề đó. */
+        document.getElementById("vl-file").addEventListener("change", async ev => {
+          const files = [...(ev.target.files || [])];
+          ev.target.value = "";
+          if (!files.length) return;
+          report.innerHTML = "";
+
+          const book = files.find(f => /\.(xlsx|xls)$/i.test(f.name));
+          const audio = files.filter(f => /\.(mp3|m4a|wav|ogg|webm|mp4)$/i.test(f.name));
+          if (!book) { said("Chưa chọn tệp Excel của đề (.xlsx).", true); return; }
+
+          let exam = null;
+          try {
+            const XLSXlib = await loadXLSX();
+            const wb = XLSXlib.read(await book.arrayBuffer(), { type: "array" });
+            exam = window.VLISTENParser.parseWorkbook(wb);
+          } catch (err) { said(book.name + ": không đọc được — " + err.message, true); return; }
+
+          const v = window.VLISTENParser.validateExamFull(exam, audio.map(f => f.name));
+          if (v.errs && v.errs.length) { showReport(book.name, v, false); said("Chưa tải lên được — xem lỗi bên dưới.", true); return; }
+
+          /* tải mp3 lên kho, đặt trong thư mục riêng của đề */
+          const map = {};
+          let done = 0;
+          for (const f of audio) {
+            said(`Đang tải âm thanh ${++done}/${audio.length}: ${f.name} …`);
+            const path = exam.testId + "/" + f.name;
+            const up = await sb.storage.from("vstep-audio")
+              .upload(path, f, { upsert: true, contentType: f.type || "audio/mpeg", cacheControl: "31536000" });
+            if (up.error) {
+              said("Không tải được " + f.name + ": " + up.error.message +
+                (/Bucket not found/i.test(up.error.message || "") ? " — hình như chưa chạy migration54_vstep_audio.sql." : ""), true);
+              return;
+            }
+            map[f.name] = sb.storage.from("vstep-audio").getPublicUrl(path).data.publicUrl;
+          }
+          window.VLISTENParser.applyAudioUrls(exam, map);
+
+          const row = {
+            exam_id: exam.testId,
+            title: exam.title || exam.testId,
+            subtitle: exam.subtitle || "",
+            institution: "",
+            subject: "Tiếng Anh",
+            duration_min: 40,
+            questions: exam.totalQuestions,
+            max_raw: 10,
+            data: exam,
+            kind: "vstep-listening",
+            sort_order: vlRows.length,
+            created_by: user.id
+          };
+          const { data: ins, error } = await sb.from("vsat_exams")
+            .upsert(row, { onConflict: "exam_id" }).select().single();
+          if (error) { said(book.name + ": " + error.message, true); return; }
+          const i = vlRows.findIndex(r => r.exam_id === ins.exam_id);
+          if (i >= 0) vlRows[i] = ins; else vlRows.push(ins);
+          showReport(book.name, v, true, audio.length + " tệp đã tải lên kho");
+          renderVl();
+          said("Đã tải đề Nghe lên — bấm 👁 xem thử, rồi tick “đăng” để học viên thấy.");
+        });
+
+        renderVl();
       })();
 
       // ================= LANDING PAGE CMS =================

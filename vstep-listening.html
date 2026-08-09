@@ -1,0 +1,2304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Luyện thi VSTEP Listening · Learning Ecology</title>
+<meta name="description" content="Luyện thi VSTEP Listening: đề thi thử bám sát định dạng thật, trình phát âm thanh theo từng phần, chấm điểm tự động và xem lại kèm lời thoại." />
+<link rel="canonical" href="https://learningecology.io.vn/vstep-listening.html" />
+<link rel="icon" type="image/png" href="icons/logo-64.png" />
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#17263e" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="premium.js"></script>
+<style>
+/* ==========================================================================
+   VSTEP Listening Practice Platform - CSS Design System & Layout
+   ========================================================================== */
+
+:root {
+  /* Color Palette - Dark & Vibrant Modern Theme */
+  --bg-dark: #0f172a;
+  --bg-card: #1e293b;
+  --bg-card-hover: #334155;
+  --bg-secondary: #0b1120;
+  
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+  
+  --primary: #6366f1;
+  --primary-hover: #4f46e5;
+  --primary-light: rgba(99, 102, 241, 0.15);
+  
+  --accent-cyan: #06b6d4;
+  --accent-emerald: #10b981;
+  --accent-amber: #f59e0b;
+  --accent-rose: #f43f5e;
+  
+  --correct-bg: rgba(16, 185, 129, 0.15);
+  --correct-border: #10b981;
+  --correct-text: #34d399;
+  
+  --incorrect-bg: rgba(244, 63, 94, 0.15);
+  --incorrect-border: #f43f5e;
+  --incorrect-text: #fb7185;
+  
+  --border-color: #334155;
+  --border-light: #475569;
+  
+  /* Fonts */
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  
+  /* Shadows & Radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-full: 9999px;
+  
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.35);
+  
+  --glass-bg: rgba(30, 41, 59, 0.75);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-backdrop: blur(12px);
+}
+
+/* Light Theme Override Variables */
+[data-theme="light"] {
+  --bg-dark: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f1f5f9;
+  --bg-secondary: #e2e8f0;
+  
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --text-dim: #94a3b8;
+  
+  --border-color: #cbd5e1;
+  --border-light: #94a3b8;
+  
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(0, 0, 0, 0.08);
+}
+
+/* Reset & Global */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--bg-dark);
+  color: var(--text-main);
+  line-height: 1.6;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+button {
+  font-family: var(--font-family);
+  cursor: pointer;
+  border: none;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+/* Header Navbar */
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-backdrop);
+  border-bottom: 1px solid var(--glass-border);
+  padding: 0.75rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.brand-icon {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, var(--primary), var(--accent-cyan));
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 1.25rem;
+  box-shadow: var(--shadow-glow);
+}
+
+.brand-text h1 {
+  font-family: var(--font-heading);
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.brand-text p {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.btn-nav {
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 600;
+  background: var(--bg-card);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-nav:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--primary);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+  color: #ffffff;
+  border: none;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-primary:hover {
+  box-shadow: var(--shadow-glow);
+  transform: translateY(-1px);
+}
+
+.btn-danger {
+  background: rgba(244, 63, 94, 0.15);
+  color: var(--accent-rose);
+  border: 1px solid var(--accent-rose);
+}
+
+.btn-danger:hover {
+  background: var(--accent-rose);
+  color: #ffffff;
+}
+
+/* App Container */
+.app-container {
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 1.5rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Mode Selection View */
+.mode-selection-view {
+  max-width: 1000px;
+  margin: 2rem auto;
+  width: 100%;
+}
+
+.hero-banner {
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+
+.hero-banner h2 {
+  font-family: var(--font-heading);
+  font-size: 2.25rem;
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+  background: linear-gradient(135deg, #fff 30%, var(--text-muted));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hero-banner p {
+  color: var(--text-muted);
+  font-size: 1.05rem;
+}
+
+.mode-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.5rem;
+}
+
+.mode-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.mode-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(90deg, var(--primary), var(--accent-cyan));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.mode-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--primary);
+  box-shadow: var(--shadow-lg);
+}
+
+.mode-card:hover::before {
+  opacity: 1;
+}
+
+.mode-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-md);
+  background: var(--primary-light);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.mode-card h3 {
+  font-family: var(--font-heading);
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.mode-card p {
+  color: var(--text-muted);
+  font-size: 0.925rem;
+  margin-bottom: 1.5rem;
+  flex: 1;
+}
+
+.part-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.btn-part-option {
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+.btn-part-option:hover {
+  border-color: var(--accent-cyan);
+  background: var(--primary-light);
+  color: var(--accent-cyan);
+}
+
+/* Audio Player Component */
+.audio-player-bar {
+  position: sticky;
+  top: 65px;
+  z-index: 90;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-backdrop);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1.25rem;
+  box-shadow: var(--shadow-md);
+  margin-bottom: 1.25rem;
+}
+
+.audio-track-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 220px;
+}
+
+.audio-badge {
+  background: var(--primary-light);
+  color: var(--primary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+}
+
+.track-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+
+.audio-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.btn-play-pause {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  background: var(--primary);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  box-shadow: var(--shadow-glow);
+}
+
+.btn-play-pause:hover {
+  background: var(--primary-hover);
+  transform: scale(1.05);
+}
+
+.time-display {
+  font-family: monospace;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  min-width: 80px;
+}
+
+.seeker-container {
+  flex: 1;
+  min-width: 180px;
+  display: flex;
+  align-items: center;
+}
+
+.seeker-bar {
+  width: 100%;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--border-color);
+  border-radius: var(--radius-full);
+  outline: none;
+  cursor: pointer;
+}
+
+.seeker-bar::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.seeker-bar::-webkit-slider-thumb:hover {
+  transform: scale(1.3);
+}
+
+.audio-extras {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.speed-select {
+  background: var(--bg-secondary);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+}
+
+/* Test Workspace Grid Layout */
+.test-workspace {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .test-workspace {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Sidebar Navigation */
+.navigator-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  position: sticky;
+  top: 140px;
+}
+
+.nav-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.nav-header h4 {
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.progress-text {
+  font-size: 0.8rem;
+  color: var(--accent-cyan);
+  font-weight: 600;
+}
+
+.progress-bar-bg {
+  width: 100%;
+  height: 6px;
+  background: var(--border-color);
+  border-radius: var(--radius-full);
+  margin-bottom: 1.25rem;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--accent-cyan));
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+.question-nav-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.5rem;
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.btn-q-nav {
+  height: 38px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  font-weight: 600;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.btn-q-nav:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.btn-q-nav.answered {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.btn-q-nav.current {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 1px;
+}
+
+.btn-q-nav.correct {
+  background: var(--correct-bg);
+  border-color: var(--correct-border);
+  color: var(--correct-text);
+}
+
+.btn-q-nav.incorrect {
+  background: var(--incorrect-bg);
+  border-color: var(--incorrect-border);
+  color: var(--incorrect-text);
+}
+
+.nav-actions-bottom {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.btn-submit-test {
+  width: 100%;
+  padding: 0.85rem;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, var(--accent-emerald), #059669);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.95rem;
+  box-shadow: var(--shadow-md);
+}
+
+.btn-submit-test:hover {
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
+  transform: translateY(-1px);
+}
+
+/* Main Content Area (Multi-Question View) */
+.test-content-area {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Section Header Banners (e.g. Conversation 1, Talk 1) */
+.section-banner {
+  background: linear-gradient(135deg, var(--bg-card), var(--bg-secondary));
+  border: 1px solid var(--border-color);
+  border-left: 5px solid var(--accent-cyan);
+  border-radius: var(--radius-md);
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1rem;
+
+}
+
+.section-banner:first-child {
+  margin-top: 0;
+}
+
+.section-banner-info h3 {
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 0.25rem;
+}
+
+.section-banner-info p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.btn-play-section-audio {
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--primary-light);
+  color: var(--primary);
+  border: 1px solid var(--primary);
+  font-weight: 600;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
+.btn-play-section-audio:hover {
+  background: var(--primary);
+  color: #ffffff;
+}
+
+/* Question Container Card */
+.question-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 1.75rem 2rem;
+  box-shadow: var(--shadow-md);
+  scroll-margin-top: 150px;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.question-card.highlighted {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 20px rgba(6, 182, 212, 0.3);
+}
+
+.question-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.q-badge {
+  background: var(--primary-light);
+  color: var(--primary);
+  padding: 0.35rem 0.85rem;
+  border-radius: var(--radius-full);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.part-tag {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.question-text {
+  font-size: 1.1rem;
+  font-weight: 600;
+  line-height: 1.5;
+  margin-bottom: 1.25rem;
+}
+
+.options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.option-btn {
+  padding: 0.85rem 1.15rem;
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  text-align: left;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  transition: all 0.2s ease;
+}
+
+.option-btn:hover {
+  border-color: var(--primary);
+  background: var(--bg-card-hover);
+}
+
+.option-btn.selected {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
+.option-btn .opt-prefix {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--border-color);
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.option-btn.selected .opt-prefix {
+  background: var(--primary);
+  color: #ffffff;
+}
+
+/* Review Mode Components */
+.review-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 1.75rem 2rem;
+  box-shadow: var(--shadow-md);
+  scroll-margin-top: 150px;
+}
+
+.review-card.is-correct {
+  border-left: 5px solid var(--correct-border);
+}
+
+.review-card.is-incorrect {
+  border-left: 5px solid var(--incorrect-border);
+}
+
+.review-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.status-badge {
+  padding: 0.35rem 0.85rem;
+  border-radius: var(--radius-full);
+  font-size: 0.85rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.status-badge.correct {
+  background: var(--correct-bg);
+  color: var(--correct-text);
+  border: 1px solid var(--correct-border);
+}
+
+.status-badge.incorrect {
+  background: var(--incorrect-bg);
+  color: var(--incorrect-text);
+  border: 1px solid var(--incorrect-border);
+}
+
+.option-btn.review-user-selected {
+  background: var(--incorrect-bg);
+  border-color: var(--incorrect-border);
+  color: var(--incorrect-text);
+}
+
+.option-btn.review-correct {
+  background: var(--correct-bg);
+  border-color: var(--correct-border);
+  color: var(--correct-text);
+  font-weight: 700;
+}
+
+.explanation-box {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 1.15rem;
+  margin-top: 1.15rem;
+}
+
+.explanation-box h5 {
+  color: var(--accent-amber);
+  font-family: var(--font-heading);
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.explanation-box p {
+  font-size: 0.925rem;
+  color: var(--text-main);
+  line-height: 1.6;
+}
+
+.transcript-toggle-area {
+  margin-top: 1.15rem;
+}
+
+.btn-toggle-transcript {
+  padding: 0.55rem 0.95rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  color: var(--accent-cyan);
+  border: 1px solid var(--accent-cyan);
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-toggle-transcript:hover {
+  background: rgba(6, 182, 212, 0.15);
+}
+
+.transcript-content {
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  margin-top: 0.85rem;
+  font-size: 0.925rem;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  display: none;
+}
+
+.transcript-content.visible {
+  display: block;
+}
+
+mark.evidence {
+  background: rgba(245, 158, 11, 0.25);
+  color: #fef08a;
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  border-bottom: 2px solid var(--accent-amber);
+  font-weight: 600;
+}
+
+/* Modal Dialogs */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(8px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.modal-backdrop.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 2.25rem;
+  max-width: 550px;
+  width: 90%;
+  box-shadow: var(--shadow-lg);
+  transform: scale(0.9);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.modal-backdrop.active .modal-card {
+  transform: scale(1);
+}
+
+.modal-title {
+  font-family: var(--font-heading);
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin-bottom: 0.75rem;
+}
+
+.modal-body {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  margin-bottom: 1.75rem;
+}
+
+.score-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin: 1.25rem 0;
+}
+
+.score-stat-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  text-align: center;
+}
+
+.score-stat-card .val {
+  font-family: var(--font-heading);
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--primary);
+}
+
+.score-stat-card .lbl {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.85rem;
+}
+
+/* Utilities */
+.hidden {
+  display: none !important;
+}
+
+/* Footer */
+.footer {
+  text-align: center;
+  padding: 1.5rem;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  border-top: 1px solid var(--border-color);
+  margin-top: 3rem;
+}
+
+
+/* ===== Platform shell (Phase 55): header, exam picker, history ===== */
+#leTop{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--bg-card);
+  border-bottom:1px solid var(--border);font-size:14px;flex-wrap:wrap;font-family:var(--font-body)}
+#leTop .le-brand{display:inline-flex;align-items:center;gap:7px;font-weight:800;color:var(--text-main);text-decoration:none}
+#leTop .le-brand img{border-radius:6px}
+#leTop .le-sep{color:var(--text-muted)}
+#leTop .le-page{color:var(--primary)}
+#leTop .le-spacer{margin-left:auto}
+#leTop .le-who{color:var(--text-muted);font-size:13px}
+#leTop .le-a{color:var(--primary);text-decoration:none;font-size:13px;white-space:nowrap;
+  border:1px solid var(--border);border-radius:8px;padding:5px 10px}
+#leTop .le-a.le-p{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:700}
+@media (max-width:640px){ #leTop .le-page,#leTop .le-who{display:none} }
+.ls-wrap{max-width:1100px;margin:0 auto;padding:2rem 1.25rem}
+.ls-h3{font-family:var(--font-heading);font-size:1rem;color:var(--text-muted);text-transform:uppercase;
+  letter-spacing:.05em;margin:0 0 .9rem}
+.ls-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem}
+.ls-card{position:relative;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);
+  padding:1.1rem 1.2rem;cursor:pointer;transition:transform .15s,box-shadow .15s}
+.ls-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.ls-card:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.ls-card h4{margin:.1rem 0 .25rem;font-family:var(--font-heading);font-size:1.05rem;color:var(--text-main)}
+.ls-card .sub{color:var(--text-muted);font-size:.82rem;margin:0 0 .55rem}
+.ls-card .meta{display:flex;gap:.7rem;flex-wrap:wrap;font-size:.8rem;color:var(--text-muted)}
+.ls-card .pick{margin-top:.7rem;font-weight:700;font-size:.82rem;color:var(--primary)}
+.ls-card.locked{opacity:.85}
+.ls-card.locked::after{content:"🔒";position:absolute;top:.9rem;right:1rem}
+.ls-card.locked .pick{color:var(--text-muted)}
+.ls-tag{display:inline-block;font-size:.7rem;font-weight:800;padding:2px 8px;border-radius:999px}
+.ls-tag.free{background:rgba(16,185,129,.15);color:#10b981}
+.ls-tag.prem{background:linear-gradient(135deg,#f4d68a,#d9a53c);color:#713f12}
+.ls-empty{color:var(--text-muted);font-size:.9rem;padding:1.1rem;border:1px dashed var(--border);
+  border-radius:var(--radius-lg);text-align:center}
+.ls-empty a{color:var(--primary);font-weight:700}
+.ls-table{width:100%;border-collapse:collapse;font-size:.85rem;background:var(--bg-card);
+  border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden}
+.ls-table th{text-align:left;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--text-muted);padding:.55rem .75rem;background:var(--bg-secondary)}
+.ls-table td{padding:.55rem .75rem;border-top:1px solid var(--border)}
+.ls-table .sc{font-weight:800;color:var(--primary)}
+#exam-hist{margin-top:2rem}
+</style>
+</head>
+<body data-theme="dark">
+
+<header id="leTop">
+  <a class="le-brand" href="index.html"><img src="icons/logo-64.png" alt="" width="26" height="26">Learning Ecology</a>
+  <span class="le-sep">·</span>
+  <b class="le-page">Luyện thi VSTEP · Nghe</b>
+  <span class="le-spacer"></span>
+  <span class="le-who" id="leWho"></span>
+  <span id="leAuth" hidden>
+    <a class="le-a" href="login.html">Đăng nhập</a>
+    <a class="le-a le-p" href="login.html">Đăng ký miễn phí</a>
+  </span>
+  <a class="le-a" href="vstep.html">📖 Phần Đọc</a>
+  <a class="le-a" id="leBack" href="dashboard.html">← Bảng điều khiển</a>
+</header>
+
+  <!-- Header Navbar -->
+  <header class="navbar">
+    <div class="brand">
+      <div class="brand-icon">🎧</div>
+      <div class="brand-text">
+        <h1>VSTEP Listening Practice</h1>
+        <p id="ls-brand-sub">VSTEP Listening</p>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <button id="theme-toggle" class="btn-nav">🌙 Dark Mode</button>
+      <button id="btn-pick" class="btn-nav">📚 Chọn đề khác</button>
+      <button id="btn-home" class="btn-nav">🏠 Choose Mode</button>
+      <button id="btn-reset" class="btn-nav btn-danger">↺ Reset Test</button>
+    </div>
+  </header>
+
+  <!-- Main App Container -->
+  <main class="app-container">
+
+    <!-- 0. PICK-A-TEST VIEW (Phase 55) -->
+    <section id="pick-screen" class="ls-wrap">
+      <div class="hero-banner">
+        <h2>Luyện thi VSTEP Listening</h2>
+        <p>Chọn một đề thi bên dưới. Sau khi chọn, bạn có thể luyện từng phần hoặc làm trọn bài thi thử.</p>
+      </div>
+      <div id="exam-pick"></div>
+      <div id="exam-hist"></div>
+    </section>
+
+    <!-- 1. MODE SELECTION VIEW -->
+    <section id="mode-selection-view" class="mode-selection-view hidden">
+      <div class="hero-banner">
+        <h2 id="ls-welcome">VSTEP Listening</h2>
+        <p id="ls-subtitle">Select your preferred preparation mode to begin your practice exam</p>
+      </div>
+
+      <div class="mode-cards-grid">
+
+        <!-- Mode A Card -->
+        <div class="mode-card">
+          <div>
+            <div class="mode-icon">🎯</div>
+            <h3>Mode A: Practice by Part</h3>
+            <p>Practice specific listening parts independently. View all questions in a part at once with section audio players, instant score reviews, and transcript evidence.</p>
+            
+            <div class="part-picker-list" id="part-picker-list"></div>
+          </div>
+        </div>
+
+        <!-- Mode B Card -->
+        <div class="mode-card">
+          <div>
+            <div class="mode-icon">⏱️</div>
+            <h3>Mode B: Full Test Examination</h3>
+            <p id="ls-modeb-desc">Simulate standard VSTEP exam conditions on a single scrollable view with full score analysis.</p>
+          </div>
+          <button id="btn-mode-full" class="btn-primary" style="width: 100%; padding: 1rem; border-radius: var(--radius-md); font-weight: 700; font-size: 1rem; margin-top: 1.5rem;">
+            🚀 Start Full Exam
+          </button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 2. TEST WORKSPACE VIEW -->
+    <section id="test-workspace-view" class="test-workspace-view hidden">
+
+      <!-- Integrated Sticky Audio Player -->
+      <div id="audio-player-bar" class="audio-player-bar">
+        <div class="audio-track-info">
+          <span class="audio-badge">AUDIO</span>
+          <span id="track-name" class="track-name">Select track...</span>
+        </div>
+
+        <div class="audio-controls">
+          <button id="btn-play-pause" class="btn-play-pause" aria-label="Play/Pause">
+            <span id="play-pause-icon">▶</span>
+          </button>
+          <span id="time-display" class="time-display">00:00 / 00:00</span>
+        </div>
+
+        <div class="seeker-container">
+          <input type="range" id="seeker-bar" class="seeker-bar" value="0" min="0" max="100">
+        </div>
+
+        <div class="audio-extras">
+          <label style="font-size: 0.8rem; color: var(--text-muted);">Speed:</label>
+          <select id="speed-select" class="speed-select">
+            <option value="0.75">0.75x</option>
+            <option value="1.0" selected>1.0x (Normal)</option>
+            <option value="1.25">1.25x</option>
+            <option value="1.5">1.5x</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Grid Layout: Sidebar Navigator + Questions Stream -->
+      <div class="test-workspace">
+
+        <!-- Sidebar Navigation -->
+        <aside class="navigator-card">
+          <div class="nav-header">
+            <h4>Question Navigator</h4>
+            <span id="progress-text" class="progress-text">0/35 Answered</span>
+          </div>
+
+          <div class="progress-bar-bg">
+            <div id="progress-bar-fill" class="progress-bar-fill"></div>
+          </div>
+
+          <div id="question-nav-grid" class="question-nav-grid">
+            <!-- Dynamically populated question buttons -->
+          </div>
+
+          <div class="nav-actions-bottom">
+            <button id="btn-submit-test" class="btn-submit-test">
+              ✅ Submit Test & View Score
+            </button>
+          </div>
+        </aside>
+
+        <!-- Main Content Area: Multi-Question Stream -->
+        <div id="questions-container" class="test-content-area">
+          <!-- Dynamically populated with all questions in part / section headers -->
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODALS -->
+
+  <!-- Submit Confirmation Modal -->
+  <div id="submit-modal" class="modal-backdrop">
+    <div class="modal-card">
+      <h3 class="modal-title">Submit Practice Test?</h3>
+      <div id="submit-modal-body" class="modal-body">
+        Are you sure you want to submit your test answers now?
+      </div>
+      <div class="modal-actions">
+        <button id="btn-cancel-submit" class="btn-nav">Cancel</button>
+        <button id="btn-confirm-submit" class="btn-primary" style="padding: 0.6rem 1.2rem; border-radius: var(--radius-md);">Submit Test</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Result Score Modal -->
+  <div id="result-modal" class="modal-backdrop">
+    <div class="modal-card" style="text-align: center;">
+      <h3 class="modal-title">🎉 Test Results Summary</h3>
+      <p style="color: var(--text-muted); font-size: 0.9rem;">Kết quả bài thi Nghe của bạn</p>
+
+      <div class="score-summary-grid">
+        <div class="score-stat-card">
+          <div id="score-val" class="val">0/0</div>
+          <div class="lbl">Correct Answers</div>
+        </div>
+        <div class="score-stat-card">
+          <div id="score-pct" class="val">0%</div>
+          <div class="lbl">Score Percentage</div>
+        </div>
+      </div>
+
+      <div style="background: var(--primary-light); padding: 0.85rem; border-radius: var(--radius-md); border: 1px solid var(--primary); margin-bottom: 1rem;">
+        <span style="font-size: 0.85rem; color: var(--text-muted);">Estimated Proficiency Level:</span>
+        <div id="score-level" style="font-family: var(--font-heading); font-weight: 800; font-size: 1.1rem; color: var(--accent-cyan); margin-top: 0.2rem;">
+          Level 4 (B2)
+        </div>
+      </div>
+
+      <div id="breakdown-container"></div>
+
+      <div class="modal-actions" style="justify-content: center; margin-top: 1.5rem;">
+        <button id="btn-close-result" class="btn-primary" style="padding: 0.75rem 2rem; border-radius: var(--radius-md);">
+          🔍 Review Detailed Answers & Transcripts
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reset Confirmation Modal -->
+  <div id="reset-modal" class="modal-backdrop">
+    <div class="modal-card">
+      <h3 class="modal-title" style="color: var(--accent-rose);">Reset Test Progress?</h3>
+      <div class="modal-body">
+        This action will permanently erase all saved answers and progress for Test 1. Are you sure you want to reset?
+      </div>
+      <div class="modal-actions">
+        <button id="btn-cancel-reset" class="btn-nav">Cancel</button>
+        <button id="btn-confirm-reset" class="btn-danger" style="padding: 0.6rem 1.2rem; border-radius: var(--radius-md);">Confirm Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>VSTEP Listening Preparation System — Built for High-Scoring Excellence</p>
+  </footer>
+
+  <script>
+/**
+ * Custom Audio Player Engine for VSTEP Listening Platform
+ */
+class VstepAudioPlayer {
+  constructor() {
+    this.audio = new Audio();
+    this.currentTrackUrl = '';
+    this.isPlaying = false;
+
+    this.elements = {
+      playerBar: null,
+      trackName: null,
+      playPauseBtn: null,
+      playPauseIcon: null,
+      timeDisplay: null,
+      seekerBar: null,
+      volumeSlider: null,
+      speedSelect: null
+    };
+
+    this._bindEvents();
+  }
+
+  init(domElements) {
+    this.elements = { ...this.elements, ...domElements };
+    this._attachDomListeners();
+  }
+
+  _bindEvents() {
+    this.audio.addEventListener('timeupdate', () => this._onTimeUpdate());
+    this.audio.addEventListener('loadedmetadata', () => this._onMetadataLoaded());
+    this.audio.addEventListener('ended', () => this._onAudioEnded());
+    this.audio.addEventListener('play', () => this._setPlayState(true));
+    this.audio.addEventListener('pause', () => this._setPlayState(false));
+  }
+
+  _attachDomListeners() {
+    if (this.elements.playPauseBtn) {
+      this.elements.playPauseBtn.addEventListener('click', () => this.togglePlay());
+    }
+
+    if (this.elements.seekerBar) {
+      this.elements.seekerBar.addEventListener('input', (e) => {
+        const seekTime = (e.target.value / 100) * (this.audio.duration || 0);
+        this.audio.currentTime = seekTime;
+      });
+    }
+
+    if (this.elements.speedSelect) {
+      this.elements.speedSelect.addEventListener('change', (e) => {
+        this.audio.playbackRate = parseFloat(e.target.value);
+      });
+    }
+  }
+
+  loadTrack(url, trackTitle) {
+    if (this.currentTrackUrl === url) return;
+
+    this.currentTrackUrl = url;
+    this.audio.src = url;
+    this.audio.load();
+
+    if (this.elements.trackName) {
+      this.elements.trackName.textContent = trackTitle || 'Listening Audio';
+    }
+
+    if (this.elements.seekerBar) {
+      this.elements.seekerBar.value = 0;
+    }
+    this._updateTimeDisplay(0, 0);
+  }
+
+  play() {
+    if (!this.currentTrackUrl) return;
+    this.audio.play().catch(err => console.warn('Audio play prevented:', err));
+  }
+
+  pause() {
+    this.audio.pause();
+  }
+
+  togglePlay() {
+    if (this.isPlaying) {
+      this.pause();
+    } else {
+      this.play();
+    }
+  }
+
+  _setPlayState(playing) {
+    this.isPlaying = playing;
+    if (this.elements.playPauseIcon) {
+      this.elements.playPauseIcon.textContent = playing ? '⏸' : '▶';
+    }
+  }
+
+  _onMetadataLoaded() {
+    this._updateTimeDisplay(this.audio.currentTime, this.audio.duration);
+  }
+
+  _onTimeUpdate() {
+    if (!this.audio.duration) return;
+    const progress = (this.audio.currentTime / this.audio.duration) * 100;
+    if (this.elements.seekerBar) {
+      this.elements.seekerBar.value = progress;
+    }
+    this._updateTimeDisplay(this.audio.currentTime, this.audio.duration);
+  }
+
+  _onAudioEnded() {
+    this._setPlayState(false);
+    if (this.onTrackEnded) {
+      this.onTrackEnded();
+    }
+  }
+
+  _updateTimeDisplay(current, duration) {
+    if (!this.elements.timeDisplay) return;
+    const curStr = this._formatTime(current);
+    const durStr = this._formatTime(duration);
+    this.elements.timeDisplay.textContent = `${curStr} / ${durStr}`;
+  }
+
+  _formatTime(seconds) {
+    if (isNaN(seconds) || seconds < 0) return '00:00';
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+}
+
+// Global Audio Player Singleton
+window.vstepAudioPlayer = new VstepAudioPlayer();
+
+/**
+ * Test Engine for VSTEP Listening Platform
+ */
+class VstepTestEngine {
+  constructor(testData) {
+    this.data = testData;
+    
+    // Flat map of all 35 questions with metadata
+    this.allQuestions = [];
+    this._flattenQuestions();
+
+    // State
+    this.mode = 'none'; // 'practice' | 'full'
+    this.currentPartId = 1; // 1, 2, or 3
+    this.answers = {}; // { globalId: 'A'|'B'|'C'|'D' }
+    this.isSubmitted = false;
+    this.reviewMode = false;
+
+    this.STORAGE_KEY = `vstep_l_${(window.__VNS||'anon')}_${this.data.testId}`;
+    this.loadState();
+  }
+
+  _flattenQuestions() {
+    this.allQuestions = [];
+    this.data.parts.forEach(part => {
+      if (part.questions) {
+        part.questions.forEach(q => {
+          this.allQuestions.push({
+            ...q,
+            partId: part.id,
+            partTitle: part.title,
+            audioUrl: part.audioUrl || (part.sections && part.sections[0] ? part.sections[0].audioUrl : '')
+          });
+        });
+      } else if (part.sections) {
+        part.sections.forEach(sec => {
+          sec.questions.forEach(q => {
+            this.allQuestions.push({
+              ...q,
+              partId: part.id,
+              partTitle: part.title,
+              sectionTitle: sec.title,
+              audioUrl: sec.audioUrl || part.audioUrl || '',
+              sectionTranscript: sec.transcript
+            });
+          });
+        });
+      }
+    });
+  }
+
+  setMode(mode, partId = 1) {
+    this.mode = mode;
+    this.currentPartId = partId;
+    this.isSubmitted = false;
+    this.reviewMode = false;
+    this.saveState();
+  }
+
+  getActiveQuestions() {
+    if (this.mode === 'practice') {
+      return this.allQuestions.filter(q => q.partId === this.currentPartId);
+    }
+    return this.allQuestions;
+  }
+
+  selectAnswer(globalId, optionLetter) {
+    if (this.isSubmitted && !this.reviewMode) return;
+    this.answers[globalId] = optionLetter;
+    this.saveState();
+  }
+
+  getAnswer(globalId) {
+    return this.answers[globalId] || null;
+  }
+
+  submitTest() {
+    this.isSubmitted = true;
+    this.reviewMode = true;
+    this.saveState();
+    return this.calculateResults();
+  }
+
+  calculateResults() {
+    const targetQuestions = this.getActiveQuestions();
+    let correctCount = 0;
+
+    /* Dựng theo CHÍNH các phần của đề, không cố định part1..part3 —
+       đề 4 phần vẫn thống kê đủ. */
+    const breakdown = {};
+    (this.data.parts || []).forEach(p => {
+      breakdown['part' + p.id] = { total: 0, correct: 0, title: p.title };
+    });
+
+    targetQuestions.forEach(q => {
+      const userAns = this.answers[q.globalId];
+      const isCorrect = userAns === q.correctAnswer;
+      if (isCorrect) correctCount++;
+
+      const partKey = `part${q.partId}`;
+      if (breakdown[partKey]) {
+        breakdown[partKey].total++;
+        if (isCorrect) breakdown[partKey].correct++;
+      }
+    });
+
+    const totalCount = targetQuestions.length;
+    const percentage = Math.round((correctCount / totalCount) * 100);
+
+    return {
+      total: totalCount,
+      correct: correctCount,
+      incorrect: totalCount - correctCount,
+      percentage,
+      breakdown,
+      level: this._evalVstepLevel(percentage)
+    };
+  }
+
+  _evalVstepLevel(percentage) {
+    if (percentage >= 85) return 'Level 5 (C1 - Expert)';
+    if (percentage >= 70) return 'Level 4 (B2 - High Competent)';
+    if (percentage >= 50) return 'Level 3 (B1 - Intermediate)';
+    return 'Below B1 (Needs Practice)';
+  }
+
+  saveState() {
+    try {
+      const state = {
+        mode: this.mode,
+        currentPartId: this.currentPartId,
+        answers: this.answers,
+        isSubmitted: this.isSubmitted,
+        reviewMode: this.reviewMode
+      };
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state));
+    } catch (e) {
+      console.warn('Could not save state to localStorage', e);
+    }
+  }
+
+  loadState() {
+    try {
+      const raw = localStorage.getItem(this.STORAGE_KEY);
+      if (raw) {
+        const state = JSON.parse(raw);
+        this.mode = state.mode || 'none';
+        this.currentPartId = state.currentPartId || 1;
+        this.answers = state.answers || {};
+        this.isSubmitted = state.isSubmitted || false;
+        this.reviewMode = state.reviewMode || false;
+      }
+    } catch (e) {
+      console.warn('Could not load state from localStorage', e);
+    }
+  }
+
+  resetTest() {
+    this.mode = 'none';
+    this.answers = {};
+    this.isSubmitted = false;
+    this.reviewMode = false;
+    localStorage.removeItem(this.STORAGE_KEY);
+  }
+}
+
+// Global Engine Instance
+window.vstepEngine = null;
+
+/**
+ * VSTEP Listening Platform Application Logic & View Controller
+ * Displays all questions in a part at once for a seamless student experience.
+ */
+
+/* Phase 55: KHÔNG tự chạy khi trang mở. Nội dung đề nằm trong cơ sở dữ liệu
+   và chỗ lưu tiến độ gắn với học viên, nên lớp nền tảng ở cuối tệp sẽ gọi
+   bootEngine(data) đúng lúc. */
+let LISTEN_DATA = null, engine = null;
+function bootEngine(data) {
+  LISTEN_DATA = data;
+  engine = new VstepTestEngine(data);
+  window.vstepEngine = engine;
+
+  // DOM Elements
+  const modeSelectionView = document.getElementById('mode-selection-view');
+  const testWorkspaceView = document.getElementById('test-workspace-view');
+  const btnHome = document.getElementById('btn-home');
+  const btnReset = document.getElementById('btn-reset');
+  const themeToggle = document.getElementById('theme-toggle');
+
+  // Audio Player Elements
+  const playerElements = {
+    playerBar: document.getElementById('audio-player-bar'),
+    trackName: document.getElementById('track-name'),
+    playPauseBtn: document.getElementById('btn-play-pause'),
+    playPauseIcon: document.getElementById('play-pause-icon'),
+    timeDisplay: document.getElementById('time-display'),
+    seekerBar: document.getElementById('seeker-bar'),
+    speedSelect: document.getElementById('speed-select')
+  };
+
+  window.vstepAudioPlayer.init(playerElements);
+
+  // Question & Navigation Containers
+  const questionsContainer = document.getElementById('questions-container');
+  const questionNavGrid = document.getElementById('question-nav-grid');
+  const progressText = document.getElementById('progress-text');
+  const progressBarFill = document.getElementById('progress-bar-fill');
+  const btnSubmitTest = document.getElementById('btn-submit-test');
+
+  // Modals
+  const submitModal = document.getElementById('submit-modal');
+  const submitModalBody = document.getElementById('submit-modal-body');
+  const btnConfirmSubmit = document.getElementById('btn-confirm-submit');
+  const btnCancelSubmit = document.getElementById('btn-cancel-submit');
+
+  const resultModal = document.getElementById('result-modal');
+  const scoreVal = document.getElementById('score-val');
+  const scorePct = document.getElementById('score-pct');
+  const scoreLevel = document.getElementById('score-level');
+  const breakdownContainer = document.getElementById('breakdown-container');
+  const btnCloseResult = document.getElementById('btn-close-result');
+
+  const resetModal = document.getElementById('reset-modal');
+  const btnConfirmReset = document.getElementById('btn-confirm-reset');
+  const btnCancelReset = document.getElementById('btn-cancel-reset');
+
+  // Theme Toggle
+  themeToggle.addEventListener('click', () => {
+    const currentTheme = document.body.getAttribute('data-theme');
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    document.body.setAttribute('data-theme', newTheme);
+    themeToggle.textContent = newTheme === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode';
+  });
+
+  /* Danh sách phần dựng từ chính đề: số phần, tên phần và số câu đều lấy
+     từ dữ liệu, không viết cứng "Part 1 … (8 Questions)" nữa. */
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const countOf = p => p.questions ? p.questions.length
+                     : (p.sections || []).reduce((a, s) => a + (s.questions || []).length, 0);
+  const picker = document.getElementById('part-picker-list');
+  if (picker) picker.innerHTML = (data.parts || []).map(p =>
+    `<button class="btn-part-option" data-part="${p.id}"><span>${esc(p.title)} (${countOf(p)} Questions)</span><span>→</span></button>`).join('');
+  const totalQ = (data.parts || []).reduce((a, p) => a + countOf(p), 0);
+  const setTxt = (sel, t) => { const e = document.querySelector(sel); if (e) e.textContent = t; };
+  setTxt('#ls-welcome', data.title || 'VSTEP Listening');
+  setTxt('#ls-subtitle', data.subtitle || '');
+  setTxt('#ls-brand-sub', data.title || 'VSTEP Listening');
+  setTxt('#btn-mode-full', `🚀 Start Full ${totalQ}-Question Exam`);
+  setTxt('#ls-modeb-desc', `Simulate standard VSTEP exam conditions with all ${totalQ} questions organised by part on a single scrollable view with full score analysis.`);
+
+  // Mode Selection Handlers
+  document.querySelectorAll('.btn-part-option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const partId = parseInt(btn.getAttribute('data-part'), 10);
+      engine.setMode('practice', partId);
+      renderState();
+    });
+  });
+
+  document.getElementById('btn-mode-full').addEventListener('click', () => {
+    engine.setMode('full');
+    renderState();
+  });
+
+  btnHome.addEventListener('click', () => {
+    modeSelectionView.classList.remove('hidden');
+    testWorkspaceView.classList.add('hidden');
+  });
+
+  btnReset.addEventListener('click', () => {
+    resetModal.classList.add('active');
+  });
+
+  btnCancelReset.addEventListener('click', () => {
+    resetModal.classList.remove('active');
+  });
+
+  btnConfirmReset.addEventListener('click', () => {
+    resetModal.classList.remove('active');
+    engine.resetTest();
+    renderState();
+  });
+
+  // Submission Handlers
+  btnSubmitTest.addEventListener('click', () => {
+    const activeQs = engine.getActiveQuestions();
+    let answeredCount = 0;
+    activeQs.forEach(q => {
+      if (engine.getAnswer(q.globalId)) answeredCount++;
+    });
+
+    const unanswered = activeQs.length - answeredCount;
+
+    if (unanswered > 0) {
+      submitModalBody.textContent = `You have answered ${answeredCount} out of ${activeQs.length} questions. There are ${unanswered} unanswered question(s). Are you sure you want to submit?`;
+    } else {
+      submitModalBody.textContent = `You have answered all ${activeQs.length} questions. Are you ready to submit and calculate your score?`;
+    }
+
+    submitModal.classList.add('active');
+  });
+
+  btnCancelSubmit.addEventListener('click', () => {
+    submitModal.classList.remove('active');
+  });
+
+  btnConfirmSubmit.addEventListener('click', () => {
+    submitModal.classList.remove('active');
+    const results = engine.submitTest();
+    if (window.onVstepSubmit) window.onVstepSubmit(results);   // ghi kết quả vào tài khoản
+    showResultsModal(results);
+    renderState();
+  });
+
+  btnCloseResult.addEventListener('click', () => {
+    resultModal.classList.remove('active');
+  });
+
+  // Main Render Controller
+  function renderState() {
+    if (engine.mode === 'none') {
+      modeSelectionView.classList.remove('hidden');
+      testWorkspaceView.classList.add('hidden');
+      return;
+    }
+
+    modeSelectionView.classList.add('hidden');
+    testWorkspaceView.classList.remove('hidden');
+
+    // Auto load audio for active part
+    const activeQs = engine.getActiveQuestions();
+    if (activeQs.length > 0) {
+      const firstQ = activeQs[0];
+      let trackTitle = firstQ.partTitle;
+      if (firstQ.sectionTitle) trackTitle += ` - ${firstQ.sectionTitle}`;
+      window.vstepAudioPlayer.loadTrack(firstQ.audioUrl, trackTitle);
+    }
+
+    if (engine.reviewMode) {
+      renderFullReviewView();
+    } else {
+      renderMultiQuestionView();
+    }
+
+    renderNavGrid();
+  }
+
+  /**
+   * Renders ALL questions in the active part / full test simultaneously in vertical order.
+   */
+  function renderMultiQuestionView() {
+    const activeQs = engine.getActiveQuestions();
+    questionsContainer.innerHTML = '';
+
+    let currentSectionTitle = '';
+    let currentPartTitle = '';
+
+    activeQs.forEach((q) => {
+      // If Part changes in Full Test mode, render Part Header
+      if (engine.mode === 'full' && q.partTitle !== currentPartTitle) {
+        currentPartTitle = q.partTitle;
+        const partBanner = document.createElement('div');
+        partBanner.className = 'section-banner';
+        partBanner.style.borderLeftColor = 'var(--primary)';
+        partBanner.style.background = 'linear-gradient(135deg, var(--bg-card), var(--primary-light))';
+        partBanner.innerHTML = `
+          <div class="section-banner-info">
+            <h3 style="font-size: 1.3rem; color: #ffffff;">${q.partTitle}</h3>
+            <p>${partRange(q.partId)}</p>
+          </div>
+        `;
+        questionsContainer.appendChild(partBanner);
+      }
+
+      // If Section/Conversation changes, render Section Banner
+      if (q.sectionTitle && q.sectionTitle !== currentSectionTitle) {
+        currentSectionTitle = q.sectionTitle;
+        const secBanner = document.createElement('div');
+        secBanner.className = 'section-banner';
+        secBanner.innerHTML = `
+          <div class="section-banner-info">
+            <h3>🎧 ${q.sectionTitle}</h3>
+            <p>Listen to the recording and answer the questions below</p>
+          </div>
+          ${q.audioUrl ? `
+            <button class="btn-play-section-audio" data-url="${q.audioUrl}" data-title="${q.partTitle} - ${q.sectionTitle}">
+              ▶ Play Audio Track
+            </button>
+          ` : ''}
+        `;
+        questionsContainer.appendChild(secBanner);
+      }
+
+      // Create Question Card
+      const qCard = document.createElement('div');
+      qCard.className = 'question-card';
+      qCard.id = `q-card-${q.globalId}`;
+
+      const selectedOpt = engine.getAnswer(q.globalId);
+
+      let optionsHtml = '';
+      q.options.forEach(optStr => {
+        const match = optStr.match(/^([A-D])\.\s*(.*)/);
+        const letter = match ? match[1] : optStr.charAt(0);
+        const text = match ? match[2] : optStr;
+
+        const isSelected = selectedOpt === letter;
+        optionsHtml += `
+          <button class="option-btn ${isSelected ? 'selected' : ''}" data-global-id="${q.globalId}" data-letter="${letter}">
+            <span class="opt-prefix">${letter}</span>
+            <span class="opt-text">${text}</span>
+          </button>
+        `;
+      });
+
+      qCard.innerHTML = `
+        <div class="question-header">
+          <span class="q-badge">Question ${engine.mode === 'practice' ? q.id : q.globalId}</span>
+          <span class="part-tag">${q.partTitle}</span>
+        </div>
+        <div class="question-text">${q.globalId}. ${q.question}</div>
+        <div class="options-list">${optionsHtml}</div>
+      `;
+
+      questionsContainer.appendChild(qCard);
+    });
+
+    // Wire up option selection clicks
+    questionsContainer.querySelectorAll('.option-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const globalId = parseInt(btn.getAttribute('data-global-id'), 10);
+        const letter = btn.getAttribute('data-letter');
+        engine.selectAnswer(globalId, letter);
+
+        // Update option buttons state within this question card
+        const card = document.getElementById(`q-card-${globalId}`);
+        if (card) {
+          card.querySelectorAll('.option-btn').forEach(ob => {
+            if (ob.getAttribute('data-letter') === letter) {
+              ob.classList.add('selected');
+            } else {
+              ob.classList.remove('selected');
+            }
+          });
+        }
+
+        renderNavGrid();
+      });
+    });
+
+    // Wire up section audio buttons
+    questionsContainer.querySelectorAll('.btn-play-section-audio').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const url = btn.getAttribute('data-url');
+        const title = btn.getAttribute('data-title');
+        window.vstepAudioPlayer.loadTrack(url, title);
+        window.vstepAudioPlayer.play();
+      });
+    });
+  }
+
+  /**
+   * Renders ALL questions in Answer Review Mode with explanations and evidence transcripts.
+   */
+  function renderFullReviewView() {
+    const activeQs = engine.getActiveQuestions();
+    questionsContainer.innerHTML = `
+      <div style="background: var(--bg-card); padding: 1.5rem; border-radius: var(--radius-lg); border: 1px solid var(--border-color); margin-bottom: 1.5rem;">
+        <h3 style="font-family: var(--font-heading); font-size: 1.4rem; margin-bottom: 0.5rem; color: var(--accent-cyan);">
+          🔍 Detailed Answer Review & Learning Mode
+        </h3>
+        <p style="color: var(--text-muted); font-size: 0.95rem;">
+          Examine educational explanations, listening transcripts, and highlighted key evidence for every question below.
+        </p>
+      </div>
+    `;
+
+    activeQs.forEach((q) => {
+      const userAns = engine.getAnswer(q.globalId);
+      const isCorrect = userAns === q.correctAnswer;
+
+      const card = document.createElement('div');
+      card.className = `review-card ${isCorrect ? 'is-correct' : 'is-incorrect'}`;
+      card.id = `q-card-${q.globalId}`;
+
+      let optionsHtml = '';
+      q.options.forEach(optStr => {
+        const match = optStr.match(/^([A-D])\.\s*(.*)/);
+        const letter = match ? match[1] : optStr.charAt(0);
+        const text = match ? match[2] : optStr;
+
+        let optClass = 'option-btn';
+        if (letter === q.correctAnswer) {
+          optClass += ' review-correct';
+        } else if (userAns === letter) {
+          optClass += ' review-user-selected';
+        }
+
+        optionsHtml += `
+          <div class="${optClass}" style="cursor: default;">
+            <span class="opt-prefix">${letter}</span>
+            <span class="opt-text">${text}</span>
+            ${letter === q.correctAnswer ? '<span style="margin-left: auto; color: var(--correct-text); font-weight: 700;">✓ Correct Answer</span>' : ''}
+            ${userAns === letter && !isCorrect ? '<span style="margin-left: auto; color: var(--incorrect-text); font-weight: 700;">✗ Your Answer</span>' : ''}
+          </div>
+        `;
+      });
+
+      const transcriptText = q.sectionTranscript || q.transcript || '';
+      let highlightedTranscript = transcriptText;
+
+      if (q.evidence && transcriptText.includes(q.evidence)) {
+        highlightedTranscript = transcriptText.replace(
+          q.evidence,
+          `<mark class="evidence">${q.evidence}</mark>`
+        );
+      }
+
+      card.innerHTML = `
+        <div class="review-status-bar">
+          <span class="q-badge">Question ${engine.mode === 'practice' ? q.id : q.globalId}</span>
+          <span class="status-badge ${isCorrect ? 'correct' : 'incorrect'}">
+            ${isCorrect ? '✓ Correct (+1 point)' : `✗ Incorrect (Your Answer: ${userAns || 'None'})`}
+          </span>
+        </div>
+        <div class="question-text">${q.globalId}. ${q.question}</div>
+        <div class="options-list">${optionsHtml}</div>
+
+        <div class="explanation-box">
+          <h5>💡 Educational Explanation</h5>
+          <p>${q.explanation}</p>
+        </div>
+
+        <div class="transcript-toggle-area">
+          <button class="btn-toggle-transcript" id="btn-trans-${q.globalId}">
+            📜 Show Listening Transcript & Key Evidence
+          </button>
+          <button class="btn-toggle-transcript" id="btn-audio-${q.globalId}" style="margin-left: 0.5rem; color: var(--primary); border-color: var(--primary);">
+            ▶ Play Audio Segment
+          </button>
+          <div class="transcript-content" id="trans-content-${q.globalId}">
+            <h6 style="color: var(--accent-cyan); font-weight: 700; margin-bottom: 0.5rem;">Transcript:</h6>
+            <div>${highlightedTranscript}</div>
+          </div>
+        </div>
+      `;
+
+      questionsContainer.appendChild(card);
+
+      // Wire up transcript toggle and audio replay
+      setTimeout(() => {
+        const btnTrans = document.getElementById(`btn-trans-${q.globalId}`);
+        const transContent = document.getElementById(`trans-content-${q.globalId}`);
+        const btnAudio = document.getElementById(`btn-audio-${q.globalId}`);
+
+        if (btnTrans && transContent) {
+          btnTrans.addEventListener('click', () => {
+            const isVisible = transContent.classList.contains('visible');
+            if (isVisible) {
+              transContent.classList.remove('visible');
+              btnTrans.textContent = '📜 Show Listening Transcript & Key Evidence';
+            } else {
+              transContent.classList.add('visible');
+              btnTrans.textContent = '📜 Hide Listening Transcript';
+            }
+          });
+        }
+
+        if (btnAudio) {
+          btnAudio.addEventListener('click', () => {
+            let trackTitle = q.partTitle;
+            if (q.sectionTitle) trackTitle += ` - ${q.sectionTitle}`;
+            window.vstepAudioPlayer.loadTrack(q.audioUrl, trackTitle);
+            window.vstepAudioPlayer.play();
+          });
+        }
+      }, 0);
+    });
+  }
+
+  /**
+   * Renders sidebar navigator grid. Clicking any button scrolls directly to that question.
+   */
+  function renderNavGrid() {
+    const activeQs = engine.getActiveQuestions();
+    let answeredCount = 0;
+
+    questionNavGrid.innerHTML = '';
+
+    activeQs.forEach((q) => {
+      const isAnswered = !!engine.getAnswer(q.globalId);
+      if (isAnswered) answeredCount++;
+
+      const btnNav = document.createElement('button');
+
+      let navClass = 'btn-q-nav';
+      if (engine.reviewMode) {
+        const userAns = engine.getAnswer(q.globalId);
+        const isCorrect = userAns === q.correctAnswer;
+        navClass += isCorrect ? ' correct' : ' incorrect';
+      } else if (isAnswered) {
+        navClass += ' answered';
+      }
+
+      btnNav.className = navClass;
+      btnNav.textContent = engine.mode === 'practice' ? q.id : q.globalId;
+
+      // Scroll smoothly to question card when clicked
+      btnNav.addEventListener('click', () => {
+        const targetCard = document.getElementById(`q-card-${q.globalId}`);
+        if (targetCard) {
+          targetCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          targetCard.classList.add('highlighted');
+          setTimeout(() => targetCard.classList.remove('highlighted'), 1500);
+        }
+      });
+
+      questionNavGrid.appendChild(btnNav);
+    });
+
+    const pct = Math.round((answeredCount / activeQs.length) * 100);
+    progressText.textContent = `${answeredCount}/${activeQs.length} Answered (${pct}%)`;
+    progressBarFill.style.width = `${pct}%`;
+  }
+
+  function showResultsModal(results) {
+    scoreVal.textContent = `${results.correct} / ${results.total}`;
+    scorePct.textContent = `${results.percentage}%`;
+    scoreLevel.textContent = results.level;
+
+    let bHtml = '';
+    if (engine.mode === 'full') {
+      const rows = (LISTEN_DATA.parts || []).map(p => {
+        const b = results.breakdown['part' + p.id];
+        if (!b) return '';
+        return `<div style="display:flex;justify-content:space-between;background:var(--bg-secondary);padding:0.5rem 0.75rem;border-radius:var(--radius-sm);">
+            <span>${escHtml(p.title)}</span><strong>${b.correct} / ${b.total}</strong></div>`;
+      }).join('');
+      bHtml = `
+        <div style="margin-top: 1rem; text-align: left;">
+          <h5 style="font-family: var(--font-heading); font-size: 1rem; color: var(--text-main); margin-bottom: 0.75rem;">Section Breakdown:</h5>
+          <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.9rem;">${rows}</div>
+        </div>`;
+    }
+
+    breakdownContainer.innerHTML = bHtml;
+    resultModal.classList.add('active');
+  }
+
+  // Initial Render
+  renderState();
+}
+
+/* dải câu hỏi của một phần, tính từ dữ liệu */
+function partRange(partId) {
+  const qs = (window.vstepEngine ? window.vstepEngine.allQuestions : []).filter(q => q.partId === partId);
+  if (!qs.length) return '';
+  const p = (LISTEN_DATA.parts || []).find(x => x.id === partId) || {};
+  return (p.shortName || 'Questions') + ' ' + qs[0].globalId + '–' + qs[qs.length - 1].globalId;
+}
+function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+
+/* ==========================================================================
+   PLATFORM LAYER (Phase 55) — VSTEP Listening
+   Bọc ngoài bộ máy làm bài mà không đổi cách nó chạy. Lớp này lo:
+     • học viên là ai (hoặc đang là khách),
+     • kho đề lấy từ cơ sở dữ liệu thay vì nằm trong tệp,
+     • đề Miễn phí / Premium dùng popup chung của cả trang,
+     • tiến độ và kết quả gắn với tài khoản.
+   Bộ máy chấm điểm, trình phát âm thanh và phần xem lại kèm lời thoại
+   vẫn là mã gốc của thầy, không sửa.
+   ========================================================================== */
+const DB = (typeof sb !== "undefined" && sb) ? sb : (window.sb || null);
+const VKIND = "vstep-listening";
+let VUSER = null, VGUEST = true, VSTAFF = false, VPREMIUM = false;
+let VEXAMS = [], VENTITLED = new Set(), VEXAM_ID = "";
+let pushT = null;
+
+const pickScreen = () => document.getElementById("pick-screen");
+const modeScreen = () => document.getElementById("mode-selection-view");
+const workScreen = () => document.getElementById("test-workspace-view");
+
+function showOnly(el) {
+  [pickScreen(), modeScreen(), workScreen()].forEach(x => x && x.classList.add("hidden"));
+  if (el) el.classList.remove("hidden");
+  window.scrollTo(0, 0);
+}
+function goPick() { showOnly(pickScreen()); }
+
+/* ---- tiến độ: bộ máy tự lưu vào localStorage, ta đẩy bản sao lên mây ---- */
+function schedulePush() {
+  if (VGUEST || !DB || !VEXAM_ID) return;
+  clearTimeout(pushT);
+  pushT = setTimeout(pushProgress, 3000);
+}
+async function pushProgress() {
+  if (VGUEST || !DB || !VEXAM_ID || !window.vstepEngine) return;
+  try {
+    await DB.from("vsat_progress").upsert({
+      student_id: VUSER.id, exam_id: VEXAM_ID,
+      practice: {},
+      test_state: { listening: JSON.parse(localStorage.getItem(window.vstepEngine.STORAGE_KEY) || "null") },
+      updated_at: new Date().toISOString()
+    }, { onConflict: "student_id,exam_id" });
+  } catch (e) { /* ngoại tuyến: bản trên máy vẫn đúng */ }
+}
+async function pullProgress(examId, storageKey) {
+  if (VGUEST || !DB) return;
+  try {
+    const { data } = await DB.from("vsat_progress").select("test_state")
+      .eq("student_id", VUSER.id).eq("exam_id", examId).maybeSingle();
+    const t = (data && data.test_state) || {};
+    if (t.listening && typeof t.listening === "object")
+      localStorage.setItem(storageKey, JSON.stringify(t.listening));
+  } catch (e) {}
+}
+
+/* ---- kho đề ---- */
+async function loadExamList() {
+  if (!DB) return [];
+  try {
+    const { data, error } = await DB.rpc("public_vsat_list", { p_kind: VKIND });
+    if (error) throw error;
+    VEXAMS = Array.isArray(data) ? data : [];
+  } catch (e) { VEXAMS = []; }
+  return VEXAMS;
+}
+async function fetchExam(examId) {
+  if (!DB) return null;
+  try {
+    const { data, error } = await DB.from("vsat_exams").select("data").eq("exam_id", examId).maybeSingle();
+    if (error || !data) return null;
+    return data.data || null;
+  } catch (e) { return null; }
+}
+function examMeta(id) { return VEXAMS.find(e => e.exam_id === id) || null; }
+function canOpen(m) { return m && (!m.premium || VSTAFF || VPREMIUM || VENTITLED.has(m.exam_id)); }
+
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+function renderExamPick() {
+  const box = document.getElementById("exam-pick");
+  if (!box) return;
+  if (!VEXAMS.length) {
+    box.innerHTML = '<div class="ls-empty">Chưa có đề Nghe nào được đăng. ' +
+      (VSTAFF ? 'Vào <b>Bảng điều khiển → VSTEP → 🎧 Nghe</b> để tải đề lên.' : 'Vui lòng quay lại sau.') + "</div>";
+    return;
+  }
+  box.innerHTML = '<div class="ls-grid">' + VEXAMS.map(m => {
+    const open = canOpen(m);
+    return '<div class="ls-card' + (open ? "" : " locked") + '" role="button" tabindex="0" data-exam="' + esc(m.exam_id) + '">' +
+      '<span class="ls-tag ' + (m.premium ? "prem" : "free") + '">' + (m.premium ? "👑 Premium" : "Miễn phí") + "</span>" +
+      "<h4>" + esc(m.title || m.exam_id) + "</h4>" +
+      (m.subtitle ? '<p class="sub">' + esc(m.subtitle) + "</p>" : "") +
+      '<div class="meta">' + (m.questions ? "<span>🎧 " + m.questions + " câu</span>" : "") + "</div>" +
+      '<div class="pick">' + (open ? "Chọn đề này →" : "Mở khoá để làm bài →") + "</div></div>";
+  }).join("") + "</div>";
+}
+
+async function chooseExam(examId) {
+  const m = examMeta(examId);
+  if (!m) return;
+  if (!canOpen(m)) {
+    if (window.Premium) Premium.open({ section: "vstep", reason: "Đề Nghe này thuộc khoá luyện thi VSTEP." });
+    else alert("Đề này cần khoá luyện thi VSTEP.");
+    return;
+  }
+  const exam = await fetchExam(examId);
+  if (!exam) { alert("Không mở được đề — kiểm tra kết nối."); return; }
+  VEXAM_ID = examId;
+  /* kéo tiến độ về TRƯỚC khi dựng bộ máy, vì loadState() chạy ngay trong
+     hàm khởi tạo của nó */
+  const key = "vstep_l_" + (window.__VNS || "anon") + "_" + (exam.testId || examId);
+  if (!VGUEST) await pullProgress(examId, key);
+  bootEngine(exam);
+  showOnly(modeScreen());
+}
+document.addEventListener("click", e => {
+  const c = e.target.closest && e.target.closest(".ls-card");
+  if (c) chooseExam(c.dataset.exam);
+});
+document.addEventListener("keydown", e => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const t = e.target;
+  if (t && t.classList && t.classList.contains("ls-card")) { e.preventDefault(); chooseExam(t.dataset.exam); }
+});
+
+/* ---- nộp bài: ghi vào bảng kết quả chung của cả trang ---- */
+window.onVstepSubmit = async function (results) {
+  schedulePush();
+  if (VGUEST || !DB || !VEXAM_ID || !results) return;
+  /* quy về thang 10 cho giống phần Đọc, để hai kỹ năng so sánh được */
+  const raw = +(results.correct / Math.max(1, results.total) * 10).toFixed(2);
+  try {
+    await DB.rpc("record_vsat_attempt", {
+      p_exam_id: VEXAM_ID, p_raw: raw, p_max_raw: 10,
+      p_correct: results.correct, p_incorrect: results.incorrect,
+      p_blank: Math.max(0, results.total - results.correct - results.incorrect),
+      p_total: results.total,
+      p_answers: (window.vstepEngine && window.vstepEngine.answers) || {},
+      p_detail: ((window.vstepEngine && window.vstepEngine.getActiveQuestions()) || []).map(q => ({
+        n: q.globalId, part: q.partId,
+        answer: (window.vstepEngine.answers || {})[q.globalId] || null,
+        correct: q.correctAnswer,
+        status: ((window.vstepEngine.answers || {})[q.globalId] === q.correctAnswer) ? "correct"
+              : ((window.vstepEngine.answers || {})[q.globalId] ? "incorrect" : "unanswered")
+      })),
+      p_meta: { pct: results.percentage, level: results.level, skill: "listening",
+                mode: (window.vstepEngine && window.vstepEngine.mode) || "full",
+                breakdown: results.breakdown },
+      p_seconds: 0,
+      p_kind: VKIND
+    });
+  } catch (e) { /* điểm vẫn hiện tại chỗ, chỉ là chưa lưu được */ }
+  renderHistory();
+};
+
+/* ---- lịch sử làm bài ---- */
+function fmtWhen(iso) { try { return new Date(iso).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" }); } catch (e) { return ""; } }
+async function renderHistory() {
+  const box = document.getElementById("exam-hist");
+  if (!box) return;
+  if (VGUEST || !DB) {
+    box.innerHTML = '<div class="ls-empty">Đăng nhập để lưu điểm và xem lại tiến bộ qua từng lần thi. ' +
+      '<a href="login.html">Đăng nhập</a></div>';
+    return;
+  }
+  let rows = [];
+  try { const { data } = await DB.rpc("my_vsat_attempts", { p_exam_id: null, p_kind: VKIND }); rows = Array.isArray(data) ? data : []; }
+  catch (e) { rows = []; }
+  if (!rows.length) { box.innerHTML = ""; return; }
+  box.innerHTML = '<h3 class="ls-h3">Lịch sử làm bài</h3><table class="ls-table">' +
+    "<tr><th>Đề thi</th><th>Lần</th><th>Điểm</th><th>%</th><th>Đúng</th><th>Ngày</th></tr>" +
+    rows.slice(0, 20).map(a => {
+      const pc = (a.meta && a.meta.pct != null) ? Math.round(a.meta.pct) : null;
+      return "<tr><td>" + esc(a.test_name || "") + "</td><td>#" + (a.attempt_no || 1) + "</td>" +
+        '<td class="sc">' + esc(String(a.raw == null ? "—" : a.raw)) + "/10</td>" +
+        "<td>" + (pc != null ? pc + "%" : "—") + "</td><td>" + (a.correct == null ? 0 : a.correct) + "</td>" +
+        "<td>" + esc(fmtWhen(a.at)) + "</td></tr>";
+    }).join("") + "</table>";
+}
+
+/* ---- khởi động ---- */
+async function listeningBoot() {
+  const who = document.getElementById("leWho"),
+        auth = document.getElementById("leAuth"),
+        back = document.getElementById("leBack");
+  let session = null;
+  try { session = DB ? (await DB.auth.getSession()).data.session : null; } catch (e) {}
+
+  if (session) {
+    VGUEST = false; VUSER = session.user; window.__VNS = VUSER.id.slice(0, 8);
+    try {
+      const { data: p } = await DB.from("profiles").select("full_name,role,is_premium").eq("id", VUSER.id).maybeSingle();
+      if (p) {
+        VSTAFF = ["owner", "admin", "teacher"].indexOf(p.role) >= 0;
+        VPREMIUM = !!p.is_premium;
+        if (who) who.textContent = p.full_name || VUSER.email || "";
+      }
+    } catch (e) {}
+    if (auth) auth.hidden = true;
+  } else {
+    VGUEST = true; window.__VNS = "anon";
+    if (who) who.textContent = "Khách";
+    if (auth) auth.hidden = false;
+    if (back) { back.textContent = "← Xem khóa học"; back.href = "course.html"; }
+  }
+
+  await loadExamList();
+  if (!VGUEST) {
+    try {
+      const { data: en } = await DB.from("enrollments").select("course_id").eq("student_id", VUSER.id);
+      const mine = new Set((en || []).map(x => x.course_id));
+      VEXAMS.forEach(m => { if (m.course_id && mine.has(m.course_id)) VENTITLED.add(m.exam_id); });
+    } catch (e) {}
+  }
+  renderExamPick();
+  renderHistory();
+
+  const want = new URLSearchParams(location.search).get("exam") || "";
+  const m = examMeta(want);
+  if (m && canOpen(m)) await chooseExam(want);
+  else goPick();
+}
+
+/* nút quay lại danh sách đề */
+document.addEventListener("DOMContentLoaded", () => {
+  const b = document.getElementById("btn-pick");
+  if (b) b.addEventListener("click", goPick);
+});
+const __bp = document.getElementById("btn-pick");
+if (__bp) __bp.addEventListener("click", goPick);
+
+/* bộ máy lưu tiến độ sau mỗi lựa chọn — bám theo để đẩy lên mây */
+(function () {
+  const origSet = VstepTestEngine.prototype.saveState;
+  VstepTestEngine.prototype.saveState = function () { origSet.call(this); schedulePush(); };
+})();
+
+listeningBoot();
+
+  </script>
+</body>
+</html>
