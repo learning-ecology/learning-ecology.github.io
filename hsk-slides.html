@@ -15,6 +15,7 @@
 <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3.5/dist/hanzi-writer.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
+<script src="hsk-plan.js"></script>
 <script src="premium.js"></script>
 <style>
 :root{
@@ -25,6 +26,8 @@
   --zh:"Noto Sans SC","PingFang SC","Microsoft YaHei",serif;
   /* thang z-index thống nhất — bản mẫu có 9 lớp chồng nhau tuỳ hứng */
   --z-content:1; --z-annot:30; --z-spot:40; --z-ctrl:50; --z-panel:60;
+  /* cỡ chữ trình chiếu: thầy chỉnh được ngay khi đang dạy, 20–80px */
+  --fs:24px;
 }
 *{box-sizing:border-box}
 body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
@@ -65,9 +68,13 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
 #wrap{position:relative;background:#0e1116;min-height:calc(100vh - 46px);display:flex;
   align-items:center;justify-content:center;padding:14px}
 #stageWrap{position:relative;width:min(100%,calc((100vh - 120px) * 16 / 9));aspect-ratio:16/9;
-  background:var(--paper);border-radius:12px;overflow:hidden;box-shadow:0 24px 60px -30px #000}
+  background:var(--paper);border-radius:12px;overflow:hidden;box-shadow:0 24px 60px -30px #000;
+  display:flex;flex-direction:column}
+/* Thanh điều khiển là MỘT HÀNG THẬT dưới đáy, không phải nút nổi đè lên slide:
+   chữ cuộn tới đâu cũng không bị nút che (yêu cầu 14–15). */
+#stageArea{position:relative;flex:1 1 auto;min-height:0;overflow:hidden}
 #stage{position:absolute;inset:0;z-index:var(--z-content);overflow:hidden}
-#annot{position:absolute;inset:0;z-index:var(--z-annot);pointer-events:none;touch-action:none}
+#annot{position:absolute;inset:0;width:100%;height:100%;z-index:var(--z-annot);pointer-events:none;touch-action:none}
 #spotlight{position:absolute;inset:0;z-index:var(--z-spot);pointer-events:none;
   background:radial-gradient(circle 130px at var(--x,50%) var(--y,50%),transparent 0 128px,rgba(0,0,0,.72) 132px)}
 .laser-dot{position:absolute;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;
@@ -75,14 +82,27 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
 .annot-text{position:absolute;z-index:var(--z-annot);min-width:90px;padding:4px 8px;font-weight:700;
   font-size:20px;background:rgba(255,255,255,.85);border:1px dashed var(--accent);border-radius:6px;outline:none}
 
-.sl{position:absolute;inset:0;padding:3.2vmin 4vmin;display:flex;flex-direction:column;
-  font-size:clamp(13px,1.55vmin,20px)}
+/* ---------- khung slide chung (Phase 57) ----------
+   MỌI slide đều là: đầu cố định + thân CUỘN ĐƯỢC. Nhờ vậy thầy phóng chữ
+   to bao nhiêu cũng không có chữ nào bị cắt mất — phần nào không vừa thì
+   cuộn, chứ hệ thống không tự thu nhỏ chữ lại. */
+.sl{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden;
+  font-size:var(--fs,24px);line-height:1.35}
+.sl-head{flex:0 0 auto;padding:2.2vmin 4vmin .7vmin}
+.sl-head h2{margin:0;color:var(--brand);font-size:1.45em;line-height:1.15}
+.sl-kind{display:block;font-size:.62em;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+.sl-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  padding:1.2vmin 4vmin 1.6em;scrollbar-width:thin;scrollbar-color:#c3ccda transparent}
+.sl-body::-webkit-scrollbar{width:11px}
+.sl-body::-webkit-scrollbar-thumb{background:#c3ccda;border-radius:99px;border:3px solid #fff}
 .reveal{opacity:0;transform:translateY(6px);transition:opacity .28s,transform .28s}
 .reveal.shown{opacity:1;transform:none}
+.reveal:not(.shown){pointer-events:none}
 
 /* mở đầu */
-.sl.intro{align-items:center;justify-content:center;text-align:center;gap:.5rem;
-  background:linear-gradient(150deg,#fff,#fdf6ec)}
+.sl.intro .sl-body{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;gap:.5rem;padding-bottom:4em}
+.sl.intro{background:linear-gradient(150deg,#fff,#fdf6ec)}
 .intro .badge{background:var(--brand);color:#fff;padding:.35em 1em;border-radius:999px;font-size:1.1em;font-weight:700}
 .intro h1{font-size:3.4em;margin:.25em 0 0;color:var(--brand)}
 .intro .zh-title{font-family:var(--zh);font-size:2.4em;color:var(--gold)}
@@ -93,12 +113,9 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
   font:inherit;font-weight:700;cursor:pointer}
 .btn-primary.big{font-size:1.3em;margin-top:.8em}
 
-/* danh mục: đầu và chân cố định, giữa cuộn */
-.sl.hub{padding:0}
-.hub-head{padding:2.2vmin 4vmin 1vmin;border-bottom:1px solid var(--line);flex:0 0 auto}
-.hub-head h2{margin:0;font-size:1.9em;color:var(--brand);letter-spacing:.03em}
-.hub-sub{color:var(--muted);font-size:1em}
-.hub-scroll{flex:1 1 auto;overflow-y:auto;padding:2vmin 4vmin 3vmin}
+/* danh mục: đầu cố định, giữa cuộn (dùng chung khung .sl-head/.sl-body) */
+.sl.hub .sl-head{border-bottom:1px solid var(--line)}
+.hub-sub{color:var(--muted);font-size:.8em}
 .hub-sec{margin-bottom:1.6em}
 .hub-sec h3{margin:0 0 .5em;font-size:1.15em;color:var(--ink)}
 .hub-sec .cnt{color:var(--muted);font-size:.8em}
@@ -114,14 +131,23 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
   cursor:pointer;font:inherit;text-align:left}
 .hub-row:hover{border-color:var(--brand)}
 
-/* từ vựng */
-.sl.vocab{flex-direction:row;gap:3vmin;align-items:center}
-.vc-left{flex:0 0 38%}
+/* từ vựng — cột trái là NGHĨA (ảnh minh hoạ), thứ tự nét là khối riêng
+   bên dưới. Bản Phase 56 lấy chính chữ Hán mờ làm ảnh, nhìn thì đẹp
+   nhưng chẳng giúp học viên hiểu nghĩa, lại lẫn với slide tập viết. */
+.sl.vocab .sl-body{display:flex;flex-direction:row;gap:3vmin;align-items:flex-start}
+.vc-left{flex:0 0 36%;position:sticky;top:0;display:flex;flex-direction:column;gap:.6em}
 .vc-img{margin:0;width:100%;aspect-ratio:4/3;border-radius:12px;overflow:hidden;background:#f2f4f8;
-  display:flex;align-items:center;justify-content:center}
+  display:flex;align-items:center;justify-content:center;position:relative}
 .vc-img img{width:100%;height:100%;object-fit:cover}
-.vc-img.empty{font-family:var(--zh);font-size:6em;color:#d8dde6}
-.vc-img figcaption{font-size:.7em;color:var(--muted);padding:.2em .4em}
+.vc-img figcaption{position:absolute;left:0;right:0;bottom:0;font-size:.55em;color:#fff;
+  background:rgba(0,0,0,.45);padding:.25em .5em}
+.vc-img.empty{flex-direction:column;gap:.3em;border:2px dashed #cdd5e0;background:#fafbfd;
+  color:var(--muted);font-size:.72em;text-align:center;padding:1em}
+.vc-img.empty b{font-size:1.5em;color:#b4820f}
+.vc-strokes{border:1px solid var(--line);border-radius:10px;padding:.45em .6em;background:#fffdf8}
+.vc-strokes .st-h{display:flex;align-items:center;justify-content:space-between;
+  font-size:.62em;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;margin-bottom:.35em}
+.vc-mini{display:flex;gap:.45em;flex-wrap:wrap}
 .vc-right{flex:1 1 auto;min-width:0}
 .vc-head{display:flex;align-items:center;gap:.4em}
 .vc-zh{font-family:var(--zh);font-size:4.4em;font-weight:700;color:var(--brand);cursor:pointer;line-height:1.05}
@@ -141,11 +167,10 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
   font-size:.8em;padding:.1em .45em;margin-left:.3em}
 
 /* hướng dẫn viết */
-.sl.write{align-items:center;justify-content:center;text-align:center;gap:1vmin}
-.write-title{font-size:2em;color:var(--brand);margin:0}
-.write-title b{font-family:var(--zh);font-size:1.3em}
-.write-body{flex:1 1 auto;display:flex;align-items:center;justify-content:center;min-height:0}
-.write-foot{color:var(--muted);font-size:1.15em}
+.sl.write .sl-head{text-align:center}
+.sl.write .sl-head h2 b{font-family:var(--zh);font-size:1.3em}
+.sl.write .sl-body{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:.8em}
+.write-foot{color:var(--muted);font-size:1.05em}
 .hz-wrap{display:flex;flex-direction:column;align-items:center;gap:.7em}
 .hz-tabs{display:flex;gap:.4em}
 .hz-tab{font-family:var(--zh);font-size:1.6em;border:1px solid var(--line);background:#fff;
@@ -167,8 +192,7 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
 .btn-sm:hover{border-color:var(--brand);color:var(--brand)}
 
 /* bài đọc / ngữ pháp / luyện tập / bộ thủ */
-.sl.reading h2,.sl.grammar h2,.sl.practice h2{margin:0 0 .6em;color:var(--brand);font-size:1.8em}
-.rd-list{list-style:none;margin:0;padding:0;overflow-y:auto;display:flex;flex-direction:column;gap:.6em}
+.rd-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.6em}
 .rd-line{border-left:3px solid var(--gold);padding-left:.8em}
 .rd-who{display:inline-block;font-size:.85em;color:var(--muted);margin-right:.5em}
 .rd-zh{font-family:var(--zh);font-size:1.5em}
@@ -180,15 +204,69 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
 .gr-exp{font-size:1.15em}
 .gr-ex{list-style:none;margin:.6em 0 0;padding:0;display:flex;flex-direction:column;gap:.5em}
 .gr-ex li{border-left:3px solid var(--gold);padding-left:.7em}
-.pr-q{font-family:var(--zh);font-size:1.6em;white-space:pre-line}
-.pr-opts{list-style:none;margin:.5em 0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:.5em}
-.pr-opts li{border:1px solid var(--line);border-radius:8px;padding:.5em .8em;font-family:var(--zh);font-size:1.2em}
-.pr-ans{margin-top:.5em;font-size:1.25em;color:#146c3d;font-weight:700}
-.pr-exp{color:var(--muted)}
-.pr-match{display:flex;flex-direction:column;gap:.5em;font-size:1.2em}
-.pr-pair{display:flex;gap:.8em;align-items:center;font-family:var(--zh)}
-.pr-arrow{color:var(--gold)}
-.sl.radical{flex-direction:row;gap:3vmin;align-items:center}
+/* ---------- bài luyện tập TƯƠNG TÁC (Phase 57) ----------
+   Bản cũ chỉ in sẵn "Đáp án: B" ra màn hình. Giờ mỗi loại là một hoạt
+   động thật: bấm chọn → chấm ngay → giải thích, và không thấy đáp án
+   trước khi trả lời. */
+.pr-q{font-size:1.35em;white-space:pre-line;margin:0 0 .7em;font-weight:600}
+.pr-q .zh{font-family:var(--zh)}
+.ex-opts{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:.55em}
+@media(max-width:900px){.ex-opts{grid-template-columns:1fr}}
+.ex-opt{display:flex;align-items:center;gap:.5em;width:100%;text-align:left;font:inherit;
+  border:2px solid var(--line);background:#fff;border-radius:12px;padding:.55em .8em;cursor:pointer;
+  font-size:1.15em;transition:border-color .15s,background .15s,transform .1s}
+.ex-opt .k{flex:0 0 auto;font-weight:800;color:var(--muted)}
+.ex-opt .tx{font-family:var(--zh)}
+.ex-opt:hover:not(:disabled){border-color:var(--brand);transform:translateY(-1px)}
+.ex-opt.pick{border-color:var(--accent);background:#eff5ff}
+.ex-opt.right{border-color:#1a7f4b;background:#e8f7ef}
+.ex-opt.right .k{color:#1a7f4b}
+.ex-opt.wrong{border-color:#c92a2a;background:#fdecec}
+.ex-opt.wrong .k{color:#c92a2a}
+/* nút đã chấm thì khoá lại, nhưng KHÔNG được mờ chữ đi — trên máy chiếu
+   là không đọc nổi nữa */
+.ex-opt:disabled{cursor:default;opacity:1;color:var(--ink);-webkit-text-fill-color:currentColor}
+.ex-input{font:inherit;font-family:var(--zh);font-size:1.3em;padding:.35em .6em;min-width:8em;
+  border:2px solid var(--line);border-radius:10px;background:#fff}
+.ex-input:focus{outline:none;border-color:var(--accent)}
+.ex-input.right{border-color:#1a7f4b;background:#e8f7ef}
+.ex-input.wrong{border-color:#c92a2a;background:#fdecec}
+.ex-row{display:flex;align-items:center;gap:.6em;flex-wrap:wrap}
+.ex-actions{display:flex;gap:.5em;flex-wrap:wrap;margin-top:.9em}
+.ex-btn{font:inherit;font-size:.95em;border:1px solid var(--line);background:#fff;border-radius:999px;
+  padding:.45em 1.1em;cursor:pointer}
+.ex-btn.main{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:700}
+.ex-btn:hover{border-color:var(--brand)}
+.ex-fb{margin-top:.7em;font-size:1.1em;font-weight:700;min-height:1.4em}
+.ex-fb.ok{color:#1a7f4b} .ex-fb.no{color:#c92a2a}
+.ex-exp{color:var(--muted);font-size:.95em;margin:.4em 0 0;border-left:3px solid var(--gold);padding-left:.7em}
+
+/* sắp xếp câu */
+.ex-slot{min-height:2.6em;display:flex;flex-wrap:wrap;gap:.4em;align-items:center;padding:.5em;
+  border:2px dashed #c3ccda;border-radius:12px;background:#fbfcfe}
+.ex-slot.over{border-color:var(--accent);background:#eff5ff}
+.ex-pool{display:flex;flex-wrap:wrap;gap:.4em;margin-top:.7em;min-height:2.2em}
+.ex-tok{font:inherit;font-family:var(--zh);font-size:1.35em;border:2px solid var(--line);background:#fff;
+  border-radius:10px;padding:.2em .6em;cursor:grab;user-select:none}
+.ex-tok:hover{border-color:var(--brand)}
+.ex-tok.drag{opacity:.4}
+.ex-hint{font-size:.78em;color:var(--muted);margin:.5em 0 0}
+
+/* nối cặp */
+.ex-match{display:grid;grid-template-columns:1fr 1fr;gap:.8em}
+.ex-col{display:flex;flex-direction:column;gap:.45em}
+.ex-cell{display:flex;align-items:center;gap:.5em;font:inherit;text-align:left;border:2px solid var(--line);
+  background:#fff;border-radius:12px;padding:.45em .7em;cursor:pointer;font-size:1.1em;font-family:var(--zh)}
+.ex-cell:hover{border-color:var(--brand)}
+.ex-cell.pick{border-color:var(--accent);background:#eff5ff}
+.ex-cell.done{border-style:solid}
+.ex-cell.right{border-color:#1a7f4b;background:#e8f7ef}
+.ex-cell.wrong{border-color:#c92a2a;background:#fdecec}
+.ex-cell img{width:100%;max-height:3.2em;object-fit:cover;border-radius:8px}
+.ex-cell.pic{flex-direction:column;align-items:stretch;padding:.35em}
+.ex-badge{flex:0 0 auto;width:1.6em;height:1.6em;border-radius:50%;display:inline-flex;
+  align-items:center;justify-content:center;font-size:.7em;font-weight:800;color:#fff;background:#c3ccda}
+.sl.radical .sl-body{display:flex;flex-direction:row;gap:3vmin;align-items:flex-start}
 .rad-left{flex:0 0 28%;text-align:center}
 .rad-char{font-family:var(--zh);font-size:8em;color:var(--brand);line-height:1}
 .rad-py{color:var(--gold);font-size:1.4em}
@@ -199,18 +277,25 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
 
 /* điều khiển cố định */
 .ctrl{position:absolute;z-index:var(--z-ctrl)}
-#btnHub{left:14px;bottom:14px}
-#navBar{left:50%;transform:translateX(-50%);bottom:14px;display:flex;align-items:center;gap:.5em;
-  background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:999px;padding:.3em .6em;box-shadow:var(--shadow)}
-#btnToolkit{right:14px;bottom:14px}
-.ctrl button,#btnHub,#btnToolkit{border:1px solid var(--line);background:rgba(255,255,255,.94);
-  border-radius:999px;padding:.5em 1em;font:inherit;font-size:13px;cursor:pointer;box-shadow:var(--shadow)}
+#dock{flex:0 0 auto;display:flex;align-items:center;gap:.6em;padding:7px 12px;
+  border-top:1px solid var(--line);background:#fbfcfe}
+#dock > *{position:static!important;transform:none!important}
+#navBar{margin:0 auto;display:flex;align-items:center;gap:.4em;
+  background:#fff;border:1px solid var(--line);border-radius:999px;padding:.25em .5em}
+.ctrl button,#btnHub,#btnToolkit{border:1px solid var(--line);background:#fff;
+  border-radius:999px;padding:.45em .9em;font:inherit;font-size:13px;cursor:pointer}
+#btnFull{box-shadow:var(--shadow);background:rgba(255,255,255,.94)}
 .ctrl button:hover{border-color:var(--brand);color:var(--brand)}
 #counter{font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px;min-width:64px;text-align:center}
 #btnFull{right:14px;top:14px}
+/* cỡ chữ: nằm ngay trong thanh điều hướng, không đè lên nội dung slide */
+#navBar button{box-shadow:none}
+#btnFsUp,#btnFsDown{font-weight:700;padding:.4em .7em}
+#fsLabel{font-size:12px;color:var(--muted);min-width:42px;text-align:center;font-variant-numeric:tabular-nums}
+.nav-sep{width:1px;height:1.6em;background:var(--line);display:inline-block;margin:0 .15em}
 
 /* bảng dụng cụ: nút KHÔNG kéo được, bảng kéo bằng thanh tiêu đề */
-#toolkit{position:absolute;right:14px;bottom:60px;z-index:var(--z-panel);width:290px;background:var(--paper);
+#toolkit{position:absolute;right:14px;bottom:14px;z-index:var(--z-panel);width:290px;background:var(--paper);
   border:1px solid var(--line);border-radius:12px;box-shadow:0 20px 50px -20px rgba(0,0,0,.5);overflow:hidden}
 #tkHandle{display:flex;align-items:center;justify-content:space-between;padding:.5em .8em;
   background:var(--brand);color:#fff;cursor:move;user-select:none;font-size:13px;font-weight:700}
@@ -250,21 +335,15 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
 <!-- sân khấu -->
 <div id="wrap" hidden>
   <div id="stageWrap">
+   <div id="stageArea">
     <div id="stage"></div>
     <canvas id="annot"></canvas>
     <div id="spotlight" class="hidden"></div>
 
-    <button class="ctrl" id="btnHub" type="button" hidden>← Về danh mục bài học</button>
-    <div class="ctrl" id="navBar">
-      <button id="btnPrev" type="button" title="Slide trước (←)">‹</button>
-      <span id="counter">1 / 1</span>
-      <button id="btnNext" type="button" title="Slide sau (→)">›</button>
-    </div>
     <button class="ctrl" id="btnFull" type="button" title="Toàn màn hình (F)">⛶</button>
-    <button class="ctrl" id="btnToolkit" type="button">✎ Dụng cụ giảng dạy</button>
-
     <div id="toolkit" class="hidden">
-      <div id="tkHandle"><span>⠿ Dụng cụ giảng dạy</span><button id="tkClose" type="button" title="Đóng">✕</button></div>
+      <div id="tkHandle"><span>⠿ Dụng cụ giảng dạy</span>
+        <button id="tkClose" type="button" data-tk="close" title="Đóng bảng (annotation vẫn giữ nguyên)">✕</button></div>
       <div class="tk-body">
         <button data-tool="select" class="on">Con trỏ</button>
         <button data-tool="laser">Laser</button>
@@ -287,6 +366,21 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
         <button data-tk="clear">🗑 Xoá hết</button>
       </div>
     </div>
+   </div>
+   <div id="dock">
+    <button id="btnHub" type="button" style="visibility:hidden">← Về danh mục bài học</button>
+    <div id="navBar">
+      <button id="btnFsDown" type="button" title="Chữ nhỏ hơn (phím −)">A−</button>
+      <span id="fsLabel">26px</span>
+      <button id="btnFsUp" type="button" title="Chữ to hơn (phím +)">A+</button>
+      <i class="nav-sep"></i>
+      <button id="btnPrev" type="button" title="Slide trước (←)">‹</button>
+      <span id="counter">1 / 1</span>
+      <button id="btnNext" type="button" title="Slide sau (→)">›</button>
+    </div>
+    <button id="btnToolkit" type="button">✎ Dụng cụ giảng dạy</button>
+   </div>
+
   </div>
   <span id="lessonName" hidden></span>
 </div>
@@ -387,12 +481,54 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
     });
   }
 
+  /* ---------- cỡ chữ trình chiếu (yêu cầu 11–13) ----------
+     Mọi kích thước trên slide đều tính bằng em, nên đổi MỘT biến --fs là
+     cả bài giảng to lên theo. Chữ to mà không vừa thì phần thân slide
+     cuộn — hệ thống KHÔNG tự thu nhỏ chữ lại, vì thầy phóng to là có ý. */
+  const FS_MIN = 20, FS_MAX = 80, FS_KEY = 'hskFontSize';
+  let FS = 26;
+  function applyFs() {
+    const w = $('#stageArea');
+    if (w) w.style.setProperty('--fs', FS + 'px');
+    const lb = $('#fsLabel'); if (lb) lb.textContent = FS + 'px';
+    try { localStorage.setItem(FS_KEY, String(FS)); } catch (e) {}
+  }
+  function bumpFs(d) {
+    const was = FS;
+    FS = Math.max(FS_MIN, Math.min(FS_MAX, FS + d));
+    if (FS === was) return;
+    applyFs();
+    /* thứ tự nét vẽ bằng canvas/SVG theo px nên phải dựng lại cho khớp cỡ chữ */
+    const keep = revealStep; render(); revealStep = keep; applyReveal();
+  }
+  function initFs() {
+    let v = 0; try { v = Number(localStorage.getItem(FS_KEY)) || 0; } catch (e) {}
+    if (v >= FS_MIN && v <= FS_MAX) FS = v;
+    applyFs();
+  }
+
   /* ---------- các loại slide ---------- */
   const V = i => (LESSON.vocabulary || [])[i] || {};
+  const head = (title, kind) =>
+    '<header class="sl-head">' + (kind ? '<span class="sl-kind">' + esc(kind) + '</span>' : '') +
+    '<h2>' + title + '</h2></header>';
+
+  /* khối thứ tự nét NHỎ, đặt dưới ảnh minh hoạ trên slide từ vựng.
+     Tách hẳn khỏi ảnh minh hoạ: ảnh lo NGHĨA, khối này lo cách VIẾT. */
+  function miniStrokes(chars, prefix) {
+    if (!chars.length) return '';
+    const size = Math.max(56, Math.round(FS * 3.2));
+    return '<div class="vc-strokes"><div class="st-h"><span>✍ Thứ tự nét</span>' +
+      '<button class="btn-sm" data-act="hz-replay-all" data-p="' + esc(prefix) + '">↻</button></div>' +
+      '<div class="vc-mini">' + chars.map((c, i) =>
+        '<div class="tianzige"><div class="tzg-grid"></div>' +
+        '<div class="hz-box" id="' + esc(prefix) + '-w' + i + '" data-char="' + esc(c) +
+        '" data-size="' + size + '"></div></div>').join('') + '</div></div>';
+  }
 
   const renderers = {
     intro() {
-      return '<div class="sl intro">' +
+      return '<div class="sl intro"><div class="sl-body">' +
         '<div class="badge">' + esc(LESSON.course || ('HSK ' + LESSON.hskLevel)) + '</div>' +
         '<h1>' + esc(LESSON.title) + '</h1>' +
         (LESSON.titleZh ? '<div class="zh-title">' + esc(LESSON.titleZh) + '</div>' : '') +
@@ -400,7 +536,7 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
         (LESSON.subtitle ? '<div class="sub">' + esc(LESSON.subtitle) + '</div>' : '') +
         (LESSON.description ? '<p class="desc">' + esc(LESSON.description) + '</p>' : '') +
         '<button class="btn-primary big" data-act="go-hub">Bắt đầu →</button>' +
-      '</div>';
+      '</div></div>';
     },
 
     /* MỘT slide danh mục duy nhất; phần giữa cuộn được, tiêu đề và nút cố định */
@@ -424,48 +560,54 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
                ' <span class="cnt">' + sec.count + '</span></h3>' + inner + '</section>';
       }).join('');
       return '<div class="sl hub">' +
-        '<header class="hub-head"><h2>DANH MỤC BÀI HỌC</h2>' +
+        '<header class="sl-head"><h2>DANH MỤC BÀI HỌC</h2>' +
           '<span class="hub-sub">' + esc(LESSON.title) + '</span></header>' +
-        '<div class="hub-scroll" id="hubScroll">' + groups + '</div>' +
+        '<div class="sl-body" id="hubScroll">' + groups + '</div>' +
       '</div>';
     },
 
+    /* Từ vựng: bên trái là NGHĨA (ảnh minh hoạ + thứ tự nét thu nhỏ),
+       bên phải là chữ — hiện dần theo từng cú bấm. */
     vocab(s) {
       const v = V(s.index);
       const img = v.image && v.image.url
-        ? '<figure class="vc-img"><img src="' + esc(v.image.url) + '" alt="' + esc(v.vietnamese) + '" loading="lazy">' +
+        ? '<figure class="vc-img"><img src="' + esc(v.image.url) + '" alt="' + esc(v.vietnamese) + '">' +
           (v.image.credit ? '<figcaption>Ảnh: ' + esc(v.image.credit) + '</figcaption>' : '') + '</figure>'
-        : '<div class="vc-img empty" aria-hidden="true">' + esc(v.chinese) + '</div>';
+        : '<div class="vc-img empty"><b>⚠ Chưa có hình minh hoạ</b>' +
+          '<span>Thêm ảnh ở Bảng điều khiển → HSK Slides → ✏️</span></div>';
+      const nEx = (v.examples || []).length;
       const ex = (v.examples || []).map((e, k) =>
-        '<li class="reveal" data-reveal="' + (k + 2) + '">' +
+        '<li class="reveal" data-reveal="' + (k + 3) + '">' +
           '<span class="ex-zh">' + esc(e.zh) + '</span>' +
           '<button class="btn-mini" data-act="say" data-text="' + esc(e.zh) + '">🔊</button>' +
           '<span class="ex-py">' + esc(e.pinyin) + '</span>' +
           (e.vi ? '<span class="ex-vi">' + esc(e.vi) + '</span>' : '') +
         '</li>').join('');
-      return '<div class="sl vocab">' +
-        '<div class="vc-left">' + img + '</div>' +
+      return '<div class="sl vocab"><div class="sl-body">' +
+        '<div class="vc-left">' + img + miniStrokes(v.chars || [], 'v' + s.index) + '</div>' +
         '<div class="vc-right">' +
           '<div class="vc-head">' +
             '<span class="vc-zh" data-act="say" data-text="' + esc(v.chinese) + '">' + esc(v.chinese) + '</span>' +
             '<button class="btn-mini" data-act="say" data-text="' + esc(v.chinese) + '">🔊</button>' +
           '</div>' +
-          '<div class="vc-py">' + esc(v.pinyin) + (v.pinyinSource === 'auto' ? '<i class="auto-tag" title="Pinyin do hệ thống tạo">tự động</i>' : '') + '</div>' +
-          (v.wordClass ? '<div class="vc-wc">' + esc(v.wordClass) + '</div>' : '') +
-          '<div class="vc-vi reveal" data-reveal="1">' + esc(v.vietnamese) + '</div>' +
+          '<div class="vc-py reveal" data-reveal="1">' + esc(v.pinyin) +
+            (v.pinyinSource === 'auto' ? '<i class="auto-tag" title="Pinyin do hệ thống tạo">tự động</i>' : '') + '</div>' +
+          (v.wordClass ? '<div class="vc-wc reveal" data-reveal="1">' + esc(v.wordClass) + '</div>' : '') +
+          '<div class="vc-vi reveal" data-reveal="2">' + esc(v.vietnamese) + '</div>' +
           (ex ? '<ul class="vc-ex">' + ex + '</ul>' : '') +
-          (v.notes ? '<p class="vc-note reveal" data-reveal="' + ((v.examples || []).length + 2) + '">' + esc(v.notes) + '</p>' : '') +
+          (v.notes ? '<p class="vc-note reveal" data-reveal="' + (nEx + 3) + '">' + esc(v.notes) + '</p>' : '') +
         '</div>' +
-      '</div>';
+      '</div></div>';
     },
 
     write(s) {
       const v = V(s.index);
+      const size = Math.max(180, Math.min(360, Math.round(FS * 11)));
       return '<div class="sl write">' +
-        '<h2 class="write-title">HƯỚNG DẪN VIẾT HÁN TỰ: <b>' + esc(v.chinese) + '</b></h2>' +
-        '<div class="write-body">' + strokeBlock(v.chars || [], 300, 'w' + s.index) + '</div>' +
-        '<div class="write-foot">' + esc(v.pinyin) + ' · ' + esc(v.vietnamese) + '</div>' +
-      '</div>';
+        head('HƯỚNG DẪN VIẾT HÁN TỰ: <b>' + esc(v.chinese) + '</b>') +
+        '<div class="sl-body">' + strokeBlock(v.chars || [], size, 'w' + s.index) +
+          '<div class="write-foot">' + esc(v.pinyin) + ' · ' + esc(v.vietnamese) + '</div>' +
+        '</div></div>';
     },
 
     reading() {
@@ -478,9 +620,9 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
           '<span class="rd-py">' + esc(l.pinyin) + '</span>' +
           (l.vi ? '<span class="rd-vi">' + esc(l.vi) + '</span>' : '') +
         '</li>').join('');
-      return '<div class="sl reading"><h2>' + esc(r.title) + '</h2>' +
-        '<ul class="rd-list">' + rows + '</ul>' +
-        (r.notes ? '<p class="rd-note">' + esc(r.notes) + '</p>' : '') + '</div>';
+      return '<div class="sl reading">' + head(esc(r.title), 'Bài đọc') +
+        '<div class="sl-body"><ul class="rd-list">' + rows + '</ul>' +
+        (r.notes ? '<p class="rd-note">' + esc(r.notes) + '</p>' : '') + '</div></div>';
     },
 
     grammar(s) {
@@ -491,47 +633,301 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
           '<button class="btn-mini" data-act="say" data-text="' + esc(e.zh) + '">🔊</button>' +
           '<span class="ex-py">' + esc(e.pinyin) + '</span>' +
           (e.vi ? '<span class="ex-vi">' + esc(e.vi) + '</span>' : '') + '</li>').join('');
-      return '<div class="sl grammar"><h2>' + esc(g.title) + '</h2>' +
+      return '<div class="sl grammar">' + head(esc(g.title), 'Ngữ pháp') + '<div class="sl-body">' +
         (g.structure ? '<div class="gr-struct">' + esc(g.structure) + '</div>' : '') +
         (g.explanation ? '<p class="gr-exp reveal" data-reveal="1">' + esc(g.explanation) + '</p>' : '') +
-        (ex ? '<ul class="gr-ex">' + ex + '</ul>' : '') + '</div>';
+        (ex ? '<ul class="gr-ex">' + ex + '</ul>' : '') + '</div></div>';
     },
 
     practice(s) {
       const bank = s.bank === 'grammar' ? LESSON.grammarPractice : LESSON.vocabPractice;
-      const p = (bank || [])[s.index] || {};
-      let body = '';
-      if (p.type === 'match') {
-        body = '<div class="pr-match">' + (p.pairs || []).map((pr, i) =>
-          '<div class="pr-pair"><span>' + esc(pr[0]) + '</span>' +
-          '<span class="pr-arrow reveal" data-reveal="' + (i + 1) + '">→</span>' +
-          '<span class="reveal" data-reveal="' + (i + 1) + '">' + esc(pr[1]) + '</span></div>').join('') + '</div>';
-      } else if ((p.options || []).length) {
-        body = '<ul class="pr-opts">' + p.options.map((o, i) =>
-          '<li><b>' + 'ABCD'[i] + '.</b> ' + esc(o) + '</li>').join('') + '</ul>' +
-          (p.answer ? '<div class="pr-ans reveal" data-reveal="1">Đáp án: <b>' + esc(p.answer) + '</b></div>' : '');
-      } else {
-        body = (p.answer ? '<div class="pr-ans reveal" data-reveal="1">Đáp án: <b>' + esc(p.answer) + '</b></div>' : '');
-      }
-      return '<div class="sl practice"><h2>' + (s.bank === 'grammar' ? 'Luyện tập Ngữ pháp' : 'Luyện tập Từ vựng') + '</h2>' +
-        '<p class="pr-q">' + esc(p.question) + '</p>' + body +
-        (p.explanation ? '<p class="pr-exp reveal" data-reveal="9">' + esc(p.explanation) + '</p>' : '') + '</div>';
+      const a = (bank || [])[s.index] || {};
+      const label = (window.HSKPlan.EX_LABEL || {})[a.type] || 'Luyện tập';
+      return '<div class="sl practice">' +
+        head(esc(s.bank === 'grammar' ? 'Luyện tập Ngữ pháp' : 'Luyện tập Từ vựng'), label) +
+        '<div class="sl-body">' + exercise.render(s.id, a) + '</div></div>';
     },
 
     radical(s) {
       const r = (LESSON.radicals || [])[s.index] || {};
-      return '<div class="sl radical">' +
+      return '<div class="sl radical">' + head(esc(r.nameVi || ('Bộ ' + r.radical)), 'Bộ thủ') +
+        '<div class="sl-body">' +
         '<div class="rad-left"><div class="rad-char">' + esc(r.radical) + '</div>' +
           '<div class="rad-py">' + esc(r.pinyin) + '</div></div>' +
-        '<div class="rad-right"><h2>' + esc(r.nameVi || ('Bộ ' + r.radical)) + '</h2>' +
+        '<div class="rad-right">' +
           (r.meaning ? '<div class="rad-mean reveal" data-reveal="1">' + esc(r.meaning) + '</div>' : '') +
           (r.position ? '<div class="rad-pos">' + esc(r.position) + '</div>' : '') +
           ((r.related || []).length ? '<div class="rad-rel">Chữ liên quan: ' +
              r.related.map(c => '<b>' + esc(c) + '</b>').join(' · ') + '</div>' : '') +
           (r.explanation ? '<p class="reveal" data-reveal="2">' + esc(r.explanation) + '</p>' : '') +
-        '</div></div>';
+        '</div></div></div>';
     }
   };
+
+  /* ==========================================================================
+     CỖ MÁY BÀI TẬP TƯƠNG TÁC (Phase 57)
+     Sáu loại dùng chung một khuôn: dựng HTML từ trạng thái → bấm → chấm.
+     Trạng thái để trong exState theo id slide, nên rời slide rồi quay lại
+     vẫn còn nguyên bài đã làm; "Làm lại" mới xoá.
+     Đáp án KHÔNG bao giờ nằm sẵn trong HTML trước khi học viên trả lời.
+     ========================================================================== */
+  const exState = {};
+
+  const exercise = (function () {
+    const norm = s => String(s == null ? '' : s)
+      .replace(/[\s。，、！？；：,.!?;:"'“”‘’]/g, '').toLowerCase();
+    /* xáo trộn ỔN ĐỊNH theo id slide: vẽ lại slide không đảo lại thứ tự */
+    function shuffled(n, seed) {
+      const a = Array.from({ length: n }, (_, i) => i);
+      let h = 0; for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+      for (let i = n - 1; i > 0; i--) { h = (h * 1103515245 + 12345) >>> 0; const j = h % (i + 1);
+        const t = a[i]; a[i] = a[j]; a[j] = t; }
+      return a;
+    }
+    /* hsk-plan.js là bản DUY NHẤT — trang này không nạp thư viện đọc Excel,
+       nên tuyệt đối không được trông vào HSKParser ở đây */
+    const pairsOf = a => window.HSKPlan.pairsOf(a, LESSON);
+
+    const actions = (extra) =>
+      '<div class="ex-actions">' + extra + '</div>';
+    const feedback = (st) => {
+      if (!st.done) return '<div class="ex-fb"></div>';
+      return '<div class="ex-fb ' + (st.ok ? 'ok' : 'no') + '">' + st.msg + '</div>';
+    };
+    const explain = (a, st) => (st.done && a.explanation)
+      ? '<p class="ex-exp">' + esc(a.explanation) + '</p>' : '';
+    const question = a => a.question
+      ? '<p class="pr-q">' + esc(a.question) + '</p>' : '';
+
+    /* ---- 1. trắc nghiệm ---- */
+    function mcq(id, a, st) {
+      const opts = a.options || [];
+      const cls = i => {
+        if (!st.done) return st.pick === i ? 'pick' : '';
+        if (i === a.answerIndex) return 'right';
+        return st.pick === i ? 'wrong' : '';
+      };
+      return question(a) +
+        '<ul class="ex-opts">' + opts.map((o, i) =>
+          '<li><button class="ex-opt ' + cls(i) + '" data-ex="pick" data-i="' + i + '"' +
+          (st.done ? ' disabled' : '') + '><span class="k">' + 'ABCD'[i] + '.</span>' +
+          '<span class="tx">' + esc(o) + '</span></button></li>').join('') + '</ul>' +
+        feedback(st) +
+        actions(st.done ? '<button class="ex-btn" data-ex="retry">↻ Làm lại</button>' : '') +
+        explain(a, st);
+    }
+    function mcqPick(id, a, st, i) {
+      if (st.done) return;
+      st.pick = i; st.done = true; st.ok = (i === a.answerIndex);
+      st.msg = st.ok ? '✓ Chính xác!'
+                     : '✗ Chưa đúng — đáp án là ' + 'ABCD'[a.answerIndex] + '. ' + (a.options[a.answerIndex] || '');
+    }
+
+    /* ---- 2. điền vào chỗ trống ---- */
+    function fill(id, a, st) {
+      const cls = st.done ? (st.ok ? 'right' : 'wrong') : '';
+      return question(a) +
+        '<div class="ex-row"><input class="ex-input ' + cls + '" data-ex="fill" ' +
+          'value="' + esc(st.val || '') + '" placeholder="gõ câu trả lời…" ' +
+          (st.done && st.ok ? 'readonly' : '') + ' autocomplete="off" spellcheck="false"></div>' +
+        feedback(st) +
+        actions('<button class="ex-btn main" data-ex="check">Kiểm tra</button>' +
+                '<button class="ex-btn" data-ex="retry">↻ Làm lại</button>') +
+        explain(a, st);
+    }
+    function fillCheck(id, a, st) {
+      const answers = a.answers || [];
+      st.done = true;
+      st.ok = answers.some(x => norm(x) === norm(st.val));
+      st.msg = st.ok ? '✓ Chính xác!' : '✗ Chưa đúng — đáp án: ' + answers.join(' / ');
+    }
+
+    /* ---- 3. sắp xếp câu ---- */
+    function arrangeInit(id, a, st) {
+      if (st.slot) return;
+      st.slot = []; st.pool = shuffled((a.tokens || []).length, id);
+    }
+    function arrange(id, a, st) {
+      arrangeInit(id, a, st);
+      const tok = (k, from) => '<button class="ex-tok" draggable="true" data-ex="tok" data-from="' + from +
+        '" data-k="' + k + '">' + esc((a.tokens || [])[k]) + '</button>';
+      return question(a) +
+        '<div class="ex-slot" data-ex="slot">' + st.slot.map(k => tok(k, 'slot')).join('') + '</div>' +
+        '<div class="ex-pool" data-ex="pool">' + st.pool.map(k => tok(k, 'pool')).join('') + '</div>' +
+        '<p class="ex-hint">Bấm vào thẻ để đưa lên ô trả lời, bấm thẻ đã chọn để trả lại — hoặc kéo thả.</p>' +
+        feedback(st) +
+        actions('<button class="ex-btn main" data-ex="check">Kiểm tra</button>' +
+                '<button class="ex-btn" data-ex="retry">↻ Làm lại</button>') +
+        explain(a, st);
+    }
+    function arrangeCheck(id, a, st) {
+      const got = st.slot.map(k => (a.tokens || [])[k]).join('');
+      st.done = true;
+      st.ok = norm(got) === norm(a.answer);
+      st.msg = st.ok ? '✓ Chính xác!' : '✗ Chưa đúng — câu đúng là: ' + a.answer;
+    }
+
+    /* ---- 4·5·6. nối cặp: nối từ · nhìn hình chọn từ · nối pinyin ---- */
+    function pairInit(id, a, st) {
+      if (st.links) return;
+      st.links = {};                       /* trái → phải */
+      st.order = shuffled(pairsOf(a).length, id + '·r');
+    }
+    function pairs(id, a, st) {
+      const P = pairsOf(a);
+      pairInit(id, a, st);
+      const seq = Object.keys(st.links);   /* để đánh số cặp đã nối */
+      const numOfL = l => seq.indexOf(String(l)) + 1;
+      const rightOwner = r => { for (const l in st.links) if (st.links[l] === r) return +l; return -1; };
+
+      const cellL = (p, i) => {
+        const linked = st.links[i] != null;
+        let cls = linked ? 'done' : '';
+        if (st.done && linked) cls += st.links[i] === i ? ' right' : ' wrong';
+        if (st.pickL === i) cls += ' pick';
+        const badge = linked ? '<span class="ex-badge">' + numOfL(i) + '</span>' : '<span class="ex-badge">·</span>';
+        const body = a.type === 'picture' && p.image
+          ? '<img src="' + esc(p.image) + '" alt="">'
+          : '<span>' + esc(p.left) + '</span>';
+        return '<button class="ex-cell ' + (a.type === 'picture' ? 'pic ' : '') + cls +
+               '" data-ex="pl" data-i="' + i + '">' + badge + body + '</button>';
+      };
+      const cellR = (ri) => {
+        const owner = rightOwner(ri);
+        let cls = owner >= 0 ? 'done' : '';
+        if (st.done && owner >= 0) cls += owner === ri ? ' right' : ' wrong';
+        if (st.pickR === ri) cls += ' pick';
+        const badge = owner >= 0 ? '<span class="ex-badge">' + numOfL(owner) + '</span>' : '<span class="ex-badge">·</span>';
+        return '<button class="ex-cell ' + cls + '" data-ex="pr" data-i="' + ri + '" draggable="true">' +
+               badge + '<span>' + esc(P[ri].right) + '</span></button>';
+      };
+      return question(a) +
+        '<div class="ex-match"><div class="ex-col">' + P.map(cellL).join('') + '</div>' +
+        '<div class="ex-col">' + st.order.map(cellR).join('') + '</div></div>' +
+        '<p class="ex-hint">Bấm một ô bên trái rồi bấm ô tương ứng bên phải — hoặc kéo ô phải sang ô trái. ' +
+        'Bấm lại một ô đã nối để bỏ nối.</p>' +
+        feedback(st) +
+        actions('<button class="ex-btn" data-ex="retry">↻ Làm lại</button>') +
+        explain(a, st);
+    }
+    function pairLink(id, a, st, l, r) {
+      /* mỗi ô chỉ thuộc về một cặp */
+      for (const k in st.links) if (st.links[k] === r) delete st.links[k];
+      st.links[l] = r;
+      st.pickL = null; st.pickR = null;
+      const P = pairsOf(a);
+      if (Object.keys(st.links).length === P.length) {
+        let n = 0; for (const k in st.links) if (st.links[k] === +k) n++;
+        st.done = true; st.ok = (n === P.length);
+        st.msg = st.ok ? '✓ Chính xác cả ' + P.length + ' cặp!' : '✗ Đúng ' + n + '/' + P.length + ' cặp — ô đỏ là nối sai.';
+      }
+    }
+
+    const RENDER = { mcq, fill, arrange, match: pairs, picture: pairs, pinyin: pairs };
+
+    function render(id, a) {
+      const st = exState[id] || (exState[id] = {});
+      const fn = RENDER[a.type];
+      if (!fn) return '<p class="ex-hint">Loại bài tập này chưa hỗ trợ.</p>';
+      return fn(id, a, st);
+    }
+    function reset(id) { exState[id] = {}; }
+
+    /* mọi cú bấm trong bài tập đi qua đây; trả về true nếu cần vẽ lại slide */
+    function handle(ev, id, a) {
+      const t = ev.target.closest('[data-ex]');
+      if (!t) return false;
+      const st = exState[id] || (exState[id] = {});
+      const what = t.dataset.ex;
+
+      if (what === 'retry') { exState[id] = {}; return true; }
+      if (what === 'check') return check(id, a);
+      if (what === 'pick')  { mcqPick(id, a, st, +t.dataset.i); return true; }
+      if (what === 'fill')  { return false; }
+      if (what === 'tok') {
+        arrangeInit(id, a, st);
+        const k = +t.dataset.k;
+        if (t.dataset.from === 'pool') { st.pool = st.pool.filter(x => x !== k); st.slot.push(k); }
+        else { st.slot = st.slot.filter(x => x !== k); st.pool.push(k); }
+        st.done = false;
+        return true;
+      }
+      if (what === 'pl' || what === 'pr') {
+        pairInit(id, a, st);
+        const i = +t.dataset.i;
+        if (st.done) return false;
+        if (what === 'pl') {
+          if (st.links[i] != null) { delete st.links[i]; st.pickL = null; return true; }
+          if (st.pickR != null) { pairLink(id, a, st, i, st.pickR); return true; }
+          st.pickL = (st.pickL === i ? null : i); return true;
+        }
+        for (const k in st.links) if (st.links[k] === i) { delete st.links[k]; st.pickR = null; return true; }
+        if (st.pickL != null) { pairLink(id, a, st, st.pickL, i); return true; }
+        st.pickR = (st.pickR === i ? null : i); return true;
+      }
+      return false;
+    }
+
+    /* kéo thả: thẻ sắp xếp và ô nối bên phải */
+    function dragStart(ev) {
+      const t = ev.target.closest('[data-ex="tok"],[data-ex="pr"]');
+      if (!t) return;
+      DRAG = { kind: t.dataset.ex, k: +t.dataset.k, from: t.dataset.from, i: +t.dataset.i };
+      try { ev.dataTransfer.setData('text/plain', 'hsk'); ev.dataTransfer.effectAllowed = 'move'; } catch (e) {}
+      t.classList.add('drag');
+    }
+    function dragOver(ev) {
+      if (!DRAG) return;
+      const zone = ev.target.closest('[data-ex="slot"],[data-ex="pool"],[data-ex="pl"],[data-ex="tok"]');
+      if (!zone) return;
+      if (DRAG.kind === 'tok' && zone.dataset.ex === 'pl') return;
+      if (DRAG.kind === 'pr' && zone.dataset.ex !== 'pl') return;
+      ev.preventDefault();
+      const slot = ev.target.closest('[data-ex="slot"]');
+      if (slot) slot.classList.add('over');
+    }
+    function drop(ev, id, a) {
+      if (!DRAG) return false;
+      const d = DRAG; DRAG = null;
+      const st = exState[id] || (exState[id] = {});
+      if (d.kind === 'pr') {
+        const cell = ev.target.closest('[data-ex="pl"]');
+        if (!cell || st.done) return false;
+        ev.preventDefault(); pairInit(id, a, st); pairLink(id, a, st, +cell.dataset.i, d.i); return true;
+      }
+      const zone = ev.target.closest('[data-ex="slot"],[data-ex="pool"],[data-ex="tok"]');
+      if (!zone) return false;
+      ev.preventDefault();
+      arrangeInit(id, a, st);
+      st.pool = st.pool.filter(x => x !== d.k); st.slot = st.slot.filter(x => x !== d.k);
+      const onTok = zone.dataset.ex === 'tok' ? zone : null;
+      if (zone.dataset.ex === 'pool' || (onTok && onTok.dataset.from === 'pool')) st.pool.push(d.k);
+      else if (onTok) { const at = st.slot.indexOf(+onTok.dataset.k); st.slot.splice(at < 0 ? st.slot.length : at, 0, d.k); }
+      else st.slot.push(d.k);
+      st.done = false;
+      return true;
+    }
+    let DRAG = null;
+
+    /* chấm bài — dùng chung cho nút Kiểm tra và phím Enter */
+    function check(id, a) {
+      const st = exState[id] || (exState[id] = {});
+      if (a.type === 'fill') { fillCheck(id, a, st); return true; }
+      if (a.type === 'arrange') { arrangeInit(id, a, st); arrangeCheck(id, a, st); return true; }
+      return false;
+    }
+
+    return { render, reset, handle, check, dragStart, dragOver, drop,
+             get dragging() { return !!DRAG; }, clearDrag() { DRAG = null; } };
+  })();
+
+  /* bài tập của slide đang mở (null nếu slide này không phải bài tập) */
+  function currentActivity() {
+    const s = PLAN[IDX];
+    if (!s || s.kind !== 'practice') return null;
+    const bank = s.bank === 'grammar' ? LESSON.grammarPractice : LESSON.vocabPractice;
+    return (bank || [])[s.index] || null;
+  }
 
   /* ---------- vẽ slide ---------- */
   function render() {
@@ -552,8 +948,16 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
       if (sc) { sc.scrollTop = hubScroll; sc.addEventListener('scroll', onHubScroll, { passive: true }); }
     }
     $('#counter').textContent = (IDX + 1) + ' / ' + PLAN.length;
-    $('#btnHub').hidden = (s.kind === 'hub' || s.kind === 'intro');
+    $('#btnHub').style.visibility = (s.kind === 'hub' || s.kind === 'intro') ? 'hidden' : 'visible';
     annotation.slideChanged(s.id);
+  }
+  /* vẽ lại phần thân bài tập mà KHÔNG đụng tới slide (giữ nguyên cuộn, nét vẽ) */
+  function repaintExercise() {
+    const s = PLAN[IDX], body = stage().querySelector('.sl.practice .sl-body');
+    if (!s || !body) return;
+    const top = body.scrollTop;
+    body.innerHTML = exercise.render(s.id, currentActivity() || {});
+    body.scrollTop = top;
   }
   function onHubScroll(e) { hubScroll = e.target.scrollTop; }
 
@@ -562,17 +966,69 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
       e.classList.toggle('shown', (+e.dataset.reveal || 0) <= revealStep));
   }
 
-  function next() {
-    if (revealStep < revealTotal) { revealStep++; applyReveal(); return; }
-    if (IDX < PLAN.length - 1) { IDX++; render(); }
+  /* Bấm vào NỀN slide = hiện thêm một bước (yêu cầu 8).
+     Mũi tên dưới chân = CHUYỂN SLIDE, không dùng để hiện nội dung (yêu cầu 10). */
+  function nextReveal() {
+    if (revealStep < revealTotal) { revealStep++; applyReveal(); return true; }
+    return false;
   }
-  function prev() {
-    if (revealStep > 0) { revealStep--; applyReveal(); return; }
-    if (IDX > 0) { IDX--; render(); }
-  }
+  function nextSlide() { if (IDX < PLAN.length - 1) { IDX++; render(); } }
+  function prevSlide() { if (IDX > 0) { IDX--; render(); } }
+  function next() { if (!nextReveal()) nextSlide(); }
+  function prev() { if (revealStep > 0) { revealStep--; applyReveal(); } else prevSlide(); }
   function goToId(id) {
     const i = PLAN.findIndex(s => s.id === id);
     if (i >= 0) { IDX = i; render(); }
+  }
+
+  /* Những thứ bấm vào là để LÀM VIỆC KHÁC, không phải để hiện slide (yêu cầu 9) */
+  const INTERACTIVE = 'button,a,input,textarea,select,label,summary,[contenteditable],[data-act],[data-ex],[data-noreveal]';
+  function initStageClicks() {
+    const st = stage();
+    st.addEventListener('click', ev => {
+      const s = PLAN[IDX];
+      /* bài tập tự xử lý cú bấm của nó trước */
+      if (s && s.kind === 'practice') {
+        const a = currentActivity();
+        if (a && exercise.handle(ev, s.id, a)) { repaintExercise(); return; }
+      }
+      if (ev.target.closest(INTERACTIVE)) return;
+      /* vừa bôi đen chữ để giảng thì đừng nhảy bước */
+      const sel = window.getSelection && window.getSelection();
+      if (sel && String(sel).length) return;
+      nextReveal();
+    });
+    st.addEventListener('keydown', ev => {
+      if (ev.key !== 'Enter') return;
+      const inp = ev.target.closest('[data-ex="fill"]');
+      if (!inp) return;
+      ev.preventDefault();
+      const s = PLAN[IDX], a = currentActivity();
+      if (!s || !a) return;
+      (exState[s.id] || (exState[s.id] = {})).val = inp.value;
+      if (exercise.check(s.id, a)) repaintExercise();
+    });
+    st.addEventListener('input', ev => {
+      const inp = ev.target.closest('[data-ex="fill"]');
+      if (!inp) return;
+      const s = PLAN[IDX]; if (!s) return;
+      (exState[s.id] || (exState[s.id] = {})).val = inp.value;
+    });
+    /* kéo thả cho bài sắp xếp và bài nối */
+    st.addEventListener('dragstart', exercise.dragStart);
+    st.addEventListener('dragover', exercise.dragOver);
+    st.addEventListener('dragleave', ev => {
+      const slot = ev.target.closest('[data-ex="slot"]'); if (slot) slot.classList.remove('over');
+    });
+    st.addEventListener('drop', ev => {
+      const s = PLAN[IDX], a = currentActivity();
+      if (s && a && exercise.drop(ev, s.id, a)) repaintExercise();
+      else exercise.clearDrag();
+    });
+    st.addEventListener('dragend', () => {
+      exercise.clearDrag();
+      stage().querySelectorAll('.drag,.over').forEach(n => n.classList.remove('drag', 'over'));
+    });
   }
 
   /* ---------- một trình bắt sự kiện duy nhất (không onclick nội tuyến) ---------- */
@@ -583,6 +1039,11 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
     if (act === 'say')      { ev.stopPropagation(); speak(t.dataset.text); }
     else if (act === 'goto')    goToId(t.dataset.id);
     else if (act === 'go-hub')  goToId('hub');
+    else if (act === 'hz-replay-all') {
+      const p = t.dataset.p;
+      document.querySelectorAll('[id^="' + p + '-w"]').forEach(box =>
+        mountWriter(box, box.dataset.char, Number(box.dataset.size) || 160));
+    }
     else if (act === 'hz-tab') {
       const p = t.dataset.p, i = +t.dataset.i;
       document.querySelectorAll('[data-act="hz-tab"][data-p="' + CSS.escape(p) + '"]')
@@ -603,13 +1064,17 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
   });
 
   document.addEventListener('keydown', ev => {
-    if (/^(INPUT|TEXTAREA)$/.test((ev.target || {}).tagName)) return;
+    if (/^(INPUT|TEXTAREA)$/.test((ev.target || {}).tagName) || ev.target.isContentEditable) return;
     if (ev.key === 'ArrowRight' || ev.key === ' ' || ev.key === 'PageDown') { ev.preventDefault(); next(); }
     else if (ev.key === 'ArrowLeft' || ev.key === 'Backspace' || ev.key === 'PageUp') { ev.preventDefault(); prev(); }
     else if (ev.key === 'Home') goToId('hub');
+    else if (ev.key === '+' || ev.key === '=') { ev.preventDefault(); bumpFs(2); }
+    else if (ev.key === '-' || ev.key === '_') { ev.preventDefault(); bumpFs(-2); }
     else if (ev.key.toLowerCase() === 'f') toggleFull();
     else if (ev.key === 'Escape') annotation.setTool('select');
   });
+
+  document.addEventListener('fullscreenchange', () => setTimeout(() => annotation.resize(), 60));
 
   function toggleFull() {
     const w = $('#wrap');
@@ -626,6 +1091,10 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
     function init() {
       cv = $('#annot'); ctx = cv.getContext('2d');
       resize();
+      /* Sân khấu đổi cỡ vì nhiều lý do — đổi cỡ cửa sổ, vào/ra toàn màn hình,
+         hàng nút cao lên. Nghe mỗi 'resize' của cửa sổ là hụt, nên theo dõi
+         thẳng vùng slide. */
+      if (window.ResizeObserver) new ResizeObserver(resize).observe($('#stageArea'));
       window.addEventListener('resize', resize);
       cv.addEventListener('pointerdown', down);
       cv.addEventListener('pointermove', move);
@@ -633,9 +1102,14 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
       cv.addEventListener('pointerleave', up);
     }
     function resize() {
-      const r = $('#stageWrap').getBoundingClientRect();
-      cv.width = r.width; cv.height = r.height;
+      const r = $('#stageArea').getBoundingClientRect();
+      cv.width = Math.round(r.width); cv.height = Math.round(r.height);
       redraw();
+    }
+    /* chỉ đo lại khi kích thước thật sự khác — gọi ở mỗi lần đổi slide */
+    function fit() {
+      const r = $('#stageArea').getBoundingClientRect();
+      if (Math.round(r.width) !== cv.width || Math.round(r.height) !== cv.height) resize();
     }
     function setTool(t) {
       tool = t;
@@ -648,7 +1122,13 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
     }
     function setColor(c) { color = c;
       document.querySelectorAll('[data-color]').forEach(d => d.classList.toggle('on', d.dataset.color === c)); }
-    function pos(e) { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+    /* Nét vẽ lưu theo TỈ LỆ 0–1 chứ không theo pixel: đổi cỡ màn hình hay
+       bật toàn màn hình thì hình vẽ vẫn nằm đúng chỗ trên slide. */
+    function pos(e) {
+      const r = cv.getBoundingClientRect();
+      return { x: (e.clientX - r.left) / (r.width || 1), y: (e.clientY - r.top) / (r.height || 1) };
+    }
+    const toPx = p => ({ x: p.x * cv.width, y: p.y * cv.height });
 
     function down(e) {
       const p = pos(e);
@@ -682,7 +1162,7 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       ctx.lineWidth = s.tool === 'highlighter' ? 16 : 3;
       ctx.globalAlpha = s.tool === 'highlighter' ? 0.35 : 1;
-      const p = s.pts;
+      const p = s.pts.map(toPx);
       if (s.tool === 'pen' || s.tool === 'highlighter') {
         ctx.beginPath(); p.forEach((q, i) => i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)); ctx.stroke();
       } else if (p.length >= 2) {
@@ -711,7 +1191,7 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
     function eraseAt(p) {
       const list = strokes[slideId] || [];
       for (let i = list.length - 1; i >= 0; i--) {
-        if (list[i].pts.some(q => Math.hypot(q.x - p.x, q.y - p.y) < 18)) { list.splice(i, 1); break; }
+        if (list[i].pts.some(q => Math.hypot((q.x - p.x) * cv.width, (q.y - p.y) * cv.height) < 18)) { list.splice(i, 1); break; }
       }
       redraw();
     }
@@ -721,53 +1201,83 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
     function addText(p) {
       const box = el('div', 'annot-text');
       box.contentEditable = 'true';
-      box.style.left = p.x + 'px'; box.style.top = p.y + 'px'; box.style.color = color;
+      box.style.left = (p.x * 100) + '%'; box.style.top = (p.y * 100) + '%'; box.style.color = color;
       box.dataset.slide = slideId;
-      $('#stageWrap').appendChild(box);
+      $('#stageArea').appendChild(box);
       setTimeout(() => box.focus(), 0);
     }
     let laserEl = null;
     function showLaser(p) {
-      if (!laserEl) { laserEl = el('div', 'laser-dot'); $('#stageWrap').appendChild(laserEl); }
-      laserEl.style.left = p.x + 'px'; laserEl.style.top = p.y + 'px';
+      if (!laserEl) { laserEl = el('div', 'laser-dot'); $('#stageArea').appendChild(laserEl); }
+      laserEl.style.left = (p.x * 100) + '%'; laserEl.style.top = (p.y * 100) + '%';
     }
     function hideLaser() { if (laserEl) { laserEl.remove(); laserEl = null; } }
-    function moveSpot(p) { spot().style.setProperty('--x', p.x + 'px'); spot().style.setProperty('--y', p.y + 'px'); }
+    function moveSpot(p) { spot().style.setProperty('--x', (p.x * 100) + '%'); spot().style.setProperty('--y', (p.y * 100) + '%'); }
 
     function slideChanged(id) {
       slideId = id;
+      fit();
       /* chú thích dạng hộp chữ chỉ thuộc về slide của nó */
       document.querySelectorAll('.annot-text').forEach(n => { n.hidden = n.dataset.slide !== id; });
       redraw();
     }
-    return { init, setTool, setColor, undo, clear, slideChanged, redraw };
+    return { init, setTool, setColor, undo, clear, slideChanged, redraw, resize, fit };
   })();
 
   /* ---------- bảng dụng cụ: nút cố định, bảng kéo được bằng thanh tiêu đề ---------- */
   function initToolkit() {
     const panel = $('#toolkit'), handle = $('#tkHandle');
-    $('#btnToolkit').addEventListener('click', () => panel.classList.toggle('hidden'));
-    $('#tkClose').addEventListener('click', () => panel.classList.add('hidden'));
+
+    function closeToolkit() {
+      panel.classList.add('hidden');
+      /* Nét vẽ và hộp chữ GIỮ NGUYÊN — chỉ trả con trỏ về bình thường, nếu
+         không thì đóng bảng xong canvas vẫn nuốt hết cú bấm vào slide. */
+      annotation.setTool('select');
+    }
+    $('#btnToolkit').addEventListener('click', () => {
+      if (panel.classList.contains('hidden')) panel.classList.remove('hidden');
+      else closeToolkit();
+    });
     panel.addEventListener('click', ev => {
       const b = ev.target.closest('[data-tool],[data-color],[data-tk]');
       if (!b) return;
+      ev.stopPropagation();
       if (b.dataset.tool) annotation.setTool(b.dataset.tool);
       else if (b.dataset.color) annotation.setColor(b.dataset.color);
       else if (b.dataset.tk === 'undo') annotation.undo();
       else if (b.dataset.tk === 'clear') annotation.clear();
+      else if (b.dataset.tk === 'close') closeToolkit();
     });
+
+    /* Kéo bảng bằng thanh tiêu đề.
+       LỖI CŨ: pointerdown bắt con trỏ (setPointerCapture) NGAY, mà khi con
+       trỏ đang bị bắt thì trình duyệt gửi luôn cả sự kiện click về phần tử
+       bắt — tức là về thanh tiêu đề, không phải nút ✕. Nút đóng vì thế
+       không bao giờ nhận được click. Nay chỉ bắt con trỏ khi đã kéo quá
+       3px, và bấm trúng nút thì không kéo. */
     let drag = null;
     handle.addEventListener('pointerdown', e => {
-      drag = { x: e.clientX, y: e.clientY, l: panel.offsetLeft, t: panel.offsetTop };
-      handle.setPointerCapture(e.pointerId);
+      if (e.target.closest('button')) return;
+      drag = { x: e.clientX, y: e.clientY, l: panel.offsetLeft, t: panel.offsetTop, on: false, id: e.pointerId };
     });
     handle.addEventListener('pointermove', e => {
       if (!drag) return;
-      panel.style.left = (drag.l + e.clientX - drag.x) + 'px';
-      panel.style.top = (drag.t + e.clientY - drag.y) + 'px';
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      if (!drag.on) {
+        if (Math.abs(dx) + Math.abs(dy) < 3) return;
+        drag.on = true;
+        try { handle.setPointerCapture(drag.id); } catch (err) {}
+      }
+      panel.style.left = (drag.l + dx) + 'px';
+      panel.style.top = (drag.t + dy) + 'px';
       panel.style.right = 'auto'; panel.style.bottom = 'auto';
     });
-    handle.addEventListener('pointerup', () => { drag = null; });
+    const endDrag = () => {
+      if (drag && drag.on) { try { handle.releasePointerCapture(drag.id); } catch (err) {} }
+      drag = null;
+    };
+    handle.addEventListener('pointerup', endDrag);
+    handle.addEventListener('pointercancel', endDrag);
   }
 
   /* ---------- khởi động ---------- */
@@ -784,57 +1294,20 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
   window.HSKSlides = {
     mount: mountLesson,
     init() {
-      annotation.init(); initToolkit();
-      $('#btnPrev').addEventListener('click', prev);
-      $('#btnNext').addEventListener('click', next);
+      annotation.init(); initToolkit(); initFs(); initStageClicks();
+      /* mũi tên dưới chân CHỈ để chuyển slide (yêu cầu 10) — muốn hiện thêm
+         nội dung trên slide hiện tại thì bấm vào nền slide */
+      $('#btnPrev').addEventListener('click', prevSlide);
+      $('#btnNext').addEventListener('click', nextSlide);
       $('#btnHub').addEventListener('click', () => goToId('hub'));
       $('#btnFull').addEventListener('click', toggleFull);
+      $('#btnFsUp').addEventListener('click', () => bumpFs(2));
+      $('#btnFsDown').addEventListener('click', () => bumpFs(-2));
     },
     goToId, next, prev
   };
 })();
 
-
-/* ---- kế hoạch slide dùng chung cho trình chiếu và trang quản lý ----
-   Hai hàm thuần, không phụ thuộc Excel, nên trang giảng không phải nạp
-   thư viện đọc bảng tính. Bản quản trị dùng đúng hai hàm này qua
-   HSKParser nên xem trước và lúc giảng luôn khớp nhau. */
-window.HSKPlan = {
-  buildSlidePlan(lesson) {
-    const s = [];
-    s.push({ id: 'intro', kind: 'intro', title: lesson.title || 'Bài học' });
-    s.push({ id: 'hub', kind: 'hub', title: 'DANH MỤC BÀI HỌC' });
-    (lesson.vocabulary || []).forEach((v, i) => {
-      s.push({ id: 'vocab-' + i, kind: 'vocab', index: i, title: v.chinese, section: 'vocab' });
-      if (v.chars && v.chars.length)
-        s.push({ id: 'write-' + i, kind: 'write', index: i, title: 'Viết ' + v.chinese, section: 'vocab' });
-    });
-    if (lesson.reading && (lesson.reading.lines || []).length)
-      s.push({ id: 'reading', kind: 'reading', title: lesson.reading.title, section: 'reading' });
-    (lesson.grammar || []).forEach((g, i) =>
-      s.push({ id: 'grammar-' + i, kind: 'grammar', index: i, title: g.title, section: 'grammar' }));
-    (lesson.grammarPractice || []).forEach((p, i) =>
-      s.push({ id: 'gpr-' + i, kind: 'practice', bank: 'grammar', index: i,
-               title: 'Luyện ngữ pháp ' + (i + 1), section: 'gpractice' }));
-    (lesson.vocabPractice || []).forEach((p, i) =>
-      s.push({ id: 'vpr-' + i, kind: 'practice', bank: 'vocab', index: i,
-               title: 'Luyện từ vựng ' + (i + 1), section: 'vpractice' }));
-    (lesson.radicals || []).forEach((r, i) =>
-      s.push({ id: 'radical-' + i, kind: 'radical', index: i, title: 'Bộ ' + r.radical, section: 'radicals' }));
-    return s;
-  },
-  buildSections(lesson) {
-    const out = [];
-    const add = (key, label, icon, n) => { if (n) out.push({ key, label, icon, count: n }); };
-    add('vocab',     'Từ vựng',            '📚', (lesson.vocabulary || []).length);
-    add('reading',   'Bài đọc',            '📖', lesson.reading ? (lesson.reading.lines || []).length : 0);
-    add('grammar',   'Ngữ pháp',           '🧩', (lesson.grammar || []).length);
-    add('gpractice', 'Luyện tập Ngữ pháp', '✍️', (lesson.grammarPractice || []).length);
-    add('vpractice', 'Luyện tập Từ vựng',  '🎯', (lesson.vocabPractice || []).length);
-    add('radicals',  'Bộ thủ',             '🀄', (lesson.radicals || []).length);
-    return out;
-  }
-};
 
 /* ==========================================================================
    LỚP NỀN TẢNG — nhận diện người dùng, lấy bài từ cơ sở dữ liệu

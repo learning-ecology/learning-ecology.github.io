@@ -1,4 +1,6 @@
-/* ===== HSK Slides: Excel → lesson JSON → slide plan (Phase 56) ==========
+/* ===== HSK Slides: Excel → lesson JSON → slide plan =====================
+   Phase 56 dựng khung; Phase 57 thay ngân hàng bài tập bằng sáu loại
+   hoạt động TƯƠNG TÁC và thêm trạng thái tư liệu cho từng từ.
    Ba việc TÁCH RIÊNG, đúng như yêu cầu tách dữ liệu khỏi trình bày:
 
      parseWorkbook(wb)   Excel  → dữ liệu bài học thuần (không có HTML)
@@ -141,34 +143,26 @@
     });
     lesson.grammar.sort((a, b) => a.order - b.order);
 
-    /* --- 5 & 6. Luyện tập --- */
-    const EX_TYPES_G = ['mcq','fill','arrange','correct','structure'];
-    /* 'fill' dùng được cho cả hai ngân hàng — điền từ là bài từ vựng rất phổ biến */
-    const EX_TYPES_V = ['mcq','match','picture','pinyin','cloze','complete','fill'];
-    const readPractice = (ws, allowed, bucket) => {
-      objRows(ws, ['type','question','a','b','c','d','answer','left','right','explanation'])
-      .forEach(r => {
-        /* chấp nhận cả tên kiểu viết dài mà bản mẫu đang dùng */
-        const ALIAS = { multiple_choice:'mcq', 'multiple choice':'mcq', trac_nghiem:'mcq',
-                        fill_blank:'fill', 'fill in the blank':'fill', dien_tu:'fill',
-                        matching:'match', noi:'match', arrangement:'arrange', sap_xep:'arrange',
-                        correction:'correct', sua_loi:'correct', sentence_completion:'complete' };
-        let type = S(r.type).toLowerCase().replace(/\s+/g,' ');
-        type = ALIAS[type] || ALIAS[type.replace(/ /g,'_')] || type;
-        if (!type && !S(r.question) && !S(r.left)) return;
-        const item = { type, question: S(r.question), answer: S(r.answer), explanation: S(r.explanation) };
-        if (['mcq','picture','pinyin','structure'].indexOf(type) >= 0) {
-          item.options = ['a','b','c','d'].map(k => S(r[k])).filter(Boolean);
-        }
-        if (type === 'match') { item.left = S(r.left); item.right = S(r.right); }
-        item._known = allowed.indexOf(type) >= 0;
-        bucket.push(item);
-      });
-    };
-    readPractice(pickSheet(wb, 'GrammarPractice', ['Luyện tập ngữ pháp']), EX_TYPES_G, lesson.grammarPractice);
-    readPractice(pickSheet(wb, 'VocabPractice', ['Luyện tập từ vựng']), EX_TYPES_V, lesson.vocabPractice);
-    /* các câu ghép cặp cùng nhau thành một bài */
-    lesson.vocabPractice = groupMatches(lesson.vocabPractice);
+    /* --- 5 & 6. Luyện tập (Phase 57) ---
+       SÁU loại bài, tất cả đều TƯƠNG TÁC THẬT trên slide. Bản Phase 56 chỉ
+       đọc ra rồi hiện sẵn đáp án; giờ mỗi loại có một cỗ máy riêng bên
+       trình chiếu, nên chỗ này chỉ lo chuẩn hoá DỮ LIỆU:
+
+         mcq      chọn A/B/C/D            → options[] + answerIndex
+         fill     điền vào chỗ trống      → answers[] (chấp nhận nhiều đáp án)
+         arrange  sắp xếp thành câu       → tokens[] + answer
+         match    nối cột trái với phải   → pairs[]
+         picture  nhìn ảnh chọn từ        → pairs[] (ảnh lấy từ Vocabulary)
+         pinyin   nối chữ Hán với pinyin  → pairs[]
+
+       match/picture/pinyin: mỗi DÒNG là một cặp, các dòng liền nhau cùng
+       loại gộp thành MỘT hoạt động. Để trống hết left/right thì hệ thống
+       tự dựng hoạt động từ chính từ vựng của bài — nhờ vậy tệp Excel sau
+       chỉ cần một dòng "pinyin" là có bài nối pinyin đầy đủ. */
+    readPractice(pickSheet(wb, 'GrammarPractice', ['Luyện tập ngữ pháp']), lesson.grammarPractice);
+    readPractice(pickSheet(wb, 'VocabPractice', ['Luyện tập từ vựng']), lesson.vocabPractice);
+    lesson.grammarPractice = groupActivities(lesson.grammarPractice);
+    lesson.vocabPractice  = groupActivities(lesson.vocabPractice);
 
     /* --- 7. Bộ thủ (không bắt buộc) --- */
     objRows(pickSheet(wb, 'Radicals', ['Bộ thủ']),
@@ -186,10 +180,103 @@
     return lesson;
   }
 
-  function groupMatches(list) {
-    const out = [], pairs = [];
-    list.forEach(it => { if (it.type === 'match') pairs.push([it.left, it.right]); else out.push(it); });
-    if (pairs.length) out.push({ type: 'match', question: 'Nối từ với nghĩa đúng', pairs, _known: true });
+  /* tên loại bài: chấp nhận cả tiếng Anh dài, tiếng Việt không dấu và bản mẫu cũ */
+  const EX_ALIAS = {
+    'multiple_choice':'mcq', 'multiple choice':'mcq', 'trac_nghiem':'mcq', 'chon_dap_an':'mcq',
+    'fill_blank':'fill', 'fill in the blank':'fill', 'fill_in_the_blank':'fill', 'dien_tu':'fill',
+    'dien_vao_cho_trong':'fill', 'cloze':'fill', 'complete':'fill', 'sentence_completion':'fill',
+    'correct':'fill', 'correction':'fill', 'sua_loi':'fill',
+    'matching':'match', 'noi':'match', 'noi_tu':'match',
+    'sentence_arrangement':'arrange', 'arrangement':'arrange', 'sap_xep':'arrange',
+    'sap_xep_cau':'arrange', 'order':'arrange',
+    'picture_matching':'picture', 'picture matching':'picture', 'noi_hinh':'picture', 'hinh_anh':'picture',
+    'pinyin_matching':'pinyin', 'pinyin matching':'pinyin', 'noi_pinyin':'pinyin',
+    'structure':'mcq'
+  };
+  const EX_TYPES = ['mcq','fill','arrange','match','picture','pinyin'];
+  const PAIRED   = ['match','picture','pinyin'];
+  const splitList = s => S(s).split(/\s*[\/|,、;]\s*|\s{2,}/).map(x => x.trim()).filter(Boolean);
+
+  function readPractice(ws, bucket) {
+    objRows(ws, ['type','question','a','b','c','d','answer','left','right','tokens','image','explanation'])
+    .forEach(r => {
+      let type = S(r.type).toLowerCase().replace(/\s+/g, ' ');
+      type = EX_ALIAS[type] || EX_ALIAS[type.replace(/ /g, '_')] || type;
+      if (!type && !S(r.question) && !S(r.left)) return;
+
+      const item = { type, question: S(r.question), explanation: S(r.explanation), _ok: true, _why: '' };
+      const fail = why => { item._ok = false; item._why = why; };
+
+      /* Dòng ghi một loại nhưng viết ra lại đúng khuôn trắc nghiệm (bốn
+         phương án a–d + đáp án A/B/C/D) thì hiểu là trắc nghiệm. Bài mẫu
+         gốc ghi "fill_blank" và "matching" cho những câu như vậy; theo
+         đúng nhãn thì cả hai đều hỏng. */
+      const asOpts = ['a','b','c','d'].map(k => S(r[k])).filter(Boolean);
+      if (type !== 'mcq' && asOpts.length >= 2 && optionIndex(S(r.answer), asOpts) >= 0) {
+        item._retyped = type; item.type = type = 'mcq';
+      }
+
+      if (EX_TYPES.indexOf(type) < 0) { fail('loại bài "' + (type || '(trống)') + '" chưa hỗ trợ'); bucket.push(item); return; }
+
+      if (type === 'mcq') {
+        item.options = ['a','b','c','d'].map(k => S(r[k])).filter(Boolean);
+        item.answerIndex = optionIndex(S(r.answer), item.options);
+        if (item.options.length < 2) fail('cần ít nhất hai phương án ở cột a–d');
+        else if (item.answerIndex < 0) fail('cột answer phải là A/B/C/D hoặc trùng đúng chữ của một phương án');
+      } else if (type === 'fill') {
+        item.answers = splitList(r.answer);
+        /* câu hỏi không có chỗ trống thì tự thêm vào cuối, đỡ phải dặn thầy */
+        if (!/_{2,}|\.{3,}|…/.test(item.question)) item.question = item.question + ' ______';
+        if (!item.answers.length) fail('thiếu đáp án ở cột answer');
+      } else if (type === 'arrange') {
+        item.answer = S(r.answer);
+        item.tokens = splitList(r.tokens);
+        if (!item.tokens.length && item.answer) item.tokens = tokensFromAnswer(item.answer);
+        if (!item.answer) fail('thiếu câu đúng ở cột answer');
+        else if (item.tokens.length < 2) fail('cần ít nhất hai thẻ ở cột tokens');
+      } else {                                   /* match · picture · pinyin */
+        item.left = S(r.left); item.right = S(r.right); item.image = S(r.image);
+        item._pair = true;
+      }
+      bucket.push(item);
+    });
+  }
+
+  /* "你好" → ["你","好"] ; "我 是 学生" → ["我","是","学生"] */
+  function tokensFromAnswer(ans) {
+    const a = S(ans).replace(/[。！？，、]/g, '');
+    if (/\s/.test(a)) return a.split(/\s+/).filter(Boolean);
+    return Array.from(a).filter(c => c.trim());
+  }
+  function optionIndex(ans, options) {
+    const a = S(ans);
+    if (!a) return -1;
+    if (/^[a-dA-D]$/.test(a)) { const i = a.toUpperCase().charCodeAt(0) - 65; return i < options.length ? i : -1; }
+    return options.findIndex(o => S(o) === a);
+  }
+
+  /* các dòng liền nhau cùng loại ghép cặp → MỘT hoạt động */
+  const PAIR_TITLE = { match: 'Nối từ với nghĩa đúng', picture: 'Nhìn hình chọn từ đúng',
+                       pinyin: 'Nối chữ Hán với pinyin' };
+  function groupActivities(list) {
+    const out = [];
+    let run = null;
+    const flush = () => {
+      if (!run) return;
+      if (!run.pairs.length) { run.auto = true; }        /* dòng trống → tự dựng từ từ vựng của bài */
+      else if (run.pairs.length < 2) { run._ok = false; run._why = 'cần ít nhất hai cặp'; }
+      out.push(run); run = null;
+    };
+    list.forEach(it => {
+      if (!it._pair) { flush(); out.push(it); return; }
+      if (!run || run.type !== it.type) { flush();
+        run = { type: it.type, question: it.question || PAIR_TITLE[it.type], pairs: [],
+                explanation: '', _ok: true, _why: '' }; }
+      if (it.question && !run.question) run.question = it.question;
+      if (it.explanation && !run.explanation) run.explanation = it.explanation;
+      if (it.left || it.right) run.pairs.push({ left: it.left, right: it.right, image: it.image });
+    });
+    flush();
     return out;
   }
 
@@ -212,44 +299,12 @@
     return lesson;
   }
 
-  /* ---------- kế hoạch slide: id sinh từ dữ liệu, KHÔNG số thứ tự cứng ---------- */
-  function buildSlidePlan(lesson) {
-    const s = [];
-    s.push({ id: 'intro', kind: 'intro', title: lesson.title || 'Bài học' });
-    s.push({ id: 'hub', kind: 'hub', title: 'DANH MỤC BÀI HỌC' });
-
-    (lesson.vocabulary || []).forEach((v, i) => {
-      s.push({ id: 'vocab-' + i, kind: 'vocab', index: i, title: v.chinese, section: 'vocab' });
-      if (v.chars && v.chars.length)
-        s.push({ id: 'write-' + i, kind: 'write', index: i, title: 'Viết ' + v.chinese, section: 'vocab' });
-    });
-    if (lesson.reading && (lesson.reading.lines || []).length)
-      s.push({ id: 'reading', kind: 'reading', title: lesson.reading.title, section: 'reading' });
-    (lesson.grammar || []).forEach((g, i) =>
-      s.push({ id: 'grammar-' + i, kind: 'grammar', index: i, title: g.title, section: 'grammar' }));
-    (lesson.grammarPractice || []).forEach((p, i) =>
-      s.push({ id: 'gpr-' + i, kind: 'practice', bank: 'grammar', index: i,
-               title: 'Luyện ngữ pháp ' + (i + 1), section: 'gpractice' }));
-    (lesson.vocabPractice || []).forEach((p, i) =>
-      s.push({ id: 'vpr-' + i, kind: 'practice', bank: 'vocab', index: i,
-               title: 'Luyện từ vựng ' + (i + 1), section: 'vpractice' }));
-    (lesson.radicals || []).forEach((r, i) =>
-      s.push({ id: 'radical-' + i, kind: 'radical', index: i, title: 'Bộ ' + r.radical, section: 'radicals' }));
-    return s;
-  }
-
-  /* mục nào có nội dung thì mới hiện trong danh mục — sheet trống thì tự ẩn */
-  function buildSections(lesson) {
-    const out = [];
-    const add = (key, label, icon, n) => { if (n) out.push({ key, label, icon, count: n }); };
-    add('vocab',     'Từ vựng',            '📚', (lesson.vocabulary || []).length);
-    add('reading',   'Bài đọc',            '📖', lesson.reading ? (lesson.reading.lines || []).length : 0);
-    add('grammar',   'Ngữ pháp',           '🧩', (lesson.grammar || []).length);
-    add('gpractice', 'Luyện tập Ngữ pháp', '✍️', (lesson.grammarPractice || []).length);
-    add('vpractice', 'Luyện tập Từ vựng',  '🎯', (lesson.vocabPractice || []).length);
-    add('radicals',  'Bộ thủ',             '🀄', (lesson.radicals || []).length);
-    return out;
-  }
+  /* các hàm dựng slide plan nằm ở hsk-plan.js — dùng chung với trang trình chiếu */
+  const P = () => root.HSKPlan || (function(){ throw new Error('Thiếu hsk-plan.js'); })();
+  const buildSlidePlan  = l => P().buildSlidePlan(l);
+  const buildSections   = l => P().buildSections(l);
+  const pairsOf         = (a, l) => P().pairsOf(a, l);
+  const activityUsable  = (a, l) => P().activityUsable(a, l);
 
   /* ---------- kiểm tra trước khi đăng ---------- */
   function validateLesson(lesson) {
@@ -276,7 +331,15 @@
       else seen[v.chinese] = i + 1;
       if (!v.vietnamese) { errs.push(at + ': thiếu nghĩa tiếng Việt (cột vietnamese).'); st.status = 'error'; st.notes.push('thiếu nghĩa'); }
       if (!v.pinyin) { warns.push(at + ': chưa có pinyin và cũng không tạo tự động được.'); if (st.status === 'ready') st.status = 'warn'; st.notes.push('thiếu pinyin'); }
-      if (!v.image && !v.imageKeyword) { if (st.status === 'ready') st.status = 'warn'; st.notes.push('chưa có ảnh minh hoạ'); }
+
+      /* trạng thái tư liệu — thầy chỉ phải sửa đúng từ nào thiếu (yêu cầu 17) */
+      st.illustration = v.image && v.image.url ? (v.image.source || 'teacher') : 'none';
+      st.strokeChars  = v.chars || [];
+      st.strokeStatus = (v.chars || []).length ? 'unknown' : 'none';   // trang quản lý kiểm tra thật rồi điền vào
+      if (st.illustration === 'none') { if (st.status === 'ready') st.status = 'warn'; st.notes.push('chưa có ảnh minh hoạ'); }
+      else if (st.illustration === 'auto') st.notes.push('ảnh tự tìm — nên xem lại');
+      if (st.strokeStatus === 'none') { if (st.status === 'ready') st.status = 'warn'; st.notes.push('không có chữ Hán để vẽ nét'); }
+
       if (!(v.examples || []).length) { warns.push(at + ': chưa có câu ví dụ nào.'); }
       (v.examples || []).forEach((e, k) => {
         if (!e.vi) warns.push(at + ' · ví dụ ' + (k + 1) + ': chưa có bản dịch tiếng Việt.');
@@ -284,10 +347,15 @@
       items.push(st);
     });
 
-    const badG = (lesson.grammarPractice || []).filter(p => !p._known);
-    badG.forEach(p => warns.push('Luyện tập ngữ pháp: loại bài "' + (p.type || '(trống)') + '" chưa hỗ trợ — câu này sẽ bị bỏ qua.'));
-    const badV = (lesson.vocabPractice || []).filter(p => !p._known);
-    badV.forEach(p => warns.push('Luyện tập từ vựng: loại bài "' + (p.type || '(trống)') + '" chưa hỗ trợ — câu này sẽ bị bỏ qua.'));
+    const checkBank = (list, label) => (list || []).forEach((p, i) => {
+      if (p._retyped) warns.push(label + ' ' + (i + 1) + ': cột type ghi "' + p._retyped +
+        '" nhưng dòng có sẵn bốn phương án và đáp án A/B/C/D, nên hệ thống hiểu là bài trắc nghiệm.');
+      if (activityUsable(p, lesson)) return;
+      const why = p._why || (PAIRED.indexOf(p.type) >= 0 ? 'chưa đủ hai cặp để nối' : 'thiếu dữ liệu');
+      warns.push(label + ' ' + (i + 1) + ' (' + (p.type || 'không rõ loại') + '): ' + why + ' — câu này sẽ không lên slide.');
+    });
+    checkBank(lesson.grammarPractice, 'Luyện tập ngữ pháp');
+    checkBank(lesson.vocabPractice, 'Luyện tập từ vựng');
 
     (lesson.grammar || []).forEach((g, i) => {
       if (!g.structure) warns.push('Ngữ pháp ' + (i + 1) + ' (' + g.title + '): chưa có cột structure.');
@@ -296,12 +364,19 @@
 
     const sections = buildSections(lesson);
     const plan = buildSlidePlan(lesson);
+    const drills = plan.filter(s => s.kind === 'practice').length;
     return { errs, warns, items, sections,
              stats: { vocab: V.length, slides: plan.length, sections: sections.length,
                       grammar: (lesson.grammar || []).length,
                       radicals: (lesson.radicals || []).length,
-                      autoPinyin: V.filter(v => v.pinyinSource === 'auto').length } };
+                      drills,
+                      autoPinyin: V.filter(v => v.pinyinSource === 'auto').length,
+                      images: V.filter(v => v.image && v.image.url).length } };
   }
 
-  root.HSKParser = { parseWorkbook, enrichLesson, validateLesson, buildSlidePlan, buildSections, autoPinyin };
+  /* các hàm plan được xuất lại cho tiện gọi — nguồn thật vẫn là hsk-plan.js */
+  root.HSKParser = { parseWorkbook, enrichLesson, validateLesson, buildSlidePlan, buildSections,
+                     autoPinyin, pairsOf, activityUsable,
+                     get exTitle()  { return P().exTitle; },
+                     get EX_LABEL() { return P().EX_LABEL; } };
 })(typeof window !== 'undefined' ? window : globalThis);
