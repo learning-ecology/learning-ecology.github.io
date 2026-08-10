@@ -866,6 +866,314 @@ function validateExamFull(ex, uploadedNames){
 root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUrls};
 })(typeof window!=='undefined'?window:globalThis);
 
+/* ===== HSK Slides: Excel → lesson JSON → slide plan (Phase 56) ==========
+   Ba việc TÁCH RIÊNG, đúng như yêu cầu tách dữ liệu khỏi trình bày:
+
+     parseWorkbook(wb)   Excel  → dữ liệu bài học thuần (không có HTML)
+     enrichLesson(l)     điền pinyin còn thiếu, đánh dấu nguồn
+     buildSlidePlan(l)   dữ liệu → danh sách slide có id, KHÔNG số cứng
+     validateLesson(l)   kiểm tra trước khi đăng
+
+   Không hàm nào ở đây sinh HTML. Trình chiếu tự dựng giao diện từ
+   slide plan, nên đổi giao diện không phải đụng vào dữ liệu và ngược lại.
+   ===================================================================== */
+(function (root) {
+
+  /* ---------- đọc bảng tính ---------- */
+  function aoa(ws) { return XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: '' }); }
+  function objRows(ws, headers) {
+    if (!ws) return [];
+    const rows = aoa(ws), h0 = headers[0];
+    let hi = rows.findIndex(r => r.map(x => String(x == null ? '' : x).trim().toLowerCase())
+                                 .includes(h0.toLowerCase()));
+    if (hi < 0) return [];
+    const head = rows[hi].map(x => String(x == null ? '' : x).trim().toLowerCase());
+    const idx = {}; headers.forEach(h => idx[h] = head.indexOf(h.toLowerCase()));
+    const out = [];
+    for (let i = hi + 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r || r.every(c => String(c == null ? '' : c).trim() === '')) continue;
+      const o = {}; headers.forEach(h => { o[h] = idx[h] >= 0 ? r[idx[h]] : ''; });
+      out.push(o);
+    }
+    return out;
+  }
+  const S = v => v == null ? '' : String(v).trim();
+  const N = v => { const n = Number(v); return isNaN(n) ? 0 : n; };
+  const HAN = /[一-鿿㐀-䶿]/;
+  const onlyHan = s => Array.from(S(s)).filter(c => HAN.test(c));
+
+  /* Sheet phải khớp CHÍNH XÁC theo thứ tự ưu tiên, không dùng "chứa chuỗi":
+     bản cũ dò theo substring nên "Grammar Practice" có thể bị nhận nhầm
+     thành sheet "Grammar" tuỳ thứ tự sheet trong tệp. */
+  function pickSheet(wb, exact, fallbacks) {
+    const names = wb.SheetNames;
+    let hit = names.find(n => n.trim().toLowerCase() === exact.toLowerCase());
+    if (hit) return wb.Sheets[hit];
+    for (const f of (fallbacks || [])) {
+      hit = names.find(n => n.trim().toLowerCase() === f.toLowerCase());
+      if (hit) return wb.Sheets[hit];
+    }
+    return null;
+  }
+
+  function parseWorkbook(wb) {
+    if (typeof XLSX === 'undefined') throw new Error('Chưa tải được thư viện đọc Excel.');
+
+    /* --- 1. Thông tin bài --- */
+    const info = {};
+    const infoWs = pickSheet(wb, 'LessonInfo', ['Lesson Info', 'Thông tin bài', 'Info', 'Meta']);
+    (aoa(infoWs) || []).forEach(r => {
+      /* ô đầu có thể rỗng → r[0] là undefined; bản cũ gọi .toString() ở đây và văng lỗi */
+      const k = S(r && r[0]).toLowerCase(), v = S(r && r[1]);
+      if (!k) return;
+      info[k] = v;
+    });
+    const pick = (...keys) => { for (const k of keys) if (info[k]) return info[k]; return ''; };
+
+    const lesson = {
+      schema: 'hsk-lesson/1.0',
+      lessonId:  pick('lessonid', 'mã bài', 'id'),
+      course:    pick('course', 'khóa học', 'khoá học'),
+      hskLevel:  N(pick('hsklevel', 'hsk', 'cấp độ')) || 1,
+      lessonNo:  pick('lessonnumber', 'lessonno', 'số bài'),
+      title:     pick('title', 'tiêu đề'),
+      titleVi:   pick('titlevi', 'tiêu đề tiếng việt'),
+      titleZh:   pick('titlezh', 'tiêu đề tiếng trung'),
+      subtitle:  pick('subtitle', 'phụ đề'),
+      theme:     pick('theme', 'chủ đề'),
+      description: pick('description', 'mô tả'),
+      vocabulary: [], reading: null, grammar: [],
+      grammarPractice: [], vocabPractice: [], radicals: []
+    };
+
+    /* --- 2. Từ vựng --- */
+    objRows(pickSheet(wb, 'Vocabulary', ['Từ vựng', 'Vocab']),
+      ['order','chinese','pinyin','wordclass','vietnamese','example1','example1_vi',
+       'example2','example2_vi','notes','image','imagekeyword','stroke'])
+    .forEach((r, i) => {
+      const zh = S(r.chinese);
+      if (!zh) return;
+      const ex = [];
+      if (S(r.example1)) ex.push({ zh: S(r.example1), pinyin: '', vi: S(r.example1_vi) });
+      if (S(r.example2)) ex.push({ zh: S(r.example2), pinyin: '', vi: S(r.example2_vi) });
+      lesson.vocabulary.push({
+        order: N(r.order) || (i + 1),
+        chinese: zh,
+        pinyin: S(r.pinyin), pinyinSource: S(r.pinyin) ? 'teacher' : '',
+        wordClass: S(r.wordclass),
+        vietnamese: S(r.vietnamese),
+        examples: ex,
+        notes: S(r.notes),
+        image: S(r.image) ? { url: S(r.image), source: 'teacher', credit: '' } : null,
+        imageKeyword: S(r.imagekeyword),
+        strokeOverride: S(r.stroke),
+        chars: onlyHan(zh)
+      });
+    });
+    lesson.vocabulary.sort((a, b) => a.order - b.order);
+
+    /* --- 3. Bài đọc: mỗi dòng một câu/lượt thoại ---
+       Bài đọc HSK sơ cấp phần lớn là HỘI THOẠI, nên có cột speaker.
+       Bài văn xuôi thì để trống cột đó. */
+    const rd = objRows(pickSheet(wb, 'Reading', ['Bài đọc']),
+      ['title','speaker','chinese','pinyin','vietnamese','notes','audio']);
+    const lines = rd.filter(r => S(r.chinese)).map(r => ({
+      speaker: S(r.speaker), zh: S(r.chinese), pinyin: S(r.pinyin), vi: S(r.vietnamese)
+    }));
+    if (lines.length) {
+      lesson.reading = {
+        title: S(rd[0].title) || 'Bài đọc',
+        lines,
+        isDialogue: lines.some(l => l.speaker),
+        notes: S(rd.find(r => S(r.notes)) ? rd.find(r => S(r.notes)).notes : ''),
+        audio: S(rd.find(r => S(r.audio)) ? rd.find(r => S(r.audio)).audio : '')
+      };
+    }
+
+    /* --- 4. Ngữ pháp: các dòng cùng `order` gộp thành MỘT điểm ngữ pháp --- */
+    const gmap = {};
+    objRows(pickSheet(wb, 'Grammar', ['Ngữ pháp']),
+      ['order','title','structure','explanation','examplezh','examplepinyin','examplevi'])
+    .forEach((r, i) => {
+      const key = String(N(r.order) || (i + 1));
+      if (!gmap[key]) {
+        gmap[key] = { order: N(r.order) || (i + 1), title: S(r.title) || ('Ngữ pháp ' + key),
+                      structure: S(r.structure), explanation: S(r.explanation), examples: [] };
+        lesson.grammar.push(gmap[key]);
+      }
+      if (S(r.title) && !gmap[key].title) gmap[key].title = S(r.title);
+      if (S(r.structure) && !gmap[key].structure) gmap[key].structure = S(r.structure);
+      if (S(r.explanation) && !gmap[key].explanation) gmap[key].explanation = S(r.explanation);
+      if (S(r.examplezh)) gmap[key].examples.push({ zh: S(r.examplezh), pinyin: S(r.examplepinyin), vi: S(r.examplevi) });
+    });
+    lesson.grammar.sort((a, b) => a.order - b.order);
+
+    /* --- 5 & 6. Luyện tập --- */
+    const EX_TYPES_G = ['mcq','fill','arrange','correct','structure'];
+    /* 'fill' dùng được cho cả hai ngân hàng — điền từ là bài từ vựng rất phổ biến */
+    const EX_TYPES_V = ['mcq','match','picture','pinyin','cloze','complete','fill'];
+    const readPractice = (ws, allowed, bucket) => {
+      objRows(ws, ['type','question','a','b','c','d','answer','left','right','explanation'])
+      .forEach(r => {
+        /* chấp nhận cả tên kiểu viết dài mà bản mẫu đang dùng */
+        const ALIAS = { multiple_choice:'mcq', 'multiple choice':'mcq', trac_nghiem:'mcq',
+                        fill_blank:'fill', 'fill in the blank':'fill', dien_tu:'fill',
+                        matching:'match', noi:'match', arrangement:'arrange', sap_xep:'arrange',
+                        correction:'correct', sua_loi:'correct', sentence_completion:'complete' };
+        let type = S(r.type).toLowerCase().replace(/\s+/g,' ');
+        type = ALIAS[type] || ALIAS[type.replace(/ /g,'_')] || type;
+        if (!type && !S(r.question) && !S(r.left)) return;
+        const item = { type, question: S(r.question), answer: S(r.answer), explanation: S(r.explanation) };
+        if (['mcq','picture','pinyin','structure'].indexOf(type) >= 0) {
+          item.options = ['a','b','c','d'].map(k => S(r[k])).filter(Boolean);
+        }
+        if (type === 'match') { item.left = S(r.left); item.right = S(r.right); }
+        item._known = allowed.indexOf(type) >= 0;
+        bucket.push(item);
+      });
+    };
+    readPractice(pickSheet(wb, 'GrammarPractice', ['Luyện tập ngữ pháp']), EX_TYPES_G, lesson.grammarPractice);
+    readPractice(pickSheet(wb, 'VocabPractice', ['Luyện tập từ vựng']), EX_TYPES_V, lesson.vocabPractice);
+    /* các câu ghép cặp cùng nhau thành một bài */
+    lesson.vocabPractice = groupMatches(lesson.vocabPractice);
+
+    /* --- 7. Bộ thủ (không bắt buộc) --- */
+    objRows(pickSheet(wb, 'Radicals', ['Bộ thủ']),
+      ['radical','pinyin','namevi','meaning','position','related','explanation'])
+    .forEach(r => {
+      if (!S(r.radical)) return;
+      lesson.radicals.push({
+        radical: S(r.radical), pinyin: S(r.pinyin), nameVi: S(r.namevi),
+        meaning: S(r.meaning), position: S(r.position),
+        related: S(r.related).split(/[|,、]/).map(x => x.trim()).filter(Boolean),
+        explanation: S(r.explanation)
+      });
+    });
+
+    return lesson;
+  }
+
+  function groupMatches(list) {
+    const out = [], pairs = [];
+    list.forEach(it => { if (it.type === 'match') pairs.push([it.left, it.right]); else out.push(it); });
+    if (pairs.length) out.push({ type: 'match', question: 'Nối từ với nghĩa đúng', pairs, _known: true });
+    return out;
+  }
+
+  /* ---------- làm giàu: chỉ điền chỗ TRỐNG, không đè lên nội dung của thầy ---------- */
+  function autoPinyin(text) {
+    const lib = root.pinyinPro || root.pinyin_pro;
+    if (!lib || !lib.pinyin || !text) return '';
+    try { return lib.pinyin(text, { toneType: 'symbol', type: 'string' }); }
+    catch (e) { return ''; }
+  }
+  function enrichLesson(lesson) {
+    (lesson.vocabulary || []).forEach(v => {
+      if (!v.pinyin) { const p = autoPinyin(v.chinese); if (p) { v.pinyin = p; v.pinyinSource = 'auto'; } }
+      (v.examples || []).forEach(e => { if (!e.pinyin) e.pinyin = autoPinyin(e.zh); });
+    });
+    (lesson.grammar || []).forEach(g =>
+      (g.examples || []).forEach(e => { if (!e.pinyin) e.pinyin = autoPinyin(e.zh); }));
+    if (lesson.reading) (lesson.reading.lines || []).forEach(l => { if (!l.pinyin) l.pinyin = autoPinyin(l.zh); });
+    (lesson.radicals || []).forEach(r => { if (!r.pinyin) r.pinyin = autoPinyin(r.radical); });
+    return lesson;
+  }
+
+  /* ---------- kế hoạch slide: id sinh từ dữ liệu, KHÔNG số thứ tự cứng ---------- */
+  function buildSlidePlan(lesson) {
+    const s = [];
+    s.push({ id: 'intro', kind: 'intro', title: lesson.title || 'Bài học' });
+    s.push({ id: 'hub', kind: 'hub', title: 'DANH MỤC BÀI HỌC' });
+
+    (lesson.vocabulary || []).forEach((v, i) => {
+      s.push({ id: 'vocab-' + i, kind: 'vocab', index: i, title: v.chinese, section: 'vocab' });
+      if (v.chars && v.chars.length)
+        s.push({ id: 'write-' + i, kind: 'write', index: i, title: 'Viết ' + v.chinese, section: 'vocab' });
+    });
+    if (lesson.reading && (lesson.reading.lines || []).length)
+      s.push({ id: 'reading', kind: 'reading', title: lesson.reading.title, section: 'reading' });
+    (lesson.grammar || []).forEach((g, i) =>
+      s.push({ id: 'grammar-' + i, kind: 'grammar', index: i, title: g.title, section: 'grammar' }));
+    (lesson.grammarPractice || []).forEach((p, i) =>
+      s.push({ id: 'gpr-' + i, kind: 'practice', bank: 'grammar', index: i,
+               title: 'Luyện ngữ pháp ' + (i + 1), section: 'gpractice' }));
+    (lesson.vocabPractice || []).forEach((p, i) =>
+      s.push({ id: 'vpr-' + i, kind: 'practice', bank: 'vocab', index: i,
+               title: 'Luyện từ vựng ' + (i + 1), section: 'vpractice' }));
+    (lesson.radicals || []).forEach((r, i) =>
+      s.push({ id: 'radical-' + i, kind: 'radical', index: i, title: 'Bộ ' + r.radical, section: 'radicals' }));
+    return s;
+  }
+
+  /* mục nào có nội dung thì mới hiện trong danh mục — sheet trống thì tự ẩn */
+  function buildSections(lesson) {
+    const out = [];
+    const add = (key, label, icon, n) => { if (n) out.push({ key, label, icon, count: n }); };
+    add('vocab',     'Từ vựng',            '📚', (lesson.vocabulary || []).length);
+    add('reading',   'Bài đọc',            '📖', lesson.reading ? (lesson.reading.lines || []).length : 0);
+    add('grammar',   'Ngữ pháp',           '🧩', (lesson.grammar || []).length);
+    add('gpractice', 'Luyện tập Ngữ pháp', '✍️', (lesson.grammarPractice || []).length);
+    add('vpractice', 'Luyện tập Từ vựng',  '🎯', (lesson.vocabPractice || []).length);
+    add('radicals',  'Bộ thủ',             '🀄', (lesson.radicals || []).length);
+    return out;
+  }
+
+  /* ---------- kiểm tra trước khi đăng ---------- */
+  function validateLesson(lesson) {
+    const errs = [], warns = [], items = [];
+    if (!lesson.lessonId) errs.push('Thiếu LessonInfo → lessonId (mã bài, phải là duy nhất).');
+    if (!lesson.title)    errs.push('Thiếu LessonInfo → title (tên bài hiển thị).');
+    if (!lesson.course)   warns.push('Thiếu LessonInfo → course (tên khoá học hiện trên slide mở đầu).');
+    if (!(lesson.hskLevel >= 1 && lesson.hskLevel <= 9))
+      errs.push('LessonInfo → hskLevel phải là số từ 1 đến 9.');
+
+    const V = lesson.vocabulary || [];
+    if (!V.length) errs.push('Sheet Vocabulary chưa có từ nào — bài học cần ít nhất một từ vựng.');
+
+    const seen = {};
+    V.forEach((v, i) => {
+      const at = 'Từ ' + (i + 1) + ' (' + (v.chinese || '?') + ')';
+      const st = { word: v.chinese, status: 'ready', notes: [] };
+      if (!v.chinese) errs.push(at + ': thiếu chữ Hán.');
+      else if (!v.chars.length) {
+        errs.push(at + ': cột chinese không chứa chữ Hán nào.');
+        st.status = 'error'; st.notes.push('không phải chữ Hán');
+      }
+      if (seen[v.chinese]) { errs.push(at + ': trùng với từ số ' + seen[v.chinese] + '.'); st.status = 'error'; st.notes.push('trùng lặp'); }
+      else seen[v.chinese] = i + 1;
+      if (!v.vietnamese) { errs.push(at + ': thiếu nghĩa tiếng Việt (cột vietnamese).'); st.status = 'error'; st.notes.push('thiếu nghĩa'); }
+      if (!v.pinyin) { warns.push(at + ': chưa có pinyin và cũng không tạo tự động được.'); if (st.status === 'ready') st.status = 'warn'; st.notes.push('thiếu pinyin'); }
+      if (!v.image && !v.imageKeyword) { if (st.status === 'ready') st.status = 'warn'; st.notes.push('chưa có ảnh minh hoạ'); }
+      if (!(v.examples || []).length) { warns.push(at + ': chưa có câu ví dụ nào.'); }
+      (v.examples || []).forEach((e, k) => {
+        if (!e.vi) warns.push(at + ' · ví dụ ' + (k + 1) + ': chưa có bản dịch tiếng Việt.');
+      });
+      items.push(st);
+    });
+
+    const badG = (lesson.grammarPractice || []).filter(p => !p._known);
+    badG.forEach(p => warns.push('Luyện tập ngữ pháp: loại bài "' + (p.type || '(trống)') + '" chưa hỗ trợ — câu này sẽ bị bỏ qua.'));
+    const badV = (lesson.vocabPractice || []).filter(p => !p._known);
+    badV.forEach(p => warns.push('Luyện tập từ vựng: loại bài "' + (p.type || '(trống)') + '" chưa hỗ trợ — câu này sẽ bị bỏ qua.'));
+
+    (lesson.grammar || []).forEach((g, i) => {
+      if (!g.structure) warns.push('Ngữ pháp ' + (i + 1) + ' (' + g.title + '): chưa có cột structure.');
+      if (!(g.examples || []).length) warns.push('Ngữ pháp ' + (i + 1) + ' (' + g.title + '): chưa có câu ví dụ.');
+    });
+
+    const sections = buildSections(lesson);
+    const plan = buildSlidePlan(lesson);
+    return { errs, warns, items, sections,
+             stats: { vocab: V.length, slides: plan.length, sections: sections.length,
+                      grammar: (lesson.grammar || []).length,
+                      radicals: (lesson.radicals || []).length,
+                      autoPinyin: V.filter(v => v.pinyinSource === 'auto').length } };
+  }
+
+  root.HSKParser = { parseWorkbook, enrichLesson, validateLesson, buildSlidePlan, buildSections, autoPinyin };
+})(typeof window !== 'undefined' ? window : globalThis);
+
     function loadXLSX() {
       return new Promise((res, rej) => {
         if (window.XLSX) return res(window.XLSX);
@@ -2239,7 +2547,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         { data: enrollments }, { data: anns }, { data: skeys }, { data: orgs },
         { data: allLics }, { data: events }, { data: activity }, { data: lockEvents },
         cardsRes, { data: pageViews }, rtRes0, raRes, rsRes, svRes, saRes, ssRes, ddRes,
-        cpRes, psRes, spRes, vsRes
+        cpRes, psRes, spRes, vsRes, hsRes
       ] = await Promise.all([
         sb.from("lessons").select("*").order("sort_order").order("created_at"),
         // Every student's progress, joined with names + lesson titles.
@@ -2294,7 +2602,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         sb.from("course_pricing").select("course_id, config"),
         sb.from("payment_settings").select("config").eq("id", 1).maybeSingle(),
         sb.from("section_pricing").select("section, config"),
-        sb.from("vsat_exams").select("*").order("sort_order").order("created_at")
+        sb.from("vsat_exams").select("*").order("sort_order").order("created_at"),
+        sb.from("hsk_lessons").select("*").order("hsk_level").order("sort_order").order("created_at")
       ]);
 
       /* `lang` only exists after migration51. If the column is missing the
@@ -2306,6 +2615,9 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
          quyết định đề thuộc kỳ nào. Đề tải lên TRƯỚC migration53 chưa có
          cột này nên mặc định coi là V-SAT. */
       const vsAll = (vsRes && !vsRes.error && vsRes.data) ? vsRes.data : [];
+      /* hsk_lessons chỉ có sau migration55 — chưa chạy thì tab hiện danh sách rỗng
+         thay vì làm hỏng cả bảng điều khiển */
+      let hskRows = (hsRes && !hsRes.error && hsRes.data) ? hsRes.data : [];
       let vsRows = vsAll.filter(r => !r.kind || r.kind === "vsat");
       let vpRows = vsAll.filter(r => r.kind === "vstep-reading");
       let vlRows = vsAll.filter(r => r.kind === "vstep-listening");
@@ -2923,6 +3235,34 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             <div id="vl-list"><p class="empty">Đang tải…</p></div>
           </div>
         </div>
+        </div>
+
+        <div class="tabpane" data-tab="hsk">
+          <div class="card">
+            <h2>🀄 Tạo bài giảng HSK từ Excel</h2>
+            <p class="kind" style="margin:0 0 0.7rem;">Soạn nội dung trong một tệp Excel rồi tải lên — hệ thống tự dựng
+              toàn bộ slide giảng dạy: từ vựng, <b>hướng dẫn viết Hán tự</b>, bài đọc, ngữ pháp, luyện tập và bộ thủ.
+              Không phải sửa HTML cho từng bài.</p>
+            <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
+              <b>Thầy chỉ bắt buộc điền hai cột:</b> <code>chinese</code> và <code>vietnamese</code>.
+              <b>Pinyin</b> sinh tự động có dấu thanh (đúng cả chữ đa âm) — thầy điền sẵn thì hệ thống không ghi đè.
+              <b>Thứ tự nét</b> vẽ tự động cho mọi chữ Hán, không cần tải GIF.
+              <b>Ảnh minh hoạ</b>: điền một từ tiếng Anh vào cột <code>imagekeyword</code> (vd <i>apple</i>) là hệ thống tự tìm,
+              lưu vào thư viện và <b>dùng lại cho các bài sau</b>. Từ trừu tượng nên để trống.</p>
+            <div class="form-row">
+              <a class="ghost btn" href="hsk-lesson-template.xlsx" download style="text-decoration:none;">⬇ Tải tệp Excel mẫu</a>
+              <label class="btn" style="cursor:pointer;">⬆ Nhập bài giảng (.xlsx)
+                <input type="file" id="hs-file" accept=".xlsx,.xls" hidden multiple /></label>
+              <a class="ghost btn" href="hsk-slides.html" target="_blank" rel="noopener" style="text-decoration:none;">👁 Mở trang bài giảng</a>
+            </div>
+            <p id="hs-msg" class="msg"></p>
+            <div id="hs-report" style="margin-top:0.6rem;"></div>
+          </div>
+          <div id="hs-editor"></div>
+          <div class="card">
+            <h2>Bài giảng <span class="kind" id="hs-count"></span></h2>
+            <div id="hs-list"><p class="empty">Đang tải…</p></div>
+          </div>
         </div>
 
         <div class="tabpane" data-tab="pricing">
@@ -3990,6 +4330,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           { id: "flash", label: "Flashcards" + (cards.length ? " (" + cards.length + ")" : ""), icon: "wallet-cards", group: "Content" },
           { id: "reading", label: "Reading" + ((rtRes.data || []).length ? " (" + rtRes.data.length + ")" : ""), icon: "library", group: "Content" },
           { id: "vsat", label: "V-SAT" + (vsRows.length ? " (" + vsRows.length + ")" : ""), icon: "file-check", group: "Content" },
+          { id: "hsk", label: "HSK Slides" + (hskRows.length ? " (" + hskRows.length + ")" : ""), icon: "presentation", group: "Content" },
           { id: "vstep", label: "VSTEP" + ((vpRows.length + vlRows.length) ? " (" + (vpRows.length + vlRows.length) + ")" : ""), icon: "book-open", group: "Content" },
           { id: "shadow", label: "Shadowing" + ((svRes.data || []).length ? " (" + svRes.data.length + ")" : ""), icon: "video", group: "Content" },
           { id: "dict", label: "Dictation", icon: "headphones", group: "Content" },
@@ -5559,7 +5900,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           "landing_settings", "landing_trials", "landing_courses", "landing_classes",
           "landing_teachers", "landing_achievements", "landing_feedback", "landing_gallery",
           "cover_settings", "cover_jobs",
-          "vsat_exams", "vsat_progress"];
+          "vsat_exams", "vsat_progress",
+          "hsk_lessons", "hsk_media"];
         const backup = { app: "Learning Ecology", exported_at: new Date().toISOString(), tables: {} };
         const problems = [];
         for (let i = 0; i < TABLES.length; i++) {
@@ -6355,6 +6697,294 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         });
 
         renderVl();
+      })();
+
+      // ================= HSK SLIDES GENERATOR (Phase 56) =================
+      // Cùng khuôn với V-SAT và VSTEP: tải mẫu → nhập Excel → kiểm tra →
+      // xem thử → đăng. Khác một việc: sau khi kiểm tra xong, hệ thống đi
+      // tìm ảnh minh hoạ cho những từ có từ khoá tiếng Anh, và mỗi ảnh đã
+      // duyệt được ghi vào thư viện hsk_media để bài sau dùng lại.
+      (function () {
+        const listEl = document.getElementById("hs-list");
+        if (!listEl) return;
+        const msg = document.getElementById("hs-msg");
+        const report = document.getElementById("hs-report");
+        const countEl = document.getElementById("hs-count");
+        const said = (t, err) => { msg.textContent = t; msg.className = "msg" + (err ? " err" : ""); };
+
+        /* ---------- danh sách bài ---------- */
+        function renderHs() {
+          countEl.textContent = hskRows.length ? "(" + hskRows.length + ")" : "";
+          if (!hskRows.length) {
+            listEl.innerHTML = '<p class="empty">Chưa có bài giảng nào. Tải tệp Excel mẫu ở trên, điền nội dung rồi tải lên.</p>';
+            return;
+          }
+          listEl.innerHTML = hskRows.map(l => `
+            <div class="lesson" style="flex-wrap:wrap;">
+              <div class="meta">
+                <div class="title">HSK ${l.hsk_level} · ${esc(l.title)}${l.published ? "" : ' <span class="pill off">nháp</span>'}</div>
+                <span class="kind">${esc(l.subtitle || "")} · ${l.vocab_count || 0} từ · ${l.slide_count || 0} slide</span>
+              </div>
+              <input type="number" class="hs-ord" data-id="${l.id}" value="${l.sort_order == null ? 0 : l.sort_order}" min="0" title="Thứ tự" style="max-width:70px; flex:none;" />
+              <select class="hs-tier" data-id="${l.id}" style="max-width:110px;">
+                <option value="free" ${l.tier === "free" ? "selected" : ""}>Miễn phí</option>
+                <option value="premium" ${l.tier !== "free" ? "selected" : ""}>👑 Premium</option>
+              </select>
+              <select class="hs-course" data-id="${l.id}" style="max-width:180px;" title="Gắn với khoá học">
+                <option value="">— không gắn khoá —</option>
+                ${(courses || []).map(c => `<option value="${c.id}" ${l.course_id === c.id ? "selected" : ""}>${esc(c.title)}</option>`).join("")}
+              </select>
+              <label style="font-size:0.85rem; color:var(--muted); white-space:nowrap;">
+                <input type="checkbox" class="hs-pub" data-id="${l.id}" ${l.published ? "checked" : ""} /> đăng</label>
+              <button class="ghost" data-hsedit="${l.id}" title="Sửa nội dung">✏️</button>
+              <a class="ghost btn" href="hsk-slides.html?lesson=${encodeURIComponent(l.lesson_id)}" target="_blank" rel="noopener" style="text-decoration:none;" title="Xem thử">👁</a>
+              <button class="ghost" data-hsdup="${l.id}" title="Nhân bản">⧉</button>
+              <button class="ghost" data-hsdel="${l.id}" style="color:var(--danger); border-color:var(--danger);">🗑</button>
+            </div>`).join("");
+        }
+
+        async function patch(id, fields) {
+          const { error } = await sb.from("hsk_lessons").update(fields).eq("id", id);
+          if (error) { said("Không lưu được: " + error.message, true); return false; }
+          const row = hskRows.find(r => r.id === id);
+          if (row) Object.assign(row, fields);
+          return true;
+        }
+        listEl.addEventListener("change", async e => {
+          const t = e.target;
+          if (t.classList.contains("hs-tier"))   { if (await patch(t.dataset.id, { tier: t.value })) said("Đã đổi loại truy cập ✓"); }
+          if (t.classList.contains("hs-pub"))    { if (await patch(t.dataset.id, { published: t.checked })) said(t.checked ? "Đã đăng ✓" : "Đã gỡ xuống ✓"); }
+          if (t.classList.contains("hs-ord"))    { if (await patch(t.dataset.id, { sort_order: Number(t.value) || 0 })) said("Đã đổi thứ tự ✓"); }
+          if (t.classList.contains("hs-course")) { if (await patch(t.dataset.id, { course_id: t.value || null })) said("Đã gắn khoá học ✓"); }
+        });
+
+        listEl.addEventListener("click", async e => {
+          const del = e.target.closest("[data-hsdel]");
+          const dup = e.target.closest("[data-hsdup]");
+          const edt = e.target.closest("[data-hsedit]");
+          if (del) {
+            const row = hskRows.find(r => r.id === del.dataset.hsdel); if (!row) return;
+            const ok = await UI.confirmDialog({ title: "Xoá bài giảng?", danger: true, okText: "Xoá",
+              body: `“${row.title}” sẽ bị xoá. Ảnh trong thư viện vẫn giữ để bài khác dùng lại.` });
+            if (!ok) return;
+            const { error } = await sb.from("hsk_lessons").delete().eq("id", row.id);
+            if (error) { said("Không xoá được: " + error.message, true); return; }
+            hskRows = hskRows.filter(r => r.id !== row.id); renderHs(); said("Đã xoá ✓");
+          }
+          if (dup) {
+            const row = hskRows.find(r => r.id === dup.dataset.hsdup); if (!row) return;
+            const { data: full } = await sb.from("hsk_lessons").select("*").eq("id", row.id).single();
+            if (!full) return;
+            const copy = Object.assign({}, full);
+            delete copy.id; delete copy.created_at; delete copy.updated_at;
+            copy.lesson_id = full.lesson_id + "-copy-" + Date.now().toString(36);
+            copy.title = full.title + " (bản sao)";
+            copy.published = false;
+            copy.data = Object.assign({}, full.data, { lessonId: copy.lesson_id, title: copy.title });
+            const { data: ins, error } = await sb.from("hsk_lessons").insert(copy).select().single();
+            if (error) { said("Không nhân bản được: " + error.message, true); return; }
+            hskRows.push(ins); renderHs(); said("Đã nhân bản ✓ — nhớ đổi mã bài và tên trước khi đăng.");
+          }
+          if (edt) openEditor(edt.dataset.hsedit);
+        });
+
+        /* ---------- trình sửa nội dung ---------- */
+        async function openEditor(id) {
+          const row = hskRows.find(r => r.id === id); if (!row) return;
+          const { data: full } = await sb.from("hsk_lessons").select("data").eq("id", id).single();
+          const L = full && full.data; if (!L) return;
+          const box = document.getElementById("hs-editor");
+          box.innerHTML = `
+            <div class="card">
+              <div class="card-head"><h2>✏️ Sửa nội dung — ${esc(L.title || "")}</h2>
+                <button class="ghost" id="hs-ed-close">Đóng</button></div>
+              <p class="kind" style="text-transform:none;letter-spacing:0;">Sửa xong bấm <b>Lưu</b>. Ô pinyin có chữ
+                <i>tự động</i> là do hệ thống tạo — sửa tay thì hệ thống sẽ không ghi đè nữa.</p>
+              <div id="hs-ed-rows"></div>
+              <div class="form-row" style="margin-top:0.8rem;">
+                <button id="hs-ed-save">💾 Lưu nội dung</button>
+                <button class="ghost" id="hs-ed-repinyin">↻ Tạo lại pinyin cho ô trống</button>
+              </div>
+            </div>`;
+          const rows = document.getElementById("hs-ed-rows");
+          const draw = () => {
+            rows.innerHTML = (L.vocabulary || []).map((v, i) => `
+              <div class="lesson" style="flex-wrap:wrap;gap:0.4rem;">
+                <input data-f="chinese" data-i="${i}" value="${esc(v.chinese)}" style="max-width:90px" placeholder="Hán tự" />
+                <input data-f="pinyin" data-i="${i}" value="${esc(v.pinyin)}" style="max-width:130px" placeholder="pinyin"
+                  title="${v.pinyinSource === "auto" ? "Do hệ thống tạo" : "Do thầy nhập"}" />
+                <input data-f="wordClass" data-i="${i}" value="${esc(v.wordClass || "")}" style="max-width:90px" placeholder="từ loại" />
+                <input data-f="vietnamese" data-i="${i}" value="${esc(v.vietnamese)}" style="min-width:180px;flex:1" placeholder="nghĩa tiếng Việt" />
+                <input data-f="imageUrl" data-i="${i}" value="${esc(v.image ? v.image.url : "")}" style="min-width:160px;flex:1" placeholder="link ảnh minh hoạ" />
+                <span class="kind" style="align-self:center;">${v.pinyinSource === "auto" ? "tự động" : ""}</span>
+                <button class="ghost" data-mv="up" data-i="${i}" title="Lên">↑</button>
+                <button class="ghost" data-mv="down" data-i="${i}" title="Xuống">↓</button>
+                <button class="ghost" data-rm="${i}" style="color:var(--danger);" title="Xoá từ">✕</button>
+              </div>`).join("");
+          };
+          draw();
+          rows.addEventListener("input", e => {
+            const f = e.target.dataset.f; if (!f) return;
+            const v = L.vocabulary[+e.target.dataset.i];
+            if (f === "imageUrl") v.image = e.target.value.trim() ? { url: e.target.value.trim(), source: "teacher", credit: "" } : null;
+            else { v[f] = e.target.value; if (f === "pinyin") v.pinyinSource = "teacher"; }
+          });
+          rows.addEventListener("click", e => {
+            const mv = e.target.closest("[data-mv]"), rm = e.target.closest("[data-rm]");
+            if (mv) { const i = +mv.dataset.i, j = mv.dataset.mv === "up" ? i - 1 : i + 1;
+              if (j < 0 || j >= L.vocabulary.length) return;
+              const a = L.vocabulary; [a[i], a[j]] = [a[j], a[i]]; a.forEach((x, k) => x.order = k + 1); draw(); }
+            if (rm) { L.vocabulary.splice(+rm.dataset.rm, 1); L.vocabulary.forEach((x, k) => x.order = k + 1); draw(); }
+          });
+          document.getElementById("hs-ed-close").onclick = () => { box.innerHTML = ""; };
+          document.getElementById("hs-ed-repinyin").onclick = () => {
+            (L.vocabulary || []).forEach(v => {
+              if (!v.pinyin) { const p = window.HSKParser.autoPinyin(v.chinese); if (p) { v.pinyin = p; v.pinyinSource = "auto"; } }
+            });
+            draw(); said("Đã tạo lại pinyin cho các ô trống ✓ — nhớ bấm Lưu.");
+          };
+          document.getElementById("hs-ed-save").onclick = async () => {
+            const plan = window.HSKParser.buildSlidePlan(L);
+            const { error } = await sb.from("hsk_lessons").update({
+              data: L, vocab_count: (L.vocabulary || []).length, slide_count: plan.length,
+              updated_at: new Date().toISOString()
+            }).eq("id", id);
+            if (error) { said("Không lưu được: " + error.message, true); return; }
+            const r = hskRows.find(x => x.id === id);
+            if (r) { r.vocab_count = (L.vocabulary || []).length; r.slide_count = plan.length; }
+            renderHs(); said("Đã lưu nội dung ✓");
+          };
+        }
+
+        /* ---------- ảnh minh hoạ: thư viện trước, Pexels sau ---------- */
+        async function fetchImages(lesson, log) {
+          const need = (lesson.vocabulary || []).filter(v => !v.image && v.imageKeyword);
+          if (!need.length) return { got: 0, failed: 0, reused: 0 };
+          let key = "";
+          try {
+            const { data: cs } = await sb.from("cover_settings").select("pexels_key").eq("id", 1).maybeSingle();
+            key = (cs && cs.pexels_key) || "";
+          } catch (e) {}
+          let got = 0, failed = 0, reused = 0;
+          for (const v of need) {
+            /* 1. đã có trong thư viện chưa? */
+            try {
+              const { data: hit } = await sb.from("hsk_media")
+                .select("url,credit").eq("media_key", v.chinese).eq("kind", "image").maybeSingle();
+              if (hit && hit.url) { v.image = { url: hit.url, source: "library", credit: hit.credit || "" }; reused++; continue; }
+            } catch (e) {}
+            if (!key) { failed++; continue; }
+            /* 2. tìm trên Pexels bằng từ khoá tiếng Anh của thầy */
+            try {
+              const r = await fetch("https://api.pexels.com/v1/search?per_page=1&orientation=landscape&size=medium&query="
+                                    + encodeURIComponent(v.imageKeyword), { headers: { Authorization: key } });
+              if (!r.ok) throw new Error("HTTP " + r.status);
+              const j = await r.json();
+              const ph = (j.photos || [])[0];
+              if (!ph) { failed++; log("• " + v.chinese + ": không tìm thấy ảnh cho “" + v.imageKeyword + "”"); continue; }
+              const src = ph.src && (ph.src.large || ph.src.medium);
+              const blob = await (await fetch(src)).blob();
+              const path = "vocab/" + encodeURIComponent(v.chinese) + "-" + Date.now().toString(36) + ".jpg";
+              const up = await sb.storage.from("hsk-media")
+                .upload(path, blob, { upsert: true, contentType: blob.type || "image/jpeg", cacheControl: "31536000" });
+              if (up.error) throw up.error;
+              const url = sb.storage.from("hsk-media").getPublicUrl(path).data.publicUrl;
+              v.image = { url, source: "pexels", credit: ph.photographer || "" };
+              /* 3. ghi vào thư viện để bài sau khỏi tìm lại */
+              await sb.from("hsk_media").upsert({
+                media_key: v.chinese, kind: "image", url, source: "pexels",
+                credit: ph.photographer || "", created_by: user.id
+              }, { onConflict: "media_key,kind" });
+              got++;
+            } catch (e) { failed++; log("• " + v.chinese + ": không lấy được ảnh (" + (e.message || e) + ")"); }
+            await new Promise(r => setTimeout(r, 300));   // nhẹ tay với Pexels
+          }
+          return { got, failed, reused };
+        }
+
+        /* ---------- bảng kiểm tra ---------- */
+        function showReport(name, v, ok, extra) {
+          const s = v.stats || {};
+          const box = document.createElement("div");
+          box.className = "card"; box.style.cssText = "margin:0.5rem 0 0;padding:0.7rem 0.9rem;";
+          const badge = st => st === "error" ? "⛔" : st === "warn" ? "⚠" : "✓";
+          box.innerHTML =
+            `<div style="font-weight:700;margin-bottom:0.35rem;">${ok ? "✅" : "⛔"} ${esc(name)}</div>` +
+            `<div class="kind" style="text-transform:none;letter-spacing:0;margin-bottom:0.4rem;">
+               ${s.vocab || 0} từ · ${s.slides || 0} slide · ${s.sections || 0} mục · ${s.grammar || 0} ngữ pháp
+               · ${s.radicals || 0} bộ thủ · ${s.autoPinyin || 0} pinyin tự tạo${extra ? " · " + esc(extra) : ""}</div>` +
+            (v.items && v.items.length
+              ? `<div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.4rem;">` +
+                v.items.map(i => `<span class="pill ${i.status === "ready" ? "" : "off"}" title="${esc(i.notes.join(", "))}">
+                   ${badge(i.status)} ${esc(i.word)}</span>`).join("") + `</div>` : "") +
+            ((v.errs || []).length
+              ? `<div style="color:var(--danger);font-size:0.85rem;"><b>Lỗi phải sửa (${v.errs.length}):</b><ul style="margin:0.3rem 0 0 1.1rem;">` +
+                v.errs.slice(0, 12).map(x => `<li>${esc(x)}</li>`).join("") + `</ul></div>` : "") +
+            ((v.warns || []).length
+              ? `<div style="color:var(--muted);font-size:0.85rem;margin-top:0.35rem;"><b>Nhắc (${v.warns.length}):</b><ul style="margin:0.3rem 0 0 1.1rem;">` +
+                v.warns.slice(0, 8).map(x => `<li>${esc(x)}</li>`).join("") +
+                (v.warns.length > 8 ? `<li>… và ${v.warns.length - 8} mục nữa</li>` : "") + `</ul></div>` : "");
+          report.appendChild(box);
+        }
+
+        /* ---------- nhập Excel ---------- */
+        document.getElementById("hs-file").addEventListener("change", async ev => {
+          const files = [...(ev.target.files || [])];
+          ev.target.value = "";
+          if (!files.length) return;
+          report.innerHTML = "";
+          for (const f of files) {
+            said("Đang đọc " + f.name + "…");
+            let lesson = null;
+            try {
+              const XLSXlib = await loadXLSX();
+              await loadPinyinPro();
+              const wb = XLSXlib.read(await f.arrayBuffer(), { type: "array" });
+              lesson = window.HSKParser.enrichLesson(window.HSKParser.parseWorkbook(wb));
+            } catch (err) { said(f.name + ": không đọc được — " + err.message, true); continue; }
+
+            const v = window.HSKParser.validateLesson(lesson);
+            if (v.errs.length) { showReport(f.name, v, false); said("Chưa tải lên được — xem lỗi bên dưới.", true); continue; }
+
+            said("Đang tìm ảnh minh hoạ…");
+            const logs = [];
+            const img = await fetchImages(lesson, m => logs.push(m));
+
+            const plan = window.HSKParser.buildSlidePlan(lesson);
+            const row = {
+              lesson_id: lesson.lessonId, title: lesson.title, subtitle: lesson.subtitle || "",
+              course: lesson.course || "", hsk_level: lesson.hskLevel || 1, lesson_no: lesson.lessonNo || "",
+              data: lesson, vocab_count: (lesson.vocabulary || []).length, slide_count: plan.length,
+              sort_order: hskRows.length, created_by: user.id, updated_at: new Date().toISOString()
+            };
+            const { data: ins, error } = await sb.from("hsk_lessons")
+              .upsert(row, { onConflict: "lesson_id" }).select().single();
+            if (error) {
+              said(f.name + ": " + error.message +
+                (/hsk_lessons/.test(error.message || "") ? " — hình như chưa chạy migration55_hsk_slides.sql." : ""), true);
+              continue;
+            }
+            const i = hskRows.findIndex(r => r.lesson_id === ins.lesson_id);
+            if (i >= 0) hskRows[i] = ins; else hskRows.push(ins);
+            v.warns = v.warns.concat(logs);
+            showReport(f.name, v, true,
+              `ảnh: ${img.got} mới, ${img.reused} dùng lại${img.failed ? ", " + img.failed + " chưa có" : ""}`);
+          }
+          renderHs();
+          said("Xong — bấm ✏️ để sửa, 👁 xem thử, rồi tick “đăng” cho học viên thấy.");
+        });
+
+        /* pinyin-pro chỉ nạp khi thật sự nhập bài, không làm nặng dashboard */
+        function loadPinyinPro() {
+          if (window.pinyinPro) return Promise.resolve();
+          return new Promise((ok, bad) => {
+            const s = document.createElement("script");
+            s.src = "https://cdn.jsdelivr.net/npm/pinyin-pro@3.26.0/dist/index.js";
+            s.onload = ok; s.onerror = bad; document.head.appendChild(s);
+          });
+        }
+
+        renderHs();
       })();
 
       // ================= LANDING PAGE CMS =================
