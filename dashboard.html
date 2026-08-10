@@ -45,6 +45,7 @@
   <script src="config.js"></script>
   <script src="ui.js"></script>
   <script src="hsk-plan.js"></script>
+  <script src="speech-zh.js"></script>
   <script src="premium.js"></script>
   <script>
     applyI18n();
@@ -6787,6 +6788,27 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       (function () {
         const listEl = document.getElementById("hs-list");
         if (!listEl) return;
+
+        /* Thư viện phát âm dùng chung với trang bài giảng: thầy nghe thử ở
+           đây là bản ghi đã nằm sẵn trong thư viện cho học viên. */
+        window.ZhSpeech.configure({
+          db: sb, canCache: true,
+          async mediaGet(key) {
+            try { const { data } = await sb.from("hsk_media").select("url")
+              .eq("media_key", key).eq("kind", "audio").maybeSingle();
+              return (data && data.url) || ""; } catch (e) { return ""; }
+          },
+          async mediaPut(key, blob) {
+            const path = "audio/" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7) + ".mp3";
+            const up = await sb.storage.from("hsk-media")
+              .upload(path, blob, { upsert: true, contentType: "audio/mpeg", cacheControl: "31536000" });
+            if (up.error) throw up.error;
+            const url = sb.storage.from("hsk-media").getPublicUrl(path).data.publicUrl;
+            await sb.from("hsk_media").upsert({ media_key: key, kind: "audio", url,
+              source: "generated", created_by: user.id }, { onConflict: "media_key,kind" });
+            return url;
+          }
+        });
         const msg = document.getElementById("hs-msg");
         const report = document.getElementById("hs-report");
         const countEl = document.getElementById("hs-count");
@@ -6907,6 +6929,17 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
                 <i>tự động</i> là do hệ thống tạo — sửa tay thì hệ thống sẽ không ghi đè nữa.
                 <b>Ảnh minh hoạ:</b> bấm vào ô ảnh rồi <b>dán (⌘V)</b>, hoặc <b>kéo thả</b> ảnh vào ô,
                 hoặc bấm 📁 chọn tệp, 🔗 dán link. Ảnh hiện lên là xem thử — bấm <b>Lưu</b> mới ghi vào bài.</p>
+              <div class="form-row" style="margin:0 0 0.6rem;">
+                <div class="field" style="max-width:280px;"><label>Giọng đọc của bài này</label>
+                  <select id="hs-ed-voice"></select></div>
+                <div class="field" style="max-width:170px;"><label>Tốc độ đọc</label>
+                  <select id="hs-ed-rate">
+                    <option value="-20">Chậm (tập đọc)</option>
+                    <option value="0">Bình thường</option>
+                    <option value="10">Nhanh hơn một chút</option>
+                  </select></div>
+                <button class="ghost" id="hs-ed-tryvoice" style="flex:none;align-self:flex-end;">🔊 Nghe thử</button>
+              </div>
               <div id="hs-ed-rows"></div>
               <div class="form-row" style="margin-top:0.8rem;">
                 <button id="hs-ed-save">💾 Lưu nội dung</button>
@@ -6916,6 +6949,25 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             </div>`;
           const rows = document.getElementById("hs-ed-rows");
           const note = t => { document.getElementById("hs-ed-note").textContent = t || ""; };
+
+          /* giọng đọc đặt theo TỪNG BÀI và đi theo bài tới mọi học viên —
+             không để lộn xộn trên slide lúc đang dạy (yêu cầu 9) */
+          const vSel = document.getElementById("hs-ed-voice"), rSel = document.getElementById("hs-ed-rate");
+          vSel.innerHTML = window.ZhSpeech.AZURE_VOICES
+            .map(v => `<option value="${esc(v.id)}">${esc(v.label)}</option>`).join("");
+          L.speech = L.speech || {};
+          vSel.value = L.speech.voice || "zh-CN-XiaoxiaoNeural";
+          rSel.value = String(typeof L.speech.rate === "number" ? L.speech.rate : 0);
+          const applyVoice = () => window.ZhSpeech.configure({ voice: vSel.value, rate: Number(rSel.value) || 0 });
+          vSel.onchange = rSel.onchange = () => {
+            L.speech = { voice: vSel.value, rate: Number(rSel.value) || 0 };
+            applyVoice(); note("Đổi giọng xong nhớ bấm Lưu.");
+          };
+          document.getElementById("hs-ed-tryvoice").onclick = () => {
+            applyVoice();
+            const w = (L.vocabulary || [])[0];
+            window.ZhSpeech.speak(w && w.chinese ? (w.examples && w.examples[0] ? w.examples[0].zh : w.chinese) : "你好，很高兴认识你。");
+          };
 
           const thumb = (v, i) => {
             const on = active === i;
@@ -7084,6 +7136,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               v.examples = (v.examples || []).filter(e => (e.zh || "").trim());
               v.chars = Array.from(String(v.chinese || "")).filter(c => /[一-鿿㐀-䶿]/.test(c));
             });
+            L.speech = { voice: vSel.value, rate: Number(rSel.value) || 0 };
             const plan = window.HSKParser.buildSlidePlan(L);
             const { error } = await sb.from("hsk_lessons").update({
               data: L, vocab_count: (L.vocabulary || []).length, slide_count: plan.length,

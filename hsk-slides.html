@@ -16,6 +16,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="hsk-plan.js"></script>
+<script src="speech-zh.js"></script>
 <script src="premium.js"></script>
 <style>
 :root{
@@ -136,12 +137,25 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
    nhưng chẳng giúp học viên hiểu nghĩa, lại lẫn với slide tập viết. */
 .sl.vocab .sl-body{display:flex;flex-direction:row;gap:3vmin;align-items:flex-start}
 .vc-left{flex:0 0 36%;position:sticky;top:0;display:flex;flex-direction:column;gap:.6em}
-.vc-img{margin:0;width:100%;aspect-ratio:4/3;border-radius:12px;overflow:hidden;background:#f2f4f8;
-  display:flex;align-items:center;justify-content:center;position:relative}
-.vc-img img{width:100%;height:100%;object-fit:cover}
-.vc-img figcaption{position:absolute;left:0;right:0;bottom:0;font-size:.55em;color:#fff;
-  background:rgba(0,0,0,.45);padding:.25em .5em}
-.vc-img.empty{flex-direction:column;gap:.3em;border:2px dashed #cdd5e0;background:#fafbfd;
+/* ---------- MỘT khuôn ảnh dùng chung cho mọi slide (Phase 58) ----------
+   object-fit:cover ở bản trước cắt phăng phần trên và dưới của ảnh, nên
+   bài "nhìn hình chọn từ" chỉ còn một dải ngang vô nghĩa. Nay dùng
+   contain: ảnh giữ nguyên tỉ lệ, thấy trọn hình, thừa chỗ thì để trắng
+   chứ không cắt. Khung tự cao thấp theo ảnh — ngang thì rộng, dọc thì
+   cao — nên không ép mọi ảnh vào cùng một dải hẹp. */
+.pic{position:relative;margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:.15em;background:#f4f6fa;border:1px solid var(--line);border-radius:12px;padding:.25em;overflow:hidden}
+.pic img{max-width:100%;max-height:var(--pic-max,11em);width:auto;height:auto;
+  object-fit:contain;display:block;border-radius:8px}
+.pic-zoom{position:absolute;right:.3em;top:.3em;border:1px solid var(--line);
+  background:rgba(255,255,255,.92);border-radius:8px;cursor:pointer;font-size:.62em;
+  padding:.2em .45em;line-height:1;opacity:.8}
+.pic-zoom:hover{opacity:1;border-color:var(--brand)}
+/* dòng ghi công tác giả nằm DƯỚI ảnh, không đè lên — ảnh contain hay bị
+   chừa lề, dán chú thích lên trên là che mất mép hình */
+.pic figcaption{font-size:.5em;color:var(--muted);text-align:center;padding:0 .3em .1em}
+.vc-img{--pic-max:min(13em,38vh)}
+.vc-img.empty{flex-direction:column;gap:.3em;border:2px dashed #cdd5e0;background:#fafbfd;min-height:6em;
   color:var(--muted);font-size:.72em;text-align:center;padding:1em}
 .vc-img.empty b{font-size:1.5em;color:#b4820f}
 .vc-strokes{border:1px solid var(--line);border-radius:10px;padding:.45em .6em;background:#fffdf8}
@@ -256,14 +270,16 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
 .ex-match{display:grid;grid-template-columns:1fr 1fr;gap:.8em}
 .ex-col{display:flex;flex-direction:column;gap:.45em}
 .ex-cell{display:flex;align-items:center;gap:.5em;font:inherit;text-align:left;border:2px solid var(--line);
-  background:#fff;border-radius:12px;padding:.45em .7em;cursor:pointer;font-size:1.1em;font-family:var(--zh)}
+  background:#fff;border-radius:12px;padding:.45em .7em;cursor:pointer;font-size:1.1em;font-family:var(--zh);
+  user-select:none}
+.ex-cell:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .ex-cell:hover{border-color:var(--brand)}
 .ex-cell.pick{border-color:var(--accent);background:#eff5ff}
 .ex-cell.done{border-style:solid}
 .ex-cell.right{border-color:#1a7f4b;background:#e8f7ef}
 .ex-cell.wrong{border-color:#c92a2a;background:#fdecec}
-.ex-cell img{width:100%;max-height:3.2em;object-fit:cover;border-radius:8px}
-.ex-cell.pic{flex-direction:column;align-items:stretch;padding:.35em}
+.ex-cell .pic{--pic-max:min(7.5em,22vh);width:100%;border:none;background:transparent;padding:0}
+.ex-cell.pic{flex-direction:column;align-items:stretch;padding:.35em;gap:.3em}
 .ex-badge{flex:0 0 auto;width:1.6em;height:1.6em;border-radius:50%;display:inline-flex;
   align-items:center;justify-content:center;font-size:.7em;font-weight:800;color:#fff;background:#c3ccda}
 .sl.radical .sl-body{display:flex;flex-direction:row;gap:3vmin;align-items:flex-start}
@@ -274,6 +290,15 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
 .rad-mean{font-size:1.3em;font-weight:600}
 .rad-pos,.rad-rel{color:var(--muted);margin-top:.3em}
 .rad-rel b{font-family:var(--zh);font-size:1.3em;color:var(--ink)}
+
+/* hộp phóng to ảnh — nằm trong vùng slide nên chạy cả khi toàn màn hình */
+#lightbox{position:absolute;inset:0;z-index:var(--z-panel);display:flex;align-items:center;
+  justify-content:center;background:rgba(12,16,22,.88);padding:2vmin;cursor:zoom-out}
+#lightbox img{max-width:96%;max-height:88%;object-fit:contain;border-radius:10px;
+  box-shadow:0 30px 80px -30px #000;background:#fff}
+#lbClose{position:absolute;right:14px;top:14px;border:none;background:rgba(255,255,255,.92);
+  border-radius:999px;width:38px;height:38px;font-size:17px;cursor:pointer}
+#lbCap{position:absolute;left:0;right:0;bottom:14px;text-align:center;color:#fff;font-size:15px}
 
 /* điều khiển cố định */
 .ctrl{position:absolute;z-index:var(--z-ctrl)}
@@ -341,6 +366,12 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
     <div id="spotlight" class="hidden"></div>
 
     <button class="ctrl" id="btnFull" type="button" title="Toàn màn hình (F)">⛶</button>
+    <div id="lightbox" class="hidden" data-noreveal>
+      <img id="lbImg" alt="" />
+      <button id="lbClose" type="button" title="Đóng (Esc)">✕</button>
+      <div id="lbCap"></div>
+    </div>
+
     <div id="toolkit" class="hidden">
       <div id="tkHandle"><span>⠿ Dụng cụ giảng dạy</span>
         <button id="tkClose" type="button" data-tk="close" title="Đóng bảng (annotation vẫn giữ nguyên)">✕</button></div>
@@ -420,15 +451,13 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
 
   const stage = () => $('#stage');
 
-  /* ---------- phát âm ---------- */
+  /* ---------- phát âm ----------
+     Toàn bộ việc chọn giọng nằm ở speech-zh.js: Azure Neural trước, giọng
+     máy đã lọc sau, và tuyệt đối không để giọng Anh/Việt đọc chữ Hán.
+     Ở đây chỉ cần gọi một dòng — nút 🔊 trên slide vẫn đơn giản như cũ.
+     LUÔN truyền chữ HÁN, không bao giờ truyền pinyin. */
   function speak(text) {
-    try {
-      if (!window.speechSynthesis) return;
-      speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(String(text || ''));
-      u.lang = 'zh-CN'; u.rate = 0.85;
-      speechSynthesis.speak(u);
-    } catch (e) {}
+    try { window.ZhSpeech.speak(text); } catch (e) {}
   }
 
   /* ---------- thứ tự nét ---------- */
@@ -513,6 +542,27 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
     '<header class="sl-head">' + (kind ? '<span class="sl-kind">' + esc(kind) + '</span>' : '') +
     '<h2>' + title + '</h2></header>';
 
+  /* MỘT chỗ duy nhất dựng thẻ ảnh — slide từ vựng, bài nhìn hình, và bất
+     kỳ loại slide nào thêm sau này đều đi qua đây, nên sửa cách hiện ảnh
+     chỉ phải sửa một lần. */
+  function picture(url, alt, opts) {
+    opts = opts || {};
+    return '<figure class="pic' + (opts.cls ? ' ' + opts.cls : '') + '">' +
+      /* KHÔNG dùng loading="lazy": mỗi lúc chỉ hiện một slide, ảnh chính là
+         nội dung của slide đó — hoãn tải chỉ tổ chớp một cái rồi mới hiện */
+      '<img src="' + esc(url) + '" alt="' + esc(alt || '') + '">' +
+      '<button class="pic-zoom" data-act="zoom" data-src="' + esc(url) + '" data-cap="' + esc(opts.caption || alt || '') +
+        '" title="Phóng to ảnh">⛶</button>' +
+      (opts.credit ? '<figcaption>Ảnh: ' + esc(opts.credit) + '</figcaption>' : '') +
+    '</figure>';
+  }
+  function openLightbox(src, cap) {
+    $('#lbImg').src = src; $('#lbCap').textContent = cap || '';
+    $('#lightbox').classList.remove('hidden');
+  }
+  function closeLightbox() { $('#lightbox').classList.add('hidden'); $('#lbImg').src = ''; }
+  const lightboxOpen = () => !$('#lightbox').classList.contains('hidden');
+
   /* khối thứ tự nét NHỎ, đặt dưới ảnh minh hoạ trên slide từ vựng.
      Tách hẳn khỏi ảnh minh hoạ: ảnh lo NGHĨA, khối này lo cách VIẾT. */
   function miniStrokes(chars, prefix) {
@@ -571,9 +621,9 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
     vocab(s) {
       const v = V(s.index);
       const img = v.image && v.image.url
-        ? '<figure class="vc-img"><img src="' + esc(v.image.url) + '" alt="' + esc(v.vietnamese) + '">' +
-          (v.image.credit ? '<figcaption>Ảnh: ' + esc(v.image.credit) + '</figcaption>' : '') + '</figure>'
-        : '<div class="vc-img empty"><b>⚠ Chưa có hình minh hoạ</b>' +
+        ? picture(v.image.url, v.vietnamese, { cls: 'vc-img', credit: v.image.credit,
+                                               caption: v.chinese + ' — ' + v.vietnamese })
+        : '<div class="pic vc-img empty"><b>⚠ Chưa có hình minh hoạ</b>' +
           '<span>Thêm ảnh ở Bảng điều khiển → HSK Slides → ✏️</span></div>';
       const nEx = (v.examples || []).length;
       const ex = (v.examples || []).map((e, k) =>
@@ -787,10 +837,13 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
         if (st.pickL === i) cls += ' pick';
         const badge = linked ? '<span class="ex-badge">' + numOfL(i) + '</span>' : '<span class="ex-badge">·</span>';
         const body = a.type === 'picture' && p.image
-          ? '<img src="' + esc(p.image) + '" alt="">'
+          ? picture(p.image, p.left, { caption: p.left })
           : '<span>' + esc(p.left) + '</span>';
-        return '<button class="ex-cell ' + (a.type === 'picture' ? 'pic ' : '') + cls +
-               '" data-ex="pl" data-i="' + i + '">' + badge + body + '</button>';
+        /* div chứ không phải <button>: nút phóng to nằm BÊN TRONG ô, mà HTML
+           không cho lồng button trong button — trình duyệt lặng lẽ vứt nút
+           con đi, và cái nút ⛶ biến mất không dấu vết. */
+        return '<div class="ex-cell ' + (a.type === 'picture' ? 'pic ' : '') + cls +
+               '" role="button" tabindex="0" data-ex="pl" data-i="' + i + '">' + badge + body + '</div>';
       };
       const cellR = (ri) => {
         const owner = rightOwner(ri);
@@ -798,8 +851,8 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
         if (st.done && owner >= 0) cls += owner === ri ? ' right' : ' wrong';
         if (st.pickR === ri) cls += ' pick';
         const badge = owner >= 0 ? '<span class="ex-badge">' + numOfL(owner) + '</span>' : '<span class="ex-badge">·</span>';
-        return '<button class="ex-cell ' + cls + '" data-ex="pr" data-i="' + ri + '" draggable="true">' +
-               badge + '<span>' + esc(P[ri].right) + '</span></button>';
+        return '<div class="ex-cell ' + cls + '" role="button" tabindex="0" data-ex="pr" data-i="' + ri +
+               '" draggable="true">' + badge + '<span>' + esc(P[ri].right) + '</span></div>';
       };
       return question(a) +
         '<div class="ex-match"><div class="ex-col">' + P.map(cellL).join('') + '</div>' +
@@ -835,6 +888,9 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
 
     /* mọi cú bấm trong bài tập đi qua đây; trả về true nếu cần vẽ lại slide */
     function handle(ev, id, a) {
+      /* nút phóng to nằm BÊN TRONG ô chọn cặp — bấm nó chỉ để xem ảnh to,
+         không phải để chọn */
+      if (ev.target.closest('[data-act]')) return false;
       const t = ev.target.closest('[data-ex]');
       if (!t) return false;
       const st = exState[id] || (exState[id] = {});
@@ -1037,6 +1093,7 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
     if (!t) return;
     const act = t.dataset.act;
     if (act === 'say')      { ev.stopPropagation(); speak(t.dataset.text); }
+    else if (act === 'zoom')    { ev.stopPropagation(); openLightbox(t.dataset.src, t.dataset.cap); }
     else if (act === 'goto')    goToId(t.dataset.id);
     else if (act === 'go-hub')  goToId('hub');
     else if (act === 'hz-replay-all') {
@@ -1065,13 +1122,14 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
 
   document.addEventListener('keydown', ev => {
     if (/^(INPUT|TEXTAREA)$/.test((ev.target || {}).tagName) || ev.target.isContentEditable) return;
+    if (lightboxOpen() && ev.key !== 'Escape') { ev.preventDefault(); return; }
     if (ev.key === 'ArrowRight' || ev.key === ' ' || ev.key === 'PageDown') { ev.preventDefault(); next(); }
     else if (ev.key === 'ArrowLeft' || ev.key === 'Backspace' || ev.key === 'PageUp') { ev.preventDefault(); prev(); }
     else if (ev.key === 'Home') goToId('hub');
     else if (ev.key === '+' || ev.key === '=') { ev.preventDefault(); bumpFs(2); }
     else if (ev.key === '-' || ev.key === '_') { ev.preventDefault(); bumpFs(-2); }
     else if (ev.key.toLowerCase() === 'f') toggleFull();
-    else if (ev.key === 'Escape') annotation.setTool('select');
+    else if (ev.key === 'Escape') { if (lightboxOpen()) closeLightbox(); else annotation.setTool('select'); }
   });
 
   document.addEventListener('fullscreenchange', () => setTimeout(() => annotation.resize(), 60));
@@ -1301,6 +1359,7 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
       $('#btnNext').addEventListener('click', nextSlide);
       $('#btnHub').addEventListener('click', () => goToId('hub'));
       $('#btnFull').addEventListener('click', toggleFull);
+      $('#lightbox').addEventListener('click', closeLightbox);
       $('#btnFsUp').addEventListener('click', () => bumpFs(2));
       $('#btnFsDown').addEventListener('click', () => bumpFs(-2));
     },
@@ -1350,6 +1409,27 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
       }).join('') + '</div></section>').join('');
   }
 
+  /* ---------- thư viện phát âm: tra trước, sinh sau (yêu cầu 6) ----------
+     Đọc thì ai cũng đọc được (kho tệp công khai); GHI thì chỉ giáo viên,
+     nên bản ghi sinh ra lúc thầy soạn bài sẽ được học viên dùng lại. */
+  async function audioGet(key) {
+    try {
+      const { data } = await DB.from('hsk_media').select('url')
+        .eq('media_key', key).eq('kind', 'audio').maybeSingle();
+      return (data && data.url) || '';
+    } catch (e) { return ''; }
+  }
+  async function audioPut(key, blob) {
+    const path = 'audio/' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7) + '.mp3';
+    const up = await DB.storage.from('hsk-media')
+      .upload(path, blob, { upsert: true, contentType: 'audio/mpeg', cacheControl: '31536000' });
+    if (up.error) throw up.error;
+    const url = DB.storage.from('hsk-media').getPublicUrl(path).data.publicUrl;
+    await DB.from('hsk_media').upsert({ media_key: key, kind: 'audio', url, source: 'generated',
+                                        created_by: USER ? USER.id : null }, { onConflict: 'media_key,kind' });
+    return url;
+  }
+
   async function openLesson(id) {
     const meta = LESSONS.find(l => l.lesson_id === id);
     if (!meta) return;
@@ -1364,6 +1444,11 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
       data = row && row.data;
     } catch (e) {}
     if (!data) { alert('Không mở được bài giảng — kiểm tra kết nối.'); return; }
+    const sp = data.speech || {};
+    window.ZhSpeech.configure({
+      voice: sp.voice || 'zh-CN-XiaoxiaoNeural',
+      rate: typeof sp.rate === 'number' ? sp.rate : 0
+    });
     showStage();
     window.HSKSlides.mount(data);
   }
@@ -1377,6 +1462,11 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
 
   async function boot() {
     window.HSKSlides.init();
+    window.ZhSpeech.configure({
+      db: DB, mediaGet: audioGet, mediaPut: audioPut, canCache: false,
+      onNoVoice() { alert('Máy này chưa có giọng đọc tiếng Trung.\n\nHãy đăng nhập để dùng giọng đọc tự nhiên của trường, ' +
+                          'hoặc cài thêm giọng tiếng Trung trong Cài đặt hệ thống → Trợ năng → Nội dung đọc.'); }
+    });
     const who = document.getElementById('leWho'), auth = document.getElementById('leAuth'),
           back = document.getElementById('leBack');
     let session = null;
@@ -1386,6 +1476,7 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
       try {
         const { data: p } = await DB.from('profiles').select('full_name,role,is_premium').eq('id', USER.id).maybeSingle();
         if (p) { STAFF = ['owner', 'admin', 'teacher'].indexOf(p.role) >= 0; PREMIUM = !!p.is_premium;
+                 window.ZhSpeech.configure({ canCache: STAFF });
                  if (who) who.textContent = p.full_name || USER.email || ''; }
       } catch (e) {}
       if (auth) auth.hidden = true;
