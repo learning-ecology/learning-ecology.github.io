@@ -3354,8 +3354,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               Bật/tắt ở đây <b>không</b> làm nội dung thành miễn phí: bài đã đăng và để <i>Miễn phí</i> thì khách học thử được,
               bài <i>Premium</i> vẫn khoá như cũ. Bài <b>chưa đăng</b> thì không bao giờ hiện ra ngoài.
             </p>
-            <p id="vs-msg" class="msg"></p>
-            <div id="vs-list"><p class="empty">Đang tải…</p></div>
+            <p id="sysv-msg" class="msg"></p>
+            <div id="sysv-list"><p class="empty">Đang tải…</p></div>
             <div class="form-row" style="margin-top:0.8rem;">
               <a class="ghost btn" href="course.html" target="_blank" rel="noopener" style="text-decoration:none;">👁 Mở trang xem trước</a>
             </div>
@@ -7362,9 +7362,14 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       // tự sắp thứ tự, tự sửa được thông tin hiển thị. Không phải sửa SQL,
       // không phải sửa trang xem trước.
       (function () {
-        const listEl = document.getElementById("vs-list");
+        /* Tìm trong ĐÚNG pane của mình. Bài học xương máu: id "vs-list" đã
+           thuộc về tab V-SAT từ trước, nên getElementById trả về danh sách
+           đề thi — bảng này ghi nhầm sang đó và ô của chính nó cứ "Đang tải…"
+           mãi. Tiền tố pv- (public view) là của riêng tab này. */
+        const pane = document.querySelector('.tabpane[data-tab="visib"]');
+        const listEl = pane && pane.querySelector("#sysv-list");
         if (!listEl) return;
-        const msg = document.getElementById("vs-msg");
+        const msg = pane.querySelector("#sysv-msg");
         const said = (t, err) => { msg.textContent = t; msg.className = "msg" + (err ? " err" : ""); };
 
         const CATALOG = [
@@ -7460,8 +7465,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
                 <span class="kind">${esc(m.id)} · ${esc(counts)}</span>
               </div>
               <label style="font-size:0.85rem;color:var(--muted);white-space:nowrap;">
-                <input type="checkbox" class="vs-on" data-i="${m.id}" ${m.on ? "checked" : ""} /> hiện công khai</label>
-              <input type="number" class="vs-ord" data-i="${m.id}" value="${m.order}" min="0" step="10" title="Thứ tự hiển thị"
+                <input type="checkbox" class="sysv-on" data-i="${m.id}" ${m.on ? "checked" : ""} /> hiện công khai</label>
+              <input type="number" class="sysv-ord" data-i="${m.id}" value="${m.order}" min="0" step="10" title="Thứ tự hiển thị"
                      style="max-width:80px;flex:none;" />
               <button class="ghost" data-vmv="up" data-i="${m.id}" title="Lên trên">↑</button>
               <button class="ghost" data-vmv="down" data-i="${m.id}" title="Xuống dưới">↓</button>
@@ -7483,14 +7488,14 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
 
         listEl.addEventListener("change", async e => {
           const t = e.target;
-          if (t.classList.contains("vs-on")) {
+          if (t.classList.contains("sysv-on")) {
             if (await patch(t.dataset.i, { public_on: t.checked })) {
               draw();
               said(t.checked ? "Đã hiện “" + metaOf(t.dataset.i).name + "” ở trang xem trước ✓"
                              : "Đã ẩn “" + metaOf(t.dataset.i).name + "” khỏi trang xem trước ✓");
             }
           }
-          if (t.classList.contains("vs-ord")) {
+          if (t.classList.contains("sysv-ord")) {
             if (await patch(t.dataset.i, { sort_order: Number(t.value) || 0 })) { draw(); said("Đã đổi thứ tự ✓"); }
           }
         });
