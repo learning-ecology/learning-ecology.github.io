@@ -409,7 +409,7 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
       <span id="counter">1 / 1</span>
       <button id="btnNext" type="button" title="Slide sau (→)">›</button>
     </div>
-    <button id="btnToolkit" type="button">✎ Dụng cụ giảng dạy</button>
+    <button id="btnToolkit" type="button" hidden>✎ Dụng cụ giảng dạy</button>
    </div>
 
   </div>
@@ -1438,12 +1438,19 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
       else alert('Bài giảng này cần quyền Premium.');
       return;
     }
+    /* Lấy nội dung qua RPC chứ không đọc thẳng bảng: máy chủ chỉ trả bài
+       MIỄN PHÍ cho khách chưa đăng nhập, bài Premium thì không gửi một chữ
+       nào về máy khách. Nhờ vậy khách xem trước học thử được như Đọc hiểu. */
     let data = null;
     try {
-      const { data: row } = await DB.from('hsk_lessons').select('data').eq('lesson_id', id).maybeSingle();
-      data = row && row.data;
+      const { data: d } = await DB.rpc('public_hsk_lesson', { p_lesson_id: id });
+      data = d || null;
     } catch (e) {}
-    if (!data) { alert('Không mở được bài giảng — kiểm tra kết nối.'); return; }
+    if (!data) {
+      alert(GUEST ? 'Bài giảng này cần đăng nhập hoặc mở khoá Premium.'
+                  : 'Không mở được bài giảng — kiểm tra kết nối.');
+      return;
+    }
     const sp = data.speech || {};
     window.ZhSpeech.configure({
       voice: sp.voice || 'zh-CN-XiaoxiaoNeural',
@@ -1477,6 +1484,8 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
         const { data: p } = await DB.from('profiles').select('full_name,role,is_premium').eq('id', USER.id).maybeSingle();
         if (p) { STAFF = ['owner', 'admin', 'teacher'].indexOf(p.role) >= 0; PREMIUM = !!p.is_premium;
                  window.ZhSpeech.configure({ canCache: STAFF });
+                 /* Dụng cụ giảng dạy là của GIÁO VIÊN — học viên và khách không thấy */
+                 const tk = document.getElementById('btnToolkit'); if (tk && STAFF) tk.hidden = false;
                  if (who) who.textContent = p.full_name || USER.email || ''; }
       } catch (e) {}
       if (auth) auth.hidden = true;

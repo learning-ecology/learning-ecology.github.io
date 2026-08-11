@@ -190,11 +190,23 @@
       shadow:  { icon: "🎤", name: "Luyện nói Shadowing", unit: "video" },
       dict:    { icon: "🎧", name: "Chép chính tả", unit: "video" },
       vsat:    { icon: "📝", name: "Luyện thi V-SAT", unit: "đề thi" },
-      vstep:   { icon: "📖", name: "Luyện thi VSTEP", unit: "đề thi" }
+      vstep:   { icon: "📖", name: "Luyện thi VSTEP", unit: "đề thi" },
+      hsk:     { icon: "🀄", name: "Bài giảng HSK tương tác", unit: "bài giảng" }
     };
     /* which page opens each tool at full size */
     const SEC_PAGE = { reading: "reading.html", shadow: "shadow.html",
-                       dict: "dictation.html", vsat: "vsat.html", vstep: "vstep.html" };
+                       dict: "dictation.html", vsat: "vsat.html", vstep: "vstep.html",
+                       hsk: "hsk-slides.html" };
+    /* tham số mở một mục: đề thi ?exam=, bài giảng HSK ?lesson=, còn lại ?open= */
+    const SEC_PARAM = k => IS_EXAM(k) ? "?exam=" : k === "hsk" ? "?lesson=" : "?open=";
+    /* Tên, biểu tượng, đơn vị: lấy từ cấu hình thầy đặt ở Bảng điều khiển →
+       Hiển thị công khai; thiếu thì mới dùng bảng mặc định bên trên. */
+    const secMeta = k => {
+      const d = SEC_META[k] || {}, c = (SECTIONS.find(x => x.section === k) || {}).config || {};
+      return { icon: c.icon || d.icon || "🧰",
+               name: c.name || (c.title || "").replace(/^Mở khóa\s*/i, "") || d.name || k,
+               unit: c.unit || d.unit || "bài" };
+    };
     /* hai kỳ thi dùng chung một danh sách đề, chỉ khác cột kind */
     const IS_EXAM = k => k === "vsat" || k === "vstep";
     let LAST_ITEMS = [];
@@ -261,7 +273,7 @@
     }
     function renderSidebar(){
       const secBtns = SECTIONS.map(s => {
-        const m = SEC_META[s.section] || {}, cfg = s.config || {};
+        const m = secMeta(s.section), cfg = s.config || {};
         return `
         <button class="ci" data-cid="sec:${esc(s.section)}" title="${esc(m.name || s.section)}">
           <span class="ci-thumb" style="${thumbStyle(cfg.cover, "#0e7c66")}">${cfg.cover ? "" : (m.icon || "🧰")}</span>
@@ -275,7 +287,7 @@
         </button>`).join("")
         + (secBtns ? `<div class="cp-side-h">Công cụ học</div>` + secBtns : "");
       $("cpMobileSel").innerHTML = COURSES.map(c => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join("")
-        + SECTIONS.map(s => `<option value="sec:${esc(s.section)}">${esc((SEC_META[s.section]||{}).name || s.section)}</option>`).join("");
+        + SECTIONS.map(s => `<option value="sec:${esc(s.section)}">${esc(secMeta(s.section).name)}</option>`).join("");
     }
     function markCurrent(id){
       $("cpSideList").querySelectorAll(".ci").forEach(b =>
@@ -361,7 +373,7 @@
        Danh sách lấy từ RPC public_* — nội dung bài Premium KHÔNG BAO
        GIỜ được gửi về trình duyệt, nên không thể xem qua mã nguồn. */
     async function renderSection(sec){
-      const m = SEC_META[sec] || {}, cfg = secCfg(sec);
+      const m = secMeta(sec), cfg = secCfg(sec);
       const info = SECTIONS.find(x => x.section === sec);
       if (!info){ $("cpMain").innerHTML = notFoundHtml(); return; }
       document.title = (m.name || "Công cụ") + " — Learning Ecology";
@@ -369,6 +381,8 @@
 
       const res = sec === "reading"
         ? await sb.rpc("public_reading_list").then(r => r, () => ({ data: null }))
+        : sec === "hsk"
+        ? await sb.rpc("public_hsk_lessons", { p_level: null }).then(r => r, () => ({ data: null }))
         : sec === "vstep"
         /* mục VSTEP gộp cả Đọc và Nghe — mỗi đề tự biết mở ở trang nào */
         ? await Promise.all([
@@ -381,6 +395,12 @@
       let items = Array.isArray(res && res.data) ? res.data : [];
       /* V-SAT rows are keyed by exam_id and describe an exam, not a lesson —
          map them onto the same shape the cards already understand */
+      /* bài giảng HSK: đưa về cùng khuôn thẻ như mọi mục khác */
+      if (sec === "hsk") items = items.map(l => ({
+        id: l.lesson_id, title: l.title, title_vi: l.subtitle || "",
+        premium: !!l.premium, cover_url: "", level: l.hsk_level,
+        vocab: l.vocab_count, slides: l.slide_count
+      }));
       if (IS_EXAM(sec)) items = items.map(e => ({
         id: e.exam_id, title: e.title, title_vi: e.subtitle || "",
         premium: !!e.premium, cover_url: "",
@@ -399,7 +419,7 @@
         <div class="course-banner">
           <div class="cb-bg" style="${thumbStyle(cfg.cover, "#0e7c66")}">${cfg.cover ? "" : (m.icon || "🧰")}</div>
           <div class="cb-shade"></div>
-          <span class="cb-tag">Công cụ học</span>
+          <span class="cb-tag">${esc(cfg.badge || "Công cụ học")}</span>
           <div class="cb-info">
             <div class="cb-title">${esc(m.icon || "")} ${esc(cfg.title && cfg.title.replace(/^Mở khóa\s*/i, "") || m.name || "")}</div>
             <div class="cb-stats">
@@ -407,13 +427,14 @@
               <span>🔓 ${free} miễn phí</span>
               ${prem ? `<span>👑 ${prem} Premium</span>` : ""}
               ${priceLine}
+              ${cfg.access_note ? `<span>${esc(cfg.access_note)}</span>` : ""}
             </div>
           </div>
         </div>
         ${cfg.tagline ? `<p class="cp-lead">${esc(cfg.tagline)}</p>` : ""}
         ${benefits.length ? `<ul class="cp-bens">${benefits.map(b => `<li><span>✓</span>${esc(b)}</li>`).join("")}</ul>` : ""}
         <div class="cp-cta">
-          ${free ? `<button class="btn" id="secTry">🔓 Học thử miễn phí</button>` : ""}
+          ${free ? `<button class="btn" id="secTry">🔓 ${esc(cfg.cta || "Học thử miễn phí")}</button>` : ""}
           <button class="btn cp-gold" id="secBuy">👑 Mở khóa Premium</button>
         </div>
         <p class="cp-note">Bấm một mục <b>miễn phí</b> để học thử ngay — không cần đăng nhập. Mục <b>Premium</b> cần mở khóa.</p>
@@ -432,7 +453,7 @@
         const first = items.find(i => !i.premium);
         if (!first) return;
         const P2 = first.page || SEC_PAGE[sec];
-        if (P2) { location.href = P2 + (IS_EXAM(sec) ? "?exam=" : "?open=") + encodeURIComponent(first.id); return; }
+        if (P2) { location.href = P2 + SEC_PARAM(sec) + encodeURIComponent(first.id); return; }
         openSecItem(sec, first.id);
       });
       $("cpMain").querySelectorAll("[data-sec-open]").forEach(b =>
@@ -441,7 +462,7 @@
           const id = b.getAttribute("data-sec-open");
           const hit = (LAST_ITEMS || []).find(x => String(x.id) === String(id));
           const P = (hit && hit.page) || SEC_PAGE[sec];
-          if (P) { location.href = P + (IS_EXAM(sec) ? "?exam=" : "?open=") + encodeURIComponent(id); return; }
+          if (P) { location.href = P + SEC_PARAM(sec) + encodeURIComponent(id); return; }
           openSecItem(sec, b.getAttribute("data-sec-open"));
         }));
       $("cpMain").querySelectorAll("[data-sec-lock]").forEach(b => b.addEventListener("click", openBuy));
@@ -451,6 +472,9 @@
       const lvl = it.level ? "HSK " + it.level : "";
       const sub = sec === "reading"
         ? [lvl, it.words ? "✍ " + it.words + " từ" : ""].filter(Boolean).join(" · ")
+        : sec === "hsk"
+        ? [lvl, it.vocab ? "📚 " + it.vocab + " từ" : "",
+           it.slides ? "🖼 " + it.slides + " slide" : ""].filter(Boolean).join(" · ")
         : IS_EXAM(sec)
         ? [it.questions ? "📝 " + it.questions + " câu" : "",
            it.duration_min ? "⏱ " + it.duration_min + " phút" : "",
@@ -462,7 +486,7 @@
       return `
         <div class="lcard ${it.premium ? "prem" : ""}">
           <div class="lc-thumb"${it.cover_url ? ` style="background-image:url('${esc(it.cover_url)}');"` : ""}>
-            ${it.cover_url ? "" : (SEC_META[sec] || {}).icon || "📖"}
+            ${it.cover_url ? "" : secMeta(sec).icon}
             <span class="lc-num">${n}</span>
             ${it.premium ? `<span class="lc-state s-lock">🔒</span>` : ""}
           </div>
@@ -530,7 +554,7 @@
         </div>`;
       ov.querySelector("#rdX2").addEventListener("click", close);
       ov.querySelector("#rdBuy2").addEventListener("click", () =>
-        Premium.open({ section: sec, courseTitle: (SEC_META[sec]||{}).name, thumb: secCfg(sec).cover || "" }));
+        Premium.open({ section: sec, courseTitle: secMeta(sec).name, thumb: secCfg(sec).cover || "" }));
     }
     const money = v => (v == null || v === "" || isNaN(Number(v))) ? "" : Number(v).toLocaleString("vi-VN") + "đ";
     const periodTxt = p => ({ month: "/tháng", year: "/năm", life: " trọn đời" })[p] || "";

@@ -3346,6 +3346,22 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           </div>
         </div>
 
+        <div class="tabpane" data-tab="visib">
+          <div class="card">
+            <h2>👁 Hiển thị công khai</h2>
+            <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
+              Chọn hệ thống nào hiện ở <b>trang xem trước công khai</b> (trang Khóa học mà khách chưa đăng nhập cũng vào được).
+              Bật/tắt ở đây <b>không</b> làm nội dung thành miễn phí: bài đã đăng và để <i>Miễn phí</i> thì khách học thử được,
+              bài <i>Premium</i> vẫn khoá như cũ. Bài <b>chưa đăng</b> thì không bao giờ hiện ra ngoài.
+            </p>
+            <p id="vs-msg" class="msg"></p>
+            <div id="vs-list"><p class="empty">Đang tải…</p></div>
+            <div class="form-row" style="margin-top:0.8rem;">
+              <a class="ghost btn" href="course.html" target="_blank" rel="noopener" style="text-decoration:none;">👁 Mở trang xem trước</a>
+            </div>
+          </div>
+        </div>
+
         <div class="tabpane" data-tab="pricing">
         <div class="card">
           <h2>💳 Giá &amp; thanh toán <span class="kind" id="pr-state"></span></h2>
@@ -4395,6 +4411,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         if (t === "progress" && window.__testsInit) window.__testsInit();
         if (t === "testmgr" && window.__testMgrInit) window.__testMgrInit();
         if (t === "modules" && window.__modInit) window.__modInit();
+        if (t === "visib" && window.__visibInit) window.__visibInit();
         if (t === "classes" && window.__ocInit) window.__ocInit();
         app.querySelectorAll(".tabpane").forEach(p =>
           p.classList.toggle("show", p.getAttribute("data-tab") === t));
@@ -4417,6 +4434,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           { id: "dict", label: "Dictation", icon: "headphones", group: "Content" },
           { id: "landing", label: "Landing Page", icon: "globe", group: "Content" },
           { id: "testmgr", label: "Đề thi", icon: "file-text", group: "Content" },
+          { id: "visib", label: "Hiển thị công khai", icon: "eye", group: "Settings" },
           { id: "pricing", label: "Giá & thanh toán", icon: "badge-dollar-sign", group: "Settings" },
           { id: "modules", label: "Tính năng", icon: "toggle-right", group: "Settings" },
           { id: "students", label: "Students (" + onlyStudents.length + ")" + (stuWarn ? " ⚠️" : ""), icon: "users", group: "Users" },
@@ -7336,6 +7354,179 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         }
 
         renderHs();
+      })();
+
+      // ================= HIỂN THỊ CÔNG KHAI (Phase 59) =================
+      // Sổ đăng ký hệ thống. Thêm một công cụ học mới sau này chỉ cần thêm
+      // MỘT dòng vào CATALOG bên dưới — nó tự hiện ở bảng này, tự bật/tắt,
+      // tự sắp thứ tự, tự sửa được thông tin hiển thị. Không phải sửa SQL,
+      // không phải sửa trang xem trước.
+      (function () {
+        const listEl = document.getElementById("vs-list");
+        if (!listEl) return;
+        const msg = document.getElementById("vs-msg");
+        const said = (t, err) => { msg.textContent = t; msg.className = "msg" + (err ? " err" : ""); };
+
+        const CATALOG = [
+          { id: "reading", name: "Thư viện Đọc hiểu",       icon: "📖", unit: "bài đọc",   url: "reading.html",    order: 10 },
+          { id: "shadow",  name: "Luyện nói Shadowing",     icon: "🎤", unit: "video",     url: "shadow.html",     order: 20 },
+          { id: "dict",    name: "Chép chính tả",           icon: "🎧", unit: "video",     url: "dictation.html",  order: 30 },
+          { id: "vsat",    name: "Luyện thi V-SAT",         icon: "📝", unit: "đề thi",    url: "vsat.html",       order: 40 },
+          { id: "vstep",   name: "Luyện thi VSTEP",         icon: "📖", unit: "đề thi",    url: "vstep.html",      order: 50 },
+          { id: "hsk",     name: "Bài giảng HSK tương tác", icon: "🀄", unit: "bài giảng", url: "hsk-slides.html", order: 60 }
+        ];
+
+        let CFG = {};        // section → config đã lưu
+        let COUNT = {};      // section → { free, premium }
+        const opened = {};   // section → đang mở phần sửa thông tin
+        let loaded = false;
+
+        const cfgOf = id => CFG[id] || {};
+        const metaOf = id => {
+          const d = CATALOG.find(c => c.id === id) || { id, name: id, icon: "🧰", unit: "bài", order: 999 };
+          const c = cfgOf(id);
+          return { id, url: d.url || "", icon: c.icon || d.icon, name: c.name || d.name,
+                   unit: c.unit || d.unit,
+                   order: c.sort_order == null ? d.order : Number(c.sort_order),
+                   on: !!c.public_on };
+        };
+        const sorted = () => CATALOG.map(c => metaOf(c.id)).sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
+
+        async function load() {
+          const { data, error } = await sb.from("section_pricing").select("section,config");
+          if (error) {
+            listEl.innerHTML = `<p class="empty">Không đọc được cài đặt: ${esc(error.message)}` +
+              (/section_pricing/.test(error.message || "") ? " — hình như chưa chạy migration47." : "") + `</p>`;
+            return;
+          }
+          CFG = {};
+          (data || []).forEach(r => { CFG[r.section] = r.config || {}; });
+          draw();
+          loaded = true;
+          /* số bài của từng hệ thống — hỏi thẳng máy chủ để thầy biết
+             trước khi bật, kể cả hệ thống đang ẩn */
+          await Promise.all(CATALOG.map(async c => {
+            try {
+              const [f, p] = await Promise.all([
+                sb.rpc("section_count", { p_section: c.id, p_premium: false }),
+                sb.rpc("section_count", { p_section: c.id, p_premium: true })
+              ]);
+              COUNT[c.id] = { free: Number(f.data) || 0, premium: Number(p.data) || 0 };
+            } catch (e) { COUNT[c.id] = null; }
+          }));
+          draw();
+        }
+
+        function draw() {
+          listEl.innerHTML = sorted().map(m => {
+            const c = cfgOf(m.id), n = COUNT[m.id];
+            const counts = n
+              ? `${n.free} miễn phí${n.premium ? " · " + n.premium + " Premium" : ""}`
+              : "…";
+            const edit = opened[m.id] ? `
+              <div style="width:100%;border-top:1px dashed var(--line);margin-top:0.5rem;padding-top:0.5rem;">
+                <div class="form-row" style="gap:0.4rem;">
+                  <div class="field"><label>Tên hiển thị</label>
+                    <input data-vf="name" data-i="${m.id}" value="${esc(c.name || "")}" placeholder="${esc(m.name)}" /></div>
+                  <div class="field" style="max-width:110px;"><label>Biểu tượng</label>
+                    <input data-vf="icon" data-i="${m.id}" value="${esc(c.icon || "")}" placeholder="${esc(m.icon)}" /></div>
+                  <div class="field" style="max-width:130px;"><label>Đơn vị</label>
+                    <input data-vf="unit" data-i="${m.id}" value="${esc(c.unit || "")}" placeholder="${esc(m.unit)}" /></div>
+                  <div class="field" style="max-width:150px;"><label>Nhãn phân loại</label>
+                    <input data-vf="badge" data-i="${m.id}" value="${esc(c.badge || "")}" placeholder="Công cụ học" /></div>
+                </div>
+                <div class="form-row" style="gap:0.4rem;margin-top:0.35rem;">
+                  <div class="field"><label>Mô tả ngắn</label>
+                    <input data-vf="tagline" data-i="${m.id}" value="${esc(c.tagline || "")}" placeholder="Một câu giới thiệu hiện dưới ảnh bìa" /></div>
+                </div>
+                <div class="form-row" style="gap:0.4rem;margin-top:0.35rem;">
+                  <div class="field"><label>Ảnh bìa (link)</label>
+                    <input data-vf="cover" data-i="${m.id}" value="${esc(c.cover || "")}" placeholder="https://…" /></div>
+                  <div class="field" style="max-width:200px;"><label>Chữ trên nút</label>
+                    <input data-vf="cta" data-i="${m.id}" value="${esc(c.cta || "")}" placeholder="Học thử miễn phí" /></div>
+                  <div class="field" style="max-width:230px;"><label>Ghi chú về quyền truy cập</label>
+                    <input data-vf="access_note" data-i="${m.id}" value="${esc(c.access_note || "")}" placeholder="vd: 5 bài đầu miễn phí" /></div>
+                </div>
+                <div class="form-row" style="margin-top:0.5rem;">
+                  <button data-vsave="${m.id}">💾 Lưu thông tin hiển thị</button>
+                  <a class="ghost btn" href="course.html?id=${encodeURIComponent("sec:" + m.id)}" target="_blank" rel="noopener"
+                     style="text-decoration:none;">👁 Xem trước</a>
+                </div>
+              </div>` : "";
+            return `<div class="lesson" style="flex-wrap:wrap;gap:0.45rem;align-items:center;">
+              <span style="font-size:1.3rem;width:1.8rem;text-align:center;">${esc(m.icon)}</span>
+              <div class="meta" style="min-width:190px;">
+                <div class="title">${esc(m.name)}${m.on ? "" : ' <span class="pill off">đang ẩn</span>'}</div>
+                <span class="kind">${esc(m.id)} · ${esc(counts)}</span>
+              </div>
+              <label style="font-size:0.85rem;color:var(--muted);white-space:nowrap;">
+                <input type="checkbox" class="vs-on" data-i="${m.id}" ${m.on ? "checked" : ""} /> hiện công khai</label>
+              <input type="number" class="vs-ord" data-i="${m.id}" value="${m.order}" min="0" step="10" title="Thứ tự hiển thị"
+                     style="max-width:80px;flex:none;" />
+              <button class="ghost" data-vmv="up" data-i="${m.id}" title="Lên trên">↑</button>
+              <button class="ghost" data-vmv="down" data-i="${m.id}" title="Xuống dưới">↓</button>
+              <button class="ghost" data-vedit="${m.id}">${opened[m.id] ? "▴ thu gọn" : "✏️ Sửa thông tin"}</button>
+              <a class="ghost btn" href="${esc(m.url)}" target="_blank" rel="noopener" style="text-decoration:none;" title="Mở hệ thống">↗</a>
+              ${edit}
+            </div>`;
+          }).join("");
+        }
+
+        /* ghi một phần config, giữ nguyên những khoá khác (giá, nội dung popup…) */
+        async function patch(id, fields) {
+          const next = Object.assign({}, cfgOf(id), fields);
+          const { error } = await sb.from("section_pricing").upsert({ section: id, config: next }, { onConflict: "section" });
+          if (error) { said("Không lưu được: " + error.message, true); return false; }
+          CFG[id] = next;
+          return true;
+        }
+
+        listEl.addEventListener("change", async e => {
+          const t = e.target;
+          if (t.classList.contains("vs-on")) {
+            if (await patch(t.dataset.i, { public_on: t.checked })) {
+              draw();
+              said(t.checked ? "Đã hiện “" + metaOf(t.dataset.i).name + "” ở trang xem trước ✓"
+                             : "Đã ẩn “" + metaOf(t.dataset.i).name + "” khỏi trang xem trước ✓");
+            }
+          }
+          if (t.classList.contains("vs-ord")) {
+            if (await patch(t.dataset.i, { sort_order: Number(t.value) || 0 })) { draw(); said("Đã đổi thứ tự ✓"); }
+          }
+        });
+
+        listEl.addEventListener("click", async e => {
+          const ed = e.target.closest("[data-vedit]"), mv = e.target.closest("[data-vmv]"),
+                sv = e.target.closest("[data-vsave]");
+          if (ed) { opened[ed.dataset.vedit] = !opened[ed.dataset.vedit]; draw(); return; }
+          if (mv) {
+            /* đổi chỗ với hệ thống liền kề — thầy không phải tự nghĩ ra con số */
+            const list = sorted(), i = list.findIndex(x => x.id === mv.dataset.i);
+            const j = mv.dataset.vmv === "up" ? i - 1 : i + 1;
+            if (i < 0 || j < 0 || j >= list.length) return;
+            const a = list[i], b = list[j];
+            if (await patch(a.id, { sort_order: b.order }) && await patch(b.id, { sort_order: a.order })) {
+              draw(); said("Đã đổi thứ tự ✓");
+            }
+            return;
+          }
+          if (sv) {
+            const id = sv.dataset.vsave, box = sv.closest(".lesson"), fields = {};
+            box.querySelectorAll("[data-vf]").forEach(inp => { fields[inp.dataset.vf] = inp.value.trim(); });
+            /* ô để trống = quay về mặc định: XOÁ hẳn khoá đó thay vì ghi null,
+               để cấu hình sạch và các trang khác chỉ thấy thứ thật sự được đặt */
+            const next = Object.assign({}, cfgOf(id));
+            Object.keys(fields).forEach(k => { if (fields[k]) next[k] = fields[k]; else delete next[k]; });
+            const { error } = await sb.from("section_pricing")
+              .upsert({ section: id, config: next }, { onConflict: "section" });
+            if (error) { said("Không lưu được: " + error.message, true); return; }
+            CFG[id] = next; draw();
+            said("Đã lưu thông tin hiển thị ✓ — mở trang xem trước để kiểm tra.");
+          }
+        });
+
+        /* chỉ tải khi thầy thật sự mở tab — theo đúng lối các tab khác đang dùng */
+        window.__visibInit = () => { if (!loaded) load(); };
       })();
 
       // ================= LANDING PAGE CMS =================
