@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- Bắt tay sẵn với hai máy chủ ngoài ngay khi trình duyệt đọc <head>:
+  <!-- Bắt tay sẵn với hai máy chủ ngoài ngay khi trình duyệt đọc phần đầu trang:
        DNS + TCP + TLS chạy song song với việc tải trang, nên lượt gọi dữ
        liệu đầu tiên không phải chờ bắt tay nữa (~200–500 ms ở đường VN).
        supabase.co gọi bằng fetch CORS nên cần crossorigin; jsdelivr nạp
-       bằng <script> thường nên KHÔNG được thêm, thêm vào là phí một kết nối. -->
+       bằng thẻ script thường nên KHÔNG được thêm, thêm vào là phí một kết nối. -->
   <link rel="preconnect" href="https://lqeetnlfqmarlqmbxusn.supabase.co" crossorigin>
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
   <title>Learning Ecology — Học tiếng Anh &amp; tiếng Trung theo lộ trình</title>
@@ -1041,16 +1041,25 @@
        thật, tránh gắn trùng trình xử lý sự kiện. */
     const LP_CACHE = "le_landing_v1";
 
+    const LP_NORPC = "le_landing_norpc";     // nhớ là máy chủ chưa có hàm gộp
+
     async function fetchLanding() {
       /* bản nháp chỉ xem được ở chế độ ?preview — đường đó vẫn dùng cách cũ */
-      if (!PREVIEW) {
+      let skipRpc = false;
+      try { skipRpc = Number(localStorage.getItem(LP_NORPC) || 0) > Date.now(); } catch (e) {}
+      if (!PREVIEW && !skipRpc) {
         const r = await sb.rpc("public_landing").then(x => x, () => ({ data: null }));
         const d = r && r.data;
         if (d && typeof d === "object" && d.config) {
+          try { localStorage.removeItem(LP_NORPC); } catch (e) {}
           return { cfg: d.config || {}, courses: d.courses || [], trials: d.trials || [],
                    teachers: d.teachers || [], achievements: d.achievements || [],
                    feedback: d.feedback || [], gallery: d.gallery || [], classes: d.classes || [] };
         }
+        /* Chưa chạy migration60 thì hàm chưa tồn tại. Nhớ lại trong 6 giờ để
+           những lần sau khỏi tốn thêm một lượt gọi hỏng trước khi quay về
+           cách cũ — chạy migration xong thì tự dùng lại đường nhanh. */
+        try { localStorage.setItem(LP_NORPC, String(Date.now() + 6 * 3600 * 1000)); } catch (e) {}
       }
       const [settingsRes, courses, trials, teachers, achievements, feedback, gallery, classes] = await Promise.all([
         sb.from("landing_settings").select("config").eq("id", 1).maybeSingle().then(r => r, () => ({ data: null })),
