@@ -14,14 +14,23 @@
    nào còn phục vụ bản cũ nữa. Không đổi thì cuộc đua 2,5 giây bên dưới có
    thể trả về bản đã lưu — đúng lỗi đã khiến một đề tải lên bằng bản
    dashboard cũ và chỉ sinh được 1 bài tập ngữ pháp. */
-const CACHE = "learning-ecology-v17";
+const CACHE = "learning-ecology-v18";
 
 // Phase 43: how long a navigation waits for the network before the last good
 // copy is shown instead. On a healthy connection the network always wins, so
 // a freshly uploaded file still appears immediately; on a slow or flaky
 // connection the page opens at once and the fresh copy lands in the cache for
 // the next visit.
-const SLOW_NETWORK_MS = 2500;
+/* Phase 60: thời gian chờ chia làm hai mức.
+   Trang SOẠN BÀI (dashboard, admin…) vẫn chờ 2,5 s như cũ — thà chậm một
+   chút còn hơn tải đề lên bằng bản cũ, đúng lỗi đã gặp trước đây.
+   Trang cho NGƯỜI HỌC chỉ chờ 1 s: đo thực tế đường từ Việt Nam ra máy chủ
+   nhiều lúc mất 2–5 giây chỉ để bắt tay, mà những trang này chỉ đọc nội
+   dung nên hiện bản đã lưu trước rồi cập nhật ngầm là hợp lý hơn hẳn. */
+const SLOW_NETWORK_MS = 1000;
+const SLOW_NETWORK_MS_AUTHORING = 2500;
+const AUTHORING = /\/(dashboard|admin|teacher|organizations)\.html$/;
+const waitFor = (url) => AUTHORING.test(url.pathname) ? SLOW_NETWORK_MS_AUTHORING : SLOW_NETWORK_MS;
 
 // The app shell, pre-cached at install so the first offline
 // launch works. Files that fail to cache are skipped silently
@@ -110,7 +119,7 @@ self.addEventListener("fetch", (e) => {
 
       const slow = setTimeout(() => {
         caches.match(e.request).then((hit) => send(hit));
-      }, SLOW_NETWORK_MS);
+      }, waitFor(url));
 
       fetch(e.request)
         .then((res) => {

@@ -3,6 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Bắt tay sẵn với hai máy chủ ngoài ngay khi trình duyệt đọc <head>:
+       DNS + TCP + TLS chạy song song với việc tải trang, nên lượt gọi dữ
+       liệu đầu tiên không phải chờ bắt tay nữa (~200–500 ms ở đường VN).
+       supabase.co gọi bằng fetch CORS nên cần crossorigin; jsdelivr nạp
+       bằng <script> thường nên KHÔNG được thêm, thêm vào là phí một kết nối. -->
+  <link rel="preconnect" href="https://lqeetnlfqmarlqmbxusn.supabase.co" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
   <title>Learning Ecology — Học tiếng Anh &amp; tiếng Trung theo lộ trình</title>
   <meta name="description" content="Learning Ecology — nền tảng học tiếng Anh và tiếng Trung theo lộ trình cùng Thầy Lê Quốc Thông (Master of TESOL, IELTS 7.5, HSK 5). Theo dõi tiến độ, quiz, chứng nhận hoàn thành, học như ứng dụng trên điện thoại." />
 
@@ -884,7 +891,7 @@
           <a class="btn fb" href="https://www.facebook.com/lqt248" target="_blank" rel="noopener">👤 Facebook: lqt248</a>
         </div>
         <div class="qr">
-          <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https%3A%2F%2Fzalo.me%2F0961923983"
+          <img src="icons/zalo-qr.png"
                alt="Zalo QR" width="150" height="150" loading="lazy" decoding="async" />
           <span class="kind">Quét để mở Zalo</span>
         </div>
@@ -1021,23 +1028,61 @@
       .then(r => (r.data || []).filter(x => x.status === "published" || (PREVIEW && x.status === "draft")),
             () => []);
 
-    async function boot() {
+    /* ============ TẢI DỮ LIỆU TRANG CHỦ (Phase 60 — tăng tốc) ============
+       Trước đây chỗ này gọi TÁM yêu cầu REST rồi chờ cả tám xong mới vẽ.
+       Mỗi lượt đi Singapore mất 150–400 ms, lượt đầu còn phải bắt tay TLS,
+       nên trang trắng khá lâu. Nay:
+         • một lượt duy nhất qua public_landing() (migration60);
+         • máy nào chưa chạy migration thì tự quay về cách cũ, không hỏng;
+         • phần đầu trang (màu thương hiệu, tiêu đề, mục hiện/ẩn) vẽ NGAY
+           từ bản lưu lần trước, nên khách quen thấy nội dung tức thì.
+       Chỉ những hàm KHÔNG gắn sự kiện mới được vẽ sớm; phần băng chuyền
+       khoá học và thanh mục lục vẫn chỉ chạy đúng một lần khi có dữ liệu
+       thật, tránh gắn trùng trình xử lý sự kiện. */
+    const LP_CACHE = "le_landing_v1";
+
+    async function fetchLanding() {
+      /* bản nháp chỉ xem được ở chế độ ?preview — đường đó vẫn dùng cách cũ */
+      if (!PREVIEW) {
+        const r = await sb.rpc("public_landing").then(x => x, () => ({ data: null }));
+        const d = r && r.data;
+        if (d && typeof d === "object" && d.config) {
+          return { cfg: d.config || {}, courses: d.courses || [], trials: d.trials || [],
+                   teachers: d.teachers || [], achievements: d.achievements || [],
+                   feedback: d.feedback || [], gallery: d.gallery || [], classes: d.classes || [] };
+        }
+      }
       const [settingsRes, courses, trials, teachers, achievements, feedback, gallery, classes] = await Promise.all([
         sb.from("landing_settings").select("config").eq("id", 1).maybeSingle().then(r => r, () => ({ data: null })),
         q("landing_courses"), q("landing_trials"), q("landing_teachers"),
         q("landing_achievements"), q("landing_feedback"), q("landing_gallery"),
         q("landing_classes")     // migration48 — hidden entirely if it hasn't run
       ]);
-      const cfg = (settingsRes && settingsRes.data && settingsRes.data.config) || {};
-      applyBrand(cfg);
-      renderHero(cfg);
-      applySections(cfg);
-      renderTrial(cfg, trials);
-      renderCourses(cfg, courses);
-      renderClasses(cfg, classes);
-      renderTeachers(cfg, teachers);
-      renderAchievements(cfg, achievements, feedback, gallery);
+      return { cfg: (settingsRes && settingsRes.data && settingsRes.data.config) || {},
+               courses, trials, teachers, achievements, feedback, gallery, classes };
+    }
+
+    async function boot() {
+      /* 1. vẽ ngay phần trên từ bản lưu — không chờ mạng */
+      if (!PREVIEW) {
+        try {
+          const c = JSON.parse(localStorage.getItem(LP_CACHE) || "null");
+          if (c && c.cfg) { applyBrand(c.cfg); renderHero(c.cfg); applySections(c.cfg); }
+        } catch (e) {}
+      }
+      /* 2. dữ liệu thật */
+      const d = await fetchLanding();
+      applyBrand(d.cfg);
+      renderHero(d.cfg);
+      applySections(d.cfg);
+      renderTrial(d.cfg, d.trials);
+      renderCourses(d.cfg, d.courses);
+      renderClasses(d.cfg, d.classes);
+      renderTeachers(d.cfg, d.teachers);
+      renderAchievements(d.cfg, d.achievements, d.feedback, d.gallery);
       initNav();          // built last, from whatever ended up visible
+      /* 3. để dành cho lần sau — chỉ phần cấu hình, đủ để vẽ đầu trang */
+      if (!PREVIEW) { try { localStorage.setItem(LP_CACHE, JSON.stringify({ cfg: d.cfg })); } catch (e) {} }
     }
 
     /* ================= header section menu =================

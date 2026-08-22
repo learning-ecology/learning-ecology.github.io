@@ -3,6 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <!-- Bắt tay sẵn với hai máy chủ ngoài ngay khi trình duyệt đọc <head>:
+       DNS + TCP + TLS chạy song song với việc tải trang, nên lượt gọi dữ
+       liệu đầu tiên không phải chờ bắt tay nữa (~200–500 ms ở đường VN).
+       supabase.co gọi bằng fetch CORS nên cần crossorigin; jsdelivr nạp
+       bằng <script> thường nên KHÔNG được thêm, thêm vào là phí một kết nối. -->
+  <link rel="preconnect" href="https://lqeetnlfqmarlqmbxusn.supabase.co" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <title>Tập viết chữ Hán — 墨迹 MoJi · Learning Ecology</title>
   <meta name="robots" content="noindex, follow" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

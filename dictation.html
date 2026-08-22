@@ -3,6 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Bắt tay sẵn với hai máy chủ ngoài ngay khi trình duyệt đọc <head>:
+       DNS + TCP + TLS chạy song song với việc tải trang, nên lượt gọi dữ
+       liệu đầu tiên không phải chờ bắt tay nữa (~200–500 ms ở đường VN).
+       supabase.co gọi bằng fetch CORS nên cần crossorigin; jsdelivr nạp
+       bằng <script> thường nên KHÔNG được thêm, thêm vào là phí một kết nối. -->
+  <link rel="preconnect" href="https://lqeetnlfqmarlqmbxusn.supabase.co" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <title>Nghe chép chính tả — 听写 · Learning Ecology</title>
   <meta name="description" content="Luyện nghe chép chính tả tiếng Trung theo video: nghe từng câu, gõ lại và được chấm ngay, có pinyin và bản dịch hỗ trợ. Dùng thử miễn phí." />
   <link rel="canonical" href="https://learningecology.io.vn/dictation.html" />
