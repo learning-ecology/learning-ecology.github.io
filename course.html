@@ -18,6 +18,9 @@
   <meta property="og:image" content="https://learningecology.io.vn/social-card.png?v=2" />
 
   <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" />
   <script>
     try { var __t = localStorage.getItem("hub_theme");
       if (__t === "dark" || (!__t && matchMedia("(prefers-color-scheme: dark)").matches))
@@ -28,115 +31,176 @@
   <meta name="theme-color" content="#17263e" />
 
   <style>
-    body { overflow-x: hidden; }
-    /* header (mirrors the landing page so branding stays consistent) */
+    /* ============ TRANG XEM TRƯỚC CÔNG KHAI — giao diện ấm, bo tròn (Phase 61)
+       Học cách trình bày của youpass.vn: thân thiện, nhiều khoảng thở, nút bo
+       tròn, thẻ mềm — NHƯNG giữ bản sắc Learning Ecology (navy + vàng gold).
+       MỌI quy tắc ở đây chỉ áp cho trang này (bọc trong body.pv / .pv) nên
+       không đụng tới styles.css dùng chung với bảng điều khiển. ============ */
+    :root {
+      --pv-bg: #faf7f2;        /* kem ấm thay cho xám lạnh */
+      --pv-card: #ffffff;
+      --pv-soft: #f4efe6;      /* nền mục phụ */
+      --pv-ink: #17263e;
+      --pv-ring: rgba(183,130,63,.35);
+      --pv-font: "Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      --pv-pill: 999px;
+    }
+    :root[data-theme="dark"] {
+      --pv-bg: #0e1826; --pv-card: #16233a; --pv-soft: #1a2942; --pv-ink: #eaf0f8;
+      --pv-ring: rgba(224,190,120,.28);
+    }
+    body.pv { overflow-x: hidden; background: var(--pv-bg); font-family: var(--pv-font); }
+    body.pv .btn, body.pv button.btn, body.pv .ghost { font-family: var(--pv-font); }
+
+    /* ---- header: giữ navy, nút bo tròn viên thuốc ---- */
     .lp-header {
-      position: sticky; top: 0; z-index: 50;
+      position: sticky; top: 0; z-index: 60;
       display: flex; align-items: center; gap: 0.6rem;
       padding: 0.7rem clamp(1rem, 4vw, 2.5rem);
-      background: var(--lp-header-bg, rgba(23,38,62,0.94));
-      backdrop-filter: blur(6px); color: var(--lp-header-text, #fff);
+      background: var(--lp-header-bg, rgba(23,38,62,0.96));
+      backdrop-filter: blur(8px); color: var(--lp-header-text, #fff);
     }
-    .lp-header img { width: 34px; height: 34px; border-radius: 8px; object-fit: contain; }
-    .lp-header .name { font-family: var(--serif); font-size: 1.15rem; font-weight: 700; }
+    .lp-header img { width: 34px; height: 34px; border-radius: 9px; object-fit: contain; }
+    .lp-header .name { font-family: var(--serif); font-size: 1.16rem; font-weight: 700; }
     .lp-header .spacer { flex: 1 1 auto; }
     .lp-header .btn.ghost, .lp-header #cp-theme {
-      color: var(--lp-header-text, #fff);
-      border-color: color-mix(in srgb, var(--lp-header-text, #fff) 45%, transparent);
+      color: var(--lp-header-text, #fff); border-radius: var(--pv-pill);
+      border-color: color-mix(in srgb, var(--lp-header-text, #fff) 42%, transparent);
       text-decoration: none;
     }
     .lp-header .btn:not(.ghost) {
       background: var(--lp-btn, var(--accent)); border-color: var(--lp-btn, var(--accent));
-      color: var(--lp-btn-text, #fff); text-decoration: none;
+      color: var(--lp-btn-text, #fff); text-decoration: none; border-radius: var(--pv-pill); font-weight: 700;
     }
     .lp-header .btn:not(.ghost):hover { background: var(--lp-btn-hover, var(--accent-ink)); }
 
-    /* shell: collapsible course sidebar + content */
-    .cp-shell { display: flex; align-items: flex-start; max-width: 1180px; margin: 0 auto; }
-    .cp-side {
-      width: 252px; flex: none; align-self: stretch;
-      border-right: 1px solid var(--line); background: var(--card);
-      position: sticky; top: 56px; max-height: calc(100vh - 56px); overflow-y: auto;
-      padding: 0.8rem 0.55rem;
-    }
-    .cp-side.collapsed { width: 74px; }
-    .cp-side-head { display: flex; align-items: center; justify-content: space-between; gap: .4rem; margin: 0 .3rem .55rem; }
-    .cp-side-head h3 { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0; }
-    .cp-side.collapsed .cp-side-head h3, .cp-side.collapsed .ci-title { display: none; }
-    .cp-side-toggle { background: none; border: 1px solid var(--line); color: var(--muted);
-      border-radius: 8px; width: 30px; height: 28px; flex: none; cursor: pointer; padding: 0; font-size: .9rem; }
-    .ci { display: flex; align-items: center; gap: .6rem; width: 100%; text-align: left;
-      background: none; border: 1px solid transparent; border-radius: 10px; padding: .4rem .45rem;
-      cursor: pointer; color: inherit; margin-bottom: .15rem; font: inherit; }
-    .ci:hover { background: var(--info-bg); }
-    .ci.on { background: var(--info-bg); border-color: var(--accent); }
-    .ci-thumb { width: 46px; height: 34px; flex: none; border-radius: 6px;
+    /* ---- hero: dải kem ấm, một câu giá trị ---- */
+    .pv-hero { background:
+        radial-gradient(120% 140% at 12% -20%, rgba(183,130,63,.14), transparent 60%),
+        radial-gradient(120% 150% at 96% 0%, rgba(30,79,143,.12), transparent 55%),
+        var(--pv-soft);
+      border-bottom: 1px solid color-mix(in srgb, var(--gold) 22%, transparent); }
+    .pv-hero-in { max-width: 1120px; margin: 0 auto; padding: clamp(1.6rem,5vw,3rem) clamp(1rem,4vw,2rem) clamp(1.4rem,4vw,2.2rem); }
+    .pv-kicker { display: inline-block; font-size: .78rem; font-weight: 800; letter-spacing: .02em;
+      color: var(--gold); background: rgba(183,130,63,.14); padding: .3rem .8rem; border-radius: var(--pv-pill); }
+    .pv-hero h1 { font-family: var(--serif); font-size: clamp(1.7rem, 4.4vw, 2.7rem); line-height: 1.12;
+      margin: .7rem 0 .5rem; color: var(--pv-ink); }
+    .pv-hero p { color: var(--muted); font-size: clamp(1rem,2.3vw,1.12rem); max-width: 60ch; margin: 0; }
+
+    /* ---- thanh chọn ngang, dính đầu trang (thay cho sidebar cũ) ---- */
+    .pv-nav { position: sticky; top: 52px; z-index: 40;
+      background: color-mix(in srgb, var(--pv-bg) 88%, transparent); backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--line); }
+    .pv-nav-in { max-width: 1120px; margin: 0 auto; padding: .55rem clamp(1rem,4vw,2rem); }
+    .pv-tabs { display: flex; gap: .5rem; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+    .pv-tabs::-webkit-scrollbar { display: none; }
+    .ci { display: inline-flex; align-items: center; gap: .5rem; flex: none; white-space: nowrap;
+      background: var(--pv-card); border: 1.5px solid var(--line); border-radius: var(--pv-pill);
+      padding: .4rem .85rem .4rem .45rem; cursor: pointer; color: var(--ink); font: inherit;
+      font-weight: 700; font-size: .9rem; transition: border-color .15s, background .15s, transform .12s; }
+    .ci:hover { border-color: var(--pv-ring); transform: translateY(-1px); }
+    .ci.on { border-color: var(--accent); background: var(--info-bg); color: var(--accent-ink); }
+    :root[data-theme="dark"] .ci.on { color: #cfe0f6; }
+    .ci-thumb { width: 30px; height: 30px; flex: none; border-radius: 999px;
       background-size: cover; background-position: center; display: grid; place-items: center;
-      color: #fff; font-size: 1.05rem; text-shadow: 0 1px 4px rgba(0,0,0,.4); }
-    .ci-title { font-size: .85rem; font-weight: 600; line-height: 1.25; min-width: 0;
-      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+      color: #fff; font-size: .95rem; text-shadow: 0 1px 4px rgba(0,0,0,.45); }
+    .ci-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; max-width: 15ch; }
+    .cp-side-h { align-self: center; flex: none; margin: 0 .1rem; padding-left: .6rem;
+      border-left: 1px solid var(--line); font-size: .68rem; letter-spacing: .09em;
+      text-transform: uppercase; color: var(--muted); font-weight: 800; }
 
-    .cp-content { flex: 1 1 auto; min-width: 0; padding: clamp(1rem,4vw,1.8rem) clamp(1rem,4vw,1.8rem) 2.5rem; }
-    .cp-content .course-banner { margin: 0 0 1rem; border-radius: 14px; }
+    /* ---- vùng nội dung ---- */
+    .pv-main { max-width: 1120px; margin: 0 auto; min-width: 0;
+      padding: clamp(1.2rem,4vw,2rem) clamp(1rem,4vw,2rem) 3rem; }
+    .cp-mobilesel { display: none !important; }
+    .cp-content .course-banner, .pv-main .course-banner { margin: 0 0 1.1rem; border-radius: 18px; }
     .cp-desc { color: var(--muted); margin: 0 0 1.2rem; max-width: 72ch; }
-    .cp-note { color: var(--muted); font-size: .92rem; margin: 0 0 1.1rem; }
-    .cp-mobilesel { display: none; width: 100%; margin-bottom: 1rem; }
+    .cp-note { color: var(--muted); font-size: .95rem; margin: 0 0 1.1rem; }
+    .cp-lead { font-size: 1.05rem; color: var(--muted); margin: .9rem 0 .2rem; }
 
-    /* free/premium badge inside the reused .lc-foot */
-    .cp-side-h { font-size:.68rem; letter-spacing:.09em; text-transform:uppercase; color:var(--muted);
-      padding:.9rem .55rem .3rem; font-weight:700; }
-    .cp-lead { font-size:1.02rem; color:var(--muted); margin:.9rem 0 .2rem; }
-    .cp-bens { list-style:none; padding:0; margin:.6rem 0 1rem; display:grid;
-      grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:.35rem .9rem; }
-    .cp-bens li { display:flex; gap:.5rem; align-items:flex-start; font-size:.95rem; }
-    .cp-bens li span { color:var(--success); font-weight:900; }
-    .cp-cta { display:flex; gap:.6rem; flex-wrap:wrap; margin:.6rem 0 1rem; }
-    .cp-gold { background:linear-gradient(135deg,#f4d68a,#d9a53c) !important;
-      border-color:#d9a53c !important; color:#5a3d0e !important; font-weight:800; }
-    .cb-price { font-weight:800; color:#f4d68a; }
-    .cp-read { position:fixed; inset:0; z-index:900; background:rgba(8,14,26,.66);
-      display:flex; align-items:flex-start; justify-content:center; padding:22px 12px; overflow-y:auto; }
-    .cp-read-in { width:100%; max-width:720px; background:var(--card); color:var(--ink);
-      border-radius:16px; padding:18px 20px 22px; margin:auto;
-      box-shadow:0 40px 90px -35px rgba(0,0,0,.7); }
-    .rd-head { display:flex; align-items:center; gap:.8rem; justify-content:space-between;
-      border-bottom:1px solid var(--line); padding-bottom:.6rem; margin-bottom:.9rem; }
-    .rd-body { max-height:min(62vh,620px); overflow-y:auto; }
-    .rd-zh { font-size:1.18rem; line-height:1.85; margin:.7rem 0 .1rem; }
-    .rd-tr { font-size:.93rem; color:var(--muted); margin:0 0 .5rem; }
-    .rd-yt { position:relative; padding-top:56.25%; border-radius:12px; overflow:hidden; margin-bottom:.9rem; }
-    .rd-yt iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
-    @media (max-width:640px){ .rd-body { max-height:56vh; } }
-    .cp-badge { font-size: .72rem; font-weight: 800; padding: .16rem .5rem; border-radius: 999px; }
+    .cp-bens { list-style: none; padding: 0; margin: .6rem 0 1.3rem; display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: .5rem 1rem; }
+    .cp-bens li { display: flex; gap: .55rem; align-items: flex-start; font-size: .98rem; }
+    .cp-bens li span { color: var(--success); font-weight: 900; }
+
+    .cp-cta { display: flex; gap: .7rem; flex-wrap: wrap; margin: .6rem 0 1.4rem; }
+    body.pv .btn { border-radius: var(--pv-pill); font-weight: 800; padding: .62rem 1.3rem; }
+    .cp-gold { background: linear-gradient(135deg,#f4d68a,#d9a53c) !important;
+      border-color: #d9a53c !important; color: #5a3d0e !important; font-weight: 800; }
+    .cb-price { font-weight: 800; color: #f4d68a; }
+
+    /* ---- thẻ bài học: bo tròn hơn, bóng mềm, nút viên thuốc ---- */
+    body.pv .lesson-grid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1.1rem; }
+    body.pv .lcard { background: var(--pv-card); border: 1.5px solid var(--line); border-radius: 18px;
+      box-shadow: 0 10px 26px -20px rgba(23,38,62,.4); }
+    body.pv .lcard:hover { transform: translateY(-4px);
+      box-shadow: 0 22px 42px -22px rgba(23,38,62,.5); border-color: var(--pv-ring); }
+    body.pv .lcard.prem { border-color: #e2c074; }
+    body.pv .lc-body { padding: .9rem 1rem .4rem; }
+    body.pv .lc-title { font-size: 1.02rem; font-weight: 800; }
+    body.pv .lc-foot { padding: .5rem 1rem 1rem; display: flex; align-items: center;
+      justify-content: space-between; gap: .5rem; }
+    body.pv .lc-foot .btn, body.pv .lc-foot .ghost { border-radius: var(--pv-pill); padding: .45rem 1rem; }
+    .cp-badge { font-size: .74rem; font-weight: 800; padding: .18rem .6rem; border-radius: 999px; }
     .cp-badge.free { background: var(--success-bg); color: var(--success); }
-    .cp-badge.prem { background: rgba(183,130,63,0.16); color: var(--gold); }
+    .cp-badge.prem { background: rgba(183,130,63,0.18); color: var(--gold); }
 
-    .cp-unlock { margin-top: 1.6rem; background: linear-gradient(135deg, rgba(30,79,143,.06), rgba(183,130,63,.08));
-      border: 1px solid var(--line); border-radius: 16px; padding: 1.3rem; text-align: center; }
+    /* ---- so sánh Miễn phí ↔ Premium (mượn ý youpass) ---- */
+    .pv-cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1.6rem 0 .4rem; }
+    @media (max-width: 640px) { .pv-cmp { grid-template-columns: 1fr; } }
+    .pv-cmp-col { background: var(--pv-card); border: 1.5px solid var(--line); border-radius: 18px;
+      padding: 1.2rem 1.2rem 1.3rem; display: flex; flex-direction: column; }
+    .pv-cmp-col.prem { border-color: #e2c074; background:
+        linear-gradient(180deg, rgba(183,130,63,.08), transparent 55%), var(--pv-card); }
+    .pv-cmp-h { font-family: var(--serif); font-size: 1.15rem; margin: 0 0 .2rem; color: var(--pv-ink); }
+    .pv-cmp-sub { color: var(--muted); font-size: .88rem; margin: 0 0 .8rem; }
+    .pv-cmp-col ul { list-style: none; padding: 0; margin: 0 0 1rem; display: grid; gap: .5rem; }
+    .pv-cmp-col li { display: flex; gap: .55rem; align-items: flex-start; font-size: .96rem; }
+    .pv-cmp-col li span { flex: none; font-weight: 900; }
+    .pv-cmp-col.free li span { color: var(--success); }
+    .pv-cmp-col.prem li span { color: var(--gold); }
+    .pv-cmp-col .btn { margin-top: auto; align-self: flex-start; }
+
+    .cp-unlock { margin-top: 1.6rem; border: 1.5px solid color-mix(in srgb, var(--gold) 30%, var(--line));
+      border-radius: 20px; padding: 1.5rem; text-align: center; background:
+        radial-gradient(90% 130% at 50% -10%, rgba(183,130,63,.12), transparent 60%), var(--pv-card); }
     .cp-unlock h3 { margin: 0 0 .4rem; font-family: var(--serif); }
-    .cp-unlock p { margin: 0 0 .9rem; color: var(--muted); }
+    .cp-unlock p { margin: 0 0 1rem; color: var(--muted); }
     .cp-unlock .btn { text-decoration: none; margin: 0 .3rem .3rem 0; }
 
-    /* locked-lesson dialog */
+    /* ---- cửa sổ đọc thử + hộp khóa (giữ nguyên chức năng, chỉ mềm hơn) ---- */
+    .cp-read { position: fixed; inset: 0; z-index: 900; background: rgba(8,14,26,.66);
+      display: flex; align-items: flex-start; justify-content: center; padding: 22px 12px; overflow-y: auto; }
+    .cp-read-in { width: 100%; max-width: 720px; background: var(--pv-card); color: var(--ink);
+      border-radius: 20px; padding: 18px 20px 22px; margin: auto; box-shadow: 0 40px 90px -35px rgba(0,0,0,.7); }
+    .rd-head { display: flex; align-items: center; gap: .8rem; justify-content: space-between;
+      border-bottom: 1px solid var(--line); padding-bottom: .6rem; margin-bottom: .9rem; }
+    .rd-body { max-height: min(62vh,620px); overflow-y: auto; }
+    .rd-zh { font-size: 1.18rem; line-height: 1.85; margin: .7rem 0 .1rem; }
+    .rd-tr { font-size: .93rem; color: var(--muted); margin: 0 0 .5rem; }
+    .rd-yt { position: relative; padding-top: 56.25%; border-radius: 14px; overflow: hidden; margin-bottom: .9rem; }
+    .rd-yt iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+    @media (max-width: 640px) { .rd-body { max-height: 56vh; } }
+
     .cp-ov { position: fixed; inset: 0; background: rgba(15,23,37,.55); display: none;
       align-items: center; justify-content: center; z-index: 100; padding: 1rem; }
     .cp-ov.on { display: flex; }
-    .cp-modal { background: var(--card); border-radius: 16px; max-width: 420px; width: 100%;
-      padding: 1.4rem; box-shadow: var(--shadow-pop); text-align: center; }
+    .cp-modal { background: var(--pv-card); border-radius: 20px; max-width: 420px; width: 100%;
+      padding: 1.5rem; box-shadow: var(--shadow-pop); text-align: center; }
     .cp-modal .lk { font-size: 2rem; }
     .cp-modal h3 { margin: .3rem 0 .4rem; font-family: var(--serif); }
     .cp-modal p { color: var(--muted); margin: 0 0 1rem; }
-    .cp-modal .btn { text-decoration: none; margin: 0 .3rem .3rem 0; }
-    .cp-foot { text-align: center; color: var(--muted); font-size: .85rem; padding: 1.5rem 1rem 2.4rem; }
+    .cp-modal .btn { text-decoration: none; margin: 0 .3rem .3rem 0; border-radius: var(--pv-pill); }
+    .cp-foot { text-align: center; color: var(--muted); font-size: .88rem; padding: 1.6rem 1rem 2.6rem; }
     .cp-foot a { color: var(--accent-ink); }
 
-    @media (max-width: 820px) {
-      .cp-side { display: none; }
-      .cp-mobilesel { display: block; }
+    @media (max-width: 560px) {
+      .pv-hero h1 { font-size: 1.6rem; }
+      .ci-title { max-width: 11ch; }
     }
   </style>
 </head>
-<body>
+<body class="pv">
   <header class="lp-header">
     <img id="cpLogo" src="icons/logo-64.png" alt="Learning Ecology" />
     <span class="name" id="cpName">Learning Ecology</span>
@@ -146,20 +210,22 @@
     <a id="cp-login" class="btn" href="login.html">Vào học ngay →</a>
   </header>
 
-  <div class="cp-shell">
-    <aside class="cp-side" id="cpSide" aria-label="Danh sách khóa học">
-      <div class="cp-side-head">
-        <h3>Khóa học</h3>
-        <button class="cp-side-toggle" id="cpSideToggle" aria-label="Thu gọn / mở rộng">⟨</button>
-      </div>
-      <div id="cpSideList"></div>
-    </aside>
-
-    <div class="cp-content">
-      <select class="cp-mobilesel" id="cpMobileSel" aria-label="Chọn khóa học"></select>
-      <div id="cpMain"><p class="cp-note">Đang tải nội dung khóa học…</p></div>
+  <section class="pv-hero">
+    <div class="pv-hero-in">
+      <span class="pv-kicker">Học thử miễn phí · Không cần đăng nhập</span>
+      <h1>Khám phá khóa học &amp; công cụ học</h1>
+      <p>Chọn một mục bên dưới để xem trước và học thử ngay. Nội dung <b>miễn phí</b> mở tự do; phần <b>Premium</b> mở khóa khi bạn sẵn sàng.</p>
     </div>
-  </div>
+  </section>
+
+  <nav class="pv-nav" aria-label="Danh sách khóa học &amp; công cụ">
+    <div class="pv-nav-in"><div id="cpSideList" class="pv-tabs"></div></div>
+  </nav>
+
+  <main class="pv-main">
+    <select class="cp-mobilesel" id="cpMobileSel" aria-label="Chọn khóa học" hidden></select>
+    <div id="cpMain"><p class="cp-note">Đang tải nội dung…</p></div>
+  </main>
 
   <div class="cp-foot">
     © <span id="cpYear"></span> <span id="cpFootName">Learning Ecology</span> ·
@@ -301,14 +367,7 @@
         b.classList.toggle("on", b.getAttribute("data-cid") === id));
       const sel = $("cpMobileSel"); if (sel && sel.value !== id) sel.value = id;
     }
-    // collapse toggle (remembered)
-    try { if (localStorage.getItem("cp_side") === "collapsed") $("cpSide").classList.add("collapsed"); } catch(e){}
-    $("cpSideToggle").addEventListener("click", () => {
-      const col = $("cpSide").classList.toggle("collapsed");
-      $("cpSideToggle").textContent = col ? "⟩" : "⟨";
-      try { localStorage.setItem("cp_side", col ? "collapsed" : "open"); } catch(e){}
-    });
-    if ($("cpSide").classList.contains("collapsed")) $("cpSideToggle").textContent = "⟩";
+    /* Phase 61: bỏ sidebar thu gọn — thanh chọn giờ nằm ngang, dính đầu trang */
     $("cpSideList").addEventListener("click", e => {
       const b = e.target.closest(".ci"); if (b) switchCourse(b.getAttribute("data-cid"), true);
     });
@@ -360,8 +419,41 @@
           <div class="lc-foot">${foot}</div>
         </div>`;
     }
+    /* Khối so sánh Miễn phí ↔ Premium (mượn ý youpass): chỉ hiện khi có nội
+       dung Premium, nếu không thì so sánh vô nghĩa. Nút Premium dùng lại đúng
+       popup mở khóa sẵn có. */
+    function cmpBlock(free, prem, opts){
+      opts = opts || {};
+      if (!prem) return "";
+      const total = free + prem;
+      const premBens = (opts.benefits && opts.benefits.length) ? opts.benefits.slice(0, 4) : [
+        "Mở khóa toàn bộ " + total + " mục",
+        "Học không giới hạn, cập nhật trọn đời",
+        "Ưu tiên hỗ trợ từ giáo viên"
+      ];
+      return `
+        <div class="pv-cmp">
+          <div class="pv-cmp-col free">
+            <h3 class="pv-cmp-h">Miễn phí</h3>
+            <p class="pv-cmp-sub">Bắt đầu ngay hôm nay</p>
+            <ul>
+              <li><span>✓</span>Học thử ${free} mục — không cần đăng nhập</li>
+              <li><span>✓</span>Trải nghiệm giao diện học thật</li>
+              <li><span>✓</span>Không giới hạn thời gian dùng thử</li>
+            </ul>
+          </div>
+          <div class="pv-cmp-col prem">
+            <h3 class="pv-cmp-h">👑 Premium</h3>
+            <p class="pv-cmp-sub">${esc(opts.sub || "Mở khóa toàn bộ nội dung")}</p>
+            <ul>${premBens.map(b => `<li><span>★</span>${esc(b)}</li>`).join("")}</ul>
+            ${opts.cta || ""}
+          </div>
+        </div>`;
+    }
+
     function renderCourse(data){
       const c = data.course, lessons = data.lessons || [];
+      const free = lessons.filter(l => !l.premium).length, prem = lessons.length - free;
       document.title = c.title + " — Learning Ecology";
       $("cpMain").innerHTML =
         banner(c, lessons)
@@ -369,6 +461,7 @@
         + (lessons.length
             ? `<div class="lesson-grid">${lessons.map((l, i) => lessonCard(l, i + 1)).join("")}</div>`
             : `<p class="cp-note">Khóa học này chưa có bài nào được đăng.</p>`)
+        + cmpBlock(free, prem, { cta: `<div>${contactButtons()}</div>` })
         + `<div class="cp-unlock"><h3>👑 Mở khóa toàn bộ khóa học</h3>
              <p>Liên hệ để mở khóa toàn bộ khóa học và học không giới hạn tất cả bài Premium.</p>
              <div>${contactButtons()}</div></div>`;
@@ -448,6 +541,8 @@
         ${items.length
           ? `<div class="lesson-grid">${items.map((it, i) => secCard(it, i + 1, sec)).join("")}</div>`
           : `<p class="cp-note">Chưa có nội dung được đăng.</p>`}
+        ${cmpBlock(free, prem, { benefits: benefits, sub: cfg.subtitle,
+            cta: `<button class="btn cp-gold" id="secBuy3">👑 Mở khóa Premium</button>` })}
         <div class="cp-unlock"><h3>👑 ${esc(cfg.title || ("Mở khóa " + (m.name || "")))}</h3>
           <p>${esc(cfg.subtitle || "Liên hệ để mở khóa toàn bộ nội dung và học không giới hạn.")}</p>
           <div><button class="btn cp-gold" id="secBuy2">Xem giá &amp; mở khóa</button></div></div>`;
@@ -455,6 +550,7 @@
       const openBuy = () => Premium.open({ section: sec, courseTitle: m.name, thumb: cfg.cover || "" });
       const b1 = $("secBuy"); if (b1) b1.addEventListener("click", openBuy);
       const b2 = $("secBuy2"); if (b2) b2.addEventListener("click", openBuy);
+      const b3 = $("secBuy3"); if (b3) b3.addEventListener("click", openBuy);
       const t = $("secTry");
       if (t) t.addEventListener("click", () => {
         const first = items.find(i => !i.premium);
@@ -608,7 +704,7 @@
 
       COURSES = (listRes && Array.isArray(listRes.data)) ? listRes.data : [];
       if (!COURSES.length && !SECTIONS.length && !id){
-        $("cpSide").style.display = "none";
+        const nav = document.querySelector(".pv-nav"); if (nav) nav.style.display = "none";
         $("cpMain").innerHTML = notFoundHtml();
         return;
       }
