@@ -3353,6 +3353,31 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           </div>
         </div>
 
+        <div class="tabpane" data-tab="nav">
+          <div class="card">
+            <div class="card-head"><h2>🧭 Điều hướng</h2>
+              <a class="ghost btn" href="course.html" target="_blank" rel="noopener" style="text-decoration:none;">👁 Xem trang công khai</a></div>
+            <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
+              Sắp xếp <b>danh mục</b> và <b>nhóm con</b> hiện trên thanh điều hướng của trang công khai — tự
+              <b>Tạo → Đổi tên → Chuyển → Sắp xếp → Xoá</b>, không cần sửa mã. Đổi tên hay chuyển nhóm <b>không</b>
+              làm mất khóa học hay công cụ đã gán; mã (ID) được giữ nguyên.
+            </p>
+            <p id="nvm-msg" class="msg"></p>
+            <div id="nvm-tree"><p class="empty">Đang tải…</p></div>
+            <div class="form-row" style="margin-top:0.9rem;">
+              <button id="nvm-addcat">➕ Thêm danh mục</button>
+            </div>
+          </div>
+          <div class="card">
+            <h2>Gán mục vào điều hướng</h2>
+            <p class="kind" style="margin:0 0 0.6rem; text-transform:none; letter-spacing:0;">
+              Chọn danh mục và nhóm con cho từng khóa học / công cụ. Để trống thì hệ thống tự xếp theo mặc định
+              (khóa học theo ngôn ngữ, công cụ theo chức năng).
+            </p>
+            <div id="nvm-assign"><p class="empty">Đang tải…</p></div>
+          </div>
+        </div>
+
         <div class="tabpane" data-tab="visib">
           <div class="card">
             <h2>👁 Hiển thị công khai</h2>
@@ -4418,6 +4443,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         if (t === "progress" && window.__testsInit) window.__testsInit();
         if (t === "testmgr" && window.__testMgrInit) window.__testMgrInit();
         if (t === "modules" && window.__modInit) window.__modInit();
+        if (t === "nav" && window.__navInit) window.__navInit();
         if (t === "visib" && window.__visibInit) window.__visibInit();
         if (t === "classes" && window.__ocInit) window.__ocInit();
         app.querySelectorAll(".tabpane").forEach(p =>
@@ -4441,6 +4467,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           { id: "dict", label: "Dictation", icon: "headphones", group: "Content" },
           { id: "landing", label: "Landing Page", icon: "globe", group: "Content" },
           { id: "testmgr", label: "Đề thi", icon: "file-text", group: "Content" },
+          { id: "nav", label: "Điều hướng", icon: "list-tree", group: "Settings" },
           { id: "visib", label: "Hiển thị công khai", icon: "eye", group: "Settings" },
           { id: "pricing", label: "Giá & thanh toán", icon: "badge-dollar-sign", group: "Settings" },
           { id: "modules", label: "Tính năng", icon: "toggle-right", group: "Settings" },
@@ -7361,6 +7388,317 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         }
 
         renderHs();
+      })();
+
+      // ================= ĐIỀU HƯỚNG (Navigation Management) — Phase 63 =================
+      // Chủ trung tâm tự quản cây điều hướng: Danh mục → Nhóm con → gán Mục
+      // (khóa học / công cụ). Lưu trong nav_categories / nav_subcategories /
+      // nav_settings.assignments. Đổi tên & chuyển KHÔNG đổi ID nên không mất
+      // liên kết. Cần migration61.
+      (function () {
+        const treeEl = document.getElementById("nvm-tree");
+        if (!treeEl) return;
+        const assignEl = document.getElementById("nvm-assign");
+        const msg = document.getElementById("nvm-msg");
+        const said = (t, err) => { msg.textContent = t || ""; msg.className = "msg" + (err ? " err" : ""); };
+
+        const TOOLS = [
+          { id: "sec:reading", name: "Thư viện Đọc hiểu",       icon: "📖" },
+          { id: "sec:shadow",  name: "Luyện nói Shadowing",     icon: "🎤" },
+          { id: "sec:dict",    name: "Chép chính tả",           icon: "🎧" },
+          { id: "sec:vsat",    name: "Luyện thi V-SAT",         icon: "📝" },
+          { id: "sec:vstep",   name: "Luyện thi VSTEP",         icon: "📖" },
+          { id: "sec:hsk",     name: "Bài giảng HSK tương tác", icon: "🀄" }
+        ];
+        function itemList(){
+          return (courses || []).map(c => ({ navId: c.id, name: c.title || "(khóa học)", icon: c.icon || "📚" }))
+            .concat(TOOLS.map(t => ({ navId: t.id, name: t.name, icon: t.icon })));
+        }
+
+        let CATS = [], SUBS = [], ASSIGN = {}, loaded = false, once = false;
+
+        function styleOnce(){
+          if (once) return; once = true;
+          const css = `
+          .nvm-cat{border:1.5px solid var(--line);border-radius:14px;padding:.7rem .8rem;margin:0 0 .8rem;background:var(--card)}
+          .nvm-cat-head{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+          .nvm-ic{font-size:1.2rem}
+          .nvm-cat-head .t{font-weight:800;font-size:1.02rem}
+          .nvm-subs{margin:.6rem 0 .2rem;padding-left:.4rem;border-left:2px solid var(--line)}
+          .nvm-sub{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;padding:.35rem .3rem;border-radius:8px}
+          .nvm-sub:hover{background:var(--info-bg)}
+          .nvm-sub .t{font-weight:600}
+          .nvm-tag{font-size:.72rem;color:var(--muted);background:var(--paper);border-radius:999px;padding:.05rem .5rem}
+          .nvm-sp{flex:1 1 auto}
+          .nvm-btn{border:1px solid var(--line);background:var(--card);border-radius:8px;cursor:pointer;
+                   font:inherit;font-size:.82rem;padding:.24rem .5rem}
+          .nvm-btn:hover{border-color:var(--accent);color:var(--accent-ink)}
+          .nvm-btn.danger{color:var(--danger);border-color:var(--danger)}
+          .nvm-btn:disabled{opacity:.35;cursor:default}
+          .nvm-assign-row{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;padding:.4rem .2rem;border-bottom:1px solid var(--line)}
+          .nvm-assign-row .lab{font-weight:700;min-width:200px;flex:1}
+          .nvm-assign-row select{font:inherit;padding:.28rem;max-width:200px}
+          .nvm-icons button{border:1px solid var(--line);background:var(--card);border-radius:8px;cursor:pointer;font-size:1.1rem;padding:.15rem .35rem;margin:.15rem}`;
+          const st = document.createElement("style"); st.textContent = css; document.head.appendChild(st);
+        }
+
+        async function load(){
+          styleOnce();
+          const [cr, sr, nr] = await Promise.all([
+            sb.from("nav_categories").select("*").order("position").order("name").then(r=>r,()=>({error:1})),
+            sb.from("nav_subcategories").select("*").order("position").order("name").then(r=>r,()=>({error:1})),
+            sb.from("nav_settings").select("assignments").eq("id",1).maybeSingle().then(r=>r,()=>({}))
+          ]);
+          if (cr.error){
+            treeEl.innerHTML = `<p class="empty">Chưa đọc được — hình như chưa chạy <b>migration61_nav_taxonomy.sql</b>.</p>`;
+            assignEl.innerHTML = ""; return;
+          }
+          CATS = cr.data || []; SUBS = sr.data || []; ASSIGN = (nr.data && nr.data.assignments) || {};
+          loaded = true; render();
+        }
+        window.__navInit = () => { if (!loaded) load(); };
+
+        const subsOf = catId => SUBS.filter(s => s.category_id === catId);
+        const subParent = subId => { const x = SUBS.find(s => s.id === subId); return x ? x.category_id : null; };
+        const assignedToSub = subId => Object.values(ASSIGN).filter(a => a && a.s === subId).length;
+        /* mỗi mục thuộc ĐÚNG MỘT danh mục: có nhóm con thì tính theo nhóm con,
+           không thì tính theo danh mục gán trực tiếp */
+        const assignedToCat = catId => Object.values(ASSIGN).filter(a => {
+          if (!a) return false;
+          if (a.s) return subParent(a.s) === catId;
+          return a.c === catId;
+        }).length;
+        /* danh mục hiệu lực của một ánh xạ: có nhóm con thì lấy theo nhóm con */
+        const effCat = a => a ? (a.s ? subParent(a.s) : (a.c || "")) : "";
+
+        function render(){
+          if (!CATS.length){ treeEl.innerHTML = `<p class="empty">Chưa có danh mục nào. Bấm “➕ Thêm danh mục”.</p>`; }
+          else treeEl.innerHTML = CATS.map((c, ci) => {
+            const subs = subsOf(c.id);
+            const subRows = subs.map((s, si) => `
+              <div class="nvm-sub" data-sid="${s.id}">
+                <span>↳</span><span class="t">${esc(s.name)}</span>
+                <span class="nvm-tag">${assignedToSub(s.id)} mục</span>
+                <span class="nvm-sp"></span>
+                <button class="nvm-btn" data-smv="up"   data-sid="${s.id}" ${si===0?"disabled":""} title="Lên">↑</button>
+                <button class="nvm-btn" data-smv="down" data-sid="${s.id}" ${si===subs.length-1?"disabled":""} title="Xuống">↓</button>
+                <button class="nvm-btn" data-sedit="${s.id}">✏️</button>
+                <button class="nvm-btn" data-smove="${s.id}">↗ Chuyển</button>
+                <button class="nvm-btn danger" data-sdel="${s.id}">🗑</button>
+              </div>`).join("");
+            return `
+            <div class="nvm-cat" data-cid="${c.id}">
+              <div class="nvm-cat-head">
+                <span class="nvm-ic">${esc(c.icon || "📂")}</span>
+                <span class="t">${esc(c.name)}</span>
+                <span class="nvm-tag">${subs.length} nhóm con · ${assignedToCat(c.id)} mục</span>
+                <span class="nvm-sp"></span>
+                <button class="nvm-btn" data-cmv="up"   data-cid="${c.id}" ${ci===0?"disabled":""} title="Lên">↑</button>
+                <button class="nvm-btn" data-cmv="down" data-cid="${c.id}" ${ci===CATS.length-1?"disabled":""} title="Xuống">↓</button>
+                <button class="nvm-btn" data-cedit="${c.id}">✏️ Đổi tên</button>
+                <button class="nvm-btn danger" data-cdel="${c.id}">🗑</button>
+              </div>
+              <div class="nvm-subs">${subRows || '<p class="kind" style="margin:.3rem 0">— chưa có nhóm con —</p>'}</div>
+              <button class="nvm-btn" data-addsub="${c.id}">➕ Thêm nhóm con</button>
+            </div>`;
+          }).join("");
+          renderAssign();
+        }
+
+        function renderAssign(){
+          const items = itemList();
+          if (!items.length){ assignEl.innerHTML = `<p class="empty">Chưa có khóa học hay công cụ nào.</p>`; return; }
+          const catOpts = sel => `<option value="">— tự động —</option>` +
+            CATS.map(c => `<option value="${c.id}" ${sel===c.id?"selected":""}>${esc(c.name)}</option>`).join("");
+          const subOpts = (catId, sel) => `<option value="">— (không nhóm con) —</option>` +
+            subsOf(catId).map(s => `<option value="${s.id}" ${sel===s.id?"selected":""}>${esc(s.name)}</option>`).join("");
+          assignEl.innerHTML = items.map(it => {
+            const a = ASSIGN[it.navId] || null;
+            const cc = effCat(a);
+            return `<div class="nvm-assign-row">
+              <span class="lab">${esc(it.icon)} ${esc(it.name)}</span>
+              <select data-acat="${esc(it.navId)}">${catOpts(cc)}</select>
+              <select data-asub="${esc(it.navId)}" ${cc?"":"disabled"}>${subOpts(cc, (a&&a.s)||"")}</select>
+            </div>`;
+          }).join("");
+        }
+
+        /* ---------- modal tự dựng (tên + biểu tượng, hoặc tên + danh mục cha) ---------- */
+        function modal(inner){
+          const w = document.createElement("div"); w.className = "modal-wrap";
+          w.innerHTML = `<div class="modal" role="dialog" aria-modal="true">${inner}</div>`;
+          document.body.appendChild(w); requestAnimationFrame(()=>w.classList.add("show"));
+          return w;
+        }
+        function closeM(w){ w.classList.remove("show"); setTimeout(()=>w.remove(), 180); }
+
+        function catModal(existing){
+          return new Promise(resolve => {
+            const e = existing || {};
+            const quick = ["📚","🀄","🔤","🇬🇧","🇨🇳","🧑‍🏫","🎧","📝","📖","🎤","✨","🎯","🧩","🏆"];
+            const w = modal(`
+              <h3>${existing ? "Sửa danh mục" : "Thêm danh mục"}</h3>
+              <div class="field"><label>Tên danh mục</label>
+                <input id="nm-name" type="text" value="${esc(e.name||"")}" placeholder="vd: Tiếng Trung" /></div>
+              <div class="field"><label>Biểu tượng (không bắt buộc)</label>
+                <input id="nm-icon" type="text" value="${esc(e.icon||"")}" placeholder="dán emoji" maxlength="4" style="max-width:120px" /></div>
+              <div class="nvm-icons">${quick.map(q=>`<button type="button" data-q="${q}">${q}</button>`).join("")}</div>
+              <div class="modal-actions"><button class="ghost" data-x="no">Hủy</button><button data-x="yes">Lưu</button></div>`);
+            const name = w.querySelector("#nm-name"), icon = w.querySelector("#nm-icon");
+            name.focus();
+            w.addEventListener("click", ev => {
+              const q = ev.target.getAttribute && ev.target.getAttribute("data-q");
+              if (q){ icon.value = q; return; }
+              if (ev.target === w || ev.target.getAttribute("data-x")==="no"){ closeM(w); resolve(null); }
+              if (ev.target.getAttribute("data-x")==="yes"){
+                const v = name.value.trim(); if (!v){ name.focus(); return; }
+                closeM(w); resolve({ name: v, icon: icon.value.trim() });
+              }
+            });
+          });
+        }
+        function subModal(existing, lockName){
+          return new Promise(resolve => {
+            const e = existing || {};
+            const w = modal(`
+              <h3>${lockName ? "Chuyển sang danh mục khác" : (existing ? "Sửa nhóm con" : "Thêm nhóm con")}</h3>
+              <div class="field"><label>Tên nhóm con</label>
+                <input id="ns-name" type="text" value="${esc(e.name||"")}" placeholder="vd: HSK Sơ cấp" ${lockName?"readonly":""} /></div>
+              <div class="field"><label>Danh mục cha</label>
+                <select id="ns-cat">${CATS.map(c=>`<option value="${c.id}" ${e.category_id===c.id?"selected":""}>${esc(c.name)}</option>`).join("")}</select></div>
+              <div class="modal-actions"><button class="ghost" data-x="no">Hủy</button><button data-x="yes">Lưu</button></div>`);
+            const name = w.querySelector("#ns-name"), cat = w.querySelector("#ns-cat");
+            (lockName ? cat : name).focus();
+            w.addEventListener("click", ev => {
+              if (ev.target === w || ev.target.getAttribute("data-x")==="no"){ closeM(w); resolve(null); }
+              if (ev.target.getAttribute("data-x")==="yes"){
+                const v = name.value.trim(); if (!v){ name.focus(); return; }
+                closeM(w); resolve({ name: v, category_id: cat.value });
+              }
+            });
+          });
+        }
+
+        /* ---------- sắp xếp: đổi chỗ + ghi lại vị trí tuần tự ---------- */
+        async function persistPositions(list, table){
+          for (let i=0;i<list.length;i++){ const want=(i+1)*10;
+            if (list[i].position!==want){ list[i].position=want; await sb.from(table).update({position:want}).eq("id",list[i].id); } }
+        }
+
+        /* ---------- thao tác ---------- */
+        document.getElementById("nvm-addcat").addEventListener("click", async () => {
+          const v = await catModal(null); if (!v) return;
+          const pos = (CATS.reduce((m,c)=>Math.max(m,c.position||0),0)) + 10;
+          const { data, error } = await sb.from("nav_categories").insert({ name:v.name, icon:v.icon, position:pos }).select().single();
+          if (error){ said("Không thêm được: "+error.message, true); return; }
+          CATS.push(data); render(); said("Đã thêm danh mục ✓");
+        });
+
+        treeEl.addEventListener("click", async e => {
+          const t = e.target;
+          const cid = t.getAttribute("data-cid"), sid = t.getAttribute("data-sid");
+
+          if (t.hasAttribute("data-cedit")){
+            const c = CATS.find(x=>x.id===t.getAttribute("data-cedit")); if(!c) return;
+            const v = await catModal(c); if(!v) return;
+            if (await upd("nav_categories", c.id, {name:v.name, icon:v.icon})){ c.name=v.name; c.icon=v.icon; render(); said("Đã đổi tên danh mục ✓"); }
+          }
+          if (t.hasAttribute("data-cdel")){
+            const c = CATS.find(x=>x.id===t.getAttribute("data-cdel")); if(!c) return;
+            const nSub = subsOf(c.id).length, nItem = assignedToCat(c.id);
+            if (nSub || nItem){
+              await UI.confirmDialog({ title:`Chưa xoá được “${c.name}”`, okText:"Đã hiểu",
+                body:`Danh mục này còn ${nSub} nhóm con và ${nItem} mục được gán trực tiếp. Hãy chuyển hoặc xoá chúng trước khi xoá danh mục.` });
+              return;
+            }
+            const ok = await UI.confirmDialog({ title:`Xoá danh mục “${c.name}”?`, danger:true, okText:"Xoá",
+              body:"Danh mục trống này sẽ bị xoá khỏi điều hướng." });
+            if (!ok) return;
+            if (await del("nav_categories", c.id)){ CATS = CATS.filter(x=>x.id!==c.id); render(); said("Đã xoá danh mục ✓"); }
+          }
+          if (t.hasAttribute("data-cmv")){
+            const dir = t.getAttribute("data-cmv")==="up" ? -1 : 1;
+            const i = CATS.findIndex(x=>x.id===cid), j=i+dir; if(i<0||j<0||j>=CATS.length) return;
+            [CATS[i],CATS[j]]=[CATS[j],CATS[i]]; await persistPositions(CATS,"nav_categories"); render(); said("Đã đổi thứ tự ✓");
+          }
+          if (t.hasAttribute("data-addsub")){
+            const catId = t.getAttribute("data-addsub");
+            const v = await subModal({ category_id: catId }, false); if(!v) return;
+            const pos = (subsOf(v.category_id).reduce((m,s)=>Math.max(m,s.position||0),0)) + 10;
+            const { data, error } = await sb.from("nav_subcategories").insert({ name:v.name, category_id:v.category_id, position:pos }).select().single();
+            if (error){ said("Không thêm được: "+error.message, true); return; }
+            SUBS.push(data); render(); said("Đã thêm nhóm con ✓");
+          }
+          if (t.hasAttribute("data-sedit")){
+            const sObj = SUBS.find(x=>x.id===t.getAttribute("data-sedit")); if(!sObj) return;
+            const v = await subModal(sObj, false); if(!v) return;
+            if (await upd("nav_subcategories", sObj.id, {name:v.name, category_id:v.category_id})){
+              sObj.name=v.name; sObj.category_id=v.category_id; render(); said("Đã lưu nhóm con ✓"); }
+          }
+          if (t.hasAttribute("data-smove")){
+            const sObj = SUBS.find(x=>x.id===t.getAttribute("data-smove")); if(!sObj) return;
+            const v = await subModal(sObj, true); if(!v || v.category_id===sObj.category_id) return;
+            const pos = (subsOf(v.category_id).reduce((m,s)=>Math.max(m,s.position||0),0)) + 10;
+            if (await upd("nav_subcategories", sObj.id, {category_id:v.category_id, position:pos})){
+              sObj.category_id=v.category_id; sObj.position=pos; render(); said("Đã chuyển nhóm con sang danh mục khác ✓"); }
+          }
+          if (t.hasAttribute("data-sdel")){
+            const sObj = SUBS.find(x=>x.id===t.getAttribute("data-sdel")); if(!sObj) return;
+            const n = assignedToSub(sObj.id);
+            if (n){
+              await UI.confirmDialog({ title:`Chưa xoá được “${sObj.name}”`, okText:"Đã hiểu",
+                body:`Nhóm con này còn ${n} mục được gán. Hãy chuyển các mục đó sang nhóm con khác (ở phần “Gán mục”) trước khi xoá.` });
+              return;
+            }
+            const ok = await UI.confirmDialog({ title:`Xoá nhóm con “${sObj.name}”?`, danger:true, okText:"Xoá",
+              body:"Nhóm con trống này sẽ bị xoá." });
+            if (!ok) return;
+            if (await del("nav_subcategories", sObj.id)){ SUBS = SUBS.filter(x=>x.id!==sObj.id); render(); said("Đã xoá nhóm con ✓"); }
+          }
+          if (t.hasAttribute("data-smv")){
+            const dir = t.getAttribute("data-smv")==="up" ? -1 : 1;
+            const sObj = SUBS.find(x=>x.id===sid); if(!sObj) return;
+            const sibs = subsOf(sObj.category_id);
+            const i = sibs.findIndex(x=>x.id===sid), j=i+dir; if(i<0||j<0||j>=sibs.length) return;
+            const a=sibs[i], b=sibs[j]; const pa=a.position, pb=b.position;
+            a.position=pb; b.position=pa;
+            await sb.from("nav_subcategories").update({position:a.position}).eq("id",a.id);
+            await sb.from("nav_subcategories").update({position:b.position}).eq("id",b.id);
+            SUBS.sort((x,y)=>(x.position||0)-(y.position||0)); render(); said("Đã đổi thứ tự ✓");
+          }
+        });
+
+        /* ---------- gán mục ---------- */
+        assignEl.addEventListener("change", async e => {
+          const t = e.target, navId = t.getAttribute("data-acat") || t.getAttribute("data-asub");
+          if (!navId) return;
+          const row = t.closest(".nvm-assign-row");
+          const catVal = row.querySelector("[data-acat]").value || "";
+          const subVal = (row.querySelector("[data-asub]") || {}).value || "";
+          if (t.hasAttribute("data-acat")){
+            /* đổi danh mục thì bỏ nhóm con cũ; lưu theo danh mục cho tới khi chọn nhóm con */
+            if (catVal) ASSIGN[navId] = { c: catVal }; else delete ASSIGN[navId];
+          } else {
+            /* chọn nhóm con → chỉ lưu s (danh mục suy ra từ nhóm con);
+               bỏ nhóm con → quay về lưu theo danh mục */
+            if (subVal) ASSIGN[navId] = { s: subVal };
+            else if (catVal) ASSIGN[navId] = { c: catVal };
+            else delete ASSIGN[navId];
+          }
+          const { error } = await sb.from("nav_settings").upsert({ id:1, assignments:ASSIGN, updated_at:new Date().toISOString() });
+          if (error){ said("Không lưu được gán mục: "+error.message, true); return; }
+          renderAssign(); render();   // cập nhật số đếm
+          said("Đã lưu gán mục ✓");
+        });
+
+        async function upd(table, id, fields){
+          const { error } = await sb.from(table).update(fields).eq("id", id);
+          if (error){ said("Không lưu được: "+error.message, true); return false; } return true;
+        }
+        async function del(table, id){
+          const { error } = await sb.from(table).delete().eq("id", id);
+          if (error){ said("Không xoá được: "+error.message, true); return false; } return true;
+        }
       })();
 
       // ================= HIỂN THỊ CÔNG KHAI (Phase 59) =================

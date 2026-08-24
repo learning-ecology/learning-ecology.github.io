@@ -137,6 +137,9 @@
     .pv-cat.open .pv-cat-menu { display: flex; animation: pvMenuIn .16s ease both; }
 
     /* mục con trong menu: hàng dọc, dùng lại .ci nhưng full-width */
+    .pv-cat-menu .pv-sub-h { font-size: .66rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+      color: var(--muted); padding: .5rem .55rem .15rem; }
+    .pv-cat-menu .pv-sub-h:first-child { padding-top: .2rem; }
     .pv-cat-menu .ci { display: flex; align-items: center; gap: .6rem; width: 100%; text-align: left;
       background: none; border: 1.5px solid transparent; border-radius: 11px; padding: .48rem .55rem;
       cursor: pointer; color: var(--ink); font: inherit; font-weight: 700; font-size: .92rem; }
@@ -397,21 +400,33 @@
          • Khóa học: đặt trường nav_group.
        Mục nào không rõ thì rơi vào "Khác" — không bao giờ bị mất. */
     const NAV_CATS = [
-      { id: "zh",    label: "Tiếng Trung",       icon: "🀄" },
-      { id: "en",    label: "Tiếng Anh",         icon: "🔤" },
-      { id: "teach", label: "Công cụ giảng dạy", icon: "🧑‍🏫" },
-      { id: "learn", label: "Công cụ học tập",   icon: "🎧" },
-      { id: "other", label: "Khác",              icon: "✨" }
+      { id: "zh",    key: "zh",    label: "Tiếng Trung",       icon: "🀄" },
+      { id: "en",    key: "en",    label: "Tiếng Anh",         icon: "🔤" },
+      { id: "teach", key: "teach", label: "Công cụ giảng dạy", icon: "🧑‍🏫" },
+      { id: "learn", key: "learn", label: "Công cụ học tập",   icon: "🎧" },
+      { id: "other", key: "other", label: "Khác",              icon: "✨" }
     ];
-    const CAT_IDS = NAV_CATS.map(c => c.id);
-    const SEC_CAT = { reading: "learn", shadow: "learn", dict: "learn", vsat: "en", vstep: "en", hsk: "zh" };
-    function sectionCat(section, cfg){
-      const g = String((cfg && cfg.nav_group) || "").toLowerCase();
-      return CAT_IDS.includes(g) ? g : (SEC_CAT[section] || "other");
+    /* NAV = cây điều hướng do chủ trung tâm đặt (migration61). Chưa chạy
+       migration thì NAV=null và trang tự dùng bảng mặc định NAV_CATS như
+       Phase 62 — không hỏng. */
+    let NAV = null;
+    function navCategories(){
+      if (NAV && NAV.categories && NAV.categories.length){
+        return NAV.categories.map(c => ({ id: c.id, key: c.key || "", label: c.name, icon: c.icon || "📂",
+          subs: (c.subs || []).map(s => ({ id: s.id, name: s.name })) }));
+      }
+      return NAV_CATS.map(c => ({ id: c.id, key: c.key, label: c.label, icon: c.icon, subs: [] }));
     }
-    function courseCat(c){
+    const assignments = () => (NAV && NAV.assignments) || {};
+
+    const HEUR = { reading: "learn", shadow: "learn", dict: "learn", vsat: "en", vstep: "en", hsk: "zh" };
+    function sectionKey(section, cfg){
+      const g = String((cfg && cfg.nav_group) || "").toLowerCase();
+      return ["zh","en","teach","learn","other"].includes(g) ? g : (HEUR[section] || "other");
+    }
+    function courseKey(c){
       const g = String(c.nav_group || "").toLowerCase();
-      if (CAT_IDS.includes(g)) return g;
+      if (["zh","en","teach","learn","other"].includes(g)) return g;
       const t = ((c.title || "") + " " + (c.category || "")).toLowerCase();
       if (/teaching tool|giảng dạy|giáo viên|teacher/.test(t)) return "teach";
       if (/hsk|中文|汉语|tiếng trung|chinese/.test(t)) return "zh";
@@ -422,41 +437,64 @@
       const out = [];
       (COURSES || []).forEach(c => out.push({ cid: c.id, title: c.title || "",
         thumb: thumbStyle(c.banner_url, c.color), emptyIcon: c.banner_url ? "" : (c.icon || "📚"),
-        cat: courseCat(c) }));
+        hkey: courseKey(c) }));
       (SECTIONS || []).forEach(s => { const m = secMeta(s.section), cfg = s.config || {};
         out.push({ cid: "sec:" + s.section, title: m.name || s.section,
           thumb: thumbStyle(cfg.cover, "#0e7c66"), emptyIcon: cfg.cover ? "" : (m.icon || "🧰"),
-          cat: sectionCat(s.section, cfg) }); });
+          hkey: sectionKey(s.section, cfg) }); });
       return out;
+    }
+    /* mỗi mục → { catId, subId } theo: (1) chủ gán tay, (2) mặc định thông minh */
+    function resolveItem(item, cats){
+      const a = assignments()[item.cid];
+      if (a){
+        /* gán theo NHÓM CON: danh mục suy ra từ nhóm con → nhóm con đổi cha
+           thì mục tự đi theo, không cần cập nhật gì thêm */
+        if (a.s){
+          for (const c of cats){ const sub = c.subs.find(s => s.id === a.s);
+            if (sub) return { catId: c.id, subId: sub.id }; }
+        }
+        if (a.c){ const c = cats.find(x => x.id === a.c); if (c) return { catId: c.id, subId: null }; }
+      }
+      const byKey = cats.find(c => c.key === item.hkey)
+                 || cats.find(c => c.key === "other") || cats[0];
+      return { catId: byKey ? byKey.id : null, subId: null };
     }
 
     function renderSidebar(){
-      const items = navItems();
-      $("cpSideList").innerHTML = NAV_CATS.map(cat => {
-        const its = items.filter(x => x.cat === cat.id);
-        if (!its.length) return "";
-        const menu = its.map(x => `
-          <button class="ci" data-cid="${esc(x.cid)}" title="${esc(x.title)}" role="menuitem">
-            <span class="ci-thumb" style="${x.thumb}">${esc(x.emptyIcon)}</span>
-            <span class="ci-title">${esc(x.title)}</span>
-          </button>`).join("");
+      const cats = navCategories();
+      const items = navItems().map(it => Object.assign(it, resolveItem(it, cats)));
+      const leaf = x => `
+        <button class="ci" data-cid="${esc(x.cid)}" title="${esc(x.title)}" role="menuitem">
+          <span class="ci-thumb" style="${x.thumb}">${esc(x.emptyIcon)}</span>
+          <span class="ci-title">${esc(x.title)}</span>
+        </button>`;
+      $("cpSideList").innerHTML = cats.map(cat => {
+        const mine = items.filter(x => x.catId === cat.id);
+        if (!mine.length) return "";
+        let menu = "";
+        (cat.subs || []).forEach(sub => {
+          const si = mine.filter(x => x.subId === sub.id);
+          if (si.length) menu += `<div class="pv-sub-h">${esc(sub.name)}</div>` + si.map(leaf).join("");
+        });
+        menu += mine.filter(x => !x.subId).map(leaf).join("");   // không thuộc nhóm con nào
         return `
-          <div class="pv-cat" data-cat="${cat.id}">
+          <div class="pv-cat" data-cat="${esc(cat.id)}">
             <button class="pv-cat-btn" type="button" aria-haspopup="true" aria-expanded="false">
               <span class="pv-cat-ic">${cat.icon}</span><span>${esc(cat.label)}</span>
-              <span class="pv-cat-n">${its.length}</span>
+              <span class="pv-cat-n">${mine.length}</span>
               <span class="pv-cat-caret" aria-hidden="true">▾</span>
             </button>
             <div class="pv-cat-menu" role="menu">${menu}</div>
           </div>`;
       }).join("");
-      /* chọn nhanh trên điện thoại — giữ để phòng, ẩn bằng CSS; gom theo nhóm */
-      $("cpMobileSel").innerHTML = NAV_CATS.map(cat => {
-        const its = items.filter(x => x.cat === cat.id);
-        return its.length ? `<optgroup label="${esc(cat.label)}">`
-          + its.map(x => `<option value="${esc(x.cid)}">${esc(x.title)}</option>`).join("") + `</optgroup>` : "";
+      $("cpMobileSel").innerHTML = cats.map(cat => {
+        const mine = items.filter(x => x.catId === cat.id);
+        return mine.length ? `<optgroup label="${esc(cat.label)}">`
+          + mine.map(x => `<option value="${esc(x.cid)}">${esc(x.title)}</option>`).join("") + `</optgroup>` : "";
       }).join("");
     }
+
     function markCurrent(id){
       $("cpSideList").querySelectorAll(".ci").forEach(b =>
         b.classList.toggle("on", b.getAttribute("data-cid") === id));
@@ -819,12 +857,15 @@
     async function boot(){
       $("cpYear").textContent = new Date().getFullYear();
       const id = new URLSearchParams(location.search).get("id");
-      const [setRes, listRes, secRes] = await Promise.all([
+      const [setRes, listRes, secRes, navRes] = await Promise.all([
         sb.from("landing_settings").select("config").eq("id", 1).maybeSingle().then(r => r, () => ({ data: null })),
         sb.rpc("public_courses").then(r => r, () => ({ data: null })),
-        sb.rpc("public_sections").then(r => r, () => ({ data: null }))   // cần migration47
+        sb.rpc("public_sections").then(r => r, () => ({ data: null })),  // cần migration47
+        sb.rpc("public_nav").then(r => r, () => ({ data: null }))        // cần migration61 — thiếu thì dùng mặc định
       ]);
       SECTIONS = Array.isArray(secRes && secRes.data) ? secRes.data : [];
+      NAV = (navRes && navRes.data && Array.isArray(navRes.data.categories) && navRes.data.categories.length)
+            ? navRes.data : null;
       const cfg = (setRes && setRes.data && setRes.data.config) || {};
       applyBrand(cfg);
       const cUrl = cfg.trial && cfg.trial.s_url;
