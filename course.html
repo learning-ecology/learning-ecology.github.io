@@ -87,27 +87,66 @@
       margin: .7rem 0 .5rem; color: var(--pv-ink); }
     .pv-hero p { color: var(--muted); font-size: clamp(1rem,2.3vw,1.12rem); max-width: 60ch; margin: 0; }
 
-    /* ---- thanh chọn ngang, dính đầu trang (thay cho sidebar cũ) ---- */
+    /* ---- thanh danh mục (mega-menu) dính đầu trang (Phase 62) ----
+       Gom khóa học & công cụ vào ít danh mục; chi tiết chỉ hiện khi rê chuột
+       (máy tính) hoặc chạm (điện thoại). Menu con position:absolute nên mở ra
+       KHÔNG đẩy layout. */
     .pv-nav { position: sticky; top: 52px; z-index: 40;
-      background: color-mix(in srgb, var(--pv-bg) 88%, transparent); backdrop-filter: blur(8px);
+      background: color-mix(in srgb, var(--pv-bg) 90%, transparent); backdrop-filter: blur(8px);
       border-bottom: 1px solid var(--line); }
-    .pv-nav-in { max-width: 1120px; margin: 0 auto; padding: .55rem clamp(1rem,4vw,2rem); }
-    .pv-tabs { display: flex; gap: .5rem; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
-    .pv-tabs::-webkit-scrollbar { display: none; }
-    .ci { display: inline-flex; align-items: center; gap: .5rem; flex: none; white-space: nowrap;
+    .pv-nav-in { max-width: 1120px; margin: 0 auto; padding: .5rem clamp(1rem,4vw,2rem); }
+    /* KHÔNG dùng overflow ở đây: overflow-x sẽ cắt mất menu con thả xuống.
+       Ít danh mục nên cho xuống dòng trên màn nhỏ thay vì cuộn ngang. */
+    .pv-cats { display: flex; flex-wrap: wrap; gap: .45rem; }
+
+    .pv-cat { position: relative; }
+    .pv-cat-btn { display: inline-flex; align-items: center; gap: .45rem; white-space: nowrap;
       background: var(--pv-card); border: 1.5px solid var(--line); border-radius: var(--pv-pill);
-      padding: .4rem .85rem .4rem .45rem; cursor: pointer; color: var(--ink); font: inherit;
-      font-weight: 700; font-size: .9rem; transition: border-color .15s, background .15s, transform .12s; }
-    .ci:hover { border-color: var(--pv-ring); transform: translateY(-1px); }
-    .ci.on { border-color: var(--accent); background: var(--info-bg); color: var(--accent-ink); }
-    :root[data-theme="dark"] .ci.on { color: #cfe0f6; }
-    .ci-thumb { width: 30px; height: 30px; flex: none; border-radius: 999px;
+      padding: .5rem .95rem; cursor: pointer; color: var(--ink); font: inherit;
+      font-weight: 800; font-size: .93rem; transition: border-color .15s, background .15s, transform .12s; }
+    .pv-cat-btn:hover { border-color: var(--pv-ring); transform: translateY(-1px); }
+    .pv-cat-ic { font-size: 1.05rem; line-height: 1; }
+    .pv-cat-caret { font-size: .7rem; color: var(--muted); transition: transform .18s; }
+    .pv-cat-n { font-size: .72rem; font-weight: 800; color: var(--muted);
+      background: var(--pv-soft); border-radius: 999px; padding: .04rem .42rem; }
+    /* danh mục chứa mục đang xem: nổi bật navy */
+    .pv-cat.has-active > .pv-cat-btn { border-color: var(--accent); background: var(--info-bg); color: var(--accent-ink); }
+    :root[data-theme="dark"] .pv-cat.has-active > .pv-cat-btn { color: #cfe0f6; }
+    .pv-cat.has-active > .pv-cat-btn .pv-cat-n { background: color-mix(in srgb, var(--accent) 18%, transparent); color: inherit; }
+    .pv-cat.open > .pv-cat-btn .pv-cat-caret,
+    .pv-cat:hover > .pv-cat-btn .pv-cat-caret { transform: rotate(180deg); }
+
+    /* menu con: ẩn mềm, mở mượt; absolute nên không đẩy layout */
+    /* Menu con ĐÓNG = display:none nên không chiếm chỗ → không gây cuộn ngang
+       trên điện thoại (visibility:hidden vẫn chiếm layout, đó là lỗi cũ).
+       MỞ = display:flex + animation mờ/trượt (mượt, không lệ thuộc transition,
+       không bị "kẹt" khi tab bị trình duyệt tạm dừng). Vị trí ngang được kẹp
+       vào trong màn hình bằng JS lúc mở (xem clampMenu). */
+    .pv-cat-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30;
+      min-width: 240px; max-width: min(340px, calc(100vw - 1.5rem));
+      background: var(--pv-card); border: 1.5px solid var(--line); border-radius: 16px;
+      box-shadow: 0 22px 50px -22px rgba(23,38,62,.5); padding: .45rem;
+      flex-direction: column; gap: .1rem; display: none; }
+    /* dải trong suốt nối nút với menu để rê chuột không bị hụt */
+    .pv-cat-menu::before { content: ""; position: absolute; left: 0; right: 0; top: -10px; height: 10px; }
+    @keyframes pvMenuIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    @media (hover: hover) {
+      .pv-cat:hover .pv-cat-menu, .pv-cat:focus-within .pv-cat-menu {
+        display: flex; animation: pvMenuIn .16s ease both; }
+    }
+    .pv-cat.open .pv-cat-menu { display: flex; animation: pvMenuIn .16s ease both; }
+
+    /* mục con trong menu: hàng dọc, dùng lại .ci nhưng full-width */
+    .pv-cat-menu .ci { display: flex; align-items: center; gap: .6rem; width: 100%; text-align: left;
+      background: none; border: 1.5px solid transparent; border-radius: 11px; padding: .48rem .55rem;
+      cursor: pointer; color: var(--ink); font: inherit; font-weight: 700; font-size: .92rem; }
+    .pv-cat-menu .ci:hover { background: var(--pv-soft); }
+    .pv-cat-menu .ci.on { background: var(--info-bg); border-color: var(--accent); color: var(--accent-ink); }
+    :root[data-theme="dark"] .pv-cat-menu .ci.on { color: #cfe0f6; }
+    .ci-thumb { width: 34px; height: 34px; flex: none; border-radius: 9px;
       background-size: cover; background-position: center; display: grid; place-items: center;
-      color: #fff; font-size: .95rem; text-shadow: 0 1px 4px rgba(0,0,0,.45); }
-    .ci-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; max-width: 15ch; }
-    .cp-side-h { align-self: center; flex: none; margin: 0 .1rem; padding-left: .6rem;
-      border-left: 1px solid var(--line); font-size: .68rem; letter-spacing: .09em;
-      text-transform: uppercase; color: var(--muted); font-weight: 800; }
+      color: #fff; font-size: 1rem; text-shadow: 0 1px 4px rgba(0,0,0,.45); }
+    .ci-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     /* ---- vùng nội dung ---- */
     .pv-main { max-width: 1120px; margin: 0 auto; min-width: 0;
@@ -196,7 +235,12 @@
 
     @media (max-width: 560px) {
       .pv-hero h1 { font-size: 1.6rem; }
-      .ci-title { max-width: 11ch; }
+    }
+    @media (max-width: 430px) {
+      /* nút header hơi rộng hơn 375px một chút → ẩn tên chữ (giữ logo) và
+         thu nhỏ lề để không sinh cuộn ngang */
+      .lp-header { padding-left: .75rem; padding-right: .75rem; }
+      .lp-header .name { display: none; }
     }
   </style>
 </head>
@@ -219,7 +263,7 @@
   </section>
 
   <nav class="pv-nav" aria-label="Danh sách khóa học &amp; công cụ">
-    <div class="pv-nav-in"><div id="cpSideList" class="pv-tabs"></div></div>
+    <div class="pv-nav-in"><div id="cpSideList" class="pv-cats"></div></div>
   </nav>
 
   <main class="pv-main">
@@ -344,33 +388,122 @@
       return banner ? `background-image:url('${esc(banner)}');`
         : `background:linear-gradient(120deg, ${esc(color||"#1e4f8f")}, ${esc(color||"#1e4f8f")}b3);`;
     }
+    /* ============ THANH DANH MỤC (mega-menu) — Phase 62 ============
+       Gom khóa học + công cụ vào ít danh mục cho gọn. Cách gom:
+         • Khóa học gom theo NGÔN NGỮ (tiếng Trung / tiếng Anh).
+         • Công cụ đứng riêng gom theo CHỨC NĂNG (giảng dạy / học tập).
+       Đây là mặc định thông minh, nhưng có thể GHI ĐÈ từng mục:
+         • Công cụ: đặt config.nav_group ở Bảng điều khiển → Hiển thị công khai.
+         • Khóa học: đặt trường nav_group.
+       Mục nào không rõ thì rơi vào "Khác" — không bao giờ bị mất. */
+    const NAV_CATS = [
+      { id: "zh",    label: "Tiếng Trung",       icon: "🀄" },
+      { id: "en",    label: "Tiếng Anh",         icon: "🔤" },
+      { id: "teach", label: "Công cụ giảng dạy", icon: "🧑‍🏫" },
+      { id: "learn", label: "Công cụ học tập",   icon: "🎧" },
+      { id: "other", label: "Khác",              icon: "✨" }
+    ];
+    const CAT_IDS = NAV_CATS.map(c => c.id);
+    const SEC_CAT = { reading: "learn", shadow: "learn", dict: "learn", vsat: "en", vstep: "en", hsk: "zh" };
+    function sectionCat(section, cfg){
+      const g = String((cfg && cfg.nav_group) || "").toLowerCase();
+      return CAT_IDS.includes(g) ? g : (SEC_CAT[section] || "other");
+    }
+    function courseCat(c){
+      const g = String(c.nav_group || "").toLowerCase();
+      if (CAT_IDS.includes(g)) return g;
+      const t = ((c.title || "") + " " + (c.category || "")).toLowerCase();
+      if (/teaching tool|giảng dạy|giáo viên|teacher/.test(t)) return "teach";
+      if (/hsk|中文|汉语|tiếng trung|chinese/.test(t)) return "zh";
+      if (/ielts|vstep|v-?sat|tiếng anh|english/.test(t)) return "en";
+      return "other";
+    }
+    function navItems(){
+      const out = [];
+      (COURSES || []).forEach(c => out.push({ cid: c.id, title: c.title || "",
+        thumb: thumbStyle(c.banner_url, c.color), emptyIcon: c.banner_url ? "" : (c.icon || "📚"),
+        cat: courseCat(c) }));
+      (SECTIONS || []).forEach(s => { const m = secMeta(s.section), cfg = s.config || {};
+        out.push({ cid: "sec:" + s.section, title: m.name || s.section,
+          thumb: thumbStyle(cfg.cover, "#0e7c66"), emptyIcon: cfg.cover ? "" : (m.icon || "🧰"),
+          cat: sectionCat(s.section, cfg) }); });
+      return out;
+    }
+
     function renderSidebar(){
-      const secBtns = SECTIONS.map(s => {
-        const m = secMeta(s.section), cfg = s.config || {};
+      const items = navItems();
+      $("cpSideList").innerHTML = NAV_CATS.map(cat => {
+        const its = items.filter(x => x.cat === cat.id);
+        if (!its.length) return "";
+        const menu = its.map(x => `
+          <button class="ci" data-cid="${esc(x.cid)}" title="${esc(x.title)}" role="menuitem">
+            <span class="ci-thumb" style="${x.thumb}">${esc(x.emptyIcon)}</span>
+            <span class="ci-title">${esc(x.title)}</span>
+          </button>`).join("");
         return `
-        <button class="ci" data-cid="sec:${esc(s.section)}" title="${esc(m.name || s.section)}">
-          <span class="ci-thumb" style="${thumbStyle(cfg.cover, "#0e7c66")}">${cfg.cover ? "" : (m.icon || "🧰")}</span>
-          <span class="ci-title">${esc(m.name || s.section)}</span>
-        </button>`;
+          <div class="pv-cat" data-cat="${cat.id}">
+            <button class="pv-cat-btn" type="button" aria-haspopup="true" aria-expanded="false">
+              <span class="pv-cat-ic">${cat.icon}</span><span>${esc(cat.label)}</span>
+              <span class="pv-cat-n">${its.length}</span>
+              <span class="pv-cat-caret" aria-hidden="true">▾</span>
+            </button>
+            <div class="pv-cat-menu" role="menu">${menu}</div>
+          </div>`;
       }).join("");
-      $("cpSideList").innerHTML = COURSES.map(c => `
-        <button class="ci" data-cid="${esc(c.id)}" title="${esc(c.title)}">
-          <span class="ci-thumb" style="${thumbStyle(c.banner_url, c.color)}">${c.banner_url ? "" : esc(c.icon || "📚")}</span>
-          <span class="ci-title">${esc(c.title)}</span>
-        </button>`).join("")
-        + (secBtns ? `<div class="cp-side-h">Công cụ học</div>` + secBtns : "");
-      $("cpMobileSel").innerHTML = COURSES.map(c => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join("")
-        + SECTIONS.map(s => `<option value="sec:${esc(s.section)}">${esc(secMeta(s.section).name)}</option>`).join("");
+      /* chọn nhanh trên điện thoại — giữ để phòng, ẩn bằng CSS; gom theo nhóm */
+      $("cpMobileSel").innerHTML = NAV_CATS.map(cat => {
+        const its = items.filter(x => x.cat === cat.id);
+        return its.length ? `<optgroup label="${esc(cat.label)}">`
+          + its.map(x => `<option value="${esc(x.cid)}">${esc(x.title)}</option>`).join("") + `</optgroup>` : "";
+      }).join("");
     }
     function markCurrent(id){
       $("cpSideList").querySelectorAll(".ci").forEach(b =>
         b.classList.toggle("on", b.getAttribute("data-cid") === id));
+      $("cpSideList").querySelectorAll(".pv-cat").forEach(cat =>
+        cat.classList.toggle("has-active", [...cat.querySelectorAll(".ci")].some(b => b.getAttribute("data-cid") === id)));
       const sel = $("cpMobileSel"); if (sel && sel.value !== id) sel.value = id;
     }
-    /* Phase 61: bỏ sidebar thu gọn — thanh chọn giờ nằm ngang, dính đầu trang */
+    /* mở/đóng danh mục: rê chuột (CSS, máy tính) + chạm/bấm (JS, cảm ứng) */
+    function closeCats(){
+      $("cpSideList").querySelectorAll(".pv-cat.open").forEach(c => {
+        c.classList.remove("open");
+        const b = c.querySelector(".pv-cat-btn"); if (b) b.setAttribute("aria-expanded", "false");
+      });
+    }
+    /* kẹp menu nằm gọn trong màn hình: cần cho điện thoại (nút sát mép phải
+       thì menu mặc định left:0 sẽ tràn ra ngoài) */
+    function clampMenu(cat){
+      const m = cat.querySelector(".pv-cat-menu"); if (!m) return;
+      m.style.left = "0px"; m.style.right = "auto";
+      const pad = 8, vw = document.documentElement.clientWidth;
+      let r = m.getBoundingClientRect();
+      if (r.right > vw - pad) m.style.left = Math.round(-(r.right - (vw - pad))) + "px";
+      r = m.getBoundingClientRect();
+      if (r.left < pad) m.style.left = Math.round((parseFloat(m.style.left) || 0) + (pad - r.left)) + "px";
+    }
+    function openCat(cat){
+      const b = cat.querySelector(".pv-cat-btn");
+      cat.classList.add("open"); if (b) b.setAttribute("aria-expanded", "true"); clampMenu(cat);
+    }
     $("cpSideList").addEventListener("click", e => {
-      const b = e.target.closest(".ci"); if (b) switchCourse(b.getAttribute("data-cid"), true);
+      const leaf = e.target.closest(".ci");
+      if (leaf){ closeCats(); switchCourse(leaf.getAttribute("data-cid"), true); return; }
+      const btn = e.target.closest(".pv-cat-btn");
+      if (btn){
+        const cat = btn.closest(".pv-cat"), wasOpen = cat.classList.contains("open");
+        closeCats();
+        if (!wasOpen) openCat(cat);
+      }
     });
+    /* máy tính: rê chuột mở (CSS lo hiển thị, JS chỉ kẹp vị trí cho gọn) */
+    if (window.matchMedia && window.matchMedia("(hover: hover)").matches){
+      $("cpSideList").addEventListener("pointerenter", e => {
+        const cat = e.target.closest && e.target.closest(".pv-cat"); if (cat) clampMenu(cat);
+      }, true);
+    }
+    document.addEventListener("click", e => { if (!e.target.closest(".pv-cat")) closeCats(); });
+    document.addEventListener("keydown", e => { if (e.key === "Escape") closeCats(); });
     $("cpMobileSel").addEventListener("change", e => switchCourse(e.target.value, true));
     window.addEventListener("popstate", () => {
       const id = new URLSearchParams(location.search).get("id");
