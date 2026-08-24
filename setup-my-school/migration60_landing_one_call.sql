@@ -17,6 +17,25 @@
 --  Không tạo bảng, không sửa dữ liệu. Chạy lại nhiều lần vô hại.
 -- ============================================================
 
+-- Gom một bảng thành mảng jsonb, sắp đúng thứ tự trang chủ đang dùng.
+-- Bảng nào chưa tồn tại (migration cũ chưa chạy) thì trả mảng rỗng
+-- thay vì làm hỏng cả trang.
+-- LƯU Ý THỨ TỰ: hàm phụ này phải đứng TRƯỚC public_landing(). Hàm SQL bị
+-- Postgres kiểm tra thân ngay lúc tạo, nên nếu định nghĩa public_landing()
+-- trước thì nó không tìm thấy _landing_rows và báo lỗi 42883.
+create or replace function public._landing_rows(p_table text)
+returns jsonb language plpgsql security definer stable set search_path = public as $$
+declare r jsonb;
+begin
+  execute format(
+    'select coalesce(jsonb_agg(to_jsonb(t) order by t.sort_order nulls last, t.updated_at), ''[]''::jsonb)
+       from %I t where t.status = ''published''', p_table) into r;
+  return coalesce(r, '[]'::jsonb);
+exception when undefined_table or undefined_column then
+  return '[]'::jsonb;
+end;
+$$;
+
 create or replace function public.public_landing()
 returns jsonb language sql security definer stable set search_path = public as $$
   select jsonb_build_object(
@@ -29,22 +48,6 @@ returns jsonb language sql security definer stable set search_path = public as $
     'gallery',      public._landing_rows('landing_gallery'),
     'classes',      public._landing_rows('landing_classes')
   );
-$$;
-
--- Gom một bảng thành mảng jsonb, sắp đúng thứ tự trang chủ đang dùng.
--- Bảng nào chưa tồn tại (migration cũ chưa chạy) thì trả mảng rỗng
--- thay vì làm hỏng cả trang.
-create or replace function public._landing_rows(p_table text)
-returns jsonb language plpgsql security definer stable set search_path = public as $$
-declare r jsonb;
-begin
-  execute format(
-    'select coalesce(jsonb_agg(to_jsonb(t) order by t.sort_order nulls last, t.updated_at), ''[]''::jsonb)
-       from %I t where t.status = ''published''', p_table) into r;
-  return coalesce(r, '[]'::jsonb);
-exception when undefined_table or undefined_column then
-  return '[]'::jsonb;
-end;
 $$;
 
 revoke all on function public.public_landing() from public;
