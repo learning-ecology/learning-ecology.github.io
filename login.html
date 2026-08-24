@@ -57,6 +57,10 @@
       <p style="text-align:center; margin:0.9rem 0 0;">
         <a href="#" id="forgot" data-i18n="forgot" style="font-size:0.85rem;">Forgot password?</a>
       </p>
+      <p style="text-align:center; margin:0.55rem 0 0; font-size:0.85rem;">
+        <span data-i18n="login_no_account" style="color:var(--muted);">New to Learning Ecology?</span>
+        <a href="signup.html" data-i18n="login_create">Create an account</a>
+      </p>
       <p id="msg" class="msg"></p>
       <p class="login-who" data-i18n="login_who" style="margin:1.1rem 0 0; padding-top:0.9rem;
          border-top:1px solid var(--line); font-size:0.8rem; line-height:1.5; color:var(--muted);">Learning Ecology is the online classroom of Lê Quốc Thông, a Vietnamese teacher of English and Chinese. This page is only for enrolled students — we never ask for payment details here.</p>
@@ -87,6 +91,12 @@
     langLink.addEventListener("click", (e) => { e.preventDefault(); setLang(otherLang()); });
 
     const msg = document.getElementById("msg");
+
+    // Prefill the email if we arrived from the sign-up page.
+    (function () {
+      const e = new URLSearchParams(location.search).get("email");
+      if (e) document.getElementById("email").value = e;
+    })();
 
     // Arrived here because the account was signed in on another device?
     if (new URLSearchParams(location.search).get("kicked")) {

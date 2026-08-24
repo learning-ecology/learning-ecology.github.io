@@ -566,7 +566,7 @@
   <span style="margin-left:auto" class="mutetext" id="whoami"></span>
   <span id="navAuth" hidden style="display:inline-flex;gap:6px;white-space:nowrap">
     <a class="nd-a" href="login.html">Đăng nhập</a>
-    <a class="nd-a nd-p" href="login.html">Đăng ký miễn phí</a>
+    <a class="nd-a nd-p" href="signup.html">Đăng ký miễn phí</a>
   </span>
   <a href="dashboard.html" id="navBack" style="font-size:13px;white-space:nowrap">← Bảng điều khiển</a>
 </header>
@@ -922,7 +922,7 @@ function needAccount(msg) {
   box.innerHTML =
     '<div class="nd-in"><div class="nd-tx">' + escH(msg || 'Đăng nhập miễn phí để lưu từ vựng và tiến độ học tập của bạn.') + '</div>' +
     '<div class="nd-bt"><a class="nd-a" href="login.html">Đăng nhập</a>' +
-    '<a class="nd-a nd-p" href="login.html">Đăng ký miễn phí</a>' +
+    '<a class="nd-a nd-p" href="signup.html">Đăng ký miễn phí</a>' +
     '<button class="nd-x" aria-label="Đóng">✕</button></div></div>';
   document.body.appendChild(box);
   box.querySelector('.nd-x').addEventListener('click', () => box.remove());

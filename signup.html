@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://lqeetnlfqmarlqmbxusn.supabase.co" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <title>Đăng ký — Learning Ecology</title>
+  <meta name="description" content="Tạo tài khoản học viên Learning Ecology bằng email — lớp học trực tuyến tiếng Anh và tiếng Trung của thầy Lê Quốc Thông." />
+  <meta name="robots" content="noindex, follow" />
+  <link rel="stylesheet" href="styles.css" />
+  <script>
+    try { var __t = localStorage.getItem("hub_theme");
+      if (__t === "dark" || (!__t && matchMedia("(prefers-color-scheme: dark)").matches))
+        document.documentElement.setAttribute("data-theme", "dark");
+    } catch (e) {}
+  </script>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#17263e" />
+  <link rel="icon" type="image/png" href="icons/logo-64.png" />
+  <link rel="apple-touch-icon" href="icons/icon-180.png" />
+</head>
+<body>
+  <main class="login-wrap">
+    <div style="width:100%; max-width:380px;">
+      <div style="text-align:center; margin-bottom:1.1rem;">
+        <a href="index.html"><img src="icons/logo-64.png" alt="Learning Ecology" width="60" height="60"
+             style="border-radius:14px; box-shadow:0 10px 26px -10px rgba(0,0,0,0.55);" /></a>
+        <div style="color:#fff; font-family:var(--serif); font-size:1.35rem; font-weight:700; margin-top:0.55rem; text-shadow:0 2px 8px rgba(0,0,0,0.35);">Learning Ecology</div>
+      </div>
+
+      <div class="login-card">
+        <!-- form -->
+        <div id="su-form">
+          <h1 data-i18n="signup_title">Create your account</h1>
+          <p data-i18n="signup_sub" style="color:var(--muted); margin:0 0 1.4rem; font-size:0.9rem;">
+            Sign up with your email. One email = one account.
+          </p>
+
+          <div class="field">
+            <label for="su-name" data-i18n="su_name">Your name (optional)</label>
+            <input id="su-name" type="text" autocomplete="name" placeholder="Nguyễn Văn A" />
+          </div>
+          <div class="field">
+            <label for="su-email" data-i18n="email">Email</label>
+            <input id="su-email" type="email" autocomplete="email" inputmode="email" placeholder="you@example.com" />
+          </div>
+          <div class="field">
+            <label for="su-pw" data-i18n="password">Password</label>
+            <input id="su-pw" type="password" autocomplete="new-password" placeholder="••••••••" />
+            <small style="color:var(--muted); font-size:0.78rem;" data-i18n="su_password_hint">At least 6 characters</small>
+          </div>
+          <div class="field">
+            <label for="su-pw2" data-i18n="su_confirm">Confirm password</label>
+            <input id="su-pw2" type="password" autocomplete="new-password" placeholder="••••••••" />
+          </div>
+
+          <button id="su-btn" data-i18n="signup_btn" style="width:100%;">Create account</button>
+          <p id="msg" class="msg"></p>
+
+          <p style="text-align:center; margin:1.1rem 0 0; border-top:1px solid var(--line); padding-top:0.9rem; font-size:0.85rem;">
+            <span data-i18n="su_have" style="color:var(--muted);">Already have an account?</span>
+            <a href="login.html" id="to-login" data-i18n="su_signin">Sign in</a>
+          </p>
+        </div>
+
+        <!-- end states: existing email / confirm email / ready -->
+        <div id="su-done" style="display:none; text-align:center;">
+          <div id="su-done-ic" style="font-size:2.4rem; margin-bottom:0.4rem;"></div>
+          <h1 id="su-done-title" style="margin:0 0 0.5rem;"></h1>
+          <p id="su-done-text" style="color:var(--muted); margin:0 0 1.3rem; font-size:0.92rem; line-height:1.5;"></p>
+          <a id="su-done-btn" class="btn" href="login.html" style="width:100%; text-decoration:none;"></a>
+        </div>
+
+        <p style="text-align:center; margin:1.1rem 0 0; border-top:1px solid var(--line); padding-top:0.9rem;">
+          <a href="#" id="lang-toggle" style="font-size:0.85rem; color:var(--muted);"></a>
+        </p>
+      </div>
+
+      <p style="text-align:center; margin-top:1rem;">
+        <a href="index.html" style="color:rgba(255,255,255,0.85); font-size:0.85rem;">← Learning Ecology</a>
+      </p>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="lang.js"></script>
+  <script src="config.js"></script>
+  <script>
+    applyI18n();
+    const langLink = document.getElementById("lang-toggle");
+    langLink.textContent = t("lang_name");
+    langLink.addEventListener("click", (e) => { e.preventDefault(); setLang(otherLang()); });
+
+    const $ = id => document.getElementById(id);
+    const msg = $("msg");
+    const say = (key, err) => { msg.textContent = t(key); msg.className = "msg" + (err ? " err" : ""); };
+
+    // Already signed in? Go straight to the dashboard.
+    sb.auth.getSession().then(({ data }) => { if (data.session) location.href = "dashboard.html"; });
+
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    // Show one of the three end panels and hide the form.
+    function showDone(icon, titleKey, textKey, email, btnKey, href) {
+      $("su-form").style.display = "none";
+      $("su-done").style.display = "block";
+      $("su-done-ic").textContent = icon;
+      $("su-done-title").textContent = t(titleKey);
+      $("su-done-text").textContent = tf(textKey, { email });
+      const btn = $("su-done-btn");
+      btn.textContent = t(btnKey);
+      btn.href = href;
+    }
+
+    async function signUp() {
+      const name  = $("su-name").value.trim();
+      const email = $("su-email").value.trim().toLowerCase();
+      const pw    = $("su-pw").value;
+      const pw2   = $("su-pw2").value;
+
+      msg.textContent = ""; msg.className = "msg";
+      if (!emailRe.test(email)) { say("msg_su_bad_email", true); $("su-email").focus(); return; }
+      if (pw.length < 6)        { say("msg_su_short_pw", true);  $("su-pw").focus();    return; }
+      if (pw !== pw2)           { say("msg_su_mismatch", true);  $("su-pw2").focus();   return; }
+
+      const btn = $("su-btn");
+      btn.disabled = true;
+      say("su_creating", false);
+
+      // Confirmation links (if the project requires them) land on THIS site's login page.
+      const emailRedirectTo = new URL("login.html", location.href).href;
+
+      let data, error;
+      try {
+        ({ data, error } = await sb.auth.signUp({
+          email, password: pw,
+          options: { data: { full_name: name }, emailRedirectTo }
+        }));
+      } catch (e) { error = e; }
+
+      btn.disabled = false;
+
+      // One account per email. Supabase enforces uniqueness on auth.users.email;
+      // depending on the "confirm email" setting it signals a duplicate either as
+      // an explicit error OR (to prevent email-enumeration) as a success whose
+      // user has an EMPTY identities array. Handle both → send them to sign in.
+      const dup = (error && /already|registered|exists|đã đăng ký|đã tồn tại/i.test(error.message || "")) ||
+                  (data && data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0);
+      if (dup) {
+        showDone("👋", "su_exists_title", "msg_su_exists", email, "su_signin",
+                 "login.html?email=" + encodeURIComponent(email));
+        return;
+      }
+      if (error) { say("msg_su_fail", true); return; }
+
+      // New account created. Clear any half-open session so the student signs in cleanly
+      // (this also keeps the one-device-per-account rule intact — the device is claimed at login).
+      try { await sb.auth.signOut(); } catch (e) {}
+
+      if (data && data.session) {
+        // "Confirm email" is OFF — the account is immediately usable.
+        showDone("🎉", "su_ready_title", "msg_su_ready", email, "su_signin",
+                 "login.html?email=" + encodeURIComponent(email));
+      } else {
+        // "Confirm email" is ON — they must click the link we emailed first.
+        showDone("📧", "su_confirm_title", "msg_su_confirm", email, "su_go_login",
+                 "login.html?email=" + encodeURIComponent(email));
+      }
+    }
+
+    $("su-btn").addEventListener("click", signUp);
+    $("su-pw2").addEventListener("keydown", e => { if (e.key === "Enter") signUp(); });
+    // Prefill email if arriving from a link that carries one.
+    (function () {
+      const e = new URLSearchParams(location.search).get("email");
+      if (e) $("su-email").value = e;
+    })();
+  </script>
+  <script>
+    if ("serviceWorker" in navigator && location.protocol === "https:")
+      navigator.serviceWorker.register("sw.js");
+  </script>
+</body>
+</html>
