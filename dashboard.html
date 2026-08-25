@@ -28,6 +28,124 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Learning Ecology" />
+  <!-- Phase 65: giao diện học viên đồng bộ với trang xem trước công khai.
+       MỌI quy tắc bọc trong body.stu nên KHÔNG đụng tới giao diện chủ trung tâm. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap">
+  <style id="stu-skin">
+  :root{ --stu-bg:#faf7f2; --stu-soft:#f4efe6; --stu-line:#e4dccd; --stu-ring:rgba(183,130,63,.32);
+         --stu-font:"Nunito",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif; }
+  :root[data-theme="dark"]{ --stu-bg:#0e1826; --stu-soft:#1a2942; --stu-line:#26364f; --stu-ring:rgba(224,190,120,.3); }
+  @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){ --stu-bg:#0e1826; --stu-soft:#1a2942; --stu-line:#26364f; --stu-ring:rgba(224,190,120,.3); } }
+
+  body.stu{ background:var(--stu-bg); font-family:var(--stu-font); }
+  /* bỏ sidebar cho học viên */
+  body.stu #subnav, body.stu .sn-backdrop, body.stu .sn-burger{ display:none!important; }
+  body.stu.sb-nav .container, body.stu #app{ margin-left:auto!important; max-width:1140px; }
+  body.stu #app{ padding-top:0; }
+
+  /* thanh điều hướng ngang (dưới topbar) */
+  body.stu .topbar{ position:sticky; top:0; z-index:60; }
+  .stu-tabs{ position:sticky; top:56px; z-index:50; background:color-mix(in srgb,var(--stu-bg) 90%,transparent);
+    backdrop-filter:blur(8px); border-bottom:1px solid var(--stu-line); }
+  .stu-tabs-in{ max-width:1140px; margin:0 auto; display:flex; gap:.4rem; overflow-x:auto; scrollbar-width:none;
+    padding:.5rem clamp(1rem,4vw,2rem); }
+  .stu-tabs-in::-webkit-scrollbar{ display:none; }
+  .stu-tab{ flex:none; white-space:nowrap; border:1.5px solid var(--stu-line); background:var(--card);
+    color:var(--ink); border-radius:999px; padding:.44rem 1rem; font:inherit; font-family:var(--stu-font);
+    font-weight:800; font-size:.9rem; cursor:pointer; transition:border-color .15s,background .15s,transform .12s; }
+  .stu-tab:hover{ border-color:var(--stu-ring); transform:translateY(-1px); }
+  .stu-tab.on{ border-color:var(--accent); background:var(--info-bg); color:var(--accent-ink); }
+
+  /* nền chung + chữ */
+  body.stu #app h1,body.stu #app h2,body.stu #app h3{ font-family:var(--serif); }
+  body.stu #app{ font-family:var(--stu-font); }
+
+  /* hero */
+  .stu-hero{ background:
+      radial-gradient(120% 150% at 10% -30%,rgba(183,130,63,.14),transparent 60%),
+      radial-gradient(120% 150% at 95% -10%,rgba(30,79,143,.12),transparent 55%),var(--stu-soft);
+    border:1px solid var(--stu-line); border-radius:20px; padding:clamp(1.3rem,4vw,2.1rem); margin:1rem 0 1.4rem; }
+  .stu-hero .kick{ display:inline-block; font-size:.76rem; font-weight:800; letter-spacing:.03em; color:var(--gold);
+    background:rgba(183,130,63,.14); padding:.28rem .8rem; border-radius:999px; }
+  .stu-hero h1{ font-size:clamp(1.5rem,3.6vw,2.15rem); margin:.6rem 0 .35rem; }
+  .stu-hero p{ color:var(--muted); max-width:60ch; margin:0 0 1rem; }
+  .stu-chips{ display:flex; flex-wrap:wrap; gap:.55rem; margin-bottom:.2rem; }
+  .stu-chip{ display:inline-flex; align-items:center; gap:.4rem; background:var(--card); border:1px solid var(--stu-line);
+    border-radius:999px; padding:.4rem .85rem; font-weight:700; font-size:.88rem; }
+  .stu-chip b{ color:var(--accent-ink); font-variant-numeric:tabular-nums; }
+  .stu-hero .cont{ margin-top:1rem; }
+  body.stu #cont-open{ background:var(--accent); color:#fff; border:none; border-radius:999px; padding:.6rem 1.3rem;
+    font-weight:800; cursor:pointer; }
+  body.stu #cont-open:hover{ background:var(--accent-ink); }
+
+  /* sections */
+  .stu-sec{ margin:0 0 1.8rem; }
+  .stu-sec-h{ display:flex; align-items:baseline; justify-content:space-between; gap:1rem; margin:0 0 1rem; }
+  .stu-sec-h h2{ font-size:clamp(1.2rem,2.8vw,1.5rem); margin:0; }
+  .stu-sec-h .lead{ color:var(--muted); font-size:.92rem; }
+
+  /* lưới thẻ khóa học */
+  .stu-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); gap:1.1rem; }
+  .stu-cc{ background:var(--card); border:1px solid var(--stu-line); border-radius:18px; overflow:hidden;
+    box-shadow:0 12px 30px -20px rgba(23,38,62,.45); display:flex; flex-direction:column;
+    transition:transform .16s,box-shadow .16s,border-color .16s; }
+  .stu-cc:hover{ transform:translateY(-4px); box-shadow:0 22px 44px -22px rgba(23,38,62,.5); border-color:var(--stu-ring); }
+  .stu-cov{ position:relative; aspect-ratio:16/8; display:grid; place-items:center; color:#fff; overflow:hidden;
+    background-size:cover; background-position:center; }
+  .stu-cov .zh{ font-family:var(--serif); font-size:1.7rem; font-weight:800; text-align:center; padding:0 .6rem;
+    text-shadow:0 2px 10px rgba(0,0,0,.4); }
+  .stu-cov::after{ content:""; position:absolute; inset:0; background:linear-gradient(180deg,transparent 45%,rgba(0,0,0,.3)); }
+  .stu-cov .tag{ position:absolute; top:.6rem; left:.6rem; z-index:1; font-size:.64rem; font-weight:800; letter-spacing:.05em;
+    text-transform:uppercase; background:rgba(255,255,255,.92); color:var(--ink); padding:.18rem .55rem; border-radius:999px; }
+  .stu-cov .prem{ position:absolute; top:.6rem; right:.6rem; z-index:1; font-size:.66rem; font-weight:800;
+    background:linear-gradient(135deg,#f4d68a,#d9a53c); color:#5a3d0e; padding:.18rem .55rem; border-radius:999px; }
+  .stu-cb{ padding:.9rem 1rem 1rem; display:flex; flex-direction:column; gap:.5rem; flex:1; }
+  .stu-cb h3{ font-size:1.05rem; margin:0; }
+  .stu-cb .meta{ color:var(--muted); font-size:.83rem; display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; }
+  .stu-cb .meta i{ width:3px; height:3px; border-radius:50%; background:var(--muted); display:inline-block; }
+  .stu-pct{ display:flex; justify-content:space-between; font-size:.8rem; font-weight:700; color:var(--muted); }
+  .stu-pct b{ color:var(--accent-ink); font-variant-numeric:tabular-nums; }
+  .stu-bar{ height:8px; border-radius:999px; background:var(--stu-soft); border:1px solid var(--stu-line); overflow:hidden; }
+  .stu-bar > i{ display:block; height:100%; border-radius:999px; background:linear-gradient(90deg,var(--accent),var(--accent-ink)); }
+  .stu-cb .foot{ margin-top:auto; display:flex; align-items:center; gap:.5rem; }
+  .stu-btn{ border:none; border-radius:999px; padding:.55rem 1.1rem; font:inherit; font-family:var(--stu-font);
+    font-weight:800; font-size:.88rem; cursor:pointer; background:var(--accent); color:#fff; text-decoration:none;
+    display:inline-flex; align-items:center; gap:.35rem; }
+  .stu-btn:hover{ background:var(--accent-ink); }
+  .stu-btn.ghost{ background:transparent; color:var(--accent-ink); border:1.5px solid var(--stu-line); }
+  .stu-btn.gold{ background:linear-gradient(135deg,#f4d68a,#d9a53c); color:#5a3d0e; }
+  .stu-badge{ font-size:.72rem; font-weight:800; padding:.18rem .55rem; border-radius:999px; }
+  .stu-badge.free{ background:var(--success-bg); color:var(--success); }
+  .stu-badge.enr{ background:var(--info-bg); color:var(--accent-ink); }
+
+  /* công cụ học tập */
+  .stu-tools-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:.85rem; }
+  .stu-tool{ display:flex; align-items:center; gap:.75rem; background:var(--card); border:1px solid var(--stu-line);
+    border-radius:16px; padding:.85rem .95rem; box-shadow:0 12px 30px -22px rgba(23,38,62,.4); cursor:pointer;
+    text-align:left; font:inherit; font-family:var(--stu-font); color:inherit; text-decoration:none;
+    transition:transform .14s,border-color .14s; width:100%; }
+  .stu-tool:hover{ transform:translateY(-2px); border-color:var(--stu-ring); }
+  .stu-tool .ti{ width:42px; height:42px; flex:none; border-radius:12px; display:grid; place-items:center; font-size:1.2rem;
+    background:var(--stu-soft); border:1px solid var(--stu-line); }
+  .stu-tool .tt{ font-weight:800; font-size:.95rem; }
+  .stu-tool .td{ color:var(--muted); font-size:.78rem; }
+  .stu-tool .arw{ margin-left:auto; color:var(--muted); }
+
+  /* dải phụ (lịch, thống kê, xếp hạng, thông báo) — nhạt hơn, dưới cùng */
+  .stu-more{ background:var(--stu-soft); border:1px solid var(--stu-line); border-radius:20px;
+    padding:clamp(1rem,3vw,1.5rem); margin:0 0 1.4rem; }
+  .stu-more-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(258px,1fr)); gap:1rem; align-items:start; }
+  .stu-more-grid > .card{ margin:0; }
+  /* thẻ chung mềm hơn cho học viên */
+  body.stu #app .card{ border-radius:16px; }
+  body.stu #app .btn{ border-radius:999px; }
+
+  @media (max-width:640px){
+    .stu-hero h1{ font-size:1.45rem; }
+  }
+  </style>
 </head>
 <body>
   <header class="topbar">
@@ -1430,6 +1548,11 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       ]);
       const myCards = myCardsRaw || [];
       const myRevs = myRevsRaw || [];
+      /* Phase 65: khóa học công khai để hiện "Khám phá thêm" (chỉ lấy một lần) */
+      if (window.__pubCourses === undefined) {
+        try { const pr = await sb.rpc("public_courses"); window.__pubCourses = Array.isArray(pr.data) ? pr.data : []; }
+        catch (e) { window.__pubCourses = []; }
+      }
       let lbPref = null;   // null = column not there yet → hide the toggle
       if (!lpRes.error && lpRes.data) lbPref = lpRes.data.show_on_leaderboard !== false;
 
@@ -2037,22 +2160,131 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             <button id="upg-open" class="ghost" style="flex:none;">${T2p("upgrade")}</button>
           </div>` : "");
 
+      /* ---------- Phase 65: trang chủ học viên hướng-khóa-học ----------
+         Dùng lại dữ liệu đã tải (courses, lessons, done, thống kê). Thẻ khóa
+         học gọn có thanh tiến độ; bấm "Tiếp tục học" nhảy sang tab Khóa học
+         và mở đúng khóa (giữ nguyên phần bài học chi tiết bên dưới). */
+      const stuCovers = ["linear-gradient(140deg,#2b5c86,#0f3f4a)","linear-gradient(140deg,#3a4f86,#1c2b57)",
+                         "linear-gradient(140deg,#7a4a2e,#3a2418)","linear-gradient(140deg,#4a6a3e,#243d20)"];
+      let __cix = 0;
+      function stuCourseCard(c){
+        const ls = (lessons || []).filter(l => l.course_id === c.id);
+        const total = ls.length, dn = ls.filter(l => done.has(l.id)).length;
+        const pct = total ? Math.round(dn / total * 100) : 0;
+        const cat = c.category || t("cat_other");
+        const cov = c.banner_url
+          ? `style="background-image:url('${esc(c.banner_url)}')"`
+          : `style="background:${stuCovers[(__cix++) % stuCovers.length]}"`;
+        return `
+          <article class="stu-cc" data-course-open="${esc(c.id)}">
+            <div class="stu-cov" ${cov}>
+              <span class="tag">${esc(cat)}</span>
+              ${c.tier === "premium" ? `<span class="prem">👑 Premium</span>` : ""}
+              ${c.banner_url ? "" : `<span class="zh">${esc(c.title)}</span>`}
+            </div>
+            <div class="stu-cb">
+              <h3>${c.icon ? esc(c.icon) + " " : ""}${esc(c.title)}</h3>
+              <div class="meta"><span>${esc(cat)}</span><i></i><span>${tf("done_count", { d: dn, t: total })}</span></div>
+              <div class="stu-pct"><span>${total ? tf("done_count", { d: dn, t: total }) : t("no_lessons_course")}</span><b>${pct}%</b></div>
+              <div class="stu-bar"><i style="width:${pct}%"></i></div>
+              <div class="foot"><button class="stu-btn" type="button" data-course-open="${esc(c.id)}">
+                ${pct >= 100 ? t("chip_done2") : (pct > 0 ? t("continue_learning") : t("start_learning"))} →</button></div>
+            </div>
+          </article>`;
+      }
+      const stuMine = (courses || []).slice().sort((a, b) => {
+        const pf = c => { const ls = (lessons || []).filter(l => l.course_id === c.id);
+          const tt = ls.length, d2 = ls.filter(l => done.has(l.id)).length;
+          const p = tt ? d2 / tt : 0; return p >= 1 ? 2 : (p > 0 ? 0 : 1); };
+        return pf(a) - pf(b);
+      });
+      const stuMineGrid = stuMine.length
+        ? `<div class="stu-grid">${stuMine.map(stuCourseCard).join("")}</div>`
+        : `<div class="card"><p class="empty">${t("not_enrolled")}</p></div>`;
+
+      /* Khóa học khác để khám phá — lấy từ public_courses, bỏ khóa đã ghi danh */
+      const enrolledIds = new Set((courses || []).map(c => c.id));
+      const stuOther = (window.__pubCourses || []).filter(c => !enrolledIds.has(c.id));
+      function stuOtherCard(c){
+        const cov = c.banner_url
+          ? `style="background-image:url('${esc(c.banner_url)}')"`
+          : `style="background:${stuCovers[(__cix++) % stuCovers.length]}"`;
+        const prem = c.tier === "premium";
+        return `
+          <a class="stu-cc" href="course.html?id=${encodeURIComponent(c.id)}" style="text-decoration:none">
+            <div class="stu-cov" ${cov}>
+              <span class="tag">${esc(c.category || t("cat_other"))}</span>
+              ${prem ? `<span class="prem">👑 Premium</span>` : ""}
+              ${c.banner_url ? "" : `<span class="zh">${esc(c.title)}</span>`}
+            </div>
+            <div class="stu-cb">
+              <h3>${c.icon ? esc(c.icon) + " " : ""}${esc(c.title)}</h3>
+              <div class="meta"><span>${esc(c.category || t("cat_other"))}</span></div>
+              <div class="foot">
+                <span class="stu-badge ${prem ? "" : "free"}">${prem ? "👑 Premium" : t("free")}</span>
+                <span class="stu-btn ghost">${t("preview") || "Xem thử"} →</span>
+              </div>
+            </div>
+          </a>`;
+      }
+      const stuOtherGrid = stuOther.length
+        ? `<section class="stu-sec"><div class="stu-sec-h"><h2>${t("explore_more") || "Khám phá thêm"}</h2>
+             <a class="stu-sec-h" href="course.html" style="color:var(--accent-ink);font-weight:700;font-size:.9rem">${t("all_courses") || "Tất cả khóa học"} →</a></div>
+             <div class="stu-grid">${stuOther.slice(0, 6).map(stuOtherCard).join("")}</div></section>`
+        : "";
+
+      /* Công cụ học tập — thẻ, không phải danh sách sidebar */
+      const stuMod = window.__modules || {};
+      const stuOn = k => stuMod[k] !== false;
+      const toolCards = [
+        { tab: "flash", ic: "🗂️", tt: t("flash_tab"), td: t("tool_flash_d") || "Ôn từ vựng bằng thẻ ghi nhớ" },
+        stuOn("reading") ? { href: "reading.html", ic: "📖", tt: "Đọc hiểu HSK 阅读", td: t("tool_read_d") || "Bài đọc theo cấp độ, có pinyin" } : null,
+        stuOn("shadow") ? { href: "shadow.html", ic: "🎤", tt: "Shadow Chinese 跟读", td: t("tool_shadow_d") || "Nói theo video, chấm phát âm" } : null,
+        stuOn("writing") ? { href: "writing.html", ic: "✍️", tt: "Tập viết chữ Hán 写字", td: t("tool_write_d") || "Luyện thứ tự nét từng chữ" } : null,
+        stuOn("dictation") ? { href: "dictation.html", ic: "🎧", tt: "Nghe chép chính tả 听写", td: t("tool_dict_d") || "Nghe và chép lại từng câu" } : null,
+        { tab: "asgn", ic: "📋", tt: t("tool_asgn_t"), td: t("tool_asgn_d") },
+        { tab: "community", ic: "💬", tt: t("tool_disc_t"), td: t("tool_disc_d") }
+      ].filter(Boolean);
+      const stuTools = `<div class="stu-tools-grid">${toolCards.map(tc => {
+        const inner = `<span class="ti">${tc.ic}</span><span><span class="tt">${esc(tc.tt)}</span><br><span class="td">${esc(tc.td)}</span></span><span class="arw">→</span>`;
+        return tc.href
+          ? `<a class="stu-tool" href="${tc.href}">${inner}</a>`
+          : `<button class="stu-tool" type="button" data-gototab="${tc.tab}">${inner}</button>`;
+      }).join("")}</div>`;
+
+      /* Hero chào mừng */
+      const stuName = me?.full_name ? esc(me.full_name) : "";
+      const stuHero = `
+        <section class="stu-hero">
+          <span class="kick">${curStreak >= 1 ? tf("streak_chip", { n: curStreak }) || ("🔥 " + curStreak + " ngày liên tiếp") : (t("welcome") || "Chào mừng")}</span>
+          <h1>${(t("welcome_back") || "Chào mừng trở lại")}${stuName ? ", " + stuName : ""}!</h1>
+          <p>${t("hero_motivate") || "Hôm nay học tiếp một chút nhé — đều đặn mỗi ngày là bí quyết chắc chắn nhất để tiến bộ."}</p>
+          <div class="stu-chips">
+            <span class="stu-chip">⏱ <b>${monthMin}</b>&nbsp;${t("min_this_month") || "phút tháng này"}</span>
+            <span class="stu-chip">✅ <b>${doneAll}</b>&nbsp;${t("lessons_done") || "bài đã xong"}</span>
+            <span class="stu-chip">🎯 <b>${(courses || []).length}</b>&nbsp;${t("courses_word") || "khóa học"}</span>
+          </div>
+          ${contLesson ? `<div class="cont"><button id="cont-open">${contIsNext ? (t("start_learning")) : (t("continue_learning"))} →</button></div>` : ""}
+        </section>`;
+
       app.innerHTML = `
-        <p class="eyebrow">${t("my_lessons")}</p>
-        <h1>${t("welcome")}${me?.full_name ? ", " + esc(me.full_name) : ""}</h1>
         ${accessNote}
         ${premBar}
         <div class="tabpane" data-tab="home">
           ${streakBar}
-          ${heroCard}
-          ${schedCard}
-          ${statsCard}
-          ${lbCard}
+          ${stuHero}
           <div class="search-wrap">
             <input id="hub-search" placeholder="${esc(t("search_ph"))}" autocomplete="off" />
             <div id="search-results" class="search-results" style="display:none;"></div>
           </div>
-          ${annCard}
+          <section class="stu-sec"><div class="stu-sec-h"><h2>${t("your_courses")}</h2></div>
+            ${stuMineGrid}</section>
+          ${stuOtherGrid}
+          <section class="stu-sec" id="stu-tools"><div class="stu-sec-h"><h2>${t("learning_tools") || "Công cụ học tập"}</h2></div>
+            ${stuTools}</section>
+          <div class="stu-more"><div class="stu-more-grid">
+            ${schedCard}${statsCard}${lbCard}${annCard}
+          </div></div>
         </div>
         <div class="tabpane" data-tab="courses">
           <div id="my-classes"></div>
@@ -2186,9 +2418,59 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           const eb = app.querySelector(".eyebrow");
           if (eb && it) eb.textContent = t("my_lessons") + " / " + it.label;
         }
-        window.__stuShowTab = showT;
-        UI.initNav({ items, active: cur, onSelect: showT });
-        showT(cur);
+        /* Phase 65: học viên dùng THANH NGANG (không sidebar) cho giống trang
+           xem trước công khai. Vẫn giữ topbar (chuông, tên, ngôn ngữ, sáng/tối,
+           đăng xuất) — chỉ thêm hàng pill điều hướng ngay dưới nó. */
+        document.body.classList.add("stu");
+        function stuMarkNav(k){
+          const tabs = document.getElementById("stuTabs"); if (!tabs) return;
+          tabs.querySelectorAll(".stu-tab").forEach(b => b.classList.toggle("on", b.getAttribute("data-nav") === k));
+        }
+        const showTnav = k => { showT(k); stuMarkNav(k); };
+        window.__stuShowTab = showTnav;
+
+        const NAVP = [
+          { id: "home",   label: T("nav_home") || "Trang chủ" },
+          { id: "courses",label: T("my_courses") || "Khóa học" },
+          { id: "flash",  label: t("flash_tab") || "Flashcards" },
+          { id: "tools",  label: t("learning_tools") || "Công cụ học tập" }
+        ];
+        let tabs = document.getElementById("stuTabs");
+        if (!tabs) {
+          tabs = document.createElement("nav");
+          tabs.id = "stuTabs"; tabs.className = "stu-tabs";
+          document.querySelector("header.topbar").insertAdjacentElement("afterend", tabs);
+        }
+        tabs.innerHTML = `<div class="stu-tabs-in">` + NAVP.map(n =>
+          `<button class="stu-tab" data-nav="${n.id}">${esc(n.label)}</button>`).join("") + `</div>`;
+
+        /* Ràng buộc sự kiện MỘT LẦN — renderStudent chạy lại nhiều lần, không
+           được chồng listener. Handler luôn gọi window.__stuShowTab hiện tại. */
+        if (!window.__stuNavWired) {
+          window.__stuNavWired = true;
+          document.getElementById("stuTabs").addEventListener("click", e => {
+            const b = e.target.closest(".stu-tab"); if (!b) return;
+            const k = b.getAttribute("data-nav");
+            if (k === "tools") { window.__stuShowTab("home"); stuMarkNav("tools");
+              setTimeout(() => document.getElementById("stu-tools")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+              return;
+            }
+            window.__stuShowTab(k);
+          });
+          app.addEventListener("click", e => {
+            const cc = e.target.closest("[data-course-open]");
+            if (cc) { const id = cc.getAttribute("data-course-open");
+              window.__stuShowTab("courses");
+              setTimeout(() => { const el = document.getElementById("course-" + id);
+                if (el) { el.classList.remove("collapsed"); el.scrollIntoView({ behavior: "smooth", block: "start" }); } }, 80);
+              return;
+            }
+            const gt = e.target.closest("[data-gototab]");
+            if (gt) window.__stuShowTab(gt.getAttribute("data-gototab"));
+          });
+        }
+
+        showT(cur); stuMarkNav(cur);
       })();
 
       // --- premium locks + upgrade ---
