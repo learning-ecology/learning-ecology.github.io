@@ -59,7 +59,7 @@
       </p>
       <p style="text-align:center; margin:0.55rem 0 0; font-size:0.85rem;">
         <span data-i18n="login_no_account" style="color:var(--muted);">New to Learning Ecology?</span>
-        <a href="signup.html" data-i18n="login_create">Create an account</a>
+        <a href="signup.html" id="to-signup" data-i18n="login_create">Create an account</a>
       </p>
       <p id="msg" class="msg"></p>
       <p class="login-who" data-i18n="login_who" style="margin:1.1rem 0 0; padding-top:0.9rem;
@@ -92,6 +92,23 @@
 
     const msg = document.getElementById("msg");
 
+    /* Sau khi đăng nhập, đưa học viên VỀ ĐÚNG trang họ đang xem: ưu tiên
+       tham số ?next=, nếu không có thì lấy trang giới thiệu (referrer) cùng
+       tên miền. Chỉ nhận đường dẫn nội bộ, không phải login/signup/reset,
+       để tránh vòng lặp và chuyển hướng ra ngoài. */
+    function safeNext(u){
+      if (!u) return null;
+      try {
+        const url = new URL(u, location.href);
+        if (url.origin !== location.origin) return null;
+        const page = url.pathname.split("/").pop().toLowerCase();
+        if (/^(login|signup|reset)\.html$/.test(page)) return null;
+        return url.pathname + url.search + url.hash;
+      } catch (e) { return null; }
+    }
+    const NEXT = safeNext(new URLSearchParams(location.search).get("next")) || safeNext(document.referrer);
+    const goNext = () => { window.location.href = NEXT || "dashboard.html"; };
+
     // Prefill the email if we arrived from the sign-up page.
     (function () {
       const e = new URLSearchParams(location.search).get("email");
@@ -106,7 +123,7 @@
 
     // If already logged in, skip straight to the dashboard.
     sb.auth.getSession().then(({ data }) => {
-      if (data.session) window.location.href = "dashboard.html";
+      if (data.session) goNext();
     });
 
     async function signIn() {
@@ -150,7 +167,7 @@
         });
       } catch (e) { /* non-fatal: login still proceeds */ }
 
-      window.location.href = "dashboard.html";
+      goNext();
     }
 
     document.getElementById("signin").addEventListener("click", signIn);
@@ -174,6 +191,9 @@
     document.getElementById("password").addEventListener("keydown", (e) => {
       if (e.key === "Enter") signIn();
     });
+    // giữ điểm đến khi chuyển sang trang đăng ký
+    (function(){ const a = document.getElementById("to-signup");
+      if (a && NEXT) a.href = "signup.html?next=" + encodeURIComponent(NEXT); })();
 
     // ---- "install as an app" hint ----
     // Android/Chrome: real install button (native prompt).

@@ -1488,8 +1488,14 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
     if (session) {
       GUEST = false; USER = session.user;
       try {
-        const { data: p } = await DB.from('profiles').select('full_name,role,is_premium').eq('id', USER.id).maybeSingle();
-        if (p) { STAFF = ['owner', 'admin', 'teacher'].indexOf(p.role) >= 0; PREMIUM = !!p.is_premium;
+        /* Premium dùng ĐÚNG mô hình toàn nền tảng: staff, hoặc plan='premium'
+           còn hạn — GIỐNG has_premium() ở CSDL, Đọc hiểu, Shadow, Chép chính tả.
+           Trước đây trang này đọc nhầm cột 'is_premium' (không tồn tại) nên
+           câu select lỗi, khiến CẢ STAFF lẫn PREMIUM đều false → khoá oan. */
+        const { data: p } = await DB.from('profiles').select('full_name,role,plan,premium_until').eq('id', USER.id).maybeSingle();
+        if (p) { STAFF = ['owner', 'admin', 'teacher'].indexOf(p.role) >= 0;
+                 const _td = new Date().toISOString().slice(0, 10);
+                 PREMIUM = STAFF || (p.plan === 'premium' && (!p.premium_until || p.premium_until >= _td));
                  window.ZhSpeech.configure({ canCache: STAFF });
                  /* Dụng cụ giảng dạy là của GIÁO VIÊN — học viên và khách không thấy */
                  const tk = document.getElementById('btnToolkit'); if (tk && STAFF) tk.hidden = false;
