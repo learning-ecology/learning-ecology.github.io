@@ -37,6 +37,9 @@
   })();
   </script>
 <script defer id="pyLib" src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.26.0/dist/index.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Merriweather:wght@400;700&family=Open+Sans:wght@400;600;700&display=swap">
 <style>
   :root {
     --bg:#f4f6fb; --panel:#fff; --ink:#1c2740; --muted:#64708a; --line:#dfe4ef;
@@ -50,6 +53,8 @@
     --l9:#47526b; --l9bg:#e6e9f2;
     --hz:26px; --py:14px; --tr:15px;
     --hz-font:"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+    /* phông đọc tiếng Anh — mặc định Atkinson Hyperlegible (thiết kế cho dễ đọc) */
+    --rd-font:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -213,6 +218,15 @@
                border-left:3px solid var(--line); padding-left:8px; }
   #popup .row { gap:6px; }
   #popup .close { position:absolute; top:6px; right:8px; border:none; background:none; font-size:15px; color:var(--muted); padding:2px 6px; }
+  /* ---- English dictionary: rõ ràng English vs Tiếng Việt (Phase 67) ---- */
+  #popup .pos, .sh-pos { color:var(--muted); font-size:.72em; font-weight:600; }
+  #popup .m .def-en, #popup .m .def-vi { margin:6px 0; font-size:14px; line-height:1.5; }
+  .def-en > b, .def-vi > b, .sh-def.def-en > b, .sh-def.def-vi > b {
+    display:inline-block; font-size:11px; font-weight:700; letter-spacing:.03em; text-transform:uppercase;
+    padding:1px 7px; border-radius:999px; margin-right:7px; vertical-align:middle; }
+  .def-en > b { background:var(--accent-soft); color:var(--accent); }
+  .def-vi > b { background:rgba(23,127,76,.14); color:var(--ok); }
+  .sh-note, #popup .mutetext:first-of-type { font-size:12.5px; color:var(--muted); margin:2px 0 0; }
 
   /* vocab */
   .vword { display:flex; gap:12px; align-items:flex-start; padding:12px 4px; border-bottom:1px solid var(--line); }
@@ -536,9 +550,7 @@
   #mSheet .sh-slider { display:flex; align-items:center; gap:10px; }
   #mSheet .sh-slider input { flex:1; }
 
-  /* ---- reading themes (scoped to the mobile reader only) ---- */
-  body.mreader.rt-sepia #view-reader { --r-bg:#f6efe1; --r-ink:#3a2f21; --r-line:#e2d6bf; --r-bar:#efe5d2; }
-  body.mreader.rt-dark  #view-reader { --r-bg:#12161d; --r-ink:#e6e9ef; --r-line:#2a323f; --r-bar:#1a1f28; }
+  /* ---- reading themes: nền do token gốc (data-rtheme) điều khiển; ở đây chỉ tinh chỉnh thanh/menu trên mobile ---- */
   body.mreader.rt-dark  #readerStage .rtrans { color:#9aa4b5; }
   body.mreader.rt-sepia .tok.zh:hover, body.mreader.rt-dark .tok.zh:hover { background:transparent; }
   /* the pinyin toggle's "on" chip must stay legible on the tinted themes */
@@ -550,6 +562,36 @@
   @media (prefers-reduced-motion: reduce) {
     #mSheet, #mMenu, #mDim { transition:none !important; }
   }
+
+  /* ================= Phông đọc tiếng Anh (Phase 67) ================= */
+  body.lang-en #view-reader, body.lang-en #view-reader #rTitle,
+  body.lang-en #view-reader .rpara, body.lang-en #view-reader .rtrans,
+  body.lang-en #view-reader .tok, body.lang-en #view-reader .tok .hz { font-family:var(--rd-font); }
+
+  /* ================= Nền đọc (themes) — đổi token gốc nên áp cho cả trang ===== */
+  body[data-rtheme="cream"]{ --bg:#faf5ea; --panel:#fffdf7; --ink:#3b3426; --muted:#7a7059; --line:#ece2cf;
+    --accent:#1d5fc2; --accent-soft:#eef2fb; }
+  body[data-rtheme="sepia"]{ --bg:#f1e4cb; --panel:#f8efdc; --ink:#4a3b28; --muted:#7c6a4e; --line:#e0d2b6;
+    --accent:#8a5a1f; --accent-soft:#efe1c8; }
+  body[data-rtheme="green"]{ --bg:#e6f0e6; --panel:#f3f9f3; --ink:#22352a; --muted:#5b6f60; --line:#cfe0cf;
+    --accent:#1e7a4a; --accent-soft:#dcefe1; }
+  body[data-rtheme="blue"]{ --bg:#e7eef8; --panel:#f4f8fd; --ink:#22314a; --muted:#5c6a86; --line:#cfdcf0;
+    --accent:#1d5fc2; --accent-soft:#e2ecfb; }
+  body[data-rtheme="light"]{ --bg:#f4f6fb; --panel:#fff; --ink:#1c2740; --muted:#64708a; --line:#dfe4ef;
+    --accent:#1d5fc2; --accent-soft:#e8f0fe; }
+  body[data-rtheme="dark"]{ --bg:#10141f; --panel:#1a2130; --ink:#e8ecf5; --muted:#93a0b8; --line:#2c3549;
+    --accent:#6ea8ff; --accent-soft:#1e2c47; --ok:#4cc98a; --warn:#ffb066; --chart:#6ea8ff; --chart-grid:#26314a; }
+
+  /* ô chọn phông + nền trong Cài đặt */
+  #rdFont { width:100%; }
+  #rtSwatches { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:6px; }
+  .rt-sw { display:flex; flex-direction:column; align-items:stretch; gap:5px; border:1px solid var(--line);
+    background:var(--panel); border-radius:10px; padding:7px; cursor:pointer; font:inherit; color:var(--ink); }
+  .rt-sw:hover { border-color:var(--accent); }
+  .rt-sw.on { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
+  .rt-sw .sw { height:26px; border-radius:6px; border:1px solid rgba(0,0,0,.08); display:flex; align-items:center;
+    justify-content:center; font-size:13px; font-weight:700; }
+  .rt-sw .lb { font-size:11.5px; color:var(--muted); text-align:center; }
 </style>
 </head>
 <body class="colors-on">
@@ -653,6 +695,26 @@
           <label class="toggle"><input type="checkbox" id="tgColors" checked> Màu HSK</label>
           <label class="toggle"><input type="checkbox" id="tgTips" checked> Chú thích từ (rê chuột)</label>
           <label class="toggle"><input type="checkbox" id="tgAudio" checked> Âm thanh khi nhấp từ</label>
+        </div>
+        <div class="sp-group"><h4>Giao diện đọc</h4>
+          <div class="group">Phông chữ
+            <select id="rdFont" class="inlinesel">
+              <option value="atkinson">Atkinson Hyperlegible (dễ đọc)</option>
+              <option value="opensans">Open Sans</option>
+              <option value="arial">Arial</option>
+              <option value="verdana">Verdana</option>
+              <option value="georgia">Georgia</option>
+              <option value="merriweather">Merriweather</option>
+            </select></div>
+          <div style="font-size:12px;color:var(--muted);margin:8px 0 3px">Nền đọc</div>
+          <div id="rtSwatches">
+            <button class="rt-sw" data-rt="light"><span class="sw" style="background:#f4f6fb;color:#1c2740">Aa</span><span class="lb">Sáng</span></button>
+            <button class="rt-sw" data-rt="cream"><span class="sw" style="background:#faf5ea;color:#3b3426">Aa</span><span class="lb">Kem ấm</span></button>
+            <button class="rt-sw" data-rt="sepia"><span class="sw" style="background:#f1e4cb;color:#4a3b28">Aa</span><span class="lb">Sepia</span></button>
+            <button class="rt-sw" data-rt="green"><span class="sw" style="background:#e6f0e6;color:#22352a">Aa</span><span class="lb">Xanh lá</span></button>
+            <button class="rt-sw" data-rt="blue"><span class="sw" style="background:#e7eef8;color:#22314a">Aa</span><span class="lb">Xanh dương</span></button>
+            <button class="rt-sw" data-rt="dark"><span class="sw" style="background:#10141f;color:#e8ecf5">Aa</span><span class="lb">Tối</span></button>
+          </div>
         </div>
         <div class="sp-group"><h4>Cỡ chữ</h4>
           <div class="group">字 Hán <input type="range" id="szHz" min="16" max="130" value="26" aria-label="Cỡ chữ Hán"><span id="szHzV">26</span></div>
@@ -1404,32 +1466,72 @@ const enCache = () => (EN_CACHE || (EN_CACHE = read('crh-endict', {})));
 function enCached(w) { return enCache()[w.toLowerCase()] || null; }
 const stripTags = t => String(t || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
 
-async function fromDictApi(k) {
-  const r = await fetch(EN_API(k));
-  if (!r.ok) return null;
-  const j = await r.json();
-  const e = Array.isArray(j) ? j[0] : null;
-  if (!e) return null;
-  const defs = [];
-  for (const m of (e.meanings || []).slice(0, 3)) {
-    const d = (m.definitions || [])[0];
-    if (d && d.definition) defs.push({ pos: m.partOfSpeech || '', def: d.definition, ex: d.example || '' });
+/* Câu định nghĩa "chỉ là dạng biến đổi": third-person singular of…, past
+   tense of…, plural of…, comparative of… — vô ích cho người học. Bắt lấy
+   TỪ GỐC trong câu đó để tra nghĩa thật của từ gốc thay vào. */
+const FORM_OF = /\b(?:(?:third|3rd)[- ]person singular(?:\s+\w+)*|plural(?:\s+form)?|past\s+tense|past\s+participle|present\s+participle|simple\s+past|comparative(?:\s+(?:form|degree))?|superlative(?:\s+(?:form|degree))?|gerund|inflection|alternative\s+(?:form|spelling)|present\s+tense|misspelling|obsolete\s+form|archaic\s+form|(?:\w+\s+)?form)\s+of\s+["“']?([A-Za-z][A-Za-z'\-]*)/i;
+function pickDefs(meanings, phonetic) {
+  const defs = []; let formOf = null;
+  for (const m of (meanings || [])) {
+    for (const d of (m.definitions || []).slice(0, 2)) {
+      const txt = stripTags(d && d.definition);
+      if (!txt) continue;
+      const fo = txt.match(FORM_OF);
+      if (fo) { if (!formOf) formOf = fo[1].toLowerCase(); continue; }   // bỏ dòng "dạng của X"
+      defs.push({ pos: (m.partOfSpeech || '').toLowerCase(), def: txt, ex: stripTags((d && d.example) || '') });
+      if (defs.length >= 3) break;
+    }
+    if (defs.length >= 3) break;
   }
-  if (!defs.length) return null;
-  return { ph: e.phonetic || ((e.phonetics || []).find(p => p.text) || {}).text || '', defs };
+  return { ph: phonetic || '', defs, formOf };
+}
+async function apiEntry(k) {
+  const r = await fetch(EN_API(k)); if (!r.ok) return null;
+  const j = await r.json(); return Array.isArray(j) ? j[0] : null;
+}
+function apiPhonetic(e) {
+  return e.phonetic || ((e.phonetics || []).find(p => p.text) || {}).text || '';
+}
+async function fromDictApi(k) {
+  const e = await apiEntry(k); if (!e) return null;
+  let picked = pickDefs(e.meanings, apiPhonetic(e)), base = k, ph = picked.ph;
+  /* từ biến đổi (curdles, went, studies…): chỉ có "dạng của X" → tra X */
+  if (!picked.defs.length && picked.formOf) {
+    const be = await apiEntry(picked.formOf).catch(() => null);
+    if (be) { const bp = pickDefs(be.meanings, apiPhonetic(be));
+      if (bp.defs.length) { base = picked.formOf; picked = bp; ph = bp.ph || ph; } }
+  }
+  if (!picked.defs.length) return null;
+  return { word: base, inflected: base !== k ? k : '', ph, defs: picked.defs };
+}
+async function wiktDefs(k) {
+  const r = await fetch(EN_WIKI(k)); if (!r.ok) return null;
+  const j = await r.json();
+  return pickDefs(((j && j.en) || []).map(p => ({ partOfSpeech: p.partOfSpeech, definitions: p.definitions })), '');
 }
 async function fromWiktionary(k) {
-  const r = await fetch(EN_WIKI(k));
-  if (!r.ok) return null;
-  const j = await r.json();
-  const en = (j && j.en) || [];
-  const defs = [];
-  for (const part of en.slice(0, 3)) {
-    const d = (part.definitions || [])[0];
-    const txt = stripTags(d && d.definition);
-    if (txt) defs.push({ pos: (part.partOfSpeech || '').toLowerCase(), def: txt, ex: '' });
+  let picked = await wiktDefs(k); if (!picked) return null;
+  let base = k;
+  if (!picked.defs.length && picked.formOf) {
+    const bp = await wiktDefs(picked.formOf).catch(() => null);
+    if (bp && bp.defs.length) { base = picked.formOf; picked = bp; }
   }
-  return defs.length ? { ph: '', defs } : null;
+  return picked.defs.length ? { word: base, inflected: base !== k ? k : '', ph: '', defs: picked.defs } : null;
+}
+/* Nghĩa tiếng Việt ĐÚNG THEO định nghĩa tiếng Anh đã chọn (không phải bản
+   dịch chung chung của từ) — dịch câu định nghĩa qua MyMemory (miễn phí,
+   không cần khoá; nền tảng đã dùng ở Tập viết). */
+const VI_API = q => 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(q) + '&langpair=en|vi';
+async function translateVi(text) {
+  const q = String(text || '').trim(); if (!q) return '';
+  try {
+    const r = await fetch(VI_API(q.slice(0, 480))); if (!r.ok) return '';
+    const j = await r.json();
+    const t = ((j && j.responseData && j.responseData.translatedText) || '').trim();
+    if (!t || /MYMEMORY WARNING|INVALID|QUERY LENGTH LIMIT/i.test(t)) return '';
+    if (t.toLowerCase() === q.toLowerCase()) return '';   // không dịch được → trả về nguyên văn
+    return t;
+  } catch (e) { return ''; }
 }
 async function enLookup(w) {
   const k = w.toLowerCase();
@@ -1441,6 +1543,9 @@ async function enLookup(w) {
     catch (e) { /* network error — try the next source */ }
   }
   if (!reached) return null;             // offline: do not remember a failure
+  if (out && out.vi === undefined) {     // nghĩa tiếng Việt của định nghĩa hàng đầu
+    out.vi = await translateVi((out.defs[0] || {}).def || out.word);
+  }
   c[k] = out;                            // remember misses too, so we ask once
   try { store('crh-endict', c); } catch (e) {}
   return out;
@@ -2030,23 +2135,30 @@ function wordClicked(w, line, cell) {
   const vocab = read('crh-vocab', {});
   const saved = vocab[w];
   const pop = $('popup');
+  const enInfo = !isZh() ? wordInfo(w, line) : null;
+  const headW = enInfo ? enInfo.head : w;
+  const headPy = enInfo ? (enInfo.py || '') : pyStr;
   pop.innerHTML =
     '<button class="close" id="ppClose">✕</button>' +
-    '<div><span class="w">' + escH(w) + '</span><span class="p">' + escH(pyStr) + '</span> ' +
+    '<div><span class="w">' + escH(headW) + '</span>' +
+      (headPy ? '<span class="p">' + escH(headPy) + '</span>' : '') +
+      (enInfo && enInfo.pos ? ' <span class="pos">(' + escH(enInfo.pos) + ')</span>' : '') + ' ' +
     (function () {
       const lb = (DICT_META[w] && DICT_META[w].label) || levelLabel(d ? d[2] : 0);
       return lb ? '<span class="lv lv' + (d ? d[2] : 0) + '">' + escH(lb) + '</span>' : '';
     })() + '</div>' +
+    (enInfo && enInfo.base && enInfo.base !== w ? '<div class="mutetext">Dạng của: <b>' + escH(w) + '</b></div>' : '') +
     (DICT_META[w] && DICT_META[w].trad && DICT_META[w].trad !== w
        ? '<div class="mutetext">繁體 ' + escH(DICT_META[w].trad) + '</div>' : '') +
-    (DICT_META[w] && DICT_META[w].pos ? '<div class="mutetext">' + escH(DICT_META[w].pos) + '</div>' : '') +
+    (isZh() && DICT_META[w] && DICT_META[w].pos ? '<div class="mutetext">' + escH(DICT_META[w].pos) + '</div>' : '') +
     '<div class="m">' + (function () {
-      if (d) return escH(d[1]);
-      const info = wordInfo(w, line);
-      if (info.en) return escH(info.en);
-      return '<span class="mutetext">' + (isZh()
-        ? 'Không có trong từ điển HSK — bạn vẫn có thể lưu và tự ghi nghĩa.'
-        : 'Chưa tra được nghĩa — bạn vẫn có thể lưu và tự ghi nghĩa.') + '</span>';
+      if (isZh()) return d ? escH(d[1]) : (wordInfo(w, line).en ? escH(wordInfo(w, line).en)
+        : '<span class="mutetext">Không có trong từ điển HSK — bạn vẫn có thể lưu và tự ghi nghĩa.</span>');
+      if (enInfo.en || enInfo.vi) {
+        return (enInfo.en ? '<div class="def-en"><b>English</b> ' + escH(enInfo.en) + '</div>' : '') +
+               (enInfo.vi ? '<div class="def-vi"><b>Tiếng Việt</b> ' + escH(enInfo.vi) + '</div>' : '');
+      }
+      return '<span class="mutetext">Chưa tra được nghĩa — bạn vẫn có thể lưu và tự ghi nghĩa.</span>';
     })() + '</div>' +
     (ex && ex !== w ? '<div class="ex">' + escH(ex) + '</div>' : '') +
     (saved && saved.note ? '<div class="mutetext">📝 ' + escH(saved.note) + '</div>' : '') +
@@ -2743,7 +2855,8 @@ $('btnImport').addEventListener('change', e => {
 
 /* ================= preferences ================= */
 let prefs = { pyPos: 'above', tr: true, colors: true, tips: true, audioClick: true, panel: false,
-  hz: 26, py: 14, trS: 15, rate: 0.9, net: true, voice: '', azKey: '', azRegion: 'southeastasia' };
+  hz: 26, py: 14, trS: 15, rate: 0.9, net: true, voice: '', azKey: '', azRegion: 'southeastasia',
+  rdfont: 'atkinson', rtheme: '' };
 function applyPrefs() {
   document.documentElement.style.setProperty('--hz', prefs.hz + 'px');
   document.documentElement.style.setProperty('--py', prefs.py + 'px');
@@ -2766,8 +2879,28 @@ function applyPrefs() {
   if (typeof applyReadTheme === 'function') applyReadTheme();
 }
 function savePrefs() { store('crh-prefs', prefs); }
+
+/* ---- phông đọc tiếng Anh + nền đọc (Phase 67) ---- */
+const RD_FONTS = {
+  atkinson: '"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif',
+  opensans: '"Open Sans",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif',
+  arial: 'Arial,Helvetica,"Helvetica Neue",sans-serif',
+  verdana: 'Verdana,Geneva,Tahoma,sans-serif',
+  georgia: 'Georgia,"Times New Roman",serif',
+  merriweather: '"Merriweather",Georgia,"Times New Roman",serif'
+};
+const RD_THEMES = ['light', 'cream', 'sepia', 'green', 'blue', 'dark'];
+if ($('rdFont')) $('rdFont').addEventListener('change', () => {
+  prefs.rdfont = $('rdFont').value; applyReadTheme(); savePrefs();
+});
+if ($('rtSwatches')) $('rtSwatches').addEventListener('click', e => {
+  const b = e.target.closest('.rt-sw'); if (!b) return;
+  prefs.rtheme = b.dataset.rt; applyReadTheme(); savePrefs();
+});
 function loadPrefs() {
   prefs = { ...prefs, ...read('crh-prefs', {}) };
+  /* di trú tuỳ chọn nền cũ (prefs.theme: light/sepia/dark, chỉ mobile) sang hệ 6 nền mới */
+  if (!prefs.rtheme && prefs.theme) prefs.rtheme = prefs.theme;
   /* default ON: hide what has already been read */
   $('tgHideRead').checked = read('crh-hideread', true) !== false;
   applyPrefs();
@@ -3048,11 +3181,19 @@ function syncMobileMode() {
 MQ_MOBILE.addEventListener('change', () => { syncMobileMode(); if (currentText) renderReader(); });
 
 /* ---- reading themes / extra preferences -------------------------------- */
-Object.assign(prefs, { theme: prefs.theme || 'light', lh: prefs.lh || 1.9, mode: prefs.mode || 'page' });
+Object.assign(prefs, { lh: prefs.lh || 1.9, mode: prefs.mode || 'page' });
 function applyReadTheme() {
-  document.body.classList.toggle('rt-sepia', prefs.theme === 'sepia');
-  document.body.classList.toggle('rt-dark', prefs.theme === 'dark');
+  let th = prefs.rtheme;
+  if (!RD_THEMES.includes(th)) th = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  document.body.setAttribute('data-rtheme', th);
+  /* giữ tinh chỉnh riêng cho thanh/menu trên mobile: gán về nhóm sáng/ngà/tối gần nhất */
+  document.body.classList.toggle('rt-dark', th === 'dark');
+  document.body.classList.toggle('rt-sepia', th === 'sepia' || th === 'cream');
+  document.documentElement.style.setProperty('--rd-font', RD_FONTS[prefs.rdfont] || RD_FONTS.atkinson);
   document.documentElement.style.setProperty('--lh', prefs.lh);
+  const fs = $('rdFont'); if (fs) fs.value = prefs.rdfont || 'atkinson';
+  document.querySelectorAll('#rtSwatches .rt-sw').forEach(b =>
+    b.classList.toggle('on', b.dataset.rt === th));
 }
 
 /* ---- where the learner had got to ------------------------------------- */
@@ -3241,7 +3382,7 @@ function closeMenu() {
 /* the meaning strip under the header — the fast path, no menu needed */
 function showGloss(w, line) {
   const i = wordInfo(w, line);
-  if (!isZh() && !i.vi && !i.en) enrichEnglish(w, () => { if (SELW && SELW.w === w) showGloss(w, line); });
+  if (!isZh() && !i.en) enrichEnglish(w, () => { if (SELW && SELW.w === w) showGloss(w, line); });
   const meaning = i.vi || i.en;
   $('mGloss').innerHTML =
     '<div class="mg-top"><span class="mg-w">' + escH(i.w) + '</span>' +
@@ -3269,18 +3410,21 @@ function wordInfo(w, line) {
   const lvl = d ? d[2] : 0;
   /* English: your own entry wins; otherwise use whatever the free dictionary
      returned for this word (already on the device by the time we re-render) */
-  let enApi = '', apiPy = '', apiPos = '';
+  let enApi = '', apiPy = '', apiPos = '', enBase = '', enVi = '';
   if (!isZh()) {
     const c = enCached(w);
     if (c) {
       apiPy = c.ph || '';
       apiPos = (c.defs[0] || {}).pos || '';
-      enApi = c.defs.map(x => (x.pos ? '(' + x.pos + ') ' : '') + x.def).join(' · ');
+      enApi = c.defs.slice(0, 2).map(x => x.def).join(' · ');   // định nghĩa sạch, không kèm (pos)
+      enVi = c.vi || '';
+      if (c.word && c.word !== w.toLowerCase()) enBase = c.word; // dạng gốc khi từ bị biến đổi
     }
   }
   return {
-    w, py: py || apiPy,
-    vi: hasVi ? d[1] : '',
+    w, base: enBase, head: enBase || w,
+    py: py || apiPy,
+    vi: hasVi ? d[1] : enVi,
     en: hasVi ? (DICT_EN[w] || enApi) : (DICT_EN[w] || (d ? d[1] : '') || enApi),
     lvl,
     trad: m.trad || '', pos: m.pos || apiPos,
@@ -3294,19 +3438,23 @@ function wordInfo(w, line) {
 function openDictSheet(sel) {
   if (!sel) return;
   const i = wordInfo(sel.w, sel.line);
-  if (!isZh() && !i.vi && !i.en) enrichEnglish(sel.w, () => { if (SELW && SELW.w === sel.w) openDictSheet(sel); });
+  if (!isZh() && !i.en) enrichEnglish(sel.w, () => { if (SELW && SELW.w === sel.w) openDictSheet(sel); });
   const vocab = read('crh-vocab', {});
   const saved = !!vocab[sel.w];
   $('mSheetBody').innerHTML =
-    '<div class="sh-row"><span class="sh-w">' + escH(i.w) + '</span>' +
+    '<div class="sh-row"><span class="sh-w">' + escH(i.head) + (i.pos ? ' <span class="sh-pos">(' + escH(i.pos) + ')</span>' : '') + '</span>' +
       (i.py ? '<span class="sh-py">' + escH(i.py) + '</span>' : '') +
       (i.label ? '<span class="lv lv' + i.lvl + '" style="margin-left:auto">' + escH(i.label) + '</span>' : '') + '</div>' +
+    (i.base && i.base !== i.w ? '<div class="sh-note">Dạng của: <b>' + escH(i.w) + '</b></div>' : '') +
     (i.trad && i.trad !== i.w
        ? '<div class="sh-def"><b>Phồn thể</b><span style="font-family:var(--hz-font);font-size:19px">' +
          escH(i.trad) + '</span></div>' : '') +
-    (i.pos ? '<div class="sh-def"><b>Từ loại</b>' + escH(i.pos) + '</div>' : '') +
-    (i.vi ? '<div class="sh-def"><b>Tiếng Việt</b>' + escH(i.vi) + '</div>' : '') +
-    (i.en ? '<div class="sh-def"><b>English</b>' + escH(i.en) + '</div>' : '') +
+    (!isZh()
+       ? (i.en ? '<div class="sh-def def-en"><b>English</b>' + escH(i.en) + '</div>' : '') +
+         (i.vi ? '<div class="sh-def def-vi"><b>Tiếng Việt</b>' + escH(i.vi) + '</div>' : '')
+       : (i.pos ? '<div class="sh-def"><b>Từ loại</b>' + escH(i.pos) + '</div>' : '') +
+         (i.vi ? '<div class="sh-def def-vi"><b>Tiếng Việt</b>' + escH(i.vi) + '</div>' : '') +
+         (i.en ? '<div class="sh-def def-en"><b>English</b>' + escH(i.en) + '</div>' : '')) +
     (!i.known ? '<div class="sh-def" style="color:var(--muted)">Từ này chưa có trong từ điển HSK — bạn vẫn lưu được và tự ghi nghĩa ở mục 📒 Từ vựng.</div>' : '') +
     (i.ex && i.ex !== i.w ? '<div class="sh-ex">' + escH(i.ex) + '</div>' : '') +
     '<div class="sh-acts">' +
@@ -3346,7 +3494,8 @@ function openSettingsSheet() {
     '<h4>Cỡ chữ Hán</h4>' +
     '<div class="sh-slider">A<input type="range" id="stSize" min="18" max="40" step="1" value="' + prefs.hz + '"><span style="font-size:20px">A</span></div>' +
     '<h4>Giãn dòng</h4>' + seg('stLh', [[1.6, 'Chặt'], [1.9, 'Vừa'], [2.2, 'Rộng']], prefs.lh) +
-    '<h4>Nền đọc</h4>' + seg('stTheme', [['light', 'Sáng'], ['sepia', 'Giấy ngà'], ['dark', 'Tối']], prefs.theme) +
+    '<h4>Nền đọc</h4>' + seg('stTheme', [['light', 'Sáng'], ['cream', 'Kem'], ['sepia', 'Sepia'], ['green', 'Lá'], ['blue', 'Dương'], ['dark', 'Tối']], prefs.rtheme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) +
+    (isZh() ? '' : '<h4>Phông chữ</h4>' + seg('stFont', [['atkinson', 'Atkinson'], ['opensans', 'Open Sans'], ['arial', 'Arial'], ['georgia', 'Georgia'], ['merriweather', 'Merri.']], prefs.rdfont)) +
     '<h4>Cách đọc</h4>' + seg('stMode', [['page', 'Chia phần'], ['scroll', 'Cuộn liền']], prefs.mode) +
     '<h4>Pinyin</h4>' + seg('stPy', [['above', 'Trên chữ'], ['below', 'Dưới chữ'], ['hidden', 'Ẩn']], prefs.pyPos) +
     '<h4>Bản dịch</h4>' + seg('stTr', [[1, 'Hiện'], [0, 'Ẩn']], prefs.tr ? 1 : 0) +
@@ -3360,12 +3509,13 @@ function openSettingsSheet() {
     fn(b.dataset.v);
   });
   pick('stLh', v => { prefs.lh = +v; applyReadTheme(); savePrefs(); });
-  pick('stTheme', v => { prefs.theme = v; applyReadTheme(); savePrefs(); });
+  pick('stTheme', v => { prefs.rtheme = v; applyReadTheme(); savePrefs(); });
+  if ($('stFont')) pick('stFont', v => { prefs.rdfont = v; applyReadTheme(); savePrefs(); });
   pick('stMode', v => { prefs.mode = v; savePrefs(); MPAGE = 0; renderReader(); });
   pick('stPy', v => { prefs.pyPos = v; applyPrefs(); savePrefs(); updateBar(); renderReader(); });
   pick('stTr', v => { prefs.tr = v === '1'; applyPrefs(); savePrefs(); });
   $('stReset').onclick = () => {
-    Object.assign(prefs, { hz: 24, py: 13, trS: 15, lh: 1.9, theme: 'light', mode: 'page', pyPos: 'above', tr: true });
+    Object.assign(prefs, { hz: 24, py: 13, trS: 15, lh: 1.9, rtheme: '', rdfont: 'atkinson', mode: 'page', pyPos: 'above', tr: true });
     applyPrefs(); applyReadTheme(); savePrefs(); renderReader(); openSettingsSheet();
   };
   $('stDone').onclick = closeSheet;
