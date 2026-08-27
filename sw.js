@@ -14,7 +14,7 @@
    nào còn phục vụ bản cũ nữa. Không đổi thì cuộc đua 2,5 giây bên dưới có
    thể trả về bản đã lưu — đúng lỗi đã khiến một đề tải lên bằng bản
    dashboard cũ và chỉ sinh được 1 bài tập ngữ pháp. */
-const CACHE = "learning-ecology-v27";
+const CACHE = "learning-ecology-v28";
 
 // Phase 43: how long a navigation waits for the network before the last good
 // copy is shown instead. On a healthy connection the network always wins, so
@@ -105,6 +105,20 @@ self.addEventListener("fetch", (e) => {
         }).catch(() => hit);
         return hit || net;
       })
+    );
+    return;
+  }
+
+  // Bundled dictionary data (HSK list + CC-CEDICT) is large and immutable — its
+  // contents only change when we ship a new file. Serve it CACHE-FIRST with no
+  // background re-fetch, so the 7 MB CC-CEDICT is downloaded at most once per
+  // service-worker version instead of on every reading session.
+  if (/\/reading\/(zh-hsk\.json|zh-cedict\.txt)$/.test(url.pathname)) {
+    e.respondWith(
+      caches.match(e.request).then((hit) => hit || fetch(e.request).then((res) => {
+        if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
+        return res;
+      }))
     );
     return;
   }

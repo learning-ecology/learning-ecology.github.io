@@ -969,7 +969,9 @@ const todayKey = (d) => { const x = d ? new Date(d) : new Date(); return x.getFu
 /* per-account key namespacing: student data never leaks between accounts on a shared device;
    the HSK dictionary cache stays shared (same for everyone) */
 let uid = null, isStaff = false;
-const K = k => k === 'crh-dict-v1' ? k : 'crh-' + (uid ? uid.slice(0, 8) : 'anon') + '-' + k;
+/* dữ liệu từ điển (HSK, nghĩa Việt tiếng Trung) dùng chung mọi tài khoản trên máy */
+const DICT_KEYS = { 'crh-dict-v1': 1, 'crh-dict-v2': 1, 'crh-zhvi': 1 };
+const K = k => DICT_KEYS[k] ? k : 'crh-' + (uid ? uid.slice(0, 8) : 'anon') + '-' + k;
 function store(key, val) { try { localStorage.setItem(K(key), JSON.stringify(val)); } catch (e) { toast('⚠️ Bộ nhớ đầy — hãy tải sao lưu rồi xoá bớt'); } }
 function read(key, fb) { try { return JSON.parse(localStorage.getItem(K(key))) ?? fb; } catch (e) { return fb; } }
 let toastTimer = null;
@@ -1593,6 +1595,14 @@ async function enLookup(w) {
 
 /* ================= HSK dictionary ================= */
 const DICT_URL = i => 'https://cdn.jsdelivr.net/gh/clem109/hsk-vocabulary@master/hsk-vocab-json/hsk-level-' + i + '.json';
+/* NGUỒN CHÍNH: gói HSK 1–5 kèm sẵn trong repo (trích từ New-HSK PDF + đối chiếu
+   CC-CEDICT) — mỗi mục [pinyin có dấu, nghĩa Anh, cấp, phồn thể, từ loại]. Bảo đảm
+   MỌI từ HSK 1–5 đều có pinyin + nghĩa, tra được ngoại tuyến, tức thì. */
+const HSK_URL = 'reading/zh-hsk.json';
+/* NGUỒN PHỤ (đuôi dài, ngoài HSK): CC-CEDICT rút gọn "giản thể\tpinyin\tnghĩa Anh",
+   ~120k từ; CHỈ tải khi người dùng bấm một từ không có trong HSK, rồi giữ trong bộ
+   nhớ phiên làm việc (service worker cache lại tệp để lần sau nhanh). */
+const CEDICT_URL = 'reading/zh-cedict.txt';
 let DICT = {};           // hanzi -> [pinyin, meaning, level]
 let MAXW = 1;
 let DICT_JOB = null;     // set by boot(); anything that segments text awaits it
@@ -1602,6 +1612,13 @@ let DICT_JOB = null;     // set by boot(); anything that segments text awaits it
 let DICT_EN = {}, DICT_VI = new Set();
 /* traditional form, part of speech, HSK band label — per word, from reading_dict */
 let DICT_META = {};
+/* phồn thể + từ loại lấy sẵn từ gói HSK (giữ riêng để rebuildDictIndex — vốn chỉ
+   dựng lại metadata của từ do giáo viên thêm — không xoá mất) */
+let HSK_TRAD = {}, HSK_POS = {};
+function applyHskMeta() {
+  for (const w in HSK_TRAD) { const m = DICT_META[w] || (DICT_META[w] = {}); if (!m.trad) m.trad = HSK_TRAD[w]; }
+  for (const w in HSK_POS)  { const m = DICT_META[w] || (DICT_META[w] = {}); if (!m.pos)  m.pos  = HSK_POS[w]; }
+}
 function rebuildDictIndex() {
   for (const e of DICT_CUSTOM) {
     if (DICT[e.word] && DICT_EN[e.word] === undefined) DICT_EN[e.word] = DICT[e.word][1];
@@ -1616,23 +1633,41 @@ function rebuildDictIndex() {
 }
 async function loadDict() {
   if (!isZh()) return true;          // the HSK word list is not used for English
-  const cached = read('crh-dict-v1', null);
+  const cached = read('crh-dict-v2', null);
   if (cached && cached.words) {
-    DICT = cached.words; rebuildDictIndex();
+    DICT = cached.words;
+    HSK_TRAD = cached.trad || {}; HSK_POS = cached.pos || {};
+    for (const w in DICT) if (DICT[w][1] && DICT_EN[w] === undefined) DICT_EN[w] = DICT[w][1];
+    applyHskMeta(); rebuildDictIndex();
     $('dictStatus').textContent = '📗 Từ điển HSK: ' + Object.keys(DICT).length + ' từ (đã lưu trên máy)';
     return true;
   }
   $('dictStatus').textContent = '⏳ Đang tải từ điển HSK (chỉ lần đầu)…';
   try {
-    const all = await Promise.all([1,2,3,4,5,6].map(i => fetch(DICT_URL(i)).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })));
-    DICT = {};
-    all.forEach((list, idx) => {
-      for (const e of list) {
-        if (!DICT[e.hanzi]) DICT[e.hanzi] = [String(e.pinyin || '').trim(), (e.translations || []).slice(0, 3).join('; '), idx + 1];
-      }
-    });
-    store('crh-dict-v1', { v: 1, words: DICT });
-    rebuildDictIndex();
+    /* NGUỒN CHÍNH — gói HSK 1–5 kèm sẵn: pinyin + nghĩa Anh + phồn thể + từ loại */
+    const hsk = await fetch(HSK_URL).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+    DICT = {}; HSK_TRAD = {}; HSK_POS = {};
+    for (const w in hsk) {
+      const a = hsk[w];                              // [py, en, lvl, trad, pos]
+      DICT[w] = [a[0] || '', a[1] || '', +a[2] || 0, ''];
+      if (a[1]) DICT_EN[w] = a[1];
+      if (a[3]) HSK_TRAD[w] = a[3];
+      if (a[4]) HSK_POS[w] = a[4];
+    }
+    /* NGUỒN PHỤ — danh sách HSK cũ trên CDN: chỉ THÊM từ chưa có, không đè bản curated */
+    try {
+      const all = await Promise.all([1,2,3,4,5,6].map(i =>
+        fetchT(DICT_URL(i), 6000).then(r => r.ok ? r.json() : []).catch(() => [])));
+      all.forEach((list, idx) => { for (const e of list) {
+        if (!DICT[e.hanzi]) {
+          const en = (e.translations || []).slice(0, 3).join('; ');
+          DICT[e.hanzi] = [String(e.pinyin || '').trim(), en, idx + 1, ''];
+          if (en) DICT_EN[e.hanzi] = en;
+        }
+      }});
+    } catch (e) {}
+    store('crh-dict-v2', { v: 2, words: DICT, trad: HSK_TRAD, pos: HSK_POS });
+    applyHskMeta(); rebuildDictIndex();
     $('dictStatus').textContent = '📗 Từ điển HSK: ' + Object.keys(DICT).length + ' từ — sẵn sàng';
     return true;
   } catch (e) {
@@ -1642,6 +1677,70 @@ async function loadDict() {
   }
 }
 function lookup(w) { return DICT[w] || null; }
+
+/* ---- CC-CEDICT (đuôi dài): tải MỘT LẦN khi cần, giữ trong bộ nhớ phiên ---- */
+let CEDICT_MAP = null, CEDICT_JOB = null;
+function loadCedict() {
+  if (CEDICT_JOB) return CEDICT_JOB;
+  CEDICT_JOB = fetch(CEDICT_URL)
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.text(); })
+    .then(txt => {
+      const map = Object.create(null);
+      for (const line of txt.split('\n')) {
+        const i = line.indexOf('\t');
+        if (i < 0) continue;
+        const j = line.indexOf('\t', i + 1);
+        if (j < 0) continue;
+        const w = line.slice(0, i);
+        if (!map[w]) map[w] = [line.slice(i + 1, j), line.slice(j + 1)];  // [pinyin, english]
+      }
+      CEDICT_MAP = map; return map;
+    })
+    .catch(() => { if (!CEDICT_MAP) CEDICT_MAP = Object.create(null); return null; });
+  return CEDICT_JOB;
+}
+function cedictGet(w) { return (CEDICT_MAP && CEDICT_MAP[w]) || null; }
+
+/* ---- nghĩa tiếng Việt NGẮN cho tiếng Trung: dịch qua MyMemory (zh-CN→vi),
+   rút gọn bằng tidyVi, lưu cache ở máy. VD 学习 → "học tập", 医院 → "bệnh viện". ---- */
+let ZHVI_CACHE = null;
+const zhviCache = () => (ZHVI_CACHE || (ZHVI_CACHE = read('crh-zhvi', {})));
+function zhViCached(w) { const v = zhviCache()[w]; return v === undefined ? null : v; }
+const VI_ZH_API = q => 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(q) + '&langpair=zh-CN|vi';
+async function translateZhVi(w) {
+  const c = zhviCache();
+  if (c[w] !== undefined) return c[w];
+  let vi = '';
+  try {
+    const r = await fetchT(VI_ZH_API(w));
+    if (r.ok) {
+      const j = await r.json();
+      const t = ((j && j.responseData && j.responseData.translatedText) || '').trim();
+      if (t && !/MYMEMORY WARNING|INVALID|QUERY LENGTH LIMIT/i.test(t) && t !== w) vi = tidyVi(t);
+    }
+  } catch (e) {}
+  if (!vi && !navigator.onLine) return '';   // offline: đừng nhớ "rỗng", để còn tra lại
+  c[w] = vi; try { store('crh-zhvi', c); } catch (e) {}
+  return vi;
+}
+/* Bổ sung nghĩa cho từ tiếng Trung khi bấm, CHỐNG bấm trùng. VI (MyMemory) và EN
+   (tải CC-CEDICT nếu HSK không có) chạy độc lập nên nghĩa Việt hiện ngay, nghĩa Anh
+   đuôi dài đến sau khi CC-CEDICT tải xong (chỉ lần đầu). */
+const ZH_PENDING = new Set();
+function isZhLoading(w) { return ZH_PENDING.has('vi:' + w) || ZH_PENDING.has('en:' + w); }
+function enrichZh(w, redraw) {
+  const needVi = !DICT_VI.has(w) && zhViCached(w) === null;
+  const d = lookup(w);
+  const needEn = !(DICT_EN[w] || (d && d[1]) || cedictGet(w)) && CEDICT_MAP === null;
+  if (needVi && !ZH_PENDING.has('vi:' + w)) {
+    ZH_PENDING.add('vi:' + w);
+    translateZhVi(w).finally(() => { ZH_PENDING.delete('vi:' + w); if (redraw) redraw(); });
+  }
+  if (needEn && !ZH_PENDING.has('en:' + w)) {
+    ZH_PENDING.add('en:' + w);
+    loadCedict().finally(() => { ZH_PENDING.delete('en:' + w); if (redraw) redraw(); });
+  }
+}
 
 /* greedy longest-match segmentation over the HSK dictionary (Chinese only;
    English is split on word boundaries instead) */
@@ -2168,6 +2267,8 @@ function wordClicked(w, line, cell) {
   if (prefs.audioClick) speak(w);
   if (!isZh() && !lookup(w))
     enrichEnglish(w, () => { if ($('popup').style.display === 'block') wordClicked(w, line, cell); });
+  if (isZh())
+    enrichZh(w, () => { if ($('popup').style.display === 'block') wordClicked(w, line, cell); });
   const d = lookup(w);
   const items = charAnalyse(w);
   const pyStr = d ? d[0] : (items ? items.map(x => x.mark).join(' ') : '');
@@ -2177,7 +2278,7 @@ function wordClicked(w, line, cell) {
   const pop = $('popup');
   const enInfo = !isZh() ? wordInfo(w, line) : null;
   const headW = enInfo ? enInfo.head : w;
-  const headPy = enInfo ? (enInfo.py || '') : pyStr;
+  const headPy = enInfo ? (enInfo.py || '') : (isZh() ? (wordInfo(w, line).py || pyStr) : pyStr);
   pop.innerHTML =
     '<button class="close" id="ppClose">✕</button>' +
     '<div><span class="w">' + escH(headW) + '</span>' +
@@ -2192,8 +2293,16 @@ function wordClicked(w, line, cell) {
        ? '<div class="mutetext">繁體 ' + escH(DICT_META[w].trad) + '</div>' : '') +
     (isZh() && DICT_META[w] && DICT_META[w].pos ? '<div class="mutetext">' + escH(DICT_META[w].pos) + '</div>' : '') +
     '<div class="m">' + (function () {
-      if (isZh()) return d ? escH(d[1]) : (wordInfo(w, line).en ? escH(wordInfo(w, line).en)
-        : '<span class="mutetext">Không có trong từ điển HSK — bạn vẫn có thể lưu và tự ghi nghĩa.</span>');
+      if (isZh()) {
+        const zi = wordInfo(w, line);
+        if (zi.vi || zi.en) {
+          return (zi.vi ? '<div class="def-vi"><b>Tiếng Việt</b> ' + escH(zi.vi) + '</div>' : '') +
+                 (zi.en ? '<div class="def-en"><b>English</b> ' + escH(zi.en) + '</div>' : '');
+        }
+        return isZhLoading(w)
+          ? '<div class="dict-loading">⏳ Đang tra nghĩa…</div>'
+          : '<span class="mutetext">Không có trong từ điển HSK — bạn vẫn có thể lưu và tự ghi nghĩa.</span>';
+      }
       if (enInfo.en || enInfo.vi) {
         return (enInfo.en ? '<div class="def-en"><b>English</b> ' + escH(enInfo.en) + '</div>' : '') +
                (enInfo.vi ? '<div class="def-vi"><b>Tiếng Việt</b> ' + escH(enInfo.vi) + '</div>' : '');
@@ -2867,7 +2976,7 @@ $('cdList').addEventListener('click', async e => {
     if (error) throw error;
     await loadCloudDict();
     if (entry) delete DICT[entry.word];
-    const cached = read('crh-dict-v1', null);          // restore HSK entry if it was an override
+    const cached = read('crh-dict-v2', null);          // restore HSK entry if it was an override
     if (entry && cached && cached.words && cached.words[entry.word]) DICT[entry.word] = cached.words[entry.word];
     rebuildDictIndex(); renderCustomDict();
   } catch (e2) { toast('✗ Không xoá được: ' + (e2.message || e2)); }
@@ -3428,6 +3537,7 @@ function closeMenu() {
 function showGloss(w, line) {
   const i = wordInfo(w, line);
   if (!isZh()) enrichEnglish(w, () => { if (SELW && SELW.w === w) showGloss(w, line); });
+  else enrichZh(w, () => { if (SELW && SELW.w === w) showGloss(w, line); });
   const meaning = i.vi || i.en;
   $('mGloss').innerHTML =
     '<div class="mg-top"><span class="mg-w">' + escH(i.w) + '</span>' +
@@ -3436,7 +3546,7 @@ function showGloss(w, line) {
     '<div class="mg-m">' +
       (i.vi ? escH(i.vi) : '') +
       (i.vi && i.en ? ' <span class="mg-en">· ' + escH(i.en) + '</span>' : (i.en ? '<span class="mg-en">' + escH(i.en) + '</span>' : '')) +
-      (!meaning ? (isEnLoading(w)
+      (!meaning ? ((isZh() ? isZhLoading(w) : isEnLoading(w))
                     ? '<span class="mg-en dict-loading">⏳ Đang tra nghĩa…</span>'
                     : '<span class="mg-en">Chưa có nghĩa cho từ này — bấm 📘 Từ điển để xem chi tiết và tự ghi nghĩa.</span>') : '') +
     '</div>';
@@ -3450,9 +3560,11 @@ $('mmSave').addEventListener('click', () => { toggleSave(SELW); closeMenu(); });
 /* ---- dictionary bottom sheet ------------------------------------------ */
 function wordInfo(w, line) {
   const d = lookup(w);
+  const ce = isZh() ? cedictGet(w) : null;      // CC-CEDICT (đuôi dài) nếu đã tải
   const items = charAnalyse(w);
-  const py = d && d[0] ? d[0] : (items ? items.map(x => x.mark).join(' ') : '');
+  const py = (d && d[0]) ? d[0] : ((ce && ce[0]) ? ce[0] : (items ? items.map(x => x.mark).join(' ') : ''));
   const hasVi = DICT_VI.has(w);
+  const zhVi = isZh() ? (zhViCached(w) || '') : '';
   const m = DICT_META[w] || {};
   const lvl = d ? d[2] : 0;
   /* English: your own entry wins; otherwise use whatever the free dictionary
@@ -3471,21 +3583,23 @@ function wordInfo(w, line) {
   return {
     w, base: enBase, head: enBase || w,
     py: py || apiPy,
-    vi: hasVi ? d[1] : enVi,
-    en: hasVi ? (DICT_EN[w] || enApi) : (DICT_EN[w] || (d ? d[1] : '') || enApi),
+    vi: hasVi ? d[1] : (isZh() ? zhVi : enVi),
+    en: hasVi ? (DICT_EN[w] || enApi)
+              : (DICT_EN[w] || (d ? d[1] : '') || (ce ? ce[1] : '') || enApi),
     lvl,
     trad: m.trad || '', pos: m.pos || apiPos,
     /* HSK 3.0 merges levels 7, 8 and 9 into one advanced band — say so
        rather than claiming a precise level the source never gave */
     label: m.label || levelLabel(lvl),
     ex: (d && d[3]) ? d[3] : sentenceOf(line || '', w),
-    known: !!d
+    known: !!d || !!ce
   };
 }
 function openDictSheet(sel) {
   if (!sel) return;
   const i = wordInfo(sel.w, sel.line);
   if (!isZh()) enrichEnglish(sel.w, () => { if (SELW && SELW.w === sel.w) openDictSheet(sel); });
+  else enrichZh(sel.w, () => { if (SELW && SELW.w === sel.w) openDictSheet(sel); });
   const vocab = read('crh-vocab', {});
   const saved = !!vocab[sel.w];
   $('mSheetBody').innerHTML =
@@ -3502,8 +3616,9 @@ function openDictSheet(sel) {
          (i.vi ? '<div class="sh-def def-vi"><b>Tiếng Việt</b>' + escH(i.vi) + '</div>' : '')
        : (i.pos ? '<div class="sh-def"><b>Từ loại</b>' + escH(i.pos) + '</div>' : '') +
          (i.vi ? '<div class="sh-def def-vi"><b>Tiếng Việt</b>' + escH(i.vi) + '</div>' : '') +
-         (i.en ? '<div class="sh-def def-en"><b>English</b>' + escH(i.en) + '</div>' : '')) +
-    (!i.known ? '<div class="sh-def" style="color:var(--muted)">Từ này chưa có trong từ điển HSK — bạn vẫn lưu được và tự ghi nghĩa ở mục 📒 Từ vựng.</div>' : '') +
+         (i.en ? '<div class="sh-def def-en"><b>English</b>' + escH(i.en) + '</div>' : '') +
+         (!i.vi && !i.en && isZhLoading(i.w) ? '<div class="sh-def dict-loading">⏳ Đang tra nghĩa…</div>' : '')) +
+    (!i.known && !isZhLoading(i.w) ? '<div class="sh-def" style="color:var(--muted)">Từ này chưa có trong từ điển HSK — bạn vẫn lưu được và tự ghi nghĩa ở mục 📒 Từ vựng.</div>' : '') +
     (i.ex && i.ex !== i.w ? '<div class="sh-ex">' + escH(i.ex) + '</div>' : '') +
     '<div class="sh-acts">' +
       '<button class="small" id="shPlay">🔊 Nghe</button>' +
