@@ -1489,8 +1489,27 @@ function pickDefs(meanings, phonetic) {
   }
   return { ph: phonetic || '', defs, formOf };
 }
+/* fetch có HẠN GIỜ: từ điển miễn phí (nhất là dictionaryapi.dev) đôi khi treo
+   cả chục giây; cắt ở ~3.5s để không bao giờ để người dùng chờ lâu. */
+function fetchT(url, ms) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms || 3500);
+  return fetch(url, { signal: ctl.signal }).finally(() => clearTimeout(t));
+}
+/* Trả về kết quả ĐẦU TIÊN thoả điều kiện `ok` trong nhiều promise chạy song
+   song (không chờ những promise chậm hơn); hết mà không cái nào đạt → null. */
+function firstGood(proms, ok) {
+  return new Promise(resolve => {
+    let left = proms.length, done = false;
+    if (!left) return resolve(null);
+    proms.forEach(p => Promise.resolve(p).then(v => {
+      if (!done && ok(v)) { done = true; resolve(v); }
+      else if (!--left && !done) resolve(null);
+    }, () => { if (!--left && !done) resolve(null); }));
+  });
+}
 async function apiEntry(k) {
-  const r = await fetch(EN_API(k)); if (!r.ok) return null;
+  const r = await fetchT(EN_API(k)); if (!r.ok) return null;
   const j = await r.json(); return Array.isArray(j) ? j[0] : null;
 }
 function apiPhonetic(e) {
@@ -1509,7 +1528,7 @@ async function fromDictApi(k) {
   return { word: base, inflected: base !== k ? k : '', ph, defs: picked.defs };
 }
 async function wiktDefs(k) {
-  const r = await fetch(EN_WIKI(k)); if (!r.ok) return null;
+  const r = await fetchT(EN_WIKI(k)); if (!r.ok) return null;
   const j = await r.json();
   return pickDefs(((j && j.en) || []).map(p => ({ partOfSpeech: p.partOfSpeech, definitions: p.definitions })), '');
 }
@@ -1537,7 +1556,7 @@ function tidyVi(t) {
 async function translateVi(text) {
   const q = String(text || '').trim(); if (!q) return '';
   try {
-    const r = await fetch(VI_API(q.slice(0, 120))); if (!r.ok) return '';
+    const r = await fetchT(VI_API(q.slice(0, 120))); if (!r.ok) return '';
     const j = await r.json();
     const t = ((j && j.responseData && j.responseData.translatedText) || '').trim();
     if (!t || /MYMEMORY WARNING|INVALID|QUERY LENGTH LIMIT/i.test(t)) return '';
@@ -1545,30 +1564,31 @@ async function translateVi(text) {
     return tidyVi(t);
   } catch (e) { return ''; }
 }
-/* Bước 1 (nhanh): chỉ tra định nghĩa tiếng Anh rồi lưu cache ngay, KHÔNG chờ
-   dịch — để nghĩa tiếng Anh hiện gần như tức thì. */
-async function enLookupEn(w) {
+/* Tra MỘT LẦN, SONG SONG: nghĩa tiếng Anh (dictionaryapi.dev và Wiktionary chạy
+   đua — lấy nguồn nào có định nghĩa trước) và nghĩa tiếng Việt ngắn (MyMemory)
+   cùng lúc, nên cả hai hiện ra trong 1–2s thay vì cộng dồn tuần tự. Kết quả lưu
+   cache ở máy → lần sau bấm lại là hiện tức thì. */
+async function enLookup(w) {
   const k = w.toLowerCase();
   const c = enCache();
   if (c[k] !== undefined) return c[k];
-  let out = null, reached = false;
-  for (const src of [fromDictApi, fromWiktionary]) {
-    try { out = await src(k); reached = true; if (out) break; }
-    catch (e) { /* network error — try the next source */ }
-  }
-  if (!reached) return undefined;        // offline: không ghi nhớ, cho phép thử lại
-  c[k] = out;                            // remember misses too, so we ask once
+  let en, vi;
+  try {
+    [en, vi] = await Promise.all([
+      firstGood([fromDictApi(k).catch(() => null), fromWiktionary(k).catch(() => null)],
+                v => v && v.defs && v.defs.length),
+      translateVi(w).catch(() => '')       // dịch chính từ đang bấm → nghĩa hợp ngữ cảnh
+    ]);
+  } catch (e) { en = null; vi = ''; }
+  let out = null;
+  if (en) { en.vi = vi || ''; out = en; }
+  else if (vi) out = { word: k, inflected: '', ph: '', defs: [], vi };  // ít nhất còn nghĩa Việt
+  /* cả hai đều trượt khi đang offline thì ĐỪNG ghi nhớ là "không có" — để lần
+     sau online còn tra lại; còn nếu online mà đúng là từ lạ thì nhớ để khỏi hỏi lại */
+  if (out === null && !navigator.onLine) return null;
+  c[k] = out;
   try { store('crh-endict', c); } catch (e) {}
   return out;
-}
-/* Bước 2 (nền): bổ sung nghĩa tiếng Việt ngắn cho một mục đã có trong cache. */
-async function enLookupVi(w) {
-  const k = w.toLowerCase();
-  const e = enCache()[k];
-  if (!e || e.vi !== undefined) return;  // chưa có mục, hoặc đã có nghĩa Việt rồi
-  const vi = await translateVi(e.word || k);   // dịch TỪ GỐC → nghĩa ngắn gọn
-  const c = enCache();
-  if (c[k]) { c[k].vi = vi; try { store('crh-endict', c); } catch (e2) {} }
 }
 
 /* ================= HSK dictionary ================= */
@@ -2176,9 +2196,7 @@ function wordClicked(w, line, cell) {
         : '<span class="mutetext">Không có trong từ điển HSK — bạn vẫn có thể lưu và tự ghi nghĩa.</span>');
       if (enInfo.en || enInfo.vi) {
         return (enInfo.en ? '<div class="def-en"><b>English</b> ' + escH(enInfo.en) + '</div>' : '') +
-               (enInfo.vi ? '<div class="def-vi"><b>Tiếng Việt</b> ' + escH(enInfo.vi) + '</div>'
-                          : (EN_PENDING.has('vi:' + w.toLowerCase())
-                               ? '<div class="def-vi dict-loading"><b>Tiếng Việt</b> đang dịch…</div>' : ''));
+               (enInfo.vi ? '<div class="def-vi"><b>Tiếng Việt</b> ' + escH(enInfo.vi) + '</div>' : '');
       }
       return isEnLoading(w)
         ? '<div class="dict-loading">⏳ Đang tra nghĩa…</div>'
@@ -2214,30 +2232,17 @@ function wordClicked(w, line, cell) {
   };
 }
 function hidePopup() { $('popup').style.display = 'none'; }
-/* Tra nghĩa tiếng Anh theo 2 bước để hiện nhanh, và CHỐNG bấm trùng lặp:
-   - EN_PENDING giữ những từ đang tra (đang tra nghĩa Anh, khoá 'k'; đang dịch
-     Việt, khoá 'vi:'+k) nên bấm lại cùng một từ không tạo yêu cầu mới.
-   - Bước 1 tra tiếng Anh (một lượt mạng) → lưu cache → vẽ lại ngay.
-   - Bước 2 dịch tiếng Việt ở nền → vẽ lại lần nữa khi có. */
+/* Tra nghĩa MỘT LẦN (Anh + Việt song song) và CHỐNG bấm trùng lặp: EN_PENDING
+   giữ những từ đang tra, nên bấm lại cùng một từ không tạo yêu cầu mới; từ đã
+   có trong cache thì bỏ qua hẳn (hiện tức thì). */
 const EN_PENDING = new Set();
 function isEnLoading(w) { return EN_PENDING.has(String(w || '').toLowerCase()); }
-function fetchViThen(w, redraw) {
-  const k = w.toLowerCase();
-  const e = enCache()[k];
-  if (!e || e.vi !== undefined || EN_PENDING.has('vi:' + k)) return;
-  EN_PENDING.add('vi:' + k);
-  enLookupVi(w).finally(() => { EN_PENDING.delete('vi:' + k); if (redraw) redraw(); });
-}
 function enrichEnglish(w, redraw) {
   const k = String(w || '').toLowerCase();
-  if (enCache()[k] !== undefined) { fetchViThen(w, redraw); return; }  // Anh đã có → chỉ cần Việt
-  if (EN_PENDING.has(k)) return;                                       // đang tra rồi → bỏ qua
+  if (enCache()[k] !== undefined) return;   // đã có (kể cả "không có") → không tra lại
+  if (EN_PENDING.has(k)) return;            // đang tra rồi → bỏ qua bấm trùng
   EN_PENDING.add(k);
-  enLookupEn(w).then(out => {
-    EN_PENDING.delete(k);
-    if (redraw) redraw();               // nghĩa tiếng Anh (hoặc "không có") đã sẵn sàng
-    if (out) fetchViThen(w, redraw);    // rồi mới dịch tiếng Việt ở nền
-  }).catch(() => { EN_PENDING.delete(k); if (redraw) redraw(); });
+  enLookup(w).finally(() => { EN_PENDING.delete(k); if (redraw) redraw(); });
 }
 document.addEventListener('click', e => { if (!e.target.closest('#popup') && !e.target.closest('.tok')) hidePopup(); });
 
@@ -3494,9 +3499,7 @@ function openDictSheet(sel) {
     (!isZh()
        ? (i.en ? '<div class="sh-def def-en"><b>English</b>' + escH(i.en) + '</div>'
                : (isEnLoading(i.w) ? '<div class="sh-def dict-loading">⏳ Đang tra nghĩa…</div>' : '')) +
-         (i.vi ? '<div class="sh-def def-vi"><b>Tiếng Việt</b>' + escH(i.vi) + '</div>'
-               : (i.en && EN_PENDING.has('vi:' + i.w.toLowerCase())
-                    ? '<div class="sh-def def-vi dict-loading"><b>Tiếng Việt</b> đang dịch…</div>' : ''))
+         (i.vi ? '<div class="sh-def def-vi"><b>Tiếng Việt</b>' + escH(i.vi) + '</div>' : '')
        : (i.pos ? '<div class="sh-def"><b>Từ loại</b>' + escH(i.pos) + '</div>' : '') +
          (i.vi ? '<div class="sh-def def-vi"><b>Tiếng Việt</b>' + escH(i.vi) + '</div>' : '') +
          (i.en ? '<div class="sh-def def-en"><b>English</b>' + escH(i.en) + '</div>' : '')) +
