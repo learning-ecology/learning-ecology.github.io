@@ -3398,6 +3398,13 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
                 <option value="draft">Drafts</option>
               </select></div>
           </div>
+          <div class="form-row" id="rt-bulk" style="align-items:center; gap:0.55rem; margin:-0.2rem 0 0.4rem; flex-wrap:wrap; background:var(--bg2, rgba(0,0,0,0.02)); border:1px solid var(--line); border-radius:10px; padding:0.55rem 0.7rem;">
+            <span class="kind" style="font-weight:600; flex:none;">Bulk access:</span>
+            <span class="kind" id="rt-bulk-desc" style="flex:1 1 240px; min-width:180px;"></span>
+            <button class="ghost" id="rt-bulk-free" style="flex:none;">Set all to Free</button>
+            <button class="ghost" id="rt-bulk-prem" style="flex:none;">Set all to 👑 Premium</button>
+          </div>
+          <p class="kind" style="margin:0 0 0.7rem; font-size:0.78rem;">Bulk changes every text matching the Level / Type / Search filters above (the whole group, not only the rows shown) — done in the database, so it works for hundreds of texts. Great for making a level Free for a public-preview campaign, then switching it back to Premium. The per-text Free/👑 dropdown below still works for individual changes.</p>
           <div id="rt-list"></div>
         </div>
 
@@ -5328,6 +5335,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             <div class="rt-editrow" data-id="${t.id}" style="display:none; padding:0.7rem 0 1rem; border-bottom:1px solid var(--line);"></div>`).join("")
             || `<p class="empty">${rtexts.length ? "No texts match these filters." : "No reading texts yet — add one above."}</p>`;
           wireRt();
+          updateBulk();
         }
 
         // ---- bulk import of reading texts ----
@@ -5547,6 +5555,66 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         rtfQ.addEventListener("input", debounce(() => { rtf.q = rtfQ.value; saveRtf(); renderRt(); }, 180));
         rtfL.addEventListener("change", () => { rtf.lvl = Number(rtfL.value) || 0; saveRtf(); renderRt(); });
         rtfT.addEventListener("change", () => { rtf.type = rtfT.value; saveRtf(); renderRt(); });
+
+        // ---- bulk Free/Premium over the whole filtered group (DB-side) ----
+        /* Describes exactly which group the current Level/Type/Search filters
+           select, so the owner sees what a bulk action will hit before clicking. */
+        function bulkScope() {
+          const parts = [rlang === "en" ? "English" : "Chinese"];
+          parts.push(rtf.lvl ? lvlName(Number(rtf.lvl)) : "all levels");
+          parts.push({ all: "all types", free: "Free", premium: "👑 Premium",
+            assigned: "Assigned only", draft: "Drafts" }[rtf.type] || "all types");
+          if (rtf.q.trim()) parts.push('“' + rtf.q.trim() + '”');
+          return parts.join(" · ");
+        }
+        function updateBulk() {
+          const el = document.getElementById("rt-bulk-desc");
+          if (!el || rtRes.error) return;
+          const n = rtView().length;
+          el.textContent = n
+            ? `${n} text${n > 1 ? "s" : ""} match the current filters (${bulkScope()})`
+            : "No texts match the current filters.";
+        }
+        async function bulkSetTier(target) {
+          if (rtRes.error) return;
+          const view = rtView();
+          if (!view.length) { if (window.UI) UI.toast("No texts match the current filters.", "err"); return; }
+          const targetLbl = target === "premium" ? "👑 Premium" : "Free";
+          const fromLbl = target === "premium" ? "Free" : "👑 Premium";
+          // only rows whose tier actually differs from the target need writing
+          const affected = view.filter(t => (t.tier === "premium" ? "premium" : "free") !== target);
+          if (!affected.length) {
+            if (window.UI) UI.toast(`All ${view.length} matching text${view.length > 1 ? "s are" : " is"} already ${targetLbl}.`);
+            return;
+          }
+          const n = affected.length, s = n > 1 ? "s" : "";
+          const ok = window.UI ? await UI.confirmDialog({
+            title: `Set ${n} text${s} to ${targetLbl}?`,
+            body: `You are about to change <b>${n}</b> reading text${s} (${esc(bulkScope())}) from <b>${fromLbl}</b> to <b>${targetLbl}</b>.<br>Texts already ${targetLbl} are left unchanged. Continue?`,
+            okText: `Change ${n} to ${targetLbl}`
+          }) : confirm(`Change ${n} reading text${s} from ${fromLbl} to ${targetLbl}? Continue?`);
+          if (!ok) return;
+          const ids = affected.map(t => t.id);
+          const bFree = document.getElementById("rt-bulk-free");
+          const bPrem = document.getElementById("rt-bulk-prem");
+          bFree.disabled = bPrem.disabled = true;
+          let done = 0; let firstErr = null;
+          /* Update in the database in chunks — one statement per chunk covers many
+             rows at once, so this scales to hundreds/thousands without a per-row loop. */
+          for (let i = 0; i < ids.length; i += 200) {
+            const chunk = ids.slice(i, i + 200);
+            const { error } = await sb.from("reading_texts").update({ tier: target }).in("id", chunk);
+            if (error) { firstErr = firstErr || error; }
+            else { done += chunk.length; chunk.forEach(id => { const t = rtexts.find(x => x.id === id); if (t) t.tier = target; }); }
+          }
+          bFree.disabled = bPrem.disabled = false;
+          renderRt();              // reflect the new status immediately
+          if (firstErr && !done) { if (window.UI) UI.toast("Could not change access: " + firstErr.message, "err"); }
+          else if (firstErr) { if (window.UI) UI.toast(`✓ ${done} changed to ${targetLbl}; ${n - done} failed (${firstErr.message}).`, "err"); }
+          else if (window.UI) UI.toast(`✓ ${done} reading text${done > 1 ? "s" : ""} changed to ${targetLbl}.`);
+        }
+        document.getElementById("rt-bulk-free").addEventListener("click", () => bulkSetTier("free"));
+        document.getElementById("rt-bulk-prem").addEventListener("click", () => bulkSetTier("premium"));
 
         function wireRt() {
           listEl.querySelectorAll(".rt-save").forEach(b => b.addEventListener("click", async () => {
