@@ -2907,19 +2907,49 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       // First visit: skeleton cards instead of a blank page.
       if (!app.querySelector(".tabpane") && window.UI) app.innerHTML = UI.skeleton(3);
 
-      // All queries run IN PARALLEL — one round trip instead of thirteen.
-      const [
-        { data: lessons }, { data: prog }, { data: students }, { data: courses },
-        { data: enrollments }, { data: anns }, { data: skeys }, { data: orgs },
-        { data: allLics }, { data: events }, { data: activity }, { data: lockEvents },
-        cardsRes, { data: pageViews }, rtRes0, raRes, rsRes, svRes, saRes, ssRes, ddRes,
-        cpRes, psRes, spRes, vsRes, hsRes
-      ] = await Promise.all([
-        sb.from("lessons").select("*").order("sort_order").order("created_at"),
-        // Every student's progress, joined with names + lesson titles.
+      /* ── FIRST-PAINT SPEED ──────────────────────────────────────────────
+         The heavy analytics/monitoring tables (progress, lesson_activity,
+         access_events, lock_events, page_views, dict_days) grow without bound
+         as students use the platform and were the real reason the dashboard
+         sat on the skeleton for ~10s: the single Promise.all waited for the
+         SLOWEST of all queries before ANY tab could paint. They feed only the
+         Analytics / Students / Dictation / Visitors panes, so we now fetch them
+         in the BACKGROUND (heavyP) and let the content tabs paint from the light
+         "essential" queries. Those panes fill in via heavyReady when the data
+         lands — no query was dropped, none is looped per-row, and nothing is
+         merely hidden earlier: the blocking work itself is off the paint path. */
+      const heavyP = Promise.all([
+        // Every student's progress (feeds Analytics + the Students table).
         sb.from("progress")
           .select("student_id, lesson_id, status, updated_at")
           .order("updated_at", { ascending: false }),
+        sb.from("access_events")
+          .select("student_id, lesson_id, event, device, device_type, agent, created_at")
+          .order("created_at", { ascending: false })
+          .limit(2000),
+        sb.from("lesson_activity")
+          .select("student_id, lesson_id, kind, key, value, max_value, updated_at")
+          .order("updated_at", { ascending: false }),
+        sb.from("lock_events").select("lesson_id, student_id, created_at")
+          .order("created_at", { ascending: false }).limit(2000),
+        // landing-page visits, last 30 days (needs migration 24)
+        sb.from("page_views").select("path, ref, device, created_at")
+          .gte("created_at", new Date(Date.now() - 30 * 86400000).toISOString())
+          .order("created_at", { ascending: false }).limit(1000),
+        // dictation daily stats (needs migration 31)
+        sb.from("dict_days").select("user_id, day, sent, ok, total, listen_sec")
+          .order("day", { ascending: false }).limit(5000)
+      ]);
+
+      // Essential content — everything the manage-content tabs need to draw NOW.
+      // All run IN PARALLEL — one round trip.
+      const [
+        { data: lessons }, { data: students }, { data: courses },
+        { data: enrollments }, { data: anns }, { data: skeys }, { data: orgs },
+        { data: allLics }, cardsRes, rtRes0, raRes, rsRes, svRes, saRes, ssRes,
+        cpRes, psRes, spRes, vsRes, hsRes
+      ] = await Promise.all([
+        sb.from("lessons").select("*").order("sort_order").order("created_at"),
         sb.from("profiles")
           .select("id, full_name, email, role, org_id, avatar_url, bio, multi_device, access_start, access_expires, suspended, plan, premium_until")
           .order("created_at"),
@@ -2934,21 +2964,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         sb.from("share_keys").select("*").order("created_at", { ascending: false }),
         sb.from("organizations").select("id, name, kind").order("name"),
         sb.from("course_licenses").select("org_id, course_id, seats, expires_on"),
-        sb.from("access_events")
-          .select("student_id, lesson_id, event, device, device_type, agent, created_at")
-          .order("created_at", { ascending: false })
-          .limit(2000),
-        sb.from("lesson_activity")
-          .select("student_id, lesson_id, kind, key, value, max_value, updated_at")
-          .order("updated_at", { ascending: false }),
-        sb.from("lock_events").select("lesson_id, student_id, created_at")
-          .order("created_at", { ascending: false }).limit(2000),
         // flashcard decks (needs migration 23 — stays empty until then)
         sb.from("flashcards").select("*").order("sort_order").order("created_at"),
-        // landing-page visits, last 30 days (needs migration 24)
-        sb.from("page_views").select("path, ref, device, created_at")
-          .gte("created_at", new Date(Date.now() - 30 * 86400000).toISOString())
-          .order("created_at", { ascending: false }).limit(1000),
         // reading hub content + access (need migrations 25/26)
         sb.from("reading_texts")
           .select("id, title, level, tags, category, tier, audience, published, sort_order, created_at, lang")
@@ -2961,9 +2978,6 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           .order("sort_order").order("created_at"),
         sb.from("shadow_access").select("*").order("created_at"),
         sb.from("shadow_settings").select("free_limit").eq("id", 1).maybeSingle(),
-        // dictation daily stats (needs migration 31)
-        sb.from("dict_days").select("user_id, day, sent, ok, total, listen_sec")
-          .order("day", { ascending: false }).limit(5000),
         // course pricing + payment settings (need migration 46)
         sb.from("course_pricing").select("course_id, config"),
         sb.from("payment_settings").select("config").eq("id", 1).maybeSingle(),
@@ -2971,6 +2985,14 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         sb.from("vsat_exams").select("*").order("sort_order").order("created_at"),
         sb.from("hsk_lessons").select("*").order("hsk_level").order("sort_order").order("created_at")
       ]);
+
+      // Heavy results land later; the panes that use them fill in via heavyReady.
+      // Kept empty until then so eagerly-rendered code never sees `undefined`.
+      let prog = [], events = [], activity = [], lockEvents = [], pageViews = null, ddRes = { data: [] };
+      const heavyReady = heavyP.then(r => {
+        prog = r[0].data || []; events = r[1].data || []; activity = r[2].data || [];
+        lockEvents = r[3].data || []; pageViews = r[4].data || null; ddRes = r[5] || { data: [] };
+      }, () => { /* offline / RLS error → panes show their normal empty state */ });
 
       /* `lang` only exists after migration51. If the column is missing the
          reading query fails, so ask again without it: the Reading tab keeps
@@ -6290,7 +6312,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       // =============== END SHADOWING MANAGEMENT ===============
 
       // ================= DICTATION ANALYTICS =================
-      (function () {
+      // Deferred: dictation stats (dict_days) arrive with the heavy batch.
+      heavyReady.then(() => (function () {
         const listEl = document.getElementById("dd-list");
         if (!listEl) return;
         if (ddRes.error) {
@@ -6317,11 +6340,12 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             <span class="pill ${a.total && a.ok / a.total >= 0.8 ? "done" : "todo"}" style="flex:none;">${a.total ? Math.round(a.ok / a.total * 100) : 0}% accuracy</span>
             <span class="kind" style="flex:none;">${fmtMin(a.listen)} listening · ${a.days} day(s)</span>
           </div>`).join("") || `<p class="empty">No dictation activity yet — it appears as soon as a student submits their first sentence.</p>`;
-      })();
+      })());
       // =============== END DICTATION ANALYTICS ===============
 
       // ================= VISITORS + FULL BACKUP =================
-      (function () {
+      // Deferred: landing-page visits (page_views) arrive with the heavy batch.
+      heavyReady.then(() => (function () {
         const stats = document.getElementById("pv-stats");
         if (!stats) return;
         const note = document.getElementById("pv-note");
@@ -6361,7 +6385,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               <i>${d.slice(8)}</i>
             </div>`).join("")}</div>
           <p class="kind" style="margin:0.3rem 0 0;">Tip: put ?src=qr on printed QR codes and ?src=zalo on Zalo shares to see where visitors come from.</p>` : "";
-      })();
+      })());
 
       document.getElementById("bk-run")?.addEventListener("click", async () => {
         const btn = document.getElementById("bk-run");
@@ -9795,6 +9819,14 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         wireLessonRows(box);
       }
 
+      /* Deferred to heavyReady: the Analytics tab and the Students table read the
+         heavy batch (progress, lesson_activity, access_events, lock_events). The
+         manage-content tabs have ALREADY painted above — this fills the analytics
+         panes a moment later, so the dashboard is usable immediately. */
+      ["stu-table", "p-table", "e-table", "dd-list", "pv-stats"].forEach(id => {
+        const el = document.getElementById(id); if (el) el.innerHTML = '<p class="empty">Đang tải số liệu…</p>';
+      });
+      heavyReady.then(() => {
       // ================= PROGRESS ANALYTICS ENGINE =================
       const sById = id => (students || []).find(s => s.id === id);
       const lById = id => (lessons || []).find(l => l.id === id);
@@ -10384,6 +10416,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         })));
       });
       // =============== END STUDENT MANAGEMENT ENGINE ===============
+      }); // end heavyReady.then (analytics + students)
 
       lfCourse.addEventListener("change", () => { lf.course = lfCourse.value; saveLf(); renderLessonList(); });
       lfSort.addEventListener("change", () => { lf.sort = lfSort.value; saveLf(); renderLessonList(); });
