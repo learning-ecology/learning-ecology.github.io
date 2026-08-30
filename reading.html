@@ -611,7 +611,7 @@
     <button data-v="admin" id="navAdmin" hidden>⚙️ Quản lý</button>
   </nav>
   <span style="margin-left:auto" class="mutetext" id="whoami"></span>
-  <span id="navAuth" hidden style="display:inline-flex;gap:6px;white-space:nowrap">
+  <span id="navAuth" style="display:none;gap:6px;white-space:nowrap">
     <a class="nd-a" href="login.html">Đăng nhập</a>
     <a class="nd-a nd-p" href="signup.html">Đăng ký miễn phí</a>
   </span>
@@ -1041,7 +1041,7 @@ async function requireLogin() {
   if (!session) {                       // KHÁCH chưa đăng nhập → chế độ dùng thử
     PUBLIC = true; uid = null; isStaff = false; isPremium = false;
     $('whoami').textContent = 'Khách';
-    const nav = $('navAuth'); if (nav) nav.hidden = false;
+    const nav = $('navAuth'); if (nav) nav.style.display = 'inline-flex';
     const back = $('navBack'); if (back) { back.textContent = '← Xem khóa học'; back.href = 'course.html'; }
     armCopyGuard('Learning Ecology');
     return { id: null, guest: true };
@@ -1065,6 +1065,7 @@ async function requireLogin() {
   isPremium = isStaff || (!!prof && (prof.role === 'admin'
     || (prof.plan === 'premium' && (!prof.premium_until || prof.premium_until >= _td))));
   $('whoami').textContent = (prof && prof.full_name) || user.email || '';
+  { const nav = $('navAuth'); if (nav) nav.style.display = 'none'; }
   if (isStaff) $('navAdmin').hidden = false;
   return user;
 }

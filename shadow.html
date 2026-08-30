@@ -273,7 +273,7 @@
   </nav>
   <div class="grow"></div>
   <span id="whoami" class="mutetext"></span>
-  <span id="navAuth" hidden style="display:inline-flex;gap:6px;white-space:nowrap"><a class="nd-a" href="login.html">Đăng nhập</a><a class="nd-a nd-p" href="signup.html">Đăng ký miễn phí</a></span><a id="navBack" href="dashboard.html" class="mutetext">← Trang học</a>
+  <span id="navAuth" style="display:none;gap:6px;white-space:nowrap"><a class="nd-a" href="login.html">Đăng nhập</a><a class="nd-a nd-p" href="signup.html">Đăng ký miễn phí</a></span><a id="navBack" href="dashboard.html" class="mutetext">← Trang học</a>
 </header>
 
 <main>
@@ -538,7 +538,7 @@ async function requireLogin() {
     PUBLIC = true; uid = null; isStaff = false; isPremium = false;
     $('whoami').textContent = 'Khách';
     hideCreationUI();
-    const nav = $('navAuth'); if (nav) nav.hidden = false;
+    const nav = $('navAuth'); if (nav) nav.style.display = 'inline-flex';
     const back = $('navBack'); if (back) { back.textContent = '← Xem khóa học'; back.href = 'course.html'; }
     return { id: null, guest: true };
   }
@@ -559,6 +559,7 @@ async function requireLogin() {
   const _td = new Date().toISOString().slice(0, 10);
   isPremium = isStaff || (!!prof && prof.plan === 'premium' && (!prof.premium_until || prof.premium_until >= _td));
   $('whoami').textContent = (prof && prof.full_name) || user.email || '';
+  { const nav = $('navAuth'); if (nav) nav.style.display = 'none'; }
   if (isStaff) { $('navAdmin').hidden = false; $('impPubWrap').hidden = false; $('impTierWrap').hidden = false; }
   return user;
 }
