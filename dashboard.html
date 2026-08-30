@@ -4054,6 +4054,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               <label class="tk-scope"><input type="checkbox" class="tk-tok" data-tok="vsat" /> V-SAT</label>
               <label class="tk-scope"><input type="checkbox" class="tk-tok" data-tok="tools" /> 🧰 Free tools</label>
               <label class="tk-scope"><input type="checkbox" class="tk-tok" data-tok="courses" /> 🎓 All courses</label>
+              <label class="tk-scope"><input type="checkbox" class="tk-tok" data-tok="page:course" /> 🖥️ Public Course Preview</label>
             </div>
             <div class="field" style="max-width:360px; margin-top:0.15rem;"><label style="font-weight:600;">…or specific course(s)</label>
               <select id="tk-courses" multiple size="4"></select>
@@ -9900,7 +9901,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
 
         // ---- targeting (Display on / Target audience) ----
         const TG_NAMES = { reading: "Reading", english: "English", chinese: "Chinese/HSK", hsk: "HSK",
-          vstep: "VSTEP", vsat: "V-SAT", tools: "Tools", courses: "Courses" };
+          vstep: "VSTEP", vsat: "V-SAT", tools: "Tools", courses: "Courses", "page:course": "Course preview" };
         F("tk-courses").innerHTML = (courses || []).length
           ? (courses || []).map(c => `<option value="course:${c.id}">${esc(c.title)}${c.category ? " · " + esc(c.category) : ""}</option>`).join("")
           : `<option value="" disabled>— no courses —</option>`;
