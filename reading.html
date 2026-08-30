@@ -15,6 +15,7 @@
   <link rel="canonical" href="https://learningecology.io.vn/reading.html" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
+  <script src="ticker.js"></script>
 <script src="premium.js"></script>
 <script>
   /* ---- module guard ----------------------------------------------------
@@ -1417,6 +1418,10 @@ function setLang(l, redraw) {
   LANG = l;
   store('crh-lang', LANG);
   document.body.classList.toggle('lang-en', LANG === 'en');
+  /* let the site-wide announcement ticker know which library is active, so a
+     "Chinese"- or "English"-targeted announcement shows on the matching one */
+  window.LE_TICKER_CTX = [LANG === 'en' ? 'english' : 'chinese'];
+  if (window.LETicker) window.LETicker.rerender();
   buildLevelChips();
   fillAdminLevels();
   libLevel = 0;
@@ -3712,6 +3717,8 @@ function offerResume(t) {
   /* pick the library the learner last used, BEFORE any query runs */
   LANG = read('crh-lang', 'zh') === 'en' ? 'en' : 'zh';
   document.body.classList.toggle('lang-en', LANG === 'en');
+  window.LE_TICKER_CTX = [LANG === 'en' ? 'english' : 'chinese'];   // for the announcement ticker
+  if (window.LETicker) window.LETicker.rerender();
   document.querySelectorAll('#langSwitch .lang-btn')
     .forEach(b => b.classList.toggle('active', b.dataset.lang === LANG));
   buildLevelChips(); fillAdminLevels(); buildLegend();

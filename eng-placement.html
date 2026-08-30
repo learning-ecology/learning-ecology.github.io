@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>English Placement Test (CEFR A1–C1) — Learning Ecology</title>
+  <style>
+    :root{--ink:#17263e;--muted:#5a6577;--line:#dde3ec;--paper:#f4f6fa;--card:#fff;--accent:#1e4f8f;--accent2:#153a6b;--good:#1e7f4f;--good-bg:#e6f4ec;--bad:#a4442f;--bad-bg:#f7e9e5;--gold:#b7823f}
+    *{box-sizing:border-box} html{scroll-behavior:smooth}
+    body{margin:0;background:linear-gradient(135deg,#eef3f9,#f7f4ec);color:#22303f;font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+    .wrap{max-width:760px;margin:0 auto;padding:18px 16px 60px}
+    header{text-align:center;margin:8px 0 6px}
+    header h1{font-size:clamp(20px,4vw,28px);margin:.2rem 0;color:var(--ink)}
+    header p{margin:.2rem 0;color:var(--muted);font-size:.92rem}
+    .prog{position:sticky;top:0;z-index:10;background:rgba(247,247,250,.92);backdrop-filter:blur(8px);padding:10px 0;margin-bottom:6px}
+    .bar{height:9px;background:#dce4ef;border-radius:20px;overflow:hidden}.bar>span{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),#5b8fd0);transition:.3s}
+    .prog .lbl{display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted);margin-top:5px;font-weight:600}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:0 12px 34px -18px rgba(23,38,62,.35);padding:22px}
+    .qmeta{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);font-weight:800}
+    .passage{background:#f5f8fc;border-left:4px solid var(--accent);border-radius:10px;padding:10px 14px;margin:10px 0;color:#33475c;font-size:.96rem}
+    .q{font-size:1.15rem;font-weight:700;color:var(--ink);margin:6px 0 16px}
+    .opts{display:grid;gap:10px}
+    .opt{display:flex;align-items:center;gap:12px;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer;background:#fff;transition:.15s;text-align:left;font:inherit;width:100%}
+    .opt:hover{border-color:#a9c2e2;background:#f7fafd}
+    .opt .k{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-weight:800;background:#eef2f8;color:var(--accent2)}
+    .opt.sel{border-color:var(--accent);background:#eaf1fa}.opt.sel .k{background:var(--accent);color:#fff}
+    .nav{display:flex;justify-content:space-between;gap:10px;margin-top:18px}
+    .btn{border:0;border-radius:12px;padding:12px 20px;font-weight:800;font-size:.98rem;cursor:pointer}
+    .btn.primary{background:var(--accent);color:#fff}.btn.primary:disabled{opacity:.45;cursor:not-allowed}
+    .btn.ghost{background:#eef2f8;color:var(--ink)}
+    .note{font-size:.8rem;color:var(--muted);text-align:center;margin-top:14px}
+    /* results */
+    .res-hero{text-align:center;padding:6px 0 4px}
+    .level-badge{display:inline-block;font-size:2.6rem;font-weight:900;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2));padding:.2em .7em;border-radius:16px;letter-spacing:.02em}
+    .level-name{font-size:1.05rem;font-weight:700;color:var(--ink);margin:.5rem 0 .1rem}
+    .score-line{font-size:1.1rem;color:var(--muted)}.score-line b{color:var(--ink)}
+    .disclaimer{background:#fff8e6;border:1px solid #f0e0b0;color:#6b5518;border-radius:10px;padding:10px 14px;font-size:.86rem;margin:14px 0}
+    h3.sec{margin:20px 0 8px;font-size:1.05rem;color:var(--ink)}
+    .barrow{display:flex;align-items:center;gap:10px;margin:7px 0}.barrow .nm{flex:none;width:130px;font-size:.9rem;font-weight:600}
+    .barrow .track{flex:1;height:12px;background:#e7edf5;border-radius:8px;overflow:hidden}.barrow .track>span{display:block;height:100%;border-radius:8px}
+    .barrow .pc{flex:none;width:64px;text-align:right;font-size:.85rem;color:var(--muted);font-variant-numeric:tabular-nums}
+    .pill{display:inline-block;padding:.15rem .6rem;border-radius:999px;font-size:.8rem;font-weight:700;margin:.15rem .3rem .15rem 0}
+    .pill.good{background:var(--good-bg);color:var(--good)} .pill.warn{background:#fdf0e6;color:var(--gold)}
+    .next-step{background:linear-gradient(135deg,#eaf1fa,#f3ecfa);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:14px 0}
+    /* review */
+    .rev-q{border:1px solid var(--line);border-left-width:5px;border-radius:10px;padding:10px 12px;margin-bottom:8px}
+    .rev-q.ok{border-left-color:var(--good);background:var(--good-bg)}
+    .rev-q.bad{border-left-color:var(--bad);background:var(--bad-bg)}
+    .rev-q.none{border-left-color:#94a3b8;background:#f1f3f6}
+    .rev-q .rn{font-weight:800}.rev-q .chip{font-weight:800;padding:.03rem .5rem;border-radius:6px;border:1px solid var(--line);background:#fff;margin:0 .2rem}
+    .rev-q .chip.cor{background:var(--good-bg);color:var(--good);border-color:transparent}
+    .rev-q .expl{display:block;color:var(--muted);font-size:.86rem;margin-top:.3rem}
+    .center{text-align:center}
+    @media(max-width:480px){.card{padding:16px}.barrow .nm{width:96px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>English Placement Test</h1>
+      <p>Đánh giá trình độ tiếng Anh của bạn theo khung CEFR (A1–C1) · 40 câu</p>
+    </header>
+
+    <div class="prog" id="progWrap" hidden>
+      <div class="bar"><span id="bar"></span></div>
+      <div class="lbl"><span id="pos">Câu 1/40</span><span id="ans">Đã trả lời 0/40</span></div>
+    </div>
+
+    <div id="app"></div>
+  </div>
+
+  <script>
+  /* ===== Câu hỏi (không kèm đáp án đúng cho học viên trước khi nộp — chấm ngay
+     trên máy để dùng được cả khi CHƯA đăng nhập; đây là bài TỰ đánh giá xếp lớp,
+     không phải bài thi có điểm) ===== */
+  const AREA_VI = { Grammar:"Ngữ pháp", Vocabulary:"Từ vựng", Reading:"Đọc hiểu", Everyday:"Giao tiếp" };
+  const Q = [
+    {lvl:"A1",area:"Grammar",q:"She ___ a teacher.",o:["am","is","are","be"],a:"B",e:"‘She’ đi với ‘is’ (to be, ngôi thứ ba số ít)."},
+    {lvl:"A1",area:"Vocabulary",q:"The opposite of “big” is ___.",o:["small","tall","long","old"],a:"A",e:"Trái nghĩa của ‘big’ là ‘small’."},
+    {lvl:"A1",area:"Grammar",q:"I'd like ___ apple, please.",o:["a","an","the","some"],a:"B",e:"‘apple’ bắt đầu bằng nguyên âm → ‘an’."},
+    {lvl:"A1",area:"Everyday",q:"“How are you?” — “___”",o:["I'm 20 years old","I'm fine, thanks","It's Monday","Yes, please"],a:"B",e:"Đáp lại ‘How are you?’ là ‘I'm fine, thanks.’"},
+    {lvl:"A1",area:"Grammar",q:"There are three ___ on the desk.",o:["book","books","bookes","a book"],a:"B",e:"Số nhiều của ‘book’ là ‘books’."},
+    {lvl:"A1",area:"Grammar",q:"He ___ coffee every morning.",o:["drink","drinks","drinking","is drink"],a:"B",e:"Ngôi thứ ba số ít hiện tại đơn thêm -s → ‘drinks’."},
+    {lvl:"A1",area:"Vocabulary",q:"Monday, Tuesday, ___, Thursday.",o:["Sunday","Wednesday","Friday","Saturday"],a:"B",e:"Thứ tự các ngày: Wednesday."},
+    {lvl:"A1",area:"Everyday",q:"In a shop: “How much ___ this bag?”",o:["are","is","do","many"],a:"B",e:"‘this bag’ số ít → ‘is’."},
+    {lvl:"A2",area:"Grammar",q:"Yesterday we ___ to the cinema.",o:["go","goed","went","gone"],a:"C",e:"Quá khứ của ‘go’ là ‘went’ (bất quy tắc)."},
+    {lvl:"A2",area:"Grammar",q:"This film is ___ than that one.",o:["interesting","more interesting","most interesting","interestinger"],a:"B",e:"Tính từ dài dùng ‘more’ để so sánh hơn."},
+    {lvl:"A2",area:"Vocabulary",q:"She looks after patients in a hospital. She is a ___.",o:["teacher","nurse","driver","waiter"],a:"B",e:"Người chăm sóc bệnh nhân là ‘nurse’."},
+    {lvl:"A2",area:"Everyday",q:"Look at those dark clouds! It ___ rain.",o:["is going to","go to","will to","going"],a:"A",e:"Có dấu hiệu hiện tại → ‘is going to’ (dự đoán)."},
+    {lvl:"A2",area:"Grammar",q:"How ___ water do you drink a day?",o:["many","much","some","few"],a:"B",e:"‘water’ không đếm được → ‘much’."},
+    {lvl:"A2",area:"Everyday",q:"“Would you like some coffee?” — “___”",o:["No, I don't","Yes, please","I'm coffee","Yes, I like"],a:"B",e:"Nhận lời mời: ‘Yes, please.’"},
+    {lvl:"A2",area:"Everyday",q:"The lesson starts ___ Monday morning.",o:["in","at","on","by"],a:"C",e:"Thứ trong tuần đi với ‘on’."},
+    {lvl:"A2",area:"Reading",q:"A sign says “No parking”. What can't you do here?",o:["walk","leave your car","take photos","eat"],a:"B",e:"‘No parking’ = không được để xe ở đây."},
+    {lvl:"B1",area:"Grammar",q:"I ___ never ___ Japanese food.",o:["have / eat","have / eaten","has / eaten","am / eating"],a:"B",e:"Hiện tại hoàn thành: ‘have’ + quá khứ phân từ ‘eaten’."},
+    {lvl:"B1",area:"Grammar",q:"If it rains tomorrow, we ___ at home.",o:["stay","will stay","stayed","would stay"],a:"B",e:"Câu điều kiện loại 1: if + hiện tại, ‘will’ + động từ."},
+    {lvl:"B1",area:"Vocabulary",q:"It's dark. Could you ___ the light?",o:["turn on","turn in","take off","put out"],a:"A",e:"‘turn on the light’ = bật đèn."},
+    {lvl:"B1",area:"Vocabulary",q:"I'm really looking ___ to the holidays.",o:["forward","after","for","up"],a:"A",e:"‘look forward to’ = mong đợi."},
+    {lvl:"B1",area:"Grammar",q:"That's the woman ___ car was stolen.",o:["who","which","whose","whom"],a:"C",e:"Chỉ sự sở hữu → ‘whose’."},
+    {lvl:"B1",area:"Everyday",q:"I was very tired, ___ I went to bed early.",o:["but","so","because","although"],a:"B",e:"Nguyên nhân → kết quả dùng ‘so’."},
+    {lvl:"B1",area:"Reading",q:"Tom slept badly and arrived late. His manager frowned at him. How did the manager probably feel?",o:["delighted","annoyed","relaxed","curious"],a:"B",e:"Đến muộn + cau mày → ‘annoyed’ (khó chịu)."},
+    {lvl:"B1",area:"Grammar",q:"I ___ play tennis a lot, but I gave it up.",o:["use to","used to","am used to","was used"],a:"B",e:"Thói quen trong quá khứ → ‘used to’."},
+    {lvl:"B2",area:"Grammar",q:"The Eiffel Tower ___ in 1889.",o:["built","was built","has built","is building"],a:"B",e:"Bị động quá khứ → ‘was built’."},
+    {lvl:"B2",area:"Grammar",q:"She told me she ___ tired that day.",o:["is","was","has been","will be"],a:"B",e:"Câu tường thuật lùi thì: ‘is’ → ‘was’."},
+    {lvl:"B2",area:"Grammar",q:"If I ___ known you were coming, I would have cooked.",o:["had","have","would","did"],a:"A",e:"Điều kiện loại 3: ‘had’ + quá khứ phân từ."},
+    {lvl:"B2",area:"Vocabulary",q:"Be careful not to ___ a mistake in the report.",o:["do","make","take","have"],a:"B",e:"Kết hợp từ: ‘make a mistake’."},
+    {lvl:"B2",area:"Vocabulary",q:"The new film received ___ reviews — some loved it, some hated it.",o:["mixed","boring","single","equal"],a:"A",e:"‘mixed reviews’ = đánh giá trái chiều."},
+    {lvl:"B2",area:"Everyday",q:"You ___ have told me earlier! I had no idea.",o:["should","must","can","will"],a:"A",e:"Trách nhẹ về quá khứ → ‘should have told’."},
+    {lvl:"B2",area:"Reading",q:"“Remote work lets people save commuting time and work flexibly, though it can feel isolating.” The writer mainly presents remote work as ___.",o:["completely negative","having clear benefits","only for managers","a passing trend"],a:"B",e:"Đoạn văn nêu lợi ích → ‘having clear benefits’."},
+    {lvl:"B2",area:"Grammar",q:"___ the heavy rain, the match went ahead.",o:["Although","Because","Despite","However"],a:"C",e:"‘Despite’ + danh từ → ‘Despite the rain’."},
+    {lvl:"C1",area:"Grammar",q:"___ had I sat down than the doorbell rang.",o:["No sooner","Hardly ever","As soon","Rarely"],a:"A",e:"Đảo ngữ: ‘No sooner had I … than …’."},
+    {lvl:"C1",area:"Grammar",q:"It was ___ that caused the delay, not the weather.",o:["the heavy traffic","traffic was bad","because of traffic","traffic which"],a:"A",e:"Câu chẻ nhấn mạnh: ‘It was the heavy traffic that …’."},
+    {lvl:"C1",area:"Vocabulary",q:"Her argument was so ___ that nobody could refute it.",o:["compelling","compelled","compulsory","comparable"],a:"A",e:"‘compelling’ = thuyết phục, không ai bác được."},
+    {lvl:"C1",area:"Grammar",q:"The board recommended that the report ___ rewritten.",o:["is","be","was","being"],a:"B",e:"Thức giả định sau ‘recommend that’ → động từ nguyên mẫu ‘be’."},
+    {lvl:"C1",area:"Vocabulary",q:"After months of effort, the launch was a hit — the hard work really ___.",o:["paid off","paid up","paid in","paid back"],a:"A",e:"‘pay off’ = mang lại kết quả xứng đáng."},
+    {lvl:"C1",area:"Everyday",q:"Which is the most formal? “I am writing to ___ my interest in the position.”",o:["tell","express","say","show"],a:"B",e:"Trang trọng nhất: ‘express interest’."},
+    {lvl:"C1",area:"Reading",q:"“Oh, brilliant — another meeting that could have been an email,” she sighed. The tone is ___.",o:["sincere","ironic","fearful","formal"],a:"B",e:"Lời than thở mỉa mai → giọng ‘ironic’."},
+    {lvl:"C1",area:"Grammar",q:"___ as it may seem, the simplest solution was the correct one.",o:["Strange","Strangely","However strange","Though strangely"],a:"A",e:"Cấu trúc nhượng bộ: ‘Strange as it may seem, …’."}
+  ];
+  const TOTAL = Q.length;
+  const testKey = "eng-placement-1";
+
+  const LETTERS = ["A","B","C","D","E","F"];
+  const LEVELS = ["A1","A2","B1","B2","C1"];
+  // Ngưỡng CEFR theo % tổng điểm — rõ ràng, nhất quán
+  const BANDS = [
+    {min:85,lvl:"C1",name:"C1 — Advanced (Cao cấp)",
+     desc:"Bạn dùng tiếng Anh linh hoạt và hiệu quả trong học thuật, công việc và giao tiếp phức tạp.",
+     next:"Khóa C1 nâng cao, hoặc luyện thi IELTS / Cambridge (CAE)."},
+    {min:70,lvl:"B2",name:"B2 — Upper-Intermediate (Trung–cao cấp)",
+     desc:"Bạn giao tiếp khá trôi chảy và hiểu được các văn bản tương đối phức tạp.",
+     next:"Khóa B2 → C1 để tiến tới trình độ cao cấp."},
+    {min:55,lvl:"B1",name:"B1 — Intermediate (Trung cấp)",
+     desc:"Bạn xử lý được hầu hết tình huống quen thuộc, kể lại trải nghiệm và nêu ý kiến đơn giản.",
+     next:"Khóa B1 → B2 để nâng cao độ trôi chảy."},
+    {min:40,lvl:"A2",name:"A2 — Elementary (Sơ–trung cấp)",
+     desc:"Bạn giao tiếp được trong các tình huống đơn giản, quen thuộc hằng ngày.",
+     next:"Khóa A2 → B1 để mở rộng vốn từ và ngữ pháp."},
+    {min:25,lvl:"A1",name:"A1 — Beginner (Sơ cấp)",
+     desc:"Bạn hiểu và dùng được các cụm từ quen thuộc và câu rất đơn giản.",
+     next:"Khóa Sơ cấp A1 → A2 để xây nền tảng."},
+    {min:0, lvl:"—", name:"Nhập môn (Pre-A1)",
+     desc:"Bạn đang ở giai đoạn làm quen với tiếng Anh.",
+     next:"Khóa nền tảng A1 để bắt đầu từ cơ bản."}
+  ];
+
+  const $ = id => document.getElementById(id);
+  const app = $("app");
+  const storeKey = "test-" + testKey;
+  const state = JSON.parse(localStorage.getItem(storeKey) || '{"answers":{},"idx":0}');
+  if (!state.startedAtISO) state.startedAtISO = new Date().toISOString();
+  let idx = state.idx || 0, done = false;
+  const save = () => { state.idx = idx; localStorage.setItem(storeKey, JSON.stringify(state)); };
+
+  function updateProgress() {
+    $("progWrap").hidden = done;
+    if (done) return;
+    $("bar").style.width = ((idx + 1) / TOTAL * 100) + "%";
+    $("pos").textContent = "Câu " + (idx + 1) + "/" + TOTAL;
+    $("ans").textContent = "Đã trả lời " + Object.keys(state.answers).length + "/" + TOTAL;
+  }
+
+  function renderQuestion() {
+    const item = Q[idx], n = idx + 1, chosen = state.answers[n];
+    const isReading = item.area === "Reading" && item.q.length > 90;
+    app.innerHTML = `
+      <div class="card">
+        <div class="qmeta">${item.lvl} · ${AREA_VI[item.area]}</div>
+        ${isReading ? `<div class="passage">${item.q.split("”")[0].replace(/^“/,"")}”</div><div class="q">${item.q.split("”").slice(1).join("”").trim()}</div>`
+                    : `<div class="q">${item.q}</div>`}
+        <div class="opts">
+          ${item.o.map((t, i) => `
+            <button class="opt ${chosen === LETTERS[i] ? "sel" : ""}" data-pick="${LETTERS[i]}">
+              <span class="k">${LETTERS[i]}</span><span>${esc(t)}</span></button>`).join("")}
+        </div>
+        <div class="nav">
+          <button class="btn ghost" id="back" ${idx === 0 ? "disabled style='visibility:hidden'" : ""}>← Quay lại</button>
+          ${idx < TOTAL - 1
+            ? `<button class="btn primary" id="next" ${chosen ? "" : "disabled"}>Tiếp theo →</button>`
+            : `<button class="btn primary" id="finish">✓ Nộp bài &amp; xem kết quả</button>`}
+        </div>
+        <div class="note">Bài tự đánh giá xếp lớp — không phải chứng chỉ chính thức. Bài làm được lưu tạm trên trình duyệt này.</div>
+      </div>`;
+    app.querySelectorAll("[data-pick]").forEach(b => b.addEventListener("click", () => {
+      state.answers[n] = b.getAttribute("data-pick"); save(); renderQuestion(); updateProgress();
+    }));
+    const back = $("back"), next = $("next"), fin = $("finish");
+    if (back) back.onclick = () => { idx--; save(); renderQuestion(); updateProgress(); };
+    if (next) next.onclick = () => { idx++; save(); renderQuestion(); updateProgress(); };
+    if (fin) fin.onclick = finish;
+    updateProgress();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+  // The CEFR level + per-skill breakdown, computed from the answers. This is
+  // attached to the saved attempt so the OWNER dashboard shows the level too.
+  function buildSummary(correct, detail) {
+    const pct = Math.round(correct / TOTAL * 100);
+    const band = BANDS.find(b => pct >= b.min);
+    const areas = ["Grammar","Vocabulary","Reading","Everyday"].map(A => {
+      const items = detail.filter(d => d.area === A);
+      const c = items.filter(d => d.ok).length;
+      return { area: A, c, n: items.length, pct: items.length ? Math.round(c / items.length * 100) : 0 };
+    });
+    const levels = LEVELS.map(L => {
+      const items = detail.filter(d => d.lvl === L);
+      const c = items.filter(d => d.ok).length;
+      return { lvl: L, c, n: items.length, pct: items.length ? Math.round(c / items.length * 100) : 0 };
+    });
+    return {
+      kind: "cefr",
+      level: band.lvl, level_label: band.lvl === "—" ? "Pre-A1" : band.lvl,
+      level_name: band.name, desc: band.desc, next: band.next,
+      pct, correct, total: TOTAL, areas, levels
+    };
+  }
+
+  async function finish() {
+    const unanswered = TOTAL - Object.keys(state.answers).length;
+    if (unanswered > 0 && !confirm("Bạn còn " + unanswered + " câu chưa trả lời (sẽ tính là sai). Vẫn nộp bài?")) return;
+    done = true;
+    // score ON THIS DEVICE so it works even without login
+    const detail = Q.map((item, i) => {
+      const n = i + 1, stu = state.answers[n] || null, ok = stu === item.a;
+      return { n, student: stu, correct: item.a, ok, explanation: item.e, area: item.area, lvl: item.lvl };
+    });
+    const correct = detail.filter(d => d.ok).length;
+    const summary = buildSummary(correct, detail);
+    // best-effort: also save to the dashboard IF a student is signed in (server re-scores
+    // and stores this summary so the owner sees the CEFR level, not just the score)
+    try { if (window.LMS && LMS.submitTest) {
+      const elapsed = Math.round((Date.now() - new Date(state.startedAtISO).getTime()) / 1000);
+      LMS.submitTest(testKey, state.answers, { seconds: elapsed, started: state.startedAtISO, summary });
+    } } catch (e) {}
+    renderResults(correct, detail);
+  }
+
+  function renderResults(correct, detail) {
+    const pct = Math.round(correct / TOTAL * 100);
+    const band = BANDS.find(b => pct >= b.min);
+    // per-area
+    const areas = ["Grammar","Vocabulary","Reading","Everyday"].map(A => {
+      const items = detail.filter(d => d.area === A);
+      const c = items.filter(d => d.ok).length;
+      return { A, c, n: items.length, pct: items.length ? Math.round(c / items.length * 100) : 0 };
+    });
+    // per-CEFR band accuracy
+    const levels = LEVELS.map(L => {
+      const items = detail.filter(d => d.lvl === L);
+      const c = items.filter(d => d.ok).length;
+      return { L, c, n: items.length, pct: items.length ? Math.round(c / items.length * 100) : 0 };
+    });
+    const strengths = areas.filter(a => a.pct >= 70);
+    const improve = areas.filter(a => a.pct < 55);
+    const barColor = p => p >= 70 ? "var(--good)" : p >= 45 ? "var(--gold)" : "var(--bad)";
+
+    app.innerHTML = `
+      <div class="card">
+        <div class="res-hero">
+          <div class="qmeta">Trình độ ước lượng của bạn</div>
+          <div class="level-badge">${band.lvl === "—" ? "Pre-A1" : band.lvl}</div>
+          <div class="level-name">${band.name}</div>
+          <div class="score-line">Điểm: <b>${correct}/${TOTAL}</b> · <b>${pct}%</b></div>
+        </div>
+        <div class="disclaimer">⚠️ Đây là <b>trình độ ước lượng để xếp lớp</b>, giúp bạn chọn khóa học phù hợp — <b>không phải chứng chỉ chính thức</b> (như IELTS, TOEFL hay Cambridge).</div>
+
+        <p style="color:var(--muted);margin:.2rem 0 0;">${band.desc}</p>
+
+        <h3 class="sec">📊 Điểm theo kỹ năng</h3>
+        ${areas.map(a => `
+          <div class="barrow"><span class="nm">${AREA_VI[a.A]}</span>
+            <span class="track"><span style="width:${a.pct}%;background:${barColor(a.pct)}"></span></span>
+            <span class="pc">${a.c}/${a.n} · ${a.pct}%</span></div>`).join("")}
+
+        <h3 class="sec">🎯 Mức độ theo CEFR</h3>
+        ${levels.map(l => `
+          <div class="barrow"><span class="nm">${l.L}</span>
+            <span class="track"><span style="width:${l.pct}%;background:${barColor(l.pct)}"></span></span>
+            <span class="pc">${l.c}/${l.n} · ${l.pct}%</span></div>`).join("")}
+
+        <h3 class="sec">💪 Điểm mạnh &amp; cần cải thiện</h3>
+        <div>
+          ${strengths.length ? strengths.map(a => `<span class="pill good">✔ ${AREA_VI[a.A]}</span>`).join("") : '<span style="color:var(--muted)">Chưa có kỹ năng nào đạt ≥70% — hãy luyện đều các phần.</span>'}
+        </div>
+        <div style="margin-top:6px">
+          ${improve.length ? improve.map(a => `<span class="pill warn">↑ ${AREA_VI[a.A]}</span>`).join("") : '<span style="color:var(--muted)">Không có phần nào dưới 55% — rất tốt!</span>'}
+        </div>
+
+        <div class="next-step">
+          <b>👉 Bước tiếp theo gợi ý:</b><br>${band.next}
+        </div>
+
+        <div class="nav" style="justify-content:center;flex-wrap:wrap">
+          <button class="btn ghost" id="review">🔍 Xem lại đáp án</button>
+          <button class="btn primary" id="retake">🔄 Làm lại bài</button>
+        </div>
+      </div>
+      <div id="reviewBox"></div>`;
+    $("retake").onclick = () => { localStorage.removeItem(storeKey); location.reload(); };
+    $("review").onclick = () => {
+      const box = $("reviewBox");
+      if (box.innerHTML) { box.innerHTML = ""; return; }
+      box.innerHTML = `<div class="card" style="margin-top:14px">
+        <h3 class="sec" style="margin-top:0">Chi tiết từng câu</h3>
+        <p style="color:var(--muted);font-size:.85rem;margin-top:0">
+          <span class="pill good">Đúng</span> <span class="pill" style="background:var(--bad-bg);color:var(--bad)">Sai</span>
+          <span class="pill" style="background:#eef1f5;color:#64748b">Bỏ trống</span></p>
+        ${detail.map(d => {
+          const cls = d.student == null ? "none" : (d.ok ? "ok" : "bad");
+          const stu = d.student == null ? '<span class="chip" style="color:#64748b">—</span>' : `<span class="chip">${d.student}</span>`;
+          const item = Q[d.n - 1];
+          return `<div class="rev-q ${cls}">
+            <span class="rn">Câu ${d.n}</span> <span style="color:var(--muted);font-size:.86rem">(${d.lvl} · ${AREA_VI[d.area]})</span>
+            <div style="margin:.2rem 0">${esc(item.q)}</div>
+            Bạn chọn: ${stu} · Đáp án đúng: <span class="chip cor">${d.correct}</span>
+            ${d.explanation ? `<span class="expl">💡 ${esc(d.explanation)}</span>` : ""}
+          </div>`;
+        }).join("")}
+      </div>`;
+      box.scrollIntoView({ behavior: "smooth" });
+    };
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  renderQuestion();
+  </script>
+
+  <!-- Ghi kết quả vào dashboard nếu học viên đã đăng nhập (không bắt buộc) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="ticker.js"></script>
+  <script src="https://learningecology.io.vn/tracker.js"></script>
+</body>
+</html>

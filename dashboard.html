@@ -146,40 +146,19 @@
     .stu-hero h1{ font-size:1.45rem; }
   }
 
-  /* ── Announcement ticker (marquee) — Phase 71 ─────────────────── */
-  .ticker{ position:relative; display:flex; align-items:stretch; overflow:hidden;
-    background:#fff3df; color:#5b3f16; border-bottom:1px solid #f0dab4; font-size:0.9rem; }
-  :root[data-theme="dark"] .ticker{ background:#2b2440; color:#f1e7d7; border-bottom-color:#3c3555; }
-  .ticker[hidden]{ display:none; }
-  .ticker__vp{ flex:1 1 auto; min-width:0; overflow:hidden;
-    -webkit-mask-image:linear-gradient(90deg,transparent,#000 2.2rem,#000 calc(100% - 2.2rem),transparent);
-            mask-image:linear-gradient(90deg,transparent,#000 2.2rem,#000 calc(100% - 2.2rem),transparent); }
-  .ticker__track{ display:flex; width:max-content; white-space:nowrap; will-change:transform;
-    animation:tickerScroll 30s linear infinite; }
-  .ticker:hover .ticker__track, .ticker__track:focus-within{ animation-play-state:paused; }
-  .ticker__seg{ display:flex; align-items:center; padding:0.55rem 0; }
-  .ticker__item{ display:inline-flex; align-items:center; gap:0.4rem; color:inherit; }
-  a.ticker__item{ text-decoration:none; }
-  a.ticker__item:hover span:last-child{ text-decoration:underline; }
-  .ticker__ic{ font-size:1.05em; line-height:1; }
-  .ticker__sep{ margin:0 1.5rem; opacity:0.4; }
-  .ticker__close{ flex:none; align-self:center; background:transparent; border:0; cursor:pointer;
-    color:inherit; font-size:1.2rem; line-height:1; padding:0 0.75rem; opacity:0.55; }
-  .ticker__close:hover{ opacity:1; }
-  @media (max-width:640px){ .ticker{ font-size:0.82rem; } .ticker__sep{ margin:0 1rem; } .ticker__close{ padding:0 0.5rem; } }
-  @media (prefers-reduced-motion: reduce){
-    .ticker__track{ animation:none; }
-    .ticker__vp{ overflow-x:auto; -webkit-mask-image:none; mask-image:none; }
-    .ticker__vp::-webkit-scrollbar{ display:none; }
-    .ticker__seg:nth-child(2){ display:none; }
-  }
-  @keyframes tickerScroll{ from{ transform:translateX(0); } to{ transform:translateX(-50%); } }
+  /* Announcement ticker styling now lives in the shared ticker.js component. */
+  /* Targeting chips in the Announcement-bar manager */
+  .tk-scope{ font-size:0.83rem; cursor:pointer; display:inline-flex; align-items:center; gap:0.3rem;
+    padding:0.24rem 0.6rem; border:1px solid var(--line); border-radius:999px; user-select:none; }
+  .tk-scope:hover{ border-color:var(--accent); }
+  .tk-scope input{ margin:0; }
+  .tk-scope-all{ font-weight:700; background:var(--accent-soft,#eef2fb); }
+  #tk-targets input:disabled ~ *, .tk-tok:disabled { opacity:0.5; }
+  #tk-courses[disabled]{ opacity:0.5; }
   </style>
 </head>
 <body>
-  <!-- Announcement ticker (Phase 71): scrolls above the header. Filled by
-       initTicker() from the ticker_announcements table, on its own load path. -->
-  <div id="ticker-bar" class="ticker" hidden></div>
+  <!-- Announcement ticker is injected site-wide by ticker.js (shared component). -->
   <header class="topbar">
     <span class="brand"><img src="icons/logo-64.png" alt="" />Learning Ecology</span>
     <div style="display:flex; align-items:center;">
@@ -200,6 +179,7 @@
           onload="try{lucide.createIcons()}catch(e){}"></script>
   <script src="lang.js"></script>
   <script src="config.js"></script>
+  <script src="ticker.js"></script>
   <script src="ui.js"></script>
   <script src="hsk-plan.js"></script>
   <script src="speech-zh.js"></script>
@@ -233,77 +213,11 @@
       return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms || 200); };
     }
 
-    /* ── Announcement ticker (Phase 71) ─────────────────────────────────
-       Scrolls messages across the very top of the dashboard. Loaded on its
-       OWN path (initTicker() fires alongside start()), so it never delays the
-       dashboard render; if the table/migration is absent it silently shows
-       nothing. Owner manages the rows in the Announce tab. */
-    function tkEsc(s) {
-      return String(s ?? "").replace(/[&<>"']/g, c =>
-        ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
-    }
-    function tkDismissed() { try { return JSON.parse(localStorage.getItem("le_ticker_dismissed") || "[]"); } catch (e) { return []; } }
-    function tkDismiss(ids) {
-      try { const s = new Set(tkDismissed()); ids.forEach(i => s.add(i));
-        localStorage.setItem("le_ticker_dismissed", JSON.stringify([...s])); } catch (e) {}
-    }
-    // enabled AND currently inside its (optional) start/end window
-    function tkActive(rows) {
-      const now = Date.now();
-      return (rows || []).filter(a => a && a.enabled && (a.text || "").trim()
-        && (!a.starts_at || Date.parse(a.starts_at) <= now)
-        && (!a.ends_at   || Date.parse(a.ends_at)   >= now));
-    }
-    function tkItemHtml(a) {
-      const inner = (a.icon ? `<span class="ticker__ic">${tkEsc(a.icon)}</span>` : "") + `<span>${tkEsc(a.text)}</span>`;
-      if (a.url && String(a.url).trim()) {
-        const u = String(a.url).trim();
-        const safe = /^(https?:|mailto:|\/)/i.test(u) ? u : "https://" + u;   // never allow javascript: etc.
-        return `<a class="ticker__item" href="${tkEsc(safe)}"${a.new_tab ? ' target="_blank" rel="noopener"' : ''}>${inner}</a>`;
-      }
-      return `<span class="ticker__item">${inner}</span>`;
-    }
-    function tkSegHtml(list) { return list.map(tkItemHtml).join('<span class="ticker__sep">◆</span>'); }
-    // duration follows content width (~60px/s) so speed feels the same for any
-    // length. getBoundingClientRect forces layout, so no need to wait for a frame
-    // (rAF is paused in background tabs); the CSS default 30s covers w===0.
-    function tkStartAnim(box) {
-      const seg = box.querySelector(".ticker__seg");
-      const track = box.querySelector(".ticker__track");
-      if (!seg || !track) return;
-      const w = seg.getBoundingClientRect().width;
-      if (w > 0) track.style.animationDuration = Math.max(14, Math.round(w / 60)) + "s";
-    }
-    function tkTrackHtml(list) {
-      const seg = tkSegHtml(list);
-      return `<div class="ticker__vp"><div class="ticker__track">`
-        + `<div class="ticker__seg">${seg}</div><div class="ticker__seg" aria-hidden="true">${seg}</div>`
-        + `</div></div>`;
-    }
-    async function initTicker() {
-      const bar = document.getElementById("ticker-bar");
-      if (!bar || typeof sb === "undefined") return;
-      let rows = [];
-      try {
-        const { data, error } = await sb.from("ticker_announcements")
-          .select("id, text, icon, url, new_tab, enabled, sort_order, starts_at, ends_at")
-          .order("sort_order").order("created_at");
-        if (error) throw error;
-        rows = data || [];
-      } catch (e) { bar.hidden = true; return; }   // no table yet / offline → no bar
-      const dismissed = tkDismissed();
-      const list = tkActive(rows).filter(a => !dismissed.includes(a.id));
-      if (!list.length) { bar.hidden = true; bar.innerHTML = ""; return; }
-      bar.innerHTML = tkTrackHtml(list)
-        + `<button class="ticker__close" id="ticker-close" title="Ẩn thông báo" aria-label="Dismiss">×</button>`;
-      bar.hidden = false;
-      tkStartAnim(bar);
-      const closeBtn = document.getElementById("ticker-close");
-      if (closeBtn) closeBtn.addEventListener("click", () => {
-        tkDismiss(list.map(a => a.id));   // remember locally so it won't reappear on refresh
-        bar.hidden = true; bar.innerHTML = "";
-      });
-    }
+    /* The announcement ticker is the shared ticker.js component (site-wide).
+       These thin shims let the owner-management code drive its preview + refresh. */
+    const tkPreviewHtml = ann => (window.LETicker ? window.LETicker.previewHTML(ann) : "");
+    const tkStartAnim = box => { if (window.LETicker) window.LETicker.startAnim(box); };
+    const tickerReload = () => { if (window.LETicker) window.LETicker.reload(); };
 
     // Shared by the account importer and the reading importer.
     // Handles quoted cells, "" escapes, and line breaks inside cells.
@@ -4110,7 +4024,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         <div class="tabpane" data-tab="announce">
         <div class="card" id="ticker-mgr">
           <div class="card-head"><h2>📢 Announcement bar (scrolling ticker)</h2></div>
-          <p class="kind" style="margin:0 0 0.7rem;">These short messages scroll across the very top of the dashboard for every user. Only <b>enabled</b> announcements that are <b>within their schedule</b> are shown; students can dismiss the bar, and a new announcement brings it back. Managed here — no code editing.</p>
+          <p class="kind" style="margin:0 0 0.7rem;">These short messages scroll across the top of <b>every public page</b> (course preview, Reading, VSTEP, V-SAT, HSK, free tools…) — <b>visitors do not need to log in</b>. Only <b>enabled</b> announcements <b>within their schedule</b> show, and only where their <b>Display&nbsp;on</b> target matches the page. Viewers can dismiss the bar; a new announcement brings it back. Managed here — no code editing.</p>
           <div class="form-row">
             <div class="field" style="max-width:90px;"><label>Icon</label>
               <input id="tk-icon" placeholder="🎉" maxlength="6" autocomplete="off" /></div>
@@ -4128,6 +4042,23 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               <label style="font-size:0.85rem; color:var(--muted); cursor:pointer; white-space:nowrap; padding-top:0.5rem;">
                 <input type="checkbox" id="tk-enabled" checked /> enabled</label></div>
           </div>
+          <div class="field" style="margin-top:0.2rem;">
+            <label>Display on / Target audience</label>
+            <div id="tk-targets" style="display:flex; flex-wrap:wrap; gap:0.45rem 0.55rem; align-items:center; padding:0.35rem 0;">
+              <label class="tk-scope tk-scope-all"><input type="checkbox" id="tk-all" data-tok="all" checked /> 🌐 All public pages</label>
+              <label class="tk-scope"><input type="checkbox" class="tk-tok" data-tok="reading" /> 📚 Reading Library</label>
+              <label class="tk-scope"><input type="checkbox" class="tk-tok" data-tok="english" /> 🇬🇧 English pages</label>
+              <label class="tk-scope"><input type="checkbox" class="tk-tok" data-tok="chinese" /> 🇨🇳 Chinese / HSK</label>
+              <label class="tk-scope"><input type="checkbox" class="tk-tok" data-tok="hsk" /> HSK slides</label>
+              <label class="tk-scope"><input type="checkbox" class="tk-tok" data-tok="vstep" /> VSTEP</label>
+              <label class="tk-scope"><input type="checkbox" class="tk-tok" data-tok="vsat" /> V-SAT</label>
+              <label class="tk-scope"><input type="checkbox" class="tk-tok" data-tok="tools" /> 🧰 Free tools</label>
+              <label class="tk-scope"><input type="checkbox" class="tk-tok" data-tok="courses" /> 🎓 All courses</label>
+            </div>
+            <div class="field" style="max-width:360px; margin-top:0.15rem;"><label style="font-weight:600;">…or specific course(s)</label>
+              <select id="tk-courses" multiple size="4"></select>
+              <span class="kind" style="font-size:0.75rem;">Ctrl/⌘-click to pick several. Leave the boxes above unticked and “All public pages” off to target only these courses.</span></div>
+          </div>
           <div class="form-row">
             <div class="field" style="max-width:230px;"><label>Show from (optional)</label>
               <input type="datetime-local" id="tk-start" /></div>
@@ -4137,7 +4068,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             <button id="tk-save" type="button">Add announcement</button>
             <button class="ghost" id="tk-cancel" type="button" style="display:none;">Cancel edit</button>
           </div>
-          <div id="tk-preview" class="ticker" hidden style="border-radius:10px; margin:0.5rem 0 0;"></div>
+          <div id="tk-preview" class="le-tk" hidden style="border-radius:10px; margin:0.5rem 0 0;"></div>
           <p id="tk-msg" class="msg"></p>
           <div id="tk-list" style="margin-top:0.6rem;"></div>
         </div>
@@ -9958,7 +9889,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
 
       // ================= ANNOUNCEMENT TICKER MANAGEMENT =================
       // Owner-only. Fetches its own rows (tiny) so it stays off the main load
-      // path. Every change also refreshes the live bar via initTicker().
+      // path. Every change also refreshes the live bar via tickerReload().
       (function () {
         const mgr = document.getElementById("ticker-mgr");
         if (!mgr) return;
@@ -9966,6 +9897,49 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         const F = id => document.getElementById(id);
         const say = (txt, err) => { const m = F("tk-msg"); m.textContent = txt; m.className = "msg" + (err ? " err" : ""); };
         let rows = [], editId = null;
+
+        // ---- targeting (Display on / Target audience) ----
+        const TG_NAMES = { reading: "Reading", english: "English", chinese: "Chinese/HSK", hsk: "HSK",
+          vstep: "VSTEP", vsat: "V-SAT", tools: "Tools", courses: "Courses" };
+        F("tk-courses").innerHTML = (courses || []).length
+          ? (courses || []).map(c => `<option value="course:${c.id}">${esc(c.title)}${c.category ? " · " + esc(c.category) : ""}</option>`).join("")
+          : `<option value="" disabled>— no courses —</option>`;
+        function syncTargetsUI() {
+          const g = F("tk-all").checked;
+          mgr.querySelectorAll(".tk-tok").forEach(c => c.disabled = g);
+          F("tk-courses").disabled = g;
+        }
+        function readTargets() {
+          if (F("tk-all").checked) return ["all"];
+          const toks = [...mgr.querySelectorAll(".tk-tok:checked")].map(c => c.getAttribute("data-tok"));
+          const crs = [...F("tk-courses").selectedOptions].map(o => o.value).filter(Boolean);
+          const all = toks.concat(crs);
+          return all.length ? all : ["all"];      // nothing picked → treat as global
+        }
+        function setTargets(targets) {
+          const t = targets || [];
+          const global = !t.length || t.includes("all");
+          F("tk-all").checked = global;
+          mgr.querySelectorAll(".tk-tok").forEach(c => c.checked = !global && t.includes(c.getAttribute("data-tok")));
+          [...F("tk-courses").options].forEach(o => o.selected = !global && t.includes(o.value));
+          syncTargetsUI();
+        }
+        function targetLabel(t) {
+          t = (t || []);
+          if (!t.length || t.includes("all")) return "🌐 all pages";
+          const groups = t.filter(x => TG_NAMES[x]).map(x => TG_NAMES[x]);
+          const nC = t.filter(x => x.indexOf("course:") === 0).length;
+          const parts = groups.slice();
+          if (nC) parts.push(nC + " course" + (nC > 1 ? "s" : ""));
+          t.filter(x => !TG_NAMES[x] && x.indexOf("course:") !== 0 && x !== "all").forEach(x => parts.push(x));
+          return "🎯 " + (parts.join(", ") || "targeted");
+        }
+        F("tk-all").addEventListener("change", () => {
+          if (F("tk-all").checked) { mgr.querySelectorAll(".tk-tok").forEach(c => c.checked = false); [...F("tk-courses").options].forEach(o => o.selected = false); }
+          syncTargetsUI();
+        });
+        mgr.querySelectorAll(".tk-tok").forEach(c => c.addEventListener("change", () => { if (c.checked) F("tk-all").checked = false; syncTargetsUI(); }));
+        F("tk-courses").addEventListener("change", () => { if (F("tk-courses").selectedOptions.length) F("tk-all").checked = false; syncTargetsUI(); });
 
         const pad = n => String(n).padStart(2, "0");
         const toLocalInput = iso => { if (!iso) return ""; const d = new Date(iso); if (isNaN(d)) return "";
@@ -9986,7 +9960,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               <span class="icon">${esc(a.icon || "📢")}</span>
               <div class="meta">
                 <div class="title">${esc(a.text)} ${statusPill(a)}</div>
-                <span class="kind">#${a.sort_order ?? 0}${a.url ? ` · 🔗 ${esc(a.url)} (${a.new_tab ? "new tab" : "same tab"})` : ""}${a.starts_at ? ` · từ ${esc(new Date(a.starts_at).toLocaleString())}` : ""}${a.ends_at ? ` · đến ${esc(new Date(a.ends_at).toLocaleString())}` : ""}</span>
+                <span class="kind">#${a.sort_order ?? 0}${a.url ? ` · 🔗 ${esc(a.url)} (${a.new_tab ? "new tab" : "same tab"})` : ""}${a.starts_at ? ` · từ ${esc(new Date(a.starts_at).toLocaleString())}` : ""}${a.ends_at ? ` · đến ${esc(new Date(a.ends_at).toLocaleString())}` : ""} · ${esc(targetLabel(a.targets))}</span>
               </div>
               <label style="font-size:0.82rem; color:var(--muted); cursor:pointer; white-space:nowrap; flex:none;">
                 <input type="checkbox" class="tk-en" data-id="${a.id}" ${a.enabled ? "checked" : ""} /> enabled</label>
@@ -9998,7 +9972,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             const { error } = await sb.from("ticker_announcements").update({ enabled: c.checked, updated_at: new Date().toISOString() }).eq("id", id);
             if (error) { say("Không lưu được: " + error.message, true); c.checked = !c.checked; return; }
             const r = rows.find(x => x.id === id); if (r) r.enabled = c.checked;
-            renderList(); initTicker();
+            renderList(); tickerReload();
           }));
           listEl.querySelectorAll(".tk-edit").forEach(b => b.addEventListener("click", () => startEdit(b.getAttribute("data-id"))));
           listEl.querySelectorAll(".tk-del").forEach(b => b.addEventListener("click", async () => {
@@ -10007,20 +9981,22 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             const { error } = await sb.from("ticker_announcements").delete().eq("id", id);
             if (error) { say("Không xóa được: " + error.message, true); return; }
             rows = rows.filter(x => x.id !== id); if (editId === id) resetForm();
-            renderList(); initTicker();
+            renderList(); tickerReload();
           }));
         }
         function readForm() {
           return { text: F("tk-text").value.trim(), icon: F("tk-icon").value.trim(),
             url: F("tk-url").value.trim() || null, new_tab: F("tk-newtab").value === "1",
             enabled: F("tk-enabled").checked, sort_order: parseInt(F("tk-order").value, 10) || 0,
-            starts_at: fromLocalInput(F("tk-start").value), ends_at: fromLocalInput(F("tk-end").value) };
+            starts_at: fromLocalInput(F("tk-start").value), ends_at: fromLocalInput(F("tk-end").value),
+            targets: readTargets() };
         }
         function resetForm() {
           editId = null;
           ["tk-icon", "tk-text", "tk-url", "tk-start", "tk-end"].forEach(id => F(id).value = "");
           F("tk-newtab").value = "1"; F("tk-order").value = "100"; F("tk-enabled").checked = true;
           F("tk-save").textContent = "Add announcement"; F("tk-cancel").style.display = "none";
+          setTargets(["all"]);
           F("tk-preview").hidden = true; say("");
         }
         function startEdit(id) {
@@ -10030,6 +10006,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           F("tk-newtab").value = a.new_tab ? "1" : "0"; F("tk-enabled").checked = !!a.enabled;
           F("tk-order").value = a.sort_order ?? 100;
           F("tk-start").value = toLocalInput(a.starts_at); F("tk-end").value = toLocalInput(a.ends_at);
+          setTargets(a.targets);
           F("tk-save").textContent = "Save changes"; F("tk-cancel").style.display = "";
           mgr.scrollIntoView({ behavior: "smooth", block: "start" });
         }
@@ -10037,7 +10014,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           const a = readForm();
           const box = F("tk-preview");
           if (!a.text) { box.hidden = true; say("Nhập nội dung để xem trước.", true); return; }
-          box.innerHTML = tkTrackHtml([a]); box.hidden = false; tkStartAnim(box); say("");
+          box.innerHTML = tkPreviewHtml(a); box.hidden = false; tkStartAnim(box); say("");
         });
         F("tk-cancel").addEventListener("click", resetForm);
         F("tk-save").addEventListener("click", async () => {
@@ -10046,14 +10023,20 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           if (a.starts_at && a.ends_at && Date.parse(a.ends_at) < Date.parse(a.starts_at)) { say("Ngày kết thúc phải sau ngày bắt đầu.", true); return; }
           F("tk-save").disabled = true;
           const payload = { ...a, updated_at: new Date().toISOString() };
-          const q = editId
-            ? sb.from("ticker_announcements").update(payload).eq("id", editId)
-            : sb.from("ticker_announcements").insert(payload);
-          const { error } = await q;
+          const run = p => editId
+            ? sb.from("ticker_announcements").update(p).eq("id", editId)
+            : sb.from("ticker_announcements").insert(p);
+          let { error } = await run(payload);
+          // graceful if migration63 (targets column) hasn't been run yet
+          if (error && /targets/i.test(error.message || "")) {
+            const { targets, ...rest } = payload;
+            ({ error } = await run(rest));
+            if (!error) say("Đã lưu (chưa có định hướng — chạy migration63 để bật “Display on”).");
+          }
           F("tk-save").disabled = false;
           if (error) { say("Không lưu được: " + error.message, true); return; }
           say(editId ? "Đã cập nhật ✓" : "Đã thêm ✓");
-          resetForm(); await load(); initTicker();
+          resetForm(); await load(); tickerReload();
         });
         async function load() {
           listEl.innerHTML = '<p class="kind">Đang tải…</p>';
@@ -10674,7 +10657,6 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
     }
 
     start();
-    initTicker();   // own load path — never blocks the dashboard render
   </script>
   <script>
     // PWA: offline shell + installability (needs HTTPS, e.g. GitHub Pages)
