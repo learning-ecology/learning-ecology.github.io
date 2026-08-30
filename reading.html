@@ -241,8 +241,19 @@
   .vword .ex { font-family:var(--hz-font); font-size:13px; color:var(--muted); margin-top:3px; }
   .status { font-size:11.5px; border-radius:6px; padding:1px 7px; font-weight:600; }
   .status.learning { color:var(--l4); background:var(--l4bg); }
-  .status.known { color:var(--l1); background:var(--l1bg); }
+  .status.known, .status.mastered { color:var(--l1); background:var(--l1bg); }
   .status.new { color:var(--muted); background:var(--bg); }
+  .status.due { color:var(--warn); background:rgba(192,86,0,.12); }
+  .status.weak { color:#c0392b; background:rgba(192,57,43,.12); }
+  /* segmented filters (vocab language, flashcard setup) */
+  .segbar { display:inline-flex; gap:6px; flex-wrap:wrap; }
+  .segbar button, .fc-seg button { border:1px solid var(--line); background:var(--panel); color:var(--muted);
+    border-radius:999px; padding:5px 12px; font-size:13px; font-weight:600; cursor:pointer; }
+  .segbar button.on, .fc-seg button.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+  #fcSetup .group { display:flex; align-items:flex-start; gap:8px; flex-wrap:wrap; margin-bottom:11px; color:var(--muted); }
+  #fcSetup .group > b { min-width:78px; color:var(--ink); font-weight:700; padding-top:5px; }
+  .fc-cats { display:flex; flex-wrap:wrap; gap:8px 14px; }
+  .fc-cats label { display:inline-flex; align-items:center; gap:5px; font-size:13.5px; color:var(--ink); cursor:pointer; }
 
   /* flashcards */
   #card { background:var(--panel); border:1px solid var(--line); border-radius:16px; min-height:280px;
@@ -767,44 +778,68 @@
 
   <!-- ============ VOCAB ============ -->
   <section class="view" id="view-vocab">
-    <div class="panel row">
-      <input id="vSearch" placeholder="Tìm từ, pinyin, nghĩa…" class="grow" style="min-width:160px">
-      <select id="vLvl">
-        <option value="0">Mọi cấp HSK</option>
-        <option value="1">HSK 1</option><option value="2">HSK 2</option><option value="3">HSK 3</option>
-        <option value="4">HSK 4</option><option value="5">HSK 5</option><option value="6">HSK 6</option>
-        <option value="7">HSK 7</option><option value="8">HSK 8</option><option value="9">HSK 9</option>
-        <option value="-1">Ngoài HSK</option>
-      </select>
-      <select id="vStatus">
-        <option value="">Mọi trạng thái</option>
-        <option value="new">Mới lưu</option>
-        <option value="learning">Đang học</option>
-        <option value="known">Đã thuộc</option>
-      </select>
-      <select id="vSort">
-        <option value="date">Mới lưu trước</option>
-        <option value="dateAsc">Cũ nhất trước</option>
-        <option value="level">Theo cấp HSK</option>
-      </select>
-      <span class="mutetext" id="vCount"></span>
+    <div class="panel" style="display:flex;flex-direction:column;gap:10px">
+      <div class="segbar" id="vLang" role="tablist" aria-label="Ngôn ngữ từ vựng">
+        <button data-lang="all">Tất cả</button>
+        <button data-lang="en">🇬🇧 Tiếng Anh</button>
+        <button data-lang="zh">🇨🇳 Tiếng Trung</button>
+      </div>
+      <div class="row">
+        <input id="vSearch" placeholder="Tìm từ, pinyin, nghĩa…" class="grow" style="min-width:160px">
+        <select id="vLvl"><option value="0">Mọi cấp</option></select>
+        <select id="vStatus">
+          <option value="">Mọi trạng thái</option>
+          <option value="new">🆕 Chưa học</option>
+          <option value="studied1">Đã học 1 lần</option>
+          <option value="studied2">Đã học 2 lần</option>
+          <option value="studied3">Đã học 3+ lần</option>
+          <option value="due">🔁 Cần ôn tập</option>
+          <option value="weak">🔴 Từ yếu</option>
+          <option value="mastered">✅ Đã nhớ tốt</option>
+        </select>
+        <select id="vSort">
+          <option value="date">Mới lưu trước</option>
+          <option value="dateAsc">Cũ nhất trước</option>
+          <option value="level">Theo cấp độ</option>
+          <option value="due">Sắp đến hạn ôn</option>
+        </select>
+        <span class="mutetext" id="vCount"></span>
+      </div>
     </div>
     <div class="panel" id="vList"></div>
   </section>
 
   <!-- ============ FLASHCARDS ============ -->
   <section class="view" id="view-cards">
-    <div class="panel row">
-      <span class="group">Chế độ:
+    <div class="panel" id="fcSetup">
+      <div class="group"><b>Ngôn ngữ</b>
+        <span class="fc-seg" id="fcLang">
+          <button data-l="en">🇬🇧 English</button>
+          <button data-l="zh">🇨🇳 中文</button>
+          <button data-l="both">Cả hai</button>
+        </span></div>
+      <div class="group"><b>Bộ thẻ</b>
+        <div class="fc-cats" id="fcCats">
+          <label><input type="checkbox" class="fcCat" data-c="new" checked> 🆕 Từ chưa học</label>
+          <label><input type="checkbox" class="fcCat" data-c="due" checked> 🔁 Đến hạn ôn</label>
+          <label><input type="checkbox" class="fcCat" data-c="weak"> 🔴 Từ yếu</label>
+          <label><input type="checkbox" class="fcCat" data-c="hard"> ⭐ Từ khó</label>
+          <label><input type="checkbox" class="fcCat" data-c="learned"> ✅ Đã học</label>
+        </div></div>
+      <div class="group"><b>Cấp độ</b><select id="fcLvl"><option value="0">Tất cả</option></select>
+        <span class="group" style="margin:0">Kiểu:
         <select id="fcMode">
-          <option value="ce">Chữ Hán → Nghĩa</option>
-          <option value="ec">Nghĩa → Chữ Hán</option>
-          <option value="cp">Chữ Hán → Pinyin</option>
+          <option value="ce">Từ → Nghĩa</option>
+          <option value="ec">Nghĩa → Từ</option>
+          <option value="cp">Từ → Pinyin</option>
           <option value="listen">👂 Nghe → Từ</option>
-        </select>
-      </span>
-      <span class="mutetext" id="fcInfo"></span>
-      <button id="fcStart" class="primary">Bắt đầu ôn tập</button>
+        </select></span></div>
+      <div class="group"><b>Số thẻ</b>
+        <span class="fc-seg" id="fcCount">
+          <button data-n="10">10</button><button data-n="20" class="on">20</button>
+          <button data-n="30">30</button><button data-n="50">50</button><button data-n="0">Tất cả</button>
+        </span></div>
+      <button id="fcStart" class="primary" style="margin-top:4px">Bắt đầu học — <span id="fcAvail">0</span> từ</button>
     </div>
     <div id="fcArea" hidden>
       <div id="card"></div>
@@ -2379,41 +2414,110 @@ function saveWord(w, p, m, lvl, ex, note, status) {
 }
 
 /* ================= vocab view ================= */
+/* Language segment (🇬🇧 / 🇨🇳 / Tất cả) — English and Chinese vocab are kept
+   apart; each word already carries its own `lang` (default 'zh' for old rows). */
+let vLang = localStorage.getItem('crh-vlang') || (LANG === 'en' ? 'en' : 'zh');
+function rebuildVLvl() {
+  const sel = $('vLvl'); if (!sel) return;
+  const keep = sel.value;
+  let opts = '<option value="0">Mọi cấp</option>';
+  if (vLang === 'en') opts += [1,2,3,4,5,6].map(n => '<option value="' + n + '">' + CEFR[n] + '</option>').join('') + '<option value="-1">Chưa xếp cấp</option>';
+  else if (vLang === 'zh') opts += [1,2,3,4,5,6,7,8,9].map(n => '<option value="' + n + '">HSK ' + n + '</option>').join('') + '<option value="-1">Ngoài HSK</option>';
+  sel.innerHTML = opts;
+  sel.value = [...sel.options].some(o => o.value === keep) ? keep : '0';
+}
+function syncVLang() {
+  document.querySelectorAll('#vLang button').forEach(b => b.classList.toggle('on', b.dataset.lang === vLang));
+  rebuildVLvl();
+}
+$('vLang').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  vLang = b.dataset.lang; localStorage.setItem('crh-vlang', vLang);
+  syncVLang(); renderVocab();
+});
 ['vSearch','vLvl','vStatus','vSort'].forEach(id => $(id).addEventListener('input', renderVocab));
+
+/* ---- learning status, DERIVED from the existing SRS fields (no new columns) ---- */
+function vAcc(v)     { return v.srs.total ? v.srs.ok / v.srs.total : 0; }
+function isNewW(v)     { return v.srs.reps === 0; }
+function isMastered(v) { return v.status === 'known' || (v.srs.reps >= 3 && v.srs.ivl >= 21 * DAY && (v.srs.total < 3 || vAcc(v) >= 0.75)); }
+function isWeakW(v)    { return v.srs.reps > 0 && (v.srs.lapses >= 2 || (v.srs.total >= 3 && vAcc(v) < 0.5)); }
+function isDueW(v)     { return v.srs.reps > 0 && v.status !== 'known' && v.srs.due <= Date.now(); }
+function isHardW(v)    { return v.srs.reps > 0 && v.srs.ef < 2.0; }
+function learnKey(v) {
+  if (isNewW(v)) return 'new';
+  if (isMastered(v)) return 'mastered';
+  if (isWeakW(v)) return 'weak';
+  if (isDueW(v)) return 'due';
+  return 'learning';
+}
+function learnBadge(v) {
+  const k = learnKey(v);
+  if (k === 'learning') return { cls: 'learning', txt: 'Đã học ' + v.srs.reps + ' lần' };
+  return { cls: k, txt: { new: 'Mới lưu', mastered: 'Đã nhớ tốt', weak: 'Từ yếu', due: 'Cần ôn tập' }[k] };
+}
+function matchStatus(v, st) {
+  switch (st) {
+    case 'new': return isNewW(v);
+    case 'studied1': return v.srs.reps === 1;
+    case 'studied2': return v.srs.reps === 2;
+    case 'studied3': return v.srs.reps >= 3;
+    case 'due': return isDueW(v);
+    case 'weak': return isWeakW(v);
+    case 'mastered': return isMastered(v);
+    default: return true;
+  }
+}
+const fmtDMY = ms => { const d = new Date(ms); return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear(); };
+function dueRel(v) {
+  const diff = v.srs.due - Date.now();
+  if (diff <= 0) return 'đã đến hạn';
+  if (diff < DAY) return 'trong ' + Math.max(1, Math.round(diff / 3600000)) + ' giờ';
+  return 'sau ' + Math.round(diff / DAY) + ' ngày';
+}
 function renderVocab() {
   const vocab = read('crh-vocab', {});
   const q = $('vSearch').value.trim().toLowerCase();
   const lv = +$('vLvl').value, st = $('vStatus').value, sort = $('vSort').value;
   let list = Object.entries(vocab).map(([w, v]) => ({ w, ...v }));
-  if (q) list = list.filter(v => v.w.includes(q) || (v.p||'').toLowerCase().includes(q) || (v.m||'').toLowerCase().includes(q) || (v.note||'').toLowerCase().includes(q));
+  if (vLang !== 'all') list = list.filter(v => (v.lang || 'zh') === vLang);
+  if (q) list = list.filter(v => v.w.toLowerCase().includes(q) || (v.p||'').toLowerCase().includes(q) || (v.m||'').toLowerCase().includes(q) || (v.note||'').toLowerCase().includes(q));
   if (lv > 0) list = list.filter(v => v.lvl === lv);
   if (lv === -1) list = list.filter(v => !v.lvl);
-  if (st) list = list.filter(v => statusOf(v) === st);
+  if (st) list = list.filter(v => matchStatus(v, st));
   if (sort === 'date') list.sort((a,b) => b.added - a.added);
   if (sort === 'dateAsc') list.sort((a,b) => a.added - b.added);
-  if (sort === 'level') list.sort((a,b) => (a.lvl||9) - (b.lvl||9));
+  if (sort === 'level') list.sort((a,b) => (a.lvl||99) - (b.lvl||99));
+  if (sort === 'due') list.sort((a,b) => a.srs.due - b.srs.due);
   $('vCount').textContent = list.length + ' từ';
-  $('vList').innerHTML = list.map(v =>
-    '<div class="vword" data-w="' + escH(v.w) + '">' +
+  $('vList').innerHTML = list.map(v => {
+    const b = learnBadge(v);
+    const hist = 'Đã học ' + v.srs.reps + ' lần' +
+      (v.srs.total ? ' · đúng ' + Math.round(vAcc(v) * 100) + '%' : '') +
+      ' · lưu ' + fmtDMY(v.added) +
+      (v.srs.reps > 0 ? ' · ôn tiếp ' + dueRel(v) : '');
+    const lb = levelLabel(v.lvl || 0, v.lang);
+    return '<div class="vword" data-w="' + escH(v.w) + '">' +
       '<div class="w">' + escH(v.w) + '</div>' +
       '<div class="grow"><span class="p">' + escH(v.p||'') + '</span> ' +
-        '<span class="lv lv' + (v.lvl||0) + '">' + levelLabel(v.lvl || 0, v.lang) + '</span> ' +
-        '<span class="status ' + statusOf(v) + '">' + statusLabel(v) + '</span>' +
+        (lb ? '<span class="lv lv' + (v.lvl||0) + '">' + lb + '</span> ' : '') +
+        '<span class="status ' + b.cls + '">' + b.txt + '</span>' +
         '<div>' + escH(v.m||'') + '</div>' +
         (v.note ? '<div class="note">📝 ' + escH(v.note) + '</div>' : '') +
         (v.ex ? '<div class="ex">' + escH(v.ex) + '</div>' : '') +
-        '<div class="mutetext">Lưu ' + todayKey(v.added) + ' · ôn ' + v.srs.reps + ' lần' +
-        (v.srs.total ? ' · đúng ' + Math.round(v.srs.ok / v.srs.total * 100) + '%' : '') + '</div></div>' +
+        '<div class="mutetext">' + hist + '</div></div>' +
       '<div style="display:flex;flex-direction:column;gap:5px">' +
         '<button class="small" data-act="audio">🔊</button>' +
         '<button class="small" data-act="note">📝</button>' +
         '<button class="small" data-act="known">' + (v.status === 'known' ? '↩' : '✓') + '</button>' +
         '<button class="small" data-act="del">🗑</button>' +
-      '</div></div>').join('') ||
+      '</div></div>';
+  }).join('') ||
     '<p class="mutetext">Chưa có từ nào — nhấp vào từ trong bài đọc để lưu.</p>';
 }
-function statusOf(v) { return v.status === 'known' || v.srs.ivl >= 21 * DAY ? 'known' : (v.srs.reps > 0 ? 'learning' : 'new'); }
-function statusLabel(v) { return { known: 'Đã thuộc', learning: 'Đang học', new: 'Mới lưu' }[statusOf(v)]; }
+/* kept for the dashboard tiles (known / learning / new) */
+function statusOf(v) { const k = learnKey(v); return k === 'mastered' ? 'known' : (k === 'new' ? 'new' : 'learning'); }
+syncVLang();
 $('vList').addEventListener('click', e => {
   const btn = e.target.closest('button'); if (!btn) return;
   const w = e.target.closest('.vword').dataset.w;
@@ -2457,19 +2561,97 @@ function nextIvl(srs, g) {
 }
 function fmtIvl(ms) { return ms < DAY ? Math.round(ms / 60000) + 'p' : ms < 30 * DAY ? Math.round(ms / DAY) + 'ng' : Math.round(ms / DAY / 30) + 'th'; }
 let session = null;
-function renderCardsHome() {
-  const { due, fresh } = dueCards();
-  $('fcInfo').textContent = due.length + ' từ đến hạn · ' + fresh.length + ' từ mới hôm nay';
-  $('fcArea').hidden = true; $('fcDone').hidden = true;
-  session = null;
+
+/* ---- flashcard setup: language + study-set categories + level + count ----
+   The queue is built from real vocab and prioritised (overdue/weak → due →
+   new → studied); a deliberate mix keeps its proportions via round-robin. */
+let fcOpts = (function () {
+  const def = { lang: (LANG === 'en' ? 'en' : 'zh'), cats: ['new', 'due'], lvl: 0, mode: 'ce', count: 20 };
+  try { return Object.assign(def, JSON.parse(localStorage.getItem('crh-fcopts') || '{}')); } catch (e) { return def; }
+})();
+function saveFcOpts() { try { localStorage.setItem('crh-fcopts', JSON.stringify(fcOpts)); } catch (e) {} }
+const FC_CATS = ['weak', 'due', 'hard', 'new', 'learned'];   // priority order
+function fcCatMatch(v, c) {
+  if (c === 'new') return isNewW(v);
+  if (c === 'due') return isDueW(v);
+  if (c === 'weak') return isWeakW(v);
+  if (c === 'hard') return isHardW(v);
+  if (c === 'learned') return v.srs.reps > 0;
+  return false;
 }
+function fcLangMatch(v) { return fcOpts.lang === 'both' || (v.lang || 'zh') === fcOpts.lang; }
+function fcMatching() {
+  const vocab = read('crh-vocab', {});
+  const out = [];
+  for (const [w, v] of Object.entries(vocab)) {
+    if (!fcLangMatch(v)) continue;
+    if (fcOpts.lvl > 0 && v.lvl !== fcOpts.lvl) continue;
+    if (fcOpts.lvl === -1 && v.lvl) continue;
+    if (fcOpts.cats.some(c => fcCatMatch(v, c))) out.push({ w, v });
+  }
+  return out;
+}
+function fcAvail() { return new Set(fcMatching().map(x => x.w)).size; }
+function fcBuildQueue() {
+  const matching = fcMatching();
+  const buckets = {}; FC_CATS.forEach(c => buckets[c] = []);
+  for (const it of matching) {
+    const c = FC_CATS.find(cat => fcOpts.cats.includes(cat) && fcCatMatch(it.v, cat));
+    if (c) buckets[c].push(it);
+  }
+  buckets.weak.sort((a, b) => a.v.srs.due - b.v.srs.due);
+  buckets.due.sort((a, b) => a.v.srs.due - b.v.srs.due);       // most overdue first
+  buckets.hard.sort((a, b) => a.v.srs.ef - b.v.srs.ef);
+  buckets.new.sort((a, b) => a.v.added - b.v.added);           // oldest saved first
+  buckets.learned.sort((a, b) => a.v.srs.due - b.v.srs.due);
+  const order = FC_CATS.filter(c => fcOpts.cats.includes(c) && buckets[c].length);
+  const queue = [], seen = new Set();
+  let progress = true;
+  while (progress) {
+    progress = false;
+    for (const c of order) {
+      const it = buckets[c].shift();
+      if (it && !seen.has(it.w)) { queue.push(it.w); seen.add(it.w); progress = true; }
+      if (fcOpts.count > 0 && queue.length >= fcOpts.count) return queue;
+    }
+  }
+  return queue;
+}
+function fcRebuildLvl() {
+  const sel = $('fcLvl'); if (!sel) return;
+  let opts = '<option value="0">Tất cả</option>';
+  if (fcOpts.lang === 'en') opts += [1,2,3,4,5,6].map(n => '<option value="' + n + '">' + CEFR[n] + '</option>').join('');
+  else if (fcOpts.lang === 'zh') opts += [1,2,3,4,5,6,7,8,9].map(n => '<option value="' + n + '">HSK ' + n + '</option>').join('');
+  sel.innerHTML = opts;
+  if (![...sel.options].some(o => +o.value === fcOpts.lvl)) fcOpts.lvl = 0;
+  sel.value = String(fcOpts.lvl);
+}
+function fcSyncUI() {
+  document.querySelectorAll('#fcLang button').forEach(b => b.classList.toggle('on', b.dataset.l === fcOpts.lang));
+  document.querySelectorAll('#fcCount button').forEach(b => b.classList.toggle('on', +b.dataset.n === fcOpts.count));
+  document.querySelectorAll('.fcCat').forEach(c => c.checked = fcOpts.cats.includes(c.dataset.c));
+  $('fcMode').value = fcOpts.mode;
+  fcRebuildLvl();
+  const n = fcAvail();
+  $('fcAvail').textContent = fcOpts.count > 0 ? Math.min(n, fcOpts.count) : n;
+  $('fcStart').disabled = !n;
+}
+function renderCardsHome() {
+  $('fcSetup').hidden = false; $('fcArea').hidden = true; $('fcDone').hidden = true;
+  session = null;
+  fcSyncUI();
+}
+$('fcLang').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; fcOpts.lang = b.dataset.l; saveFcOpts(); fcSyncUI(); });
+$('fcCount').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; fcOpts.count = +b.dataset.n; saveFcOpts(); fcSyncUI(); });
+$('fcCats').addEventListener('change', () => { fcOpts.cats = [...document.querySelectorAll('.fcCat:checked')].map(c => c.dataset.c); saveFcOpts(); fcSyncUI(); });
+$('fcLvl').addEventListener('change', () => { fcOpts.lvl = +$('fcLvl').value; saveFcOpts(); fcSyncUI(); });
+$('fcMode').addEventListener('change', () => { fcOpts.mode = $('fcMode').value; saveFcOpts(); });
 $('fcStart').addEventListener('click', () => {
-  const { due, fresh } = dueCards();
-  const queue = [...due, ...fresh];
-  if (!queue.length) { toast('Không có thẻ nào đến hạn — quay lại sau nhé!'); return; }
-  for (let i = queue.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [queue[i], queue[j]] = [queue[j], queue[i]]; }
+  if (!fcOpts.cats.length) { toast('Hãy chọn ít nhất một bộ thẻ.'); return; }
+  const queue = fcBuildQueue();
+  if (!queue.length) { toast('Không có từ nào khớp lựa chọn — thử bỏ bớt bộ lọc.'); return; }
   session = { queue, done: 0, ok: 0, total: queue.length, flipped: false };
-  $('fcArea').hidden = false; $('fcDone').hidden = true;
+  $('fcSetup').hidden = true; $('fcArea').hidden = false; $('fcDone').hidden = true;
   showCard();
 });
 function showCard() {
@@ -2545,13 +2727,15 @@ function gradeCard(g) {
   showCard();
 }
 function endSession() {
-  $('fcArea').hidden = true;
-  $('fcDone').hidden = false;
-  $('fcDone').innerHTML = '<h2>🎉 Hoàn thành phiên ôn tập!</h2><p>Đã ôn ' + session.done + ' thẻ · đúng ngay ' +
-    session.ok + ' (' + (session.done ? Math.round(session.ok / session.done * 100) : 0) + '%).</p>' +
-    '<button class="primary" onclick="location.hash=\'\'">Tuyệt!</button>';
+  const done = session ? session.done : 0, ok = session ? session.ok : 0;
   session = null;
-  renderCardsHome();
+  $('fcSetup').hidden = true; $('fcArea').hidden = true; $('fcDone').hidden = false;
+  $('fcDone').innerHTML = '<h2>🎉 Hoàn thành phiên ôn tập!</h2><p>Đã ôn ' + done + ' thẻ · đúng ngay ' +
+    ok + ' (' + (done ? Math.round(ok / done * 100) : 0) + '%).</p>' +
+    '<button class="primary" id="fcAgain">Ôn tiếp</button>';
+  const b = $('fcAgain'); if (b) b.onclick = renderCardsHome;   // back to the setup panel
+  updateDueBadge();
+  renderVocab();   // vocab statuses reflect the new SRS data immediately
 }
 
 /* ================= dashboard ================= */
