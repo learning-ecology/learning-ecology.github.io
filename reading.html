@@ -263,6 +263,9 @@
   #card .mid { font-size:22px; color:var(--accent); }
   #card .small { font-size:15px; color:var(--muted); max-width:520px; }
   #card .exs { font-family:var(--hz-font); font-size:17px; color:var(--muted); }
+  /* English / Vietnamese meaning rows on a flashcard (reuse the popup pill labels) */
+  #card .def-en, #card .def-vi { font-size:16px; line-height:1.45; max-width:560px; }
+  #card .def-vi.load { color:var(--muted); }
   .grades { display:flex; gap:8px; justify-content:center; margin-top:12px; flex-wrap:wrap; }
   .grades button { min-width:86px; padding:10px 8px; font-size:14px; }
   .grades .g0 { color:var(--l5); } .grades .g1 { color:var(--l4); }
@@ -2665,7 +2668,16 @@ function showCard() {
   const mode = $('fcMode').value;
   const front = {
     ce: '<div class="big">' + escH(w) + '</div>',
-    ec: '<div class="small" style="font-size:20px">' + escH(v.m || '(chưa có nghĩa — xem ghi chú)') + '</div>' + (v.note ? '<div class="small">📝 ' + escH(v.note) + '</div>' : ''),
+    ec: (function () {
+      if ((v.lang || 'zh') !== 'en') {
+        const mm = zhCardMeanings(w, v);
+        return (mm.en ? '<div class="def-en"><b>English</b> ' + escH(mm.en) + '</div>' : '') +
+          (mm.vi ? '<div class="def-vi"><b>Tiếng Việt</b> ' + escH(mm.vi) + '</div>' : '') +
+          (!mm.en && !mm.vi ? '<div class="small">(chưa có nghĩa — xem ghi chú)</div>' : '') +
+          (v.note ? '<div class="small">📝 ' + escH(v.note) + '</div>' : '');
+      }
+      return '<div class="small" style="font-size:20px">' + escH(v.m || '(chưa có nghĩa — xem ghi chú)') + '</div>' + (v.note ? '<div class="small">📝 ' + escH(v.note) + '</div>' : '');
+    })(),
     cp: '<div class="big">' + escH(w) + '</div><div class="small">Đọc pinyin của từ này?</div>',
     listen: '<div style="font-size:44px">👂</div><div class="small">Nghe và đoán từ (nhấp 🔊 để nghe lại)</div><button class="small" id="fcReplay">🔊 Nghe lại</button>'
   }[mode];
@@ -2675,18 +2687,51 @@ function showCard() {
     const rp = $('fcReplay'); if (rp) rp.onclick = ev => { ev.stopPropagation(); speak(w); };
   }
 }
-function flipCard() {
-  if (!session || session.flipped) return;
-  const w = session.queue[0]; const v = read('crh-vocab', {})[w];
-  session.flipped = true;
+/* English + Vietnamese for a saved CHINESE word, reusing the dictionary data we
+   already have — teacher reading_dict (DICT_EN / DICT_VI), the HSK bundle, CC-CEDICT,
+   and the on-device zh→vi cache (crh-zhvi). Nothing new is stored. */
+function zhCardMeanings(w, v) {
+  const d = DICT[w];
+  const ce = (typeof cedictGet === 'function') ? cedictGet(w) : null;
+  let en = DICT_EN[w] || (ce ? ce[1] : '');
+  let vi = (DICT_VI.has(w) && d) ? d[1] : '';          // teacher-curated Vietnamese
+  if (!vi) { const z = zhViCached(w); if (z) vi = z; } // cached zh→vi (MyMemory)
+  if (!en && v.m) en = v.m;                            // fall back to whatever was saved
+  return { en, vi };
+}
+function fcMeaningRows(w, v) {
+  const zh = (v.lang || 'zh') !== 'en';
+  const lb = levelLabel(v.lvl || 0, v.lang);
+  const lvBadge = lb ? '<span class="lv lv' + (v.lvl||0) + '">' + lb + '</span>' : '';
+  if (!zh) {   /* English cards keep their existing single-line design (no VI) */
+    return '<div class="small">' + escH(v.m || '') + (lvBadge ? ' ' + lvBadge : '') + '</div>';
+  }
+  const mm = zhCardMeanings(w, v);
+  return (mm.en ? '<div class="def-en"><b>English</b> ' + escH(mm.en) + '</div>' : '') +
+    (mm.vi ? '<div class="def-vi"><b>Tiếng Việt</b> ' + escH(mm.vi) + '</div>'
+           : (isZhLoading(w) ? '<div class="def-vi load"><b>Tiếng Việt</b> đang dịch…</div>' : '')) +
+    (lvBadge ? '<div class="small">' + lvBadge + '</div>' : '');
+}
+function renderFlipBack(w, v) {
   $('card').innerHTML =
     '<div class="big">' + escH(w) + '</div>' +
     '<div class="mid">' + escH(v.p || '') + '</div>' +
-    '<div class="small">' + escH(v.m || '') + ' <span class="lv lv' + (v.lvl||0) + '">' + levelLabel(v.lvl || 0, v.lang) + '</span></div>' +
+    fcMeaningRows(w, v) +
     (v.ex ? '<div class="exs">' + escH(v.ex) + '</div>' : '') +
     (v.note ? '<div class="small">📝 ' + escH(v.note) + '</div>' : '') +
     '<button class="small" id="fcAudio">🔊 Nghe</button>';
   const a = $('fcAudio'); if (a) a.onclick = ev => { ev.stopPropagation(); speak(w); };
+}
+function flipCard() {
+  if (!session || session.flipped) return;
+  const w = session.queue[0]; const v = read('crh-vocab', {})[w];
+  session.flipped = true;
+  renderFlipBack(w, v);
+  /* older Chinese words with no Vietnamese yet: fetch it once (cached), then redraw */
+  if ((v.lang || 'zh') !== 'en' && !zhCardMeanings(w, v).vi) {
+    enrichZh(w, () => { if (session && session.flipped && session.queue[0] === w) {
+      const vv = read('crh-vocab', {})[w]; if (vv) renderFlipBack(w, vv); } });
+  }
   const srs = v.srs;
   [0,1,2,3].forEach(g => $('ivl' + g).textContent = fmtIvl(nextIvl(srs, g)));
   $('fcGrades').hidden = false;
