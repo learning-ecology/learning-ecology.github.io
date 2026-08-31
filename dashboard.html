@@ -1030,7 +1030,9 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
 (function (root) {
 
   /* ---------- đọc bảng tính ---------- */
-  function aoa(ws) { return XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: '' }); }
+  /* blankrows:true GIỮ nguyên vị trí dòng để số dòng báo lỗi khớp Excel;
+     objRows tự bỏ qua dòng trống nên không ảnh hưởng dữ liệu. */
+  function aoa(ws) { return XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: true, defval: '' }); }
   function objRows(ws, headers) {
     if (!ws) return [];
     const rows = aoa(ws), h0 = headers[0];
@@ -1044,6 +1046,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       const r = rows[i];
       if (!r || r.every(c => String(c == null ? '' : c).trim() === '')) continue;
       const o = {}; headers.forEach(h => { o[h] = idx[h] >= 0 ? r[idx[h]] : ''; });
+      o._row = i + 1;                       // số dòng THẬT trong sheet (1-based) để báo lỗi đúng chỗ
       out.push(o);
     }
     return out;
@@ -1067,8 +1070,44 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
     return null;
   }
 
+  /* Kiểm toán bảng tính TRƯỚC khi bóc dữ liệu: thiếu sheet bắt buộc, gõ sai
+     tên sheet, hay thiếu cột tiêu đề chính — nói rõ để thầy sửa đúng chỗ,
+     thay vì sheet lặng lẽ bị bỏ qua rồi báo "chưa có từ nào". */
+  const SHEET_SPECS = [
+    { key: 'LessonInfo', names: ['lessoninfo', 'lesson info', 'thông tin bài', 'info', 'meta'], required: true },
+    { key: 'Vocabulary', names: ['vocabulary', 'từ vựng', 'vocab'], required: true, header: 'chinese' },
+    { key: 'Reading', names: ['reading', 'bài đọc'] },
+    { key: 'Grammar', names: ['grammar', 'ngữ pháp'] },
+    { key: 'GrammarPractice', names: ['grammarpractice', 'grammar practice', 'luyện tập ngữ pháp'] },
+    { key: 'VocabPractice', names: ['vocabpractice', 'vocab practice', 'luyện tập từ vựng'] },
+    { key: 'Radicals', names: ['radicals', 'bộ thủ'] }
+  ];
+  function auditWorkbook(wb) {
+    const errs = [], warns = [];
+    const actual = (wb.SheetNames || []).map(n => ({ raw: n, lc: String(n).trim().toLowerCase() }));
+    const matchedRaw = new Set();
+    SHEET_SPECS.forEach(spec => {
+      const hit = actual.find(a => spec.names.indexOf(a.lc) >= 0);
+      if (hit) matchedRaw.add(hit.raw);
+      if (!hit && spec.required)
+        errs.push('Thiếu sheet «' + spec.key + '» — hãy đặt tên sheet đúng (chấp nhận: ' + spec.names.join(', ') + ').');
+      if (hit && spec.header) {
+        const rows = aoa(wb.Sheets[hit.raw]);
+        const has = rows.some(r => r.map(x => String(x == null ? '' : x).trim().toLowerCase()).indexOf(spec.header) >= 0);
+        if (!has) errs.push('Sheet «' + hit.raw + '» thiếu cột tiêu đề «' + spec.header + '» — không đọc được từ vựng.');
+      }
+    });
+    actual.forEach(a => {
+      if (matchedRaw.has(a.raw)) return;
+      if (SHEET_SPECS.some(s => s.names.indexOf(a.lc) >= 0)) return;   // trùng tên với sheet khác đã khớp
+      warns.push('Sheet «' + a.raw + '» không được nhận diện nên bị bỏ qua — kiểm tra lại tên nếu đây là nội dung bài.');
+    });
+    return { errs, warns };
+  }
+
   function parseWorkbook(wb) {
     if (typeof XLSX === 'undefined') throw new Error('Chưa tải được thư viện đọc Excel.');
+    const audit = auditWorkbook(wb);
 
     /* --- 1. Thông tin bài --- */
     const info = {};
@@ -1108,6 +1147,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       if (S(r.example1)) ex.push({ zh: S(r.example1), pinyin: '', vi: S(r.example1_vi) });
       if (S(r.example2)) ex.push({ zh: S(r.example2), pinyin: '', vi: S(r.example2_vi) });
       lesson.vocabulary.push({
+        _row: r._row,
         order: N(r.order) || (i + 1),
         chinese: zh,
         pinyin: S(r.pinyin), pinyinSource: S(r.pinyin) ? 'teacher' : '',
@@ -1148,7 +1188,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
     .forEach((r, i) => {
       const key = String(N(r.order) || (i + 1));
       if (!gmap[key]) {
-        gmap[key] = { order: N(r.order) || (i + 1), title: S(r.title) || ('Ngữ pháp ' + key),
+        gmap[key] = { _row: r._row, order: N(r.order) || (i + 1), title: S(r.title) || ('Ngữ pháp ' + key),
                       structure: S(r.structure), explanation: S(r.explanation), examples: [] };
         lesson.grammar.push(gmap[key]);
       }
@@ -1193,6 +1233,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       });
     });
 
+    lesson._parseErrs = audit.errs;
+    lesson._parseWarns = audit.warns;
     return lesson;
   }
 
@@ -1207,7 +1249,14 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
     'sap_xep_cau':'arrange', 'order':'arrange',
     'picture_matching':'picture', 'picture matching':'picture', 'noi_hinh':'picture', 'hinh_anh':'picture',
     'pinyin_matching':'pinyin', 'pinyin matching':'pinyin', 'noi_pinyin':'pinyin',
-    'structure':'mcq'
+    'structure':'mcq',
+    /* Phase 81/E — nhận thêm tên loại bài theo đề bài gốc; quy về máy tương tác sẵn có */
+    'choose_correct':'mcq', 'choose the correct':'mcq', 'choose correct':'mcq',
+    'choose_the_correct_answer':'mcq', 'chon_dap_an_dung':'mcq', 'chon_cau_dung':'mcq', 'chon_dung':'mcq',
+    'true_false':'mcq', 'true/false':'mcq', 'dung_sai':'mcq',
+    'transformation':'fill', 'transform':'fill', 'sentence_transformation':'fill',
+    'rewrite':'fill', 'chuyen_doi':'fill', 'chuyen_doi_cau':'fill', 'bien_doi_cau':'fill', 'viet_lai_cau':'fill',
+    'error_correction':'fill', 'error correction':'fill', 'find_the_error':'fill', 'sua_loi_sai':'fill'
   };
   const EX_TYPES = ['mcq','fill','arrange','match','picture','pinyin'];
   const PAIRED   = ['match','picture','pinyin'];
@@ -1220,7 +1269,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       type = EX_ALIAS[type] || EX_ALIAS[type.replace(/ /g, '_')] || type;
       if (!type && !S(r.question) && !S(r.left)) return;
 
-      const item = { type, question: S(r.question), explanation: S(r.explanation), _ok: true, _why: '' };
+      const item = { _row: r._row, type, question: S(r.question), explanation: S(r.explanation), _ok: true, _why: '' };
       const fail = why => { item._ok = false; item._why = why; };
 
       /* Dòng ghi một loại nhưng viết ra lại đúng khuôn trắc nghiệm (bốn
@@ -1232,7 +1281,11 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         item._retyped = type; item.type = type = 'mcq';
       }
 
-      if (EX_TYPES.indexOf(type) < 0) { fail('loại bài "' + (type || '(trống)') + '" chưa hỗ trợ'); bucket.push(item); return; }
+      if (EX_TYPES.indexOf(type) < 0) {
+        fail('loại bài "' + (type || '(để trống cột type)') + '" chưa hỗ trợ — dùng một trong: ' +
+             'mcq, fill, arrange, match, picture, pinyin (hoặc tên tương đương như choose_correct, transformation, error_correction).');
+        bucket.push(item); return;
+      }
 
       if (type === 'mcq') {
         item.options = ['a','b','c','d'].map(k => S(r[k])).filter(Boolean);
@@ -1286,7 +1339,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
     list.forEach(it => {
       if (!it._pair) { flush(); out.push(it); return; }
       if (!run || run.type !== it.type) { flush();
-        run = { type: it.type, question: it.question || PAIR_TITLE[it.type], pairs: [],
+        run = { _row: it._row, type: it.type, question: it.question || PAIR_TITLE[it.type], pairs: [],
                 explanation: '', _ok: true, _why: '' }; }
       if (it.question && !run.question) run.question = it.question;
       if (it.explanation && !run.explanation) run.explanation = it.explanation;
@@ -1325,6 +1378,9 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
   /* ---------- kiểm tra trước khi đăng ---------- */
   function validateLesson(lesson) {
     const errs = [], warns = [], items = [];
+    /* lỗi/nhắc phát hiện lúc bóc bảng tính (thiếu sheet, sai tên, thiếu cột) lên đầu */
+    (lesson._parseErrs || []).forEach(e => errs.push(e));
+    (lesson._parseWarns || []).forEach(w => warns.push(w));
     if (!lesson.lessonId) errs.push('Thiếu LessonInfo → lessonId (mã bài, phải là duy nhất).');
     if (!lesson.title)    errs.push('Thiếu LessonInfo → title (tên bài hiển thị).');
     if (!lesson.course)   warns.push('Thiếu LessonInfo → course (tên khoá học hiện trên slide mở đầu).');
@@ -1336,15 +1392,15 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
 
     const seen = {};
     V.forEach((v, i) => {
-      const at = 'Từ ' + (i + 1) + ' (' + (v.chinese || '?') + ')';
+      const at = 'Vocabulary dòng ' + (v._row || (i + 1)) + ' (' + (v.chinese || '?') + ')';
       const st = { word: v.chinese, status: 'ready', notes: [] };
       if (!v.chinese) errs.push(at + ': thiếu chữ Hán.');
       else if (!v.chars.length) {
         errs.push(at + ': cột chinese không chứa chữ Hán nào.');
         st.status = 'error'; st.notes.push('không phải chữ Hán');
       }
-      if (seen[v.chinese]) { errs.push(at + ': trùng với từ số ' + seen[v.chinese] + '.'); st.status = 'error'; st.notes.push('trùng lặp'); }
-      else seen[v.chinese] = i + 1;
+      if (seen[v.chinese]) { errs.push(at + ': trùng với dòng ' + seen[v.chinese] + '.'); st.status = 'error'; st.notes.push('trùng lặp'); }
+      else seen[v.chinese] = v._row || (i + 1);
       if (!v.vietnamese) { errs.push(at + ': thiếu nghĩa tiếng Việt (cột vietnamese).'); st.status = 'error'; st.notes.push('thiếu nghĩa'); }
       if (!v.pinyin) { warns.push(at + ': chưa có pinyin và cũng không tạo tự động được.'); if (st.status === 'ready') st.status = 'warn'; st.notes.push('thiếu pinyin'); }
 
@@ -1364,18 +1420,20 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
     });
 
     const checkBank = (list, label) => (list || []).forEach((p, i) => {
-      if (p._retyped) warns.push(label + ' ' + (i + 1) + ': cột type ghi "' + p._retyped +
+      const where = label + ' · dòng ' + (p._row || (i + 1));
+      if (p._retyped) warns.push(where + ': cột type ghi "' + p._retyped +
         '" nhưng dòng có sẵn bốn phương án và đáp án A/B/C/D, nên hệ thống hiểu là bài trắc nghiệm.');
       if (activityUsable(p, lesson)) return;
       const why = p._why || (PAIRED.indexOf(p.type) >= 0 ? 'chưa đủ hai cặp để nối' : 'thiếu dữ liệu');
-      warns.push(label + ' ' + (i + 1) + ' (' + (p.type || 'không rõ loại') + '): ' + why + ' — câu này sẽ không lên slide.');
+      warns.push(where + ' (' + (p.type || 'không rõ loại') + '): ' + why + ' — câu này sẽ không lên slide.');
     });
     checkBank(lesson.grammarPractice, 'Luyện tập ngữ pháp');
     checkBank(lesson.vocabPractice, 'Luyện tập từ vựng');
 
     (lesson.grammar || []).forEach((g, i) => {
-      if (!g.structure) warns.push('Ngữ pháp ' + (i + 1) + ' (' + g.title + '): chưa có cột structure.');
-      if (!(g.examples || []).length) warns.push('Ngữ pháp ' + (i + 1) + ' (' + g.title + '): chưa có câu ví dụ.');
+      const gw = 'Grammar' + (g._row ? ' · dòng ' + g._row : ' ' + (i + 1)) + ' (' + g.title + ')';
+      if (!g.structure) warns.push(gw + ': chưa có cột structure.');
+      if (!(g.examples || []).length) warns.push(gw + ': chưa có câu ví dụ.');
     });
 
     const sections = buildSections(lesson);
@@ -8002,6 +8060,10 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             } catch (err) { said(f.name + ": không đọc được — " + err.message, true); continue; }
 
             const v = window.HSKParser.validateLesson(lesson);
+            /* Mã bài đã có → upsert sẽ GHI ĐÈ bài cũ. Không chặn (nhập lại là
+               cách sửa bài), chỉ nhắc để thầy khỏi vô tình đè nhầm. */
+            if (lesson.lessonId && hskRows.some(r => r.lesson_id === lesson.lessonId))
+              v.warns.unshift('Mã bài «' + lesson.lessonId + '» đã tồn tại — tải lên sẽ GHI ĐÈ bài giảng cũ cùng mã.');
             if (v.errs.length) { showReport(f.name, v, false); said("Chưa tải lên được — xem lỗi bên dưới.", true); continue; }
 
             said("Đang tìm ảnh minh hoạ…");
