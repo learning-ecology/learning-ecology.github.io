@@ -174,6 +174,13 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
 .vc-head{display:flex;align-items:center;gap:.4em}
 .vc-zh{font-family:var(--zh);font-size:4.4em;font-weight:700;color:var(--brand);cursor:pointer;line-height:1.05}
 .vc-py{font-size:1.7em;color:var(--gold);font-weight:600}
+/* Global Pinyin toggle: hide every optional pinyin slot; layout collapses
+   (display:none), Hanzi / translations / questions are untouched. One control,
+   works on every lesson, persisted per student. */
+body.hz-nopy .vc-py, body.hz-nopy .hc-py, body.hz-nopy .ex-py,
+body.hz-nopy .rd-py, body.hz-nopy .rad-py, body.hz-nopy .wf-py { display:none !important; }
+#btnPy b{color:var(--gold);font-weight:800;margin-left:.15em}
+#btnPy.on b{color:#1a7f4b}
 .auto-tag{font-size:.42em;font-style:normal;color:var(--muted);border:1px solid var(--line);
   border-radius:6px;padding:.1em .5em;margin-left:.5em;vertical-align:middle}
 .vc-wc{display:inline-block;font-size:.9em;color:var(--muted);border:1px solid var(--line);
@@ -416,6 +423,8 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
       <button id="btnPrev" type="button" title="Slide trước (←)">‹</button>
       <span id="counter">1 / 1</span>
       <button id="btnNext" type="button" title="Slide sau (→)">›</button>
+      <i class="nav-sep"></i>
+      <button id="btnPy" type="button" title="Hiện/ẩn pinyin (phím P)">拼音 <b id="pyState">ON</b></button>
     </div>
     <button id="btnToolkit" type="button" hidden>✎ Dụng cụ giảng dạy</button>
    </div>
@@ -544,6 +553,27 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
     applyFs();
   }
 
+  /* ---------- Global Pinyin ON/OFF (persisted, reusable on every lesson) ----------
+     Just a body class + CSS, so it applies instantly to whatever is on screen
+     (vocab, examples, grammar, practice, review…) with no re-render, and the
+     preference is remembered across activities and lessons. */
+  const PY_KEY = 'hskPinyin';       // '0' = pinyin hidden
+  let noPy = false;
+  function applyPy() {
+    document.body.classList.toggle('hz-nopy', noPy);
+    const st = $('#pyState'); if (st) st.textContent = noPy ? 'OFF' : 'ON';
+    const btn = $('#btnPy'); if (btn) btn.classList.toggle('on', !noPy);
+  }
+  function togglePy() {
+    noPy = !noPy;
+    try { localStorage.setItem(PY_KEY, noPy ? '0' : '1'); } catch (e) {}
+    applyPy();
+  }
+  function initPy() {
+    try { noPy = localStorage.getItem(PY_KEY) === '0'; } catch (e) { noPy = false; }
+    applyPy();
+  }
+
   /* ---------- các loại slide ---------- */
   const V = i => (LESSON.vocabulary || [])[i] || {};
   const head = (title, kind) =>
@@ -664,7 +694,7 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
       return '<div class="sl write">' +
         head('HƯỚNG DẪN VIẾT HÁN TỰ: <b>' + esc(v.chinese) + '</b>') +
         '<div class="sl-body">' + strokeBlock(v.chars || [], size, 'w' + s.index) +
-          '<div class="write-foot">' + esc(v.pinyin) + ' · ' + esc(v.vietnamese) + '</div>' +
+          '<div class="write-foot"><span class="wf-py">' + esc(v.pinyin) + ' · </span>' + esc(v.vietnamese) + '</div>' +
         '</div></div>';
     },
 
@@ -1137,6 +1167,7 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
     else if (ev.key === '+' || ev.key === '=') { ev.preventDefault(); bumpFs(2); }
     else if (ev.key === '-' || ev.key === '_') { ev.preventDefault(); bumpFs(-2); }
     else if (ev.key.toLowerCase() === 'f') toggleFull();
+    else if (ev.key.toLowerCase() === 'p') { ev.preventDefault(); togglePy(); }
     else if (ev.key === 'Escape') { if (lightboxOpen()) closeLightbox(); else annotation.setTool('select'); }
   });
 
@@ -1360,7 +1391,7 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
   window.HSKSlides = {
     mount: mountLesson,
     init() {
-      annotation.init(); initToolkit(); initFs(); initStageClicks();
+      annotation.init(); initToolkit(); initFs(); initPy(); initStageClicks();
       /* mũi tên dưới chân CHỈ để chuyển slide (yêu cầu 10) — muốn hiện thêm
          nội dung trên slide hiện tại thì bấm vào nền slide */
       $('#btnPrev').addEventListener('click', prevSlide);
@@ -1368,6 +1399,7 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
       $('#btnHub').addEventListener('click', () => goToId('hub'));
       $('#btnFull').addEventListener('click', toggleFull);
       $('#lightbox').addEventListener('click', closeLightbox);
+      $('#btnPy').addEventListener('click', togglePy);
       $('#btnFsUp').addEventListener('click', () => bumpFs(2));
       $('#btnFsDown').addEventListener('click', () => bumpFs(-2));
     },
