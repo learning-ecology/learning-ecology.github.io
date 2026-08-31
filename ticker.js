@@ -106,6 +106,36 @@
     var w = seg.getBoundingClientRect().width;
     if (w > 0) track.style.animationDuration = Math.max(14, Math.round(w / 60)) + "s";
   }
+  function safeUrl(u) {
+    u = String(u || "").trim();
+    return /^(https?:|mailto:|\/)/i.test(u) ? u : (u ? "https://" + u : "");
+  }
+  function isGlobal(l) { var t = (l.targets || []).filter(Boolean); return !t.length || t.indexOf("all") !== -1; }
+  // most specific matching link for a platform (page-targeted beats global)
+  function pickLink(links, platform, ctx) {
+    var cands = (links || []).filter(function (l) {
+      return l.platform === platform && l.enabled && safeUrl(l.url) && (l.title || "").trim() && matches(l, ctx);
+    });
+    if (!cands.length) return null;
+    var specific = cands.filter(function (l) { return !isGlobal(l); });
+    var pool = specific.length ? specific : cands;
+    pool.sort(function (a, b) {
+      return (a.sort_order - b.sort_order) || String(a.created_at || "").localeCompare(String(b.created_at || ""));
+    });
+    return pool[0];
+  }
+  function grpHtml(link, platform) {
+    var icon = platform === "zalo" ? "Z" : "f";
+    return '<a class="le-tk__grp le-tk__grp--' + (platform === "zalo" ? "zalo" : "fb") + '" href="'
+      + esc(safeUrl(link.url)) + '" target="_blank" rel="noopener">'
+      + '<span class="ic">' + icon + '</span><span class="txt">' + esc(link.title) + "</span></a>";
+  }
+  function linksHtml(links, ctx) {
+    var out = [];
+    var z = pickLink(links, "zalo", ctx); if (z) out.push(grpHtml(z, "zalo"));
+    var f = pickLink(links, "facebook", ctx); if (f) out.push(grpHtml(f, "facebook"));
+    return out.length ? '<div class="le-tk__links">' + out.join("") + "</div>" : "";
+  }
 
   var CSS =
     ".le-tk{position:relative;display:flex;align-items:stretch;overflow:hidden;" +
@@ -125,7 +155,18 @@
     ".le-tk__close{flex:none;align-self:center;background:transparent;border:0;cursor:pointer;color:inherit;" +
       "font-size:1.2rem;line-height:1;padding:0 0.75rem;opacity:0.55;}" +
     ".le-tk__close:hover{opacity:1;}" +
-    "@media (max-width:640px){.le-tk{font-size:0.82rem;}.le-tk__sep{margin:0 1rem;}.le-tk__close{padding:0 0.5rem;}}" +
+    // fixed group links (Zalo / Facebook) on the left — they do NOT scroll
+    ".le-tk__links{flex:none;display:flex;align-items:center;gap:0.55rem;padding:0.4rem 0.2rem 0.4rem 0.9rem;max-width:60%;}" +
+    ".le-tk__grp{display:inline-flex;align-items:center;gap:0.35rem;color:inherit;text-decoration:none;font-weight:700;white-space:nowrap;font-size:0.86rem;}" +
+    ".le-tk__grp:hover .txt{text-decoration:underline;}" +
+    ".le-tk__grp .ic{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:5px;" +
+      "font-size:10px;font-weight:800;color:#fff;flex:none;letter-spacing:-.02em;}" +
+    ".le-tk__grp--zalo .ic{background:#0068ff;}" +
+    ".le-tk__grp--fb .ic{background:#1877f2;font-family:Georgia,serif;}" +
+    ".le-tk__div{flex:none;width:1px;align-self:stretch;background:currentColor;opacity:0.18;margin:0.45rem 0.4rem;}" +
+    "@media (max-width:640px){.le-tk{font-size:0.82rem;}.le-tk__sep{margin:0 1rem;}.le-tk__close{padding:0 0.5rem;}" +
+      ".le-tk__links{gap:0.35rem;padding-left:0.5rem;max-width:52%;}.le-tk__grp{font-size:0.76rem;}}" +
+    "@media (max-width:460px){.le-tk__grp .txt{max-width:8ch;overflow:hidden;text-overflow:ellipsis;}}" +
     "@media (prefers-color-scheme:dark){.le-tk{background:#2b2440;color:#f1e7d7;border-bottom-color:#3c3555;}}" +
     "@media (prefers-reduced-motion:reduce){.le-tk__track{animation:none;}.le-tk__vp{overflow-x:auto;-webkit-mask-image:none;mask-image:none;}" +
       ".le-tk__vp::-webkit-scrollbar{display:none;}.le-tk__seg:nth-child(2){display:none;}}" +
@@ -147,36 +188,47 @@
     return bar;
   }
 
-  var LOADED = null;   // cache the fetch across reload()s within a page load
+  var LOADED = null;   // announcements, cached across reload()s within a page load
+  var LINKS = null;    // group links (Zalo / Facebook)
 
-  function render(rows) {
+  function render() {
     injectStyle();
     var bar = barEl();
     if (!bar) return;
     var ctx = pageContext();
-    var list = activeNow(rows).filter(function (a) { return matches(a, ctx); });
     var gone = dismissed();
-    list = list.filter(function (a) { return gone.indexOf(a.id) === -1; });
-    if (!list.length) { bar.hidden = true; bar.innerHTML = ""; return; }
-    bar.innerHTML = trackHtml(list)
-      + '<button class="le-tk__close" id="le-ticker-close" title="Ẩn thông báo" aria-label="Dismiss">×</button>';
+    var list = activeNow(LOADED).filter(function (a) { return matches(a, ctx); })
+      .filter(function (a) { return gone.indexOf(a.id) === -1; });
+    var lh = linksHtml(LINKS, ctx);
+    if (!list.length && !lh) { bar.hidden = true; bar.innerHTML = ""; return; }
+    bar.innerHTML = lh
+      + (lh && list.length ? '<div class="le-tk__div"></div>' : "")
+      + (list.length ? trackHtml(list) : "")
+      + (list.length ? '<button class="le-tk__close" id="le-ticker-close" title="Ẩn thông báo" aria-label="Dismiss">×</button>' : "");
     bar.hidden = false;
-    startAnim(bar);
+    if (list.length) startAnim(bar);
     var close = document.getElementById("le-ticker-close");
-    if (close) close.onclick = function () { dismiss(list.map(function (a) { return a.id; })); bar.hidden = true; bar.innerHTML = ""; };
+    // dismissing hides only the scrolling text; fixed group links stay
+    if (close) close.onclick = function () { dismiss(list.map(function (a) { return a.id; })); render(); };
   }
 
-  async function fetchRows() {
+  async function fetchTable(name, order2) {
     if (typeof sb === "undefined" || !sb) return [];
     try {
-      var r = await sb.from("ticker_announcements").select("*").order("sort_order").order("created_at");
+      var q = sb.from(name).select("*").order("sort_order");
+      if (order2) q = q.order("created_at");
+      var r = await q;
       if (r.error) return [];
       return r.data || [];
     } catch (e) { return []; }
   }
 
-  async function reload() { LOADED = await fetchRows(); render(LOADED); }
-  function rerender() { if (LOADED) render(LOADED); }   // re-filter with new context, no refetch
+  async function reload() {
+    var res = await Promise.all([fetchTable("ticker_announcements", true), fetchTable("ticker_links", false)]);
+    LOADED = res[0]; LINKS = res[1];
+    render();
+  }
+  function rerender() { render(); }   // re-filter with the current page context, no refetch
 
   window.LETicker = {
     reload: reload,
@@ -184,6 +236,7 @@
     setContext: function (tokens) { window.LE_TICKER_CTX = Array.isArray(tokens) ? tokens : []; rerender(); },
     // helpers reused by the owner-dashboard preview
     previewHTML: function (ann) { return trackHtml([ann]); },
+    linkPreviewHTML: function (link, platform) { return '<div class="le-tk__links">' + grpHtml(link, platform) + "</div>"; },
     startAnim: startAnim
   };
 

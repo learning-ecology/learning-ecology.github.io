@@ -4082,6 +4082,50 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           <p id="tk-msg" class="msg"></p>
           <div id="tk-list" style="margin-top:0.6rem;"></div>
         </div>
+
+        <div class="card" id="glink-mgr">
+          <div class="card-head"><h2>💬 Group links (Zalo / Facebook)</h2></div>
+          <p class="kind" style="margin:0 0 0.7rem;">Two fixed links on the <b>left</b> of the bar (they don't scroll). Add a <b>global</b> Zalo/Facebook link shown everywhere, and optionally <b>page-specific</b> ones that override it — e.g. a VSTEP Zalo group on VSTEP pages. A link is hidden if disabled or has no URL; it opens in a new tab and visitors don't need to log in. Same targeting as announcements.</p>
+          <div class="form-row">
+            <div class="field" style="max-width:150px;"><label>Platform</label>
+              <select id="gl-platform"><option value="zalo">💬 Zalo</option><option value="facebook">f Facebook</option></select></div>
+            <div class="field"><label>Display title *</label>
+              <input id="gl-title" placeholder="e.g. Group luyện VSTEP" autocomplete="off" /></div>
+          </div>
+          <div class="form-row">
+            <div class="field"><label>URL *</label>
+              <input id="gl-url" placeholder="https://zalo.me/g/…  or  https://facebook.com/groups/…" autocomplete="off" /></div>
+            <div class="field" style="max-width:90px;"><label>Order</label>
+              <input type="number" id="gl-order" value="100" min="0" title="Lower wins among equally-specific links" /></div>
+            <div class="field" style="max-width:110px;"><label>Status</label>
+              <label style="font-size:0.85rem; color:var(--muted); cursor:pointer; white-space:nowrap; padding-top:0.5rem;">
+                <input type="checkbox" id="gl-enabled" checked /> enabled</label></div>
+          </div>
+          <div class="field" style="margin-top:0.2rem;">
+            <label>Display on / Target audience</label>
+            <div id="gl-targets" style="display:flex; flex-wrap:wrap; gap:0.45rem 0.55rem; align-items:center; padding:0.35rem 0;">
+              <label class="tk-scope tk-scope-all"><input type="checkbox" id="gl-all" data-tok="all" checked /> 🌐 All public pages (global)</label>
+              <label class="tk-scope"><input type="checkbox" class="gl-tok" data-tok="reading" /> 📚 Reading Library</label>
+              <label class="tk-scope"><input type="checkbox" class="gl-tok" data-tok="english" /> 🇬🇧 English pages</label>
+              <label class="tk-scope"><input type="checkbox" class="gl-tok" data-tok="chinese" /> 🇨🇳 Chinese / HSK</label>
+              <label class="tk-scope"><input type="checkbox" class="gl-tok" data-tok="hsk" /> HSK slides</label>
+              <label class="tk-scope"><input type="checkbox" class="gl-tok" data-tok="vstep" /> VSTEP</label>
+              <label class="tk-scope"><input type="checkbox" class="gl-tok" data-tok="vsat" /> V-SAT</label>
+              <label class="tk-scope"><input type="checkbox" class="gl-tok" data-tok="tools" /> 🧰 Free tools</label>
+              <label class="tk-scope"><input type="checkbox" class="gl-tok" data-tok="courses" /> 🎓 All courses</label>
+              <label class="tk-scope"><input type="checkbox" class="gl-tok" data-tok="page:course" /> 🖥️ Public Course Preview</label>
+            </div>
+            <div class="field" style="max-width:360px; margin-top:0.15rem;"><label style="font-weight:600;">…or specific course(s)</label>
+              <select id="gl-courses" multiple size="4"></select></div>
+          </div>
+          <div class="form-row">
+            <button id="gl-save" type="button">Add link</button>
+            <button class="ghost" id="gl-cancel" type="button" style="display:none;">Cancel edit</button>
+          </div>
+          <p id="gl-msg" class="msg"></p>
+          <div id="gl-list" style="margin-top:0.6rem;"></div>
+        </div>
+
         <div class="card">
           <h2>New announcement</h2>
           <div class="rte-bar" id="rte-bar">
@@ -6486,7 +6530,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           "landing_teachers", "landing_achievements", "landing_feedback", "landing_gallery",
           "cover_settings", "cover_jobs",
           "vsat_exams", "vsat_progress",
-          "hsk_lessons", "hsk_media", "ticker_announcements"];
+          "hsk_lessons", "hsk_media", "ticker_announcements", "ticker_links"];
         const backup = { app: "Learning Ecology", exported_at: new Date().toISOString(), tables: {} };
         const problems = [];
         for (let i = 0; i < TABLES.length; i++) {
@@ -10090,6 +10134,138 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         load();
       })();
       // =============== END ANNOUNCEMENT TICKER MANAGEMENT =================
+
+      // ================= GROUP LINKS (Zalo / Facebook) MANAGEMENT =================
+      // Owner-only. Fixed links on the left of the ticker; same targeting tokens.
+      (function () {
+        const mgr = document.getElementById("glink-mgr");
+        if (!mgr) return;
+        const listEl = document.getElementById("gl-list");
+        const F = id => document.getElementById(id);
+        const say = (txt, err) => { const m = F("gl-msg"); m.textContent = txt; m.className = "msg" + (err ? " err" : ""); };
+        let rows = [], editId = null;
+
+        const GL_NAMES = { reading: "Reading", english: "English", chinese: "Chinese/HSK", hsk: "HSK",
+          vstep: "VSTEP", vsat: "V-SAT", tools: "Tools", courses: "Courses", "page:course": "Course preview" };
+        F("gl-courses").innerHTML = (courses || []).length
+          ? (courses || []).map(c => `<option value="course:${c.id}">${esc(c.title)}</option>`).join("")
+          : `<option value="" disabled>— no courses —</option>`;
+        function glSync() {
+          const g = F("gl-all").checked;
+          mgr.querySelectorAll(".gl-tok").forEach(c => c.disabled = g);
+          F("gl-courses").disabled = g;
+        }
+        function glReadTargets() {
+          if (F("gl-all").checked) return ["all"];
+          const toks = [...mgr.querySelectorAll(".gl-tok:checked")].map(c => c.getAttribute("data-tok"));
+          const crs = [...F("gl-courses").selectedOptions].map(o => o.value).filter(Boolean);
+          const all = toks.concat(crs);
+          return all.length ? all : ["all"];
+        }
+        function glSetTargets(t) {
+          t = t || [];
+          const global = !t.length || t.includes("all");
+          F("gl-all").checked = global;
+          mgr.querySelectorAll(".gl-tok").forEach(c => c.checked = !global && t.includes(c.getAttribute("data-tok")));
+          [...F("gl-courses").options].forEach(o => o.selected = !global && t.includes(o.value));
+          glSync();
+        }
+        function glTargetLabel(t) {
+          t = (t || []);
+          if (!t.length || t.includes("all")) return "🌐 global (mọi trang)";
+          const groups = t.filter(x => GL_NAMES[x]).map(x => GL_NAMES[x]);
+          const nC = t.filter(x => x.indexOf("course:") === 0).length;
+          const parts = groups.slice();
+          if (nC) parts.push(nC + " course" + (nC > 1 ? "s" : ""));
+          t.filter(x => !GL_NAMES[x] && x.indexOf("course:") !== 0 && x !== "all").forEach(x => parts.push(x));
+          return "🎯 " + (parts.join(", ") || "targeted");
+        }
+        F("gl-all").addEventListener("change", () => {
+          if (F("gl-all").checked) { mgr.querySelectorAll(".gl-tok").forEach(c => c.checked = false); [...F("gl-courses").options].forEach(o => o.selected = false); }
+          glSync();
+        });
+        mgr.querySelectorAll(".gl-tok").forEach(c => c.addEventListener("change", () => { if (c.checked) F("gl-all").checked = false; glSync(); }));
+        F("gl-courses").addEventListener("change", () => { if (F("gl-courses").selectedOptions.length) F("gl-all").checked = false; glSync(); });
+
+        const platIcon = p => p === "zalo" ? '<span class="pill" style="background:#0068ff;color:#fff;">Zalo</span>' : '<span class="pill" style="background:#1877f2;color:#fff;">Facebook</span>';
+        function renderList() {
+          if (!rows.length) { listEl.innerHTML = '<p class="empty">Chưa có link nhóm nào — thêm ở trên.</p>'; return; }
+          const order = { zalo: 0, facebook: 1 };
+          const sorted = rows.slice().sort((a, b) => (order[a.platform] - order[b.platform]) || (a.sort_order - b.sort_order));
+          listEl.innerHTML = sorted.map(l => `
+            <div class="lesson">
+              ${platIcon(l.platform)}
+              <div class="meta">
+                <div class="title">${esc(l.title || "(no title)")} ${l.enabled ? "" : '<span class="pill off">disabled</span>'}</div>
+                <span class="kind">#${l.sort_order ?? 0} · 🔗 ${esc(l.url || "")} · ${esc(glTargetLabel(l.targets))}</span>
+              </div>
+              <label style="font-size:0.82rem; color:var(--muted); cursor:pointer; white-space:nowrap; flex:none;">
+                <input type="checkbox" class="gl-en" data-id="${l.id}" ${l.enabled ? "checked" : ""} /> enabled</label>
+              <button class="ghost gl-edit" data-id="${l.id}">✏️ Edit</button>
+              <button class="ghost gl-del" data-id="${l.id}" style="color:var(--danger); border-color:var(--danger);">Delete</button>
+            </div>`).join("");
+          listEl.querySelectorAll(".gl-en").forEach(c => c.addEventListener("change", async () => {
+            const id = c.getAttribute("data-id");
+            const { error } = await sb.from("ticker_links").update({ enabled: c.checked, updated_at: new Date().toISOString() }).eq("id", id);
+            if (error) { say("Không lưu được: " + error.message, true); c.checked = !c.checked; return; }
+            const r = rows.find(x => x.id === id); if (r) r.enabled = c.checked;
+            renderList(); if (window.LETicker) LETicker.reload();
+          }));
+          listEl.querySelectorAll(".gl-edit").forEach(b => b.addEventListener("click", () => startEdit(b.getAttribute("data-id"))));
+          listEl.querySelectorAll(".gl-del").forEach(b => b.addEventListener("click", async () => {
+            if (!confirm("Xóa link nhóm này?")) return;
+            const id = b.getAttribute("data-id");
+            const { error } = await sb.from("ticker_links").delete().eq("id", id);
+            if (error) { say("Không xóa được: " + error.message, true); return; }
+            rows = rows.filter(x => x.id !== id); if (editId === id) resetForm();
+            renderList(); if (window.LETicker) LETicker.reload();
+          }));
+        }
+        function readForm() {
+          return { platform: F("gl-platform").value, title: F("gl-title").value.trim(),
+            url: F("gl-url").value.trim(), enabled: F("gl-enabled").checked,
+            sort_order: parseInt(F("gl-order").value, 10) || 0, targets: glReadTargets() };
+        }
+        function resetForm() {
+          editId = null;
+          F("gl-platform").value = "zalo"; F("gl-title").value = ""; F("gl-url").value = "";
+          F("gl-order").value = "100"; F("gl-enabled").checked = true;
+          glSetTargets(["all"]);
+          F("gl-save").textContent = "Add link"; F("gl-cancel").style.display = "none"; say("");
+        }
+        function startEdit(id) {
+          const l = rows.find(x => x.id === id); if (!l) return;
+          editId = id;
+          F("gl-platform").value = l.platform; F("gl-title").value = l.title || ""; F("gl-url").value = l.url || "";
+          F("gl-order").value = l.sort_order ?? 100; F("gl-enabled").checked = !!l.enabled;
+          glSetTargets(l.targets);
+          F("gl-save").textContent = "Save changes"; F("gl-cancel").style.display = "";
+          mgr.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+        F("gl-cancel").addEventListener("click", resetForm);
+        F("gl-save").addEventListener("click", async () => {
+          const a = readForm();
+          if (!a.title) { say("Cần có tiêu đề.", true); return; }
+          if (!a.url) { say("Cần có URL.", true); return; }
+          F("gl-save").disabled = true;
+          const payload = Object.assign({}, a, { updated_at: new Date().toISOString() });
+          const { error } = editId
+            ? await sb.from("ticker_links").update(payload).eq("id", editId)
+            : await sb.from("ticker_links").insert(payload);
+          F("gl-save").disabled = false;
+          if (error) { say("Không lưu được: " + error.message, true); return; }
+          say(editId ? "Đã cập nhật ✓" : "Đã thêm ✓");
+          resetForm(); await load(); if (window.LETicker) LETicker.reload();
+        });
+        async function load() {
+          listEl.innerHTML = '<p class="kind">Đang tải…</p>';
+          const { data, error } = await sb.from("ticker_links").select("*").order("platform").order("sort_order");
+          if (error) { listEl.innerHTML = '<p class="empty">Chạy <b>migration64_ticker_links.sql</b> để bật link nhóm Zalo/Facebook.</p>'; return; }
+          rows = data || []; renderList();
+        }
+        load();
+      })();
+      // =============== END GROUP LINKS MANAGEMENT =================
 
       /* Deferred to heavyReady: the Analytics tab and the Students table read the
          heavy batch (progress, lesson_activity, access_events, lock_events). The
