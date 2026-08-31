@@ -444,7 +444,7 @@ body.hz-nopy .rd-py, body.hz-nopy .rad-py, body.hz-nopy .wf-py { display:none !i
       <i class="nav-sep"></i>
       <button id="btnPy" type="button" title="Hiện/ẩn pinyin (phím P)">拼音 <b id="pyState">ON</b></button>
     </div>
-    <button id="btnToolkit" type="button" hidden>✎ Dụng cụ giảng dạy</button>
+    <button id="btnToolkit" type="button">✎ Dụng cụ giảng dạy</button>
    </div>
 
   </div>
@@ -1695,8 +1695,9 @@ body.hz-nopy .rd-py, body.hz-nopy .rad-py, body.hz-nopy .wf-py { display:none !i
                  const _td = new Date().toISOString().slice(0, 10);
                  PREMIUM = STAFF || (p.plan === 'premium' && (!p.premium_until || p.premium_until >= _td));
                  window.ZhSpeech.configure({ canCache: STAFF });
-                 /* Dụng cụ giảng dạy là của GIÁO VIÊN — học viên và khách không thấy */
-                 const tk = document.getElementById('btnToolkit'); if (tk && STAFF) tk.hidden = false;
+                 /* Dụng cụ giảng dạy (bút vẽ/laser/spotlight… — chỉ vẽ trên
+                    slide, không sửa dữ liệu) hiện cho MỌI người: nút luôn hiển
+                    thị sẵn trong dock, không cần bật riêng cho giáo viên nữa. */
                  if (who) who.textContent = p.full_name || USER.email || ''; }
       } catch (e) {}
       if (auth) auth.hidden = true;
