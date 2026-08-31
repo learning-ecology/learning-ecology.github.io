@@ -2453,8 +2453,10 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           return d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
 
         const rows = hws.map(h => {
-          const les = lMap[h.lesson_id];
-          if (!les) return "";                          // bài chưa đăng / không đọc được
+          // Nếu chưa đọc được hàng hsk_lessons (chưa chạy migration67, hay bài
+          // chưa đăng) vẫn HIỆN bài đã giao — dùng tiêu đề của bài giao/mã bài —
+          // để học viên không bị "mất" bài; mở được hay không tuỳ quyền đọc.
+          const les = lMap[h.lesson_id] || { title: h.title || h.lesson_id, hsk_level: null };
           const mine = (atRes.data || []).filter(a => a.homework_id === h.id);
           const used = mine.length;
           const best = mine.reduce((m, a) => Math.max(m, a.score || 0), 0);
@@ -2594,6 +2596,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           { id: "home",   label: T("nav_home") || "Trang chủ" },
           { id: "courses",label: T("my_courses") || "Khóa học" },
           { id: "flash",  label: t("flash_tab") || "Flashcards" },
+          { id: "asgn",   label: T("asgn") || "Bài tập" },
           { id: "tools",  label: t("learning_tools") || "Công cụ học tập" }
         ];
         let tabs = document.getElementById("stuTabs");
