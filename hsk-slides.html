@@ -179,6 +179,24 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
    works on every lesson, persisted per student. */
 body.hz-nopy .vc-py, body.hz-nopy .hc-py, body.hz-nopy .ex-py,
 body.hz-nopy .rd-py, body.hz-nopy .rad-py, body.hz-nopy .wf-py { display:none !important; }
+/* results / homework summary screen */
+.sl.results .sl-body{align-items:center;text-align:center;gap:.5em;overflow:auto}
+.sl.results h1{margin:.1em 0}
+.rs-big{font-size:3.2em;font-weight:800;color:var(--brand);line-height:1}
+.rs-grid{display:flex;gap:1em;flex-wrap:wrap;justify-content:center;margin:.3em 0}
+.rs-card{min-width:8em;background:#fff;border:1px solid var(--line);border-radius:12px;padding:.7em 1em}
+.rs-lb{color:var(--muted);font-size:.85em}
+.rs-sc{font-size:1.6em;font-weight:800}
+.rs-bar{height:6px;background:#eef1f6;border-radius:99px;overflow:hidden;margin-top:.4em}
+.rs-bar span{display:block;height:100%;background:var(--brand)}
+.rs-meta{color:var(--muted)}
+.rs-review{width:100%;max-width:640px;text-align:left}
+.rs-wrongs{display:flex;flex-direction:column;gap:.4em}
+.rs-wrong{font:inherit;text-align:left;border:1px solid #f3c0c0;background:#fdecec;color:#8a1c1c;
+  border-radius:8px;padding:.5em .8em;cursor:pointer}
+.rs-wrong:hover{border-color:#c92a2a}
+.rs-perfect{color:#1a7f4b;font-weight:700}
+.rs-acts{display:flex;gap:.6em;flex-wrap:wrap;justify-content:center;margin-top:.4em}
 #btnPy b{color:var(--gold);font-weight:800;margin-left:.15em}
 #btnPy.on b{color:#1a7f4b}
 .auto-tag{font-size:.42em;font-style:normal;color:var(--muted);border:1px solid var(--line);
@@ -749,6 +767,37 @@ body.hz-nopy .rd-py, body.hz-nopy .rad-py, body.hz-nopy .wf-py { display:none !i
              r.related.map(c => '<b>' + esc(c) + '</b>').join(' · ') + '</div>' : '') +
           (r.explanation ? '<p class="reveal" data-reveal="2">' + esc(r.explanation) + '</p>' : '') +
         '</div></div></div>';
+    },
+
+    /* end-of-lesson results (study/homework mode only) */
+    results() {
+      const sc = scoreSnapshot();
+      const bar = (c, t) => '<div class="rs-bar"><span style="width:' + (t ? Math.round(c / t * 100) : 0) + '%"></span></div>';
+      const wrongItems = sc.wrong.map(id => {
+        const s = PLAN.find(p => p.id === id) || {};
+        const bank = s.bank === 'grammar' ? LESSON.grammarPractice : LESSON.vocabPractice;
+        const a = (bank || [])[s.index] || {};
+        const label = a.question || a.prompt || a.answer || ('Câu ' + ((s.index || 0) + 1));
+        return '<button class="rs-wrong" data-act="goto" data-id="' + esc(id) + '">✗ ' + esc(String(label).slice(0, 70)) + '</button>';
+      }).join('');
+      const timeMin = Math.max(0, Math.round((STUDY ? (Date.now() - STUDY.startMs) / 1000 : 0) / 60));
+      return '<div class="sl results"><div class="sl-body">' +
+        '<h1>🎉 Hoàn thành bài học!</h1>' +
+        '<div class="rs-big">' + sc.pct + '%</div>' +
+        '<div class="rs-grid">' +
+          '<div class="rs-card"><div class="rs-lb">Từ vựng</div><div class="rs-sc">' + sc.vc + ' / ' + sc.vt + '</div>' + bar(sc.vc, sc.vt) + '</div>' +
+          '<div class="rs-card"><div class="rs-lb">Ngữ pháp</div><div class="rs-sc">' + sc.gc + ' / ' + sc.gt + '</div>' + bar(sc.gc, sc.gt) + '</div>' +
+          '<div class="rs-card"><div class="rs-lb">Tổng</div><div class="rs-sc">' + sc.correct + ' / ' + sc.total + '</div>' + bar(sc.correct, sc.total) + '</div>' +
+        '</div>' +
+        '<p class="rs-meta">Đúng ' + sc.correct + ' · Sai ' + (sc.answered - sc.correct) + ' · Đã làm ' + sc.answered + '/' + sc.total + ' · Thời gian ' + timeMin + ' phút</p>' +
+        (sc.wrong.length
+          ? '<div class="rs-review"><h3>📌 Cần luyện thêm (' + sc.wrong.length + ')</h3><div class="rs-wrongs">' + wrongItems + '</div></div>'
+          : '<p class="rs-perfect">Tuyệt vời — không sai câu nào! 🌟</p>') +
+        '<div class="rs-acts">' +
+          (sc.wrong.length ? '<button class="btn-primary" data-act="hw-review">Xem lại câu sai</button>' : '') +
+          '<button class="btn-sm" data-act="hw-retry">↻ Làm lại từ đầu</button>' +
+        '</div>' +
+      '</div></div>';
     }
   };
 
@@ -760,6 +809,38 @@ body.hz-nopy .rd-py, body.hz-nopy .rad-py, body.hz-nopy .wf-py { display:none !i
      Đáp án KHÔNG bao giờ nằm sẵn trong HTML trước khi học viên trả lời.
      ========================================================================== */
   const exState = {};
+
+  /* ---------- student study mode: scoring + progress save/resume ----------
+     Set by mount() when a logged-in STUDENT opens a lesson (opts.study). The
+     module reports a snapshot on every answer / slide move; the outer page
+     persists it to hsk_attempts. Presentation mode (guest/teacher) leaves this
+     null and behaves exactly as before. */
+  let STUDY = null;         // { onProgress(snapshot), startMs }
+  function isPractice(s) { return s && s.kind === 'practice'; }
+  function scoreSnapshot() {
+    let vc = 0, vt = 0, gc = 0, gt = 0, answered = 0; const wrong = [];
+    PLAN.forEach(s => {
+      if (!isPractice(s)) return;
+      const g = s.bank === 'grammar';
+      if (g) gt++; else vt++;
+      const st = exState[s.id];
+      if (st && st.done) { answered++; if (st.ok) { if (g) gc++; else vc++; } else wrong.push(s.id); }
+    });
+    const total = vt + gt, correct = vc + gc;
+    return { vc, vt, gc, gt, answered, total, correct, wrong,
+      pct: total ? Math.round(correct / total * 100) : 0 };
+  }
+  function reportProgress(done) {
+    if (!STUDY) return;
+    const sc = scoreSnapshot();
+    STUDY.onProgress({
+      idx: IDX, answers: JSON.parse(JSON.stringify(exState)),
+      vocab_correct: sc.vc, vocab_total: sc.vt, grammar_correct: sc.gc, grammar_total: sc.gt,
+      score: sc.pct,
+      time_spent_sec: Math.round((Date.now() - STUDY.startMs) / 1000),
+      status: done ? 'completed' : (sc.answered ? 'in_progress' : 'not_started')
+    });
+  }
 
   const exercise = (function () {
     const norm = s => String(s == null ? '' : s)
@@ -1066,13 +1147,13 @@ body.hz-nopy .rd-py, body.hz-nopy .rad-py, body.hz-nopy .wf-py { display:none !i
     if (revealStep < revealTotal) { revealStep++; applyReveal(); return true; }
     return false;
   }
-  function nextSlide() { if (IDX < PLAN.length - 1) { IDX++; render(); } }
-  function prevSlide() { if (IDX > 0) { IDX--; render(); } }
+  function nextSlide() { if (IDX < PLAN.length - 1) { IDX++; render(); reportProgress(PLAN[IDX] && PLAN[IDX].kind === 'results'); } }
+  function prevSlide() { if (IDX > 0) { IDX--; render(); reportProgress(false); } }
   function next() { if (!nextReveal()) nextSlide(); }
   function prev() { if (revealStep > 0) { revealStep--; applyReveal(); } else prevSlide(); }
   function goToId(id) {
     const i = PLAN.findIndex(s => s.id === id);
-    if (i >= 0) { IDX = i; render(); }
+    if (i >= 0) { IDX = i; render(); reportProgress(id === 'results'); }
   }
 
   /* Những thứ bấm vào là để LÀM VIỆC KHÁC, không phải để hiện slide (yêu cầu 9) */
@@ -1084,7 +1165,7 @@ body.hz-nopy .rd-py, body.hz-nopy .rad-py, body.hz-nopy .wf-py { display:none !i
       /* bài tập tự xử lý cú bấm của nó trước */
       if (s && s.kind === 'practice') {
         const a = currentActivity();
-        if (a && exercise.handle(ev, s.id, a)) { repaintExercise(); return; }
+        if (a && exercise.handle(ev, s.id, a)) { repaintExercise(); reportProgress(false); return; }
       }
       if (ev.target.closest(INTERACTIVE)) return;
       /* vừa bôi đen chữ để giảng thì đừng nhảy bước */
@@ -1134,6 +1215,13 @@ body.hz-nopy .rd-py, body.hz-nopy .rad-py, body.hz-nopy .wf-py { display:none !i
     else if (act === 'zoom')    { ev.stopPropagation(); openLightbox(t.dataset.src, t.dataset.cap); }
     else if (act === 'goto')    goToId(t.dataset.id);
     else if (act === 'go-hub')  goToId('hub');
+    else if (act === 'hw-review') { const w = scoreSnapshot().wrong; if (w.length) goToId(w[0]); }
+    else if (act === 'hw-retry') {
+      Object.keys(exState).forEach(k => delete exState[k]);
+      IDX = 0; render();
+      if (STUDY && STUDY.onRetry) STUDY.onRetry();
+      reportProgress(false);
+    }
     else if (act === 'hz-replay-all') {
       const p = t.dataset.p;
       document.querySelectorAll('[id^="' + p + '-w"]').forEach(box =>
@@ -1378,14 +1466,27 @@ body.hz-nopy .rd-py, body.hz-nopy .rad-py, body.hz-nopy .wf-py { display:none !i
   }
 
   /* ---------- khởi động ---------- */
-  function mountLesson(lesson) {
+  function mountLesson(lesson, opts) {
     LESSON = lesson;
     PLAN = window.HSKPlan.buildSlidePlan(lesson);
     SECTIONS = window.HSKPlan.buildSections(lesson);
-    IDX = 0; hubScroll = 0;
+    hubScroll = 0;
+    Object.keys(exState).forEach(k => delete exState[k]);
+    STUDY = null; IDX = 0;
+    if (opts && opts.study) {
+      /* self-study / homework: score, save progress, resume, show a results slide */
+      PLAN = PLAN.concat([{ id: 'results', kind: 'results', section: 'results' }]);
+      const r = opts.resume || {};
+      if (r.answers && typeof r.answers === 'object') Object.assign(exState, r.answers);
+      IDX = Math.min(Math.max(0, r.idx || 0), PLAN.length - 1);
+      STUDY = { onProgress: opts.onProgress || function () {},
+                onRetry: opts.onRetry || null,
+                startMs: Date.now() - (Number(r.time_spent_sec) || 0) * 1000 };
+    }
     document.title = (lesson.title || 'Bài giảng HSK') + ' · Learning Ecology';
     $('#lessonName').textContent = lesson.title || '';
     render();
+    reportProgress(false);
   }
 
   window.HSKSlides = {
@@ -1497,8 +1598,72 @@ body.hz-nopy .rd-py, body.hz-nopy .rad-py, body.hz-nopy .wf-py { display:none !i
       rate: typeof sp.rate === 'number' ? sp.rate : 0
     });
     showStage();
-    window.HSKSlides.mount(data);
+    /* Logged-in STUDENTS get study mode: their progress + score are saved to
+       hsk_attempts and resumed next time. Guests/teachers keep presentation mode. */
+    const study = !GUEST && !STAFF && DB && USER;
+    if (study) window.HSKSlides.mount(data, await HW.begin(id));
+    else window.HSKSlides.mount(data);
   }
+
+  /* ---------- hsk_attempts: load / resume / debounced save (student mode) ----------
+     homework_id is null for free self-study; Phase C passes a real id. The client
+     keeps ONE open (status<>'completed') attempt per (student, lesson, homework). */
+  const HW = (function () {
+    let cur = null;        // { id, attempt_no, homework_id }
+    let saveT = null, pending = null;
+    async function begin(lessonId, homeworkId) {
+      homeworkId = homeworkId || null;
+      cur = { id: null, attempt_no: 1, homework_id: homeworkId, lesson_id: lessonId };
+      let resume = null;
+      try {
+        let q = DB.from('hsk_attempts').select('*')
+          .eq('user_id', USER.id).eq('lesson_id', lessonId)
+          .order('attempt_no', { ascending: false }).limit(1);
+        q = homeworkId ? q.eq('homework_id', homeworkId) : q.is('homework_id', null);
+        const { data } = await q;
+        const row = data && data[0];
+        if (row) {
+          if (row.status !== 'completed') {           // resume the open attempt
+            cur.id = row.id; cur.attempt_no = row.attempt_no;
+            resume = { idx: row.current_slide, answers: row.answers || {}, time_spent_sec: row.time_spent_sec };
+          } else {                                     // last one finished → next attempt
+            cur.attempt_no = (row.attempt_no || 1) + 1;
+          }
+        }
+      } catch (e) { /* table missing / offline → plain study, no resume */ }
+      return { study: true, resume: resume,
+        onProgress: snap => queueSave(snap),
+        onRetry: () => { cur.id = null; cur.attempt_no += 1; } };
+    }
+    function queueSave(snap) {
+      pending = snap;
+      clearTimeout(saveT);
+      saveT = setTimeout(flush, snap.status === 'completed' ? 0 : 900);   // save finish immediately
+    }
+    async function flush() {
+      const snap = pending; pending = null;
+      if (!snap || !cur) return;
+      const nowIso = new Date().toISOString();
+      const row = {
+        user_id: USER.id, lesson_id: cur.lesson_id, homework_id: cur.homework_id,
+        attempt_no: cur.attempt_no, status: snap.status, current_slide: snap.idx,
+        answers: snap.answers, vocab_correct: snap.vocab_correct, vocab_total: snap.vocab_total,
+        grammar_correct: snap.grammar_correct, grammar_total: snap.grammar_total,
+        score: snap.score, time_spent_sec: snap.time_spent_sec, updated_at: nowIso,
+        completed_at: snap.status === 'completed' ? nowIso : null
+      };
+      try {
+        if (cur.id) { await DB.from('hsk_attempts').update(row).eq('id', cur.id); }
+        else {
+          const { data } = await DB.from('hsk_attempts').insert(row).select('id').single();
+          if (data) cur.id = data.id;
+        }
+      } catch (e) { /* offline — the next snapshot will retry */ }
+    }
+    /* save the latest snapshot when leaving the page mid-lesson */
+    window.addEventListener('pagehide', () => { if (pending) { clearTimeout(saveT); flush(); } });
+    return { begin };
+  })();
 
   document.addEventListener('click', e => {
     const c = e.target.closest('.lesson-card');
