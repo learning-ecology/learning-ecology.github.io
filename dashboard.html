@@ -2319,7 +2319,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           ${flashPane}
         </div>
         <div class="tabpane" data-tab="asgn">
-          ${asgnCard || `<div class="card"><p class="empty">${T2p("no_asgn_student")}</p></div>`}
+          <div id="hsk-hw"></div>
+          ${asgnCard || (`<div class="card" id="asgn-empty"><p class="empty">${T2p("no_asgn_student")}</p></div>`)}
         </div>
         <div class="tabpane" data-tab="community">
           ${discCard || `<div class="card"><p class="empty">${T2p("no_data")}</p></div>`}
@@ -2366,6 +2367,87 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
                     c.ends_on ? " → " + esc(c.ends_on) : ""}</span>
                 </div>
               </div>`).join("")}
+          </div>`;
+      })();
+
+      /* ---- Bài tập tiếng Trung (HSK Slides giao cho lớp) — Phase 80 ----
+         RLS chỉ trả về bài được giao cho tôi. Điểm/tiến độ lấy từ hsk_attempts.
+         Bấm Bắt đầu/Tiếp tục → mở hsk-slides.html?hw=<id>&lesson=<mã bài>. */
+      (async function hskHomework() {
+        const box = document.getElementById("hsk-hw");
+        if (!box) return;
+        let hwRes;
+        try { hwRes = await sb.from("hsk_homework").select("*").order("due_at", { ascending: true, nullsFirst: false }); }
+        catch (e) { return; }                          // migration66 chưa chạy
+        if (hwRes.error || !(hwRes.data || []).length) return;
+        const hws = hwRes.data;
+        const lids = [...new Set(hws.map(h => h.lesson_id))];
+        const clids = [...new Set(hws.map(h => h.class_id).filter(Boolean))];
+        const [lRes, atRes, cRes] = await Promise.all([
+          sb.from("hsk_lessons").select("lesson_id, title, hsk_level").in("lesson_id", lids),
+          sb.from("hsk_attempts").select("homework_id, status, score, attempt_no").eq("user_id", user.id).not("homework_id", "is", null),
+          clids.length ? sb.from("classes").select("id, name").in("id", clids) : Promise.resolve({ data: [] })
+        ]);
+        const lMap = {}; (lRes.data || []).forEach(l => lMap[l.lesson_id] = l);
+        const cMap = {}; (cRes.data || []).forEach(c => cMap[c.id] = c.name);
+        const now = Date.now();
+        const fmt = ts => { if (!ts) return ""; const d = new Date(ts);
+          return d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
+
+        const rows = hws.map(h => {
+          const les = lMap[h.lesson_id];
+          if (!les) return "";                          // bài chưa đăng / không đọc được
+          const mine = (atRes.data || []).filter(a => a.homework_id === h.id);
+          const used = mine.length;
+          const best = mine.reduce((m, a) => Math.max(m, a.score || 0), 0);
+          const doneAtt = mine.some(a => a.status === "completed");
+          const open = mine.find(a => a.status !== "completed");
+          const notStarted = h.start_at && new Date(h.start_at).getTime() > now;
+          const overdue = h.due_at && new Date(h.due_at).getTime() < now && !doneAtt;
+          const passed = doneAtt && (!h.required_score || best >= h.required_score);
+          const outOfTries = h.max_attempts > 0 && used >= h.max_attempts && !open;
+
+          let pill;
+          if (passed) pill = `<span class="pill done">Hoàn thành · ${best}%</span>`;
+          else if (doneAtt) pill = `<span class="pill bad">Chưa đạt · ${best}% (cần ${h.required_score}%)</span>`;
+          else if (open) pill = `<span class="pill todo">Đang làm · ${open.score || 0}%</span>`;
+          else if (overdue) pill = `<span class="pill bad">Quá hạn</span>`;
+          else pill = `<span class="pill todo">Chưa làm</span>`;
+
+          const canGo = !notStarted && !(outOfTries && !passed);
+          const label = open ? "Tiếp tục ▸" : (doneAtt ? "Làm lại ▸" : "Bắt đầu ▸");
+          const href = "hsk-slides.html?hw=" + encodeURIComponent(h.id) + "&lesson=" + encodeURIComponent(h.lesson_id);
+          const meta = [
+            cMap[h.class_id] ? "Lớp " + esc(cMap[h.class_id]) : "",
+            les.hsk_level ? "HSK " + les.hsk_level : "",
+            h.due_at ? "Hạn: " + esc(fmt(h.due_at)) : "",
+            h.required_score ? "Cần đạt " + h.required_score + "%" : "",
+            h.max_attempts ? "Lượt: " + used + "/" + h.max_attempts : (used ? "Đã làm " + used + " lượt" : "")
+          ].filter(Boolean).join(" · ");
+
+          return `
+            <div class="lesson" style="flex-wrap:wrap;">
+              <div class="meta">
+                <div class="title">${esc(h.title || les.title)}</div>
+                <span class="kind">${meta}</span>
+                ${notStarted ? `<div style="font-size:.85rem;color:var(--muted);margin-top:.2rem;">Mở lúc ${esc(fmt(h.start_at))}</div>` : ""}
+                ${outOfTries && !passed ? `<div style="font-size:.85rem;color:var(--muted);margin-top:.2rem;">Đã hết lượt làm</div>` : ""}
+              </div>
+              ${pill}
+              <div style="flex-basis:100%;margin-top:.4rem;">
+                ${canGo
+                  ? `<a class="btn ghost" href="${href}" style="text-decoration:none;display:inline-block;">${label}</a>`
+                  : `<button class="ghost" disabled>${notStarted ? "Chưa mở" : "Hết lượt"}</button>`}
+              </div>
+            </div>`;
+        }).filter(Boolean).join("");
+        if (!rows) return;
+        const emptyMsg = document.getElementById("asgn-empty");
+        if (emptyMsg) emptyMsg.remove();
+        box.innerHTML = `
+          <div class="card" style="border-top:4px solid var(--tone-red,#c0392b);">
+            <h2>🀄 Bài tập tiếng Trung</h2>
+            ${rows}
           </div>`;
       })();
 
@@ -3688,6 +3770,39 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
                 </select></div>
             </div>
             <div id="hs-list"><p class="empty">Đang tải…</p></div>
+          </div>
+
+          <div class="card" id="hw-card" style="border-top:4px solid var(--tone-red,#c0392b);">
+            <div class="card-head"><h2>📌 Giao bài tập</h2></div>
+            <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
+              Giao một bài giảng HSK cho cả lớp hoặc chọn từng học viên. Học viên thấy bài trong
+              <b>Bảng điều khiển → Bài tập</b>; điểm và số lượt làm được lưu tự động.</p>
+            <div class="form-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:0.7rem;">
+              <div class="field" style="grid-column:1/-1;"><label>Bài giảng</label>
+                <select id="hw-lesson"><option value="">— Chọn bài giảng —</option></select></div>
+              <div class="field"><label>Lớp</label>
+                <select id="hw-class"><option value="">— Chọn lớp —</option></select></div>
+              <div class="field"><label>Giao cho</label>
+                <select id="hw-who"><option value="all">Cả lớp</option><option value="some">Chọn học viên…</option></select></div>
+              <div class="field" id="hw-stu-wrap" style="grid-column:1/-1; display:none;">
+                <label>Học viên (giữ Ctrl/⌘ để chọn nhiều)</label>
+                <select id="hw-students" multiple size="5" style="height:auto;"></select></div>
+              <div class="field"><label>Mở lúc (tuỳ chọn)</label>
+                <input type="datetime-local" id="hw-start" /></div>
+              <div class="field"><label>Hạn nộp (tuỳ chọn)</label>
+                <input type="datetime-local" id="hw-due" /></div>
+              <div class="field"><label>Điểm cần đạt (%) · 0 = không bắt buộc</label>
+                <input type="number" id="hw-score" min="0" max="100" value="0" /></div>
+              <div class="field"><label>Số lượt tối đa · 0 = không giới hạn</label>
+                <input type="number" id="hw-tries" min="0" value="0" /></div>
+              <div class="field" style="grid-column:1/-1;"><label>Ghi chú / tiêu đề (tuỳ chọn)</label>
+                <input type="text" id="hw-title" placeholder="Để trống sẽ dùng tên bài giảng" /></div>
+            </div>
+            <div style="display:flex; gap:0.6rem; align-items:center; margin-top:0.6rem; flex-wrap:wrap;">
+              <button id="hw-save">Giao bài</button>
+              <span id="hw-msg" class="msg"></span>
+            </div>
+            <div id="hw-list" style="margin-top:0.9rem;"></div>
           </div>
         </div>
 
@@ -7917,6 +8032,159 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         }
 
         renderHs();
+      })();
+
+      // ================= GIAO BÀI TẬP HSK (Homework) — Phase 80 =================
+      // Chủ/giáo viên giao một bài giảng HSK cho lớp (hoặc chọn học viên).
+      // Lưu vào hsk_homework; học viên thấy ở Bảng điều khiển → Bài tập, điểm
+      // và tiến độ lưu trong hsk_attempts (migration65/66).
+      (function () {
+        const card = document.getElementById("hw-card");
+        if (!card) return;
+        const $ = id => document.getElementById(id);
+        const selLesson = $("hw-lesson"), selClass = $("hw-class"), selWho = $("hw-who"),
+              stuWrap = $("hw-stu-wrap"), selStu = $("hw-students"),
+              inStart = $("hw-start"), inDue = $("hw-due"), inScore = $("hw-score"),
+              inTries = $("hw-tries"), inTitle = $("hw-title"),
+              btnSave = $("hw-save"), msg = $("hw-msg"), listBox = $("hw-list");
+        let classes = [], members = {}, hwRows = [], loaded = false;
+
+        const say = (t, err) => { msg.textContent = t || ""; msg.className = "msg" + (err ? " err" : ""); };
+        const fmt = ts => { if (!ts) return ""; const d = new Date(ts);
+          return d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
+        const toLocalInput = () => "";  // để trống mặc định
+
+        function fillLessons() {
+          selLesson.innerHTML = `<option value="">— Chọn bài giảng —</option>` +
+            hskRows.slice().sort((a, b) => (a.hsk_level - b.hsk_level) || String(a.title).localeCompare(String(b.title)))
+              .map(l => `<option value="${esc(l.lesson_id)}">${l.hsk_level ? "HSK " + l.hsk_level + " · " : ""}${esc(l.title || l.lesson_id)}</option>`).join("");
+        }
+
+        async function load() {
+          if (loaded) return;
+          loaded = true;
+          // lớp + danh sách hsk_homework hiện có
+          const [cRes, hwRes] = await Promise.all([
+            sb.from("classes").select("id, name, course_id, org_id").order("starts_on", { ascending: true }),
+            sb.from("hsk_homework").select("*").order("created_at", { ascending: false })
+          ]);
+          classes = (cRes.data || []);
+          selClass.innerHTML = `<option value="">— Chọn lớp —</option>` +
+            classes.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
+          hwRows = (hwRes.error ? [] : (hwRes.data || []));
+          fillLessons();
+          renderList();
+        }
+
+        async function loadMembers(classId) {
+          if (!classId) { selStu.innerHTML = ""; return; }
+          if (members[classId]) { paintStudents(classId); return; }
+          const cs = await sb.from("class_students").select("student_id").eq("class_id", classId);
+          const ids = (cs.data || []).map(r => r.student_id);
+          let profs = [];
+          if (ids.length) {
+            const pr = await sb.from("profiles").select("id, full_name, email").in("id", ids);
+            profs = pr.data || [];
+          }
+          members[classId] = profs;
+          paintStudents(classId);
+        }
+        function paintStudents(classId) {
+          const profs = members[classId] || [];
+          selStu.innerHTML = profs.length
+            ? profs.map(p => `<option value="${p.id}">${esc(p.full_name || p.email)}</option>`).join("")
+            : `<option disabled>(lớp chưa có học viên)</option>`;
+        }
+
+        function lessonTitle(lid) {
+          const l = hskRows.find(r => r.lesson_id === lid);
+          return l ? (l.title || lid) : lid;
+        }
+        function className(cid) {
+          const c = classes.find(x => x.id === cid);
+          return c ? c.name : "";
+        }
+
+        function renderList() {
+          if (!hwRows.length) { listBox.innerHTML = `<p class="empty" style="margin:0;">Chưa giao bài nào.</p>`; return; }
+          listBox.innerHTML = `<h3 style="margin:0 0 .5rem; font-size:1rem;">Đã giao (${hwRows.length})</h3>` +
+            hwRows.map(h => {
+              const who = (h.student_ids && h.student_ids.length) ? h.student_ids.length + " học viên" : "cả lớp";
+              const meta = [
+                className(h.class_id) ? "Lớp " + esc(className(h.class_id)) : "",
+                who,
+                h.due_at ? "Hạn " + esc(fmt(h.due_at)) : "",
+                h.required_score ? "cần " + h.required_score + "%" : "",
+                h.max_attempts ? h.max_attempts + " lượt" : "không giới hạn lượt"
+              ].filter(Boolean).join(" · ");
+              return `
+                <div class="lesson" style="flex-wrap:wrap;">
+                  <div class="meta">
+                    <div class="title">${esc(h.title || lessonTitle(h.lesson_id))}</div>
+                    <span class="kind">${esc(lessonTitle(h.lesson_id))} · ${meta}</span>
+                  </div>
+                  <button class="ghost hw-del" data-id="${h.id}">Xoá</button>
+                </div>`;
+            }).join("");
+        }
+
+        selWho.addEventListener("change", () => {
+          stuWrap.style.display = selWho.value === "some" ? "" : "none";
+          if (selWho.value === "some") loadMembers(selClass.value);
+        });
+        selClass.addEventListener("change", () => {
+          members[selClass.value] = members[selClass.value];  // no-op keep cache
+          if (selWho.value === "some") loadMembers(selClass.value);
+        });
+
+        btnSave.addEventListener("click", async () => {
+          const lesson_id = selLesson.value;
+          const class_id = selClass.value;
+          if (!lesson_id) { say("Hãy chọn bài giảng.", true); return; }
+          if (!class_id) { say("Hãy chọn lớp.", true); return; }
+          let student_ids = [];
+          if (selWho.value === "some") {
+            student_ids = [...selStu.selectedOptions].map(o => o.value).filter(Boolean);
+            if (!student_ids.length) { say("Hãy chọn ít nhất một học viên, hoặc chuyển sang 'Cả lớp'.", true); return; }
+          }
+          const cls = classes.find(c => c.id === class_id);
+          const row = {
+            org_id: (cls && cls.org_id) || null,
+            class_id, lesson_id,
+            title: inTitle.value.trim(),
+            student_ids,
+            start_at: inStart.value ? new Date(inStart.value).toISOString() : null,
+            due_at: inDue.value ? new Date(inDue.value).toISOString() : null,
+            required_score: Math.max(0, Math.min(100, Number(inScore.value) || 0)),
+            max_attempts: Math.max(0, Number(inTries.value) || 0),
+            created_by: user.id
+          };
+          say("Đang lưu…");
+          const { data, error } = await sb.from("hsk_homework").insert(row).select().single();
+          if (error) {
+            say(error.message + (/relation .* does not exist/i.test(error.message) ? " — hình như chưa chạy migration66_hsk_homework.sql." : ""), true);
+            return;
+          }
+          hwRows.unshift(data);
+          renderList();
+          inTitle.value = ""; inStart.value = ""; inDue.value = "";
+          selStu.selectedIndex = -1;
+          say("Đã giao bài ✓");
+        });
+
+        listBox.addEventListener("click", async e => {
+          const del = e.target.closest(".hw-del");
+          if (!del) return;
+          if (!confirm("Xoá bài đã giao này? Tiến độ của học viên vẫn được giữ.")) return;
+          const id = del.dataset.id;
+          const { error } = await sb.from("hsk_homework").delete().eq("id", id);
+          if (error) { say(error.message, true); return; }
+          hwRows = hwRows.filter(h => h.id !== id);
+          renderList();
+        });
+
+        // nạp dữ liệu lần đầu khi mở tab HSK (hoặc ngay nếu tab đang mở)
+        load();
       })();
 
       // ================= ĐIỀU HƯỚNG (Navigation Management) — Phase 63 =================

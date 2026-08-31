@@ -1571,7 +1571,7 @@ body.hz-nopy .rd-py, body.hz-nopy .rad-py, body.hz-nopy .wf-py { display:none !i
     return url;
   }
 
-  async function openLesson(id) {
+  async function openLesson(id, homeworkId) {
     const meta = LESSONS.find(l => l.lesson_id === id);
     if (!meta) return;
     if (!canOpen(meta)) {
@@ -1601,7 +1601,7 @@ body.hz-nopy .rd-py, body.hz-nopy .rad-py, body.hz-nopy .wf-py { display:none !i
     /* Logged-in STUDENTS get study mode: their progress + score are saved to
        hsk_attempts and resumed next time. Guests/teachers keep presentation mode. */
     const study = !GUEST && !STAFF && DB && USER;
-    if (study) window.HSKSlides.mount(data, await HW.begin(id));
+    if (study) window.HSKSlides.mount(data, await HW.begin(id, homeworkId || null));
     else window.HSKSlides.mount(data);
   }
 
@@ -1717,8 +1717,10 @@ body.hz-nopy .rd-py, body.hz-nopy .rad-py, body.hz-nopy .wf-py { display:none !i
       } catch (e) {}
     }
     renderPick();
-    const want = new URLSearchParams(location.search).get('lesson') || '';
-    if (want && LESSONS.some(l => l.lesson_id === want)) await openLesson(want);
+    const qp = new URLSearchParams(location.search);
+    const want = qp.get('lesson') || '';
+    const hw = qp.get('hw') || '';   // homework assignment → link the attempt to it
+    if (want && LESSONS.some(l => l.lesson_id === want)) await openLesson(want, hw || null);
     else showPick();
   }
   boot();
