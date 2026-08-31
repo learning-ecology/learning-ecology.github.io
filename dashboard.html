@@ -155,6 +155,9 @@
   .tk-scope-all{ font-weight:700; background:var(--accent-soft,#eef2fb); }
   #tk-targets input:disabled ~ *, .tk-tok:disabled { opacity:0.5; }
   #tk-courses[disabled]{ opacity:0.5; }
+  /* HSK Slides: inline lesson editor opens directly under its lesson row */
+  .hs-editrow:empty{ display:none; }
+  .hs-editrow > .card{ margin:0.35rem 0 1rem; border-left:3px solid var(--accent); }
   </style>
 </head>
 <body>
@@ -3675,9 +3678,15 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             <p id="hs-msg" class="msg"></p>
             <div id="hs-report" style="margin-top:0.6rem;"></div>
           </div>
-          <div id="hs-editor"></div>
           <div class="card">
-            <h2>Bài giảng <span class="kind" id="hs-count"></span></h2>
+            <div class="card-head"><h2>Bài giảng <span class="kind" id="hs-count"></span></h2>
+              <div class="field" style="max-width:150px; margin:0;"><label>Cấp HSK</label>
+                <select id="hs-lvl">
+                  <option value="0">Tất cả</option>
+                  <option value="1">HSK 1</option><option value="2">HSK 2</option><option value="3">HSK 3</option>
+                  <option value="4">HSK 4</option><option value="5">HSK 5</option><option value="6">HSK 6</option>
+                </select></div>
+            </div>
             <div id="hs-list"><p class="empty">Đang tải…</p></div>
           </div>
         </div>
@@ -7283,6 +7292,11 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       (function () {
         const listEl = document.getElementById("hs-list");
         if (!listEl) return;
+        let hsLvl = 0;        // HSK-level filter (0 = Tất cả) — uses each lesson's hsk_level
+        let hsOpenId = null;  // which lesson's inline editor is open (one at a time)
+        let hsPasteOff = null; // detaches the current editor's ⌘V paste listener
+        const lvlSel = document.getElementById("hs-lvl");
+        if (lvlSel) lvlSel.addEventListener("change", () => { hsLvl = Number(lvlSel.value) || 0; closeEditor(); renderHs(); });
 
         /* Thư viện phát âm dùng chung với trang bài giảng: thầy nghe thử ở
            đây là bản ghi đã nằm sẵn trong thư viện cho học viên. */
@@ -7310,17 +7324,24 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         const said = (t, err) => { msg.textContent = t; msg.className = "msg" + (err ? " err" : ""); };
 
         /* ---------- danh sách bài ---------- */
+        function hsView() { return hsLvl ? hskRows.filter(l => Number(l.hsk_level) === hsLvl) : hskRows; }
         function renderHs() {
-          countEl.textContent = hskRows.length ? "(" + hskRows.length + ")" : "";
+          const view = hsView();
+          countEl.textContent = hskRows.length
+            ? "(" + view.length + (hsLvl ? " / " + hskRows.length : "") + ")" : "";
           if (!hskRows.length) {
             listEl.innerHTML = '<p class="empty">Chưa có bài giảng nào. Tải tệp Excel mẫu ở trên, điền nội dung rồi tải lên.</p>';
             return;
           }
-          listEl.innerHTML = hskRows.map(l => `
-            <div class="lesson" style="flex-wrap:wrap;">
+          if (!view.length) {
+            listEl.innerHTML = '<p class="empty">Không có bài giảng nào ở cấp này.</p>';
+            return;
+          }
+          listEl.innerHTML = view.map(l => `
+            <div class="lesson" data-hsrow="${l.id}" style="flex-wrap:wrap;">
               <div class="meta">
                 <div class="title">HSK ${l.hsk_level} · ${esc(l.title)}${l.published ? "" : ' <span class="pill off">nháp</span>'}</div>
-                <span class="kind">${esc(l.subtitle || "")} · ${l.vocab_count || 0} từ · ${l.slide_count || 0} slide</span>
+                <span class="kind hs-sum">${esc(l.subtitle || "")} · ${l.vocab_count || 0} từ · ${l.slide_count || 0} slide</span>
               </div>
               <input type="number" class="hs-ord" data-id="${l.id}" value="${l.sort_order == null ? 0 : l.sort_order}" min="0" title="Thứ tự" style="max-width:70px; flex:none;" />
               <select class="hs-tier" data-id="${l.id}" style="max-width:110px;">
@@ -7337,7 +7358,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               <a class="ghost btn" href="hsk-slides.html?lesson=${encodeURIComponent(l.lesson_id)}" target="_blank" rel="noopener" style="text-decoration:none;" title="Xem thử">👁</a>
               <button class="ghost" data-hsdup="${l.id}" title="Nhân bản">⧉</button>
               <button class="ghost" data-hsdel="${l.id}" style="color:var(--danger); border-color:var(--danger);">🗑</button>
-            </div>`).join("");
+            </div>
+            <div class="hs-editrow" data-editrow="${l.id}"></div>`).join("");
         }
 
         async function patch(id, fields) {
@@ -7366,7 +7388,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             if (!ok) return;
             const { error } = await sb.from("hsk_lessons").delete().eq("id", row.id);
             if (error) { said("Không xoá được: " + error.message, true); return; }
-            hskRows = hskRows.filter(r => r.id !== row.id); renderHs(); said("Đã xoá ✓");
+            hskRows = hskRows.filter(r => r.id !== row.id); closeEditor(); renderHs(); said("Đã xoá ✓");
           }
           if (dup) {
             const row = hskRows.find(r => r.id === dup.dataset.hsdup); if (!row) return;
@@ -7380,7 +7402,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             copy.data = Object.assign({}, full.data, { lessonId: copy.lesson_id, title: copy.title });
             const { data: ins, error } = await sb.from("hsk_lessons").insert(copy).select().single();
             if (error) { said("Không nhân bản được: " + error.message, true); return; }
-            hskRows.push(ins); renderHs(); said("Đã nhân bản ✓ — nhớ đổi mã bài và tên trước khi đăng.");
+            hskRows.push(ins); closeEditor(); renderHs(); said("Đã nhân bản ✓ — nhớ đổi mã bài và tên trước khi đăng.");
           }
           if (edt) openEditor(edt.dataset.hsedit);
         });
@@ -7407,12 +7429,26 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           return url;
         }
 
-        /* ---------- trình sửa nội dung ---------- */
+        /* ---------- trình sửa nội dung (mở NGAY DƯỚI bài đang sửa) ---------- */
+        function closeEditor() {
+          if (hsPasteOff) { hsPasteOff(); hsPasteOff = null; }
+          if (hsOpenId == null) return;
+          const prev = listEl.querySelector('.hs-editrow[data-editrow="' + hsOpenId + '"]');
+          if (prev) prev.innerHTML = "";
+          hsOpenId = null;
+        }
         async function openEditor(id) {
+          if (hsOpenId === id) { closeEditor(); return; }   // bấm lại ✏️ → thu gọn
+          closeEditor();                                     // chỉ mở một trình sửa cùng lúc
           const row = hskRows.find(r => r.id === id); if (!row) return;
+          const box = listEl.querySelector('.hs-editrow[data-editrow="' + id + '"]');
+          if (!box) return;
+          box.innerHTML = '<p class="kind" style="padding:0.5rem 0;">Đang tải…</p>';
+          hsOpenId = id;
           const { data: full } = await sb.from("hsk_lessons").select("data").eq("id", id).single();
-          const L = full && full.data; if (!L) return;
-          const box = document.getElementById("hs-editor");
+          const L = full && full.data;
+          if (!L) { box.innerHTML = '<p class="msg err">Không tải được nội dung.</p>'; return; }
+          if (hsOpenId !== id) return;   // người dùng đã đóng/đổi trong lúc tải
           let active = -1;            // ô ảnh đang chọn — chỗ nhận ảnh dán bằng ⌘V
           const open = {};            // từ nào đang mở phần chi tiết
 
@@ -7521,6 +7557,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             }).join("");
           };
           draw();
+          /* keep the editor next to its lesson — never jump to the top of the page */
+          box.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
           /* ---- nhận ảnh từ tệp / clipboard / kéo thả ---- */
           async function takeImage(i, file) {
@@ -7558,6 +7596,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             }
           };
           document.addEventListener("paste", onPaste);
+          hsPasteOff = () => document.removeEventListener("paste", onPaste);
 
           rows.addEventListener("dragover", e => {
             if (e.target.closest("[data-thumb]")) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }
@@ -7614,9 +7653,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               L.vocabulary.forEach((x, k) => x.order = k + 1); active = -1; draw(); }
           });
 
-          document.getElementById("hs-ed-close").onclick = () => {
-            document.removeEventListener("paste", onPaste); box.innerHTML = "";
-          };
+          document.getElementById("hs-ed-close").onclick = () => closeEditor();   // keeps scroll position
           document.getElementById("hs-ed-repinyin").onclick = () => {
             (L.vocabulary || []).forEach(v => {
               if (!v.pinyin) { const p = window.HSKParser.autoPinyin(v.chinese); if (p) { v.pinyin = p; v.pinyinSource = "auto"; } }
@@ -7640,7 +7677,12 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             if (error) { said("Không lưu được: " + error.message, true); return; }
             const r = hskRows.find(x => x.id === id);
             if (r) { r.vocab_count = (L.vocabulary || []).length; r.slide_count = plan.length; }
-            renderHs(); said("Đã lưu nội dung ✓"); note("Đã lưu.");
+            /* update this lesson's summary IN PLACE — no full re-render, so the
+               inline editor stays open, the scroll position and the HSK filter
+               are all preserved */
+            const sum = listEl.querySelector('.lesson[data-hsrow="' + id + '"] .hs-sum');
+            if (sum && r) sum.textContent = (r.subtitle || "") + " · " + (r.vocab_count || 0) + " từ · " + (r.slide_count || 0) + " slide";
+            said("Đã lưu nội dung ✓"); note("Đã lưu.");
           };
         }
 
@@ -7816,7 +7858,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             showReport(f.name, v, true,
               `ảnh: ${img.got} mới, ${img.reused} dùng lại${img.failed ? ", " + img.failed + " chưa có" : ""}`);
           }
-          renderHs();
+          closeEditor(); renderHs();
           said("Xong — bấm ✏️ để sửa, 👁 xem thử, rồi tick “đăng” cho học viên thấy.");
         });
 
