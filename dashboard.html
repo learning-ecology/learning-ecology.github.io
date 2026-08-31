@@ -3804,6 +3804,23 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             </div>
             <div id="hw-list" style="margin-top:0.9rem;"></div>
           </div>
+
+          <div class="card" id="hp-card" style="border-top:4px solid var(--tone-teal,#0d9488);">
+            <div class="card-head"><h2>📊 Theo dõi tiến độ</h2>
+              <button class="ghost" id="hp-refresh" style="width:auto; padding:.35rem .7rem; font-size:.85rem;">↻ Làm mới</button>
+            </div>
+            <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
+              Xem ai đã làm, điểm cao nhất, số lượt và lần hoạt động gần nhất cho từng bài đã giao.</p>
+            <div class="form-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:0.7rem;">
+              <div class="field"><label>Lớp</label>
+                <select id="hp-class"><option value="">— Chọn lớp —</option></select></div>
+              <div class="field"><label>Bài đã giao</label>
+                <select id="hp-hw"><option value="">— Tất cả bài của lớp —</option></select></div>
+            </div>
+            <div id="hp-summary" style="margin-top:0.6rem;"></div>
+            <div id="hp-chips" style="display:flex; gap:0.4rem; flex-wrap:wrap; margin:0.6rem 0;"></div>
+            <div id="hp-body"><p class="empty" style="margin:0;">Chọn lớp để xem tiến độ.</p></div>
+          </div>
         </div>
 
         <div class="tabpane" data-tab="nav">
@@ -8185,6 +8202,192 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
 
         // nạp dữ liệu lần đầu khi mở tab HSK (hoặc ngay nếu tab đang mở)
         load();
+      })();
+
+      // ================= THEO DÕI TIẾN ĐỘ HSK (Progress) — Phase 81 =================
+      // Owner/giáo viên xem tiến độ từng bài đã giao: ai làm chưa, điểm cao
+      // nhất, số lượt, hoạt động gần nhất. Đọc hsk_homework + hsk_attempts
+      // (RLS cho phép staff đọc hết) + danh sách lớp để biết cả những học
+      // viên CHƯA làm (không có lượt nào).
+      (function () {
+        const card = document.getElementById("hp-card");
+        if (!card) return;
+        const $ = id => document.getElementById(id);
+        const selClass = $("hp-class"), selHw = $("hp-hw"),
+              sumBox = $("hp-summary"), chipBox = $("hp-chips"), body = $("hp-body");
+        let classesReady = false;
+        let assigns = [];        // hsk_homework của lớp đang chọn
+        let attempts = [];       // hsk_attempts theo homework_id của lớp
+        let roster = [];         // [{id, name}] học viên trong lớp
+        let filter = "all";      // all | passed | failed | inprogress | notstarted
+
+        const fmt = ts => { if (!ts) return "—"; const d = new Date(ts);
+          const today = new Date().toDateString() === d.toDateString();
+          return today ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                       : d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
+        const mmss = s => { s = Math.max(0, Math.round(s || 0)); const m = Math.floor(s / 60);
+          return m ? m + "′" + String(s % 60).padStart(2, "0") + "″" : s + "″"; };
+        const lessonTitle = lid => { const l = hskRows.find(r => r.lesson_id === lid); return l ? (l.title || lid) : lid; };
+
+        async function loadClasses() {
+          if (classesReady) return;
+          classesReady = true;
+          const cRes = await sb.from("classes").select("id, name").order("starts_on", { ascending: true });
+          selClass.innerHTML = `<option value="">— Chọn lớp —</option>` +
+            (cRes.data || []).map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
+        }
+
+        async function loadClass(classId) {
+          assigns = []; attempts = []; roster = [];
+          if (!classId) { selHw.innerHTML = `<option value="">— Tất cả bài của lớp —</option>`; render(); return; }
+          body.innerHTML = `<p class="empty" style="margin:0;">Đang tải…</p>`;
+          const [aRes, rRes] = await Promise.all([
+            sb.from("hsk_homework").select("*").eq("class_id", classId).order("created_at", { ascending: false }),
+            sb.from("class_students").select("student_id").eq("class_id", classId)
+          ]);
+          assigns = (aRes.data || []);
+          const sids = (rRes.data || []).map(r => r.student_id);
+          let profs = [];
+          if (sids.length) {
+            const pr = await sb.from("profiles").select("id, full_name, email").in("id", sids);
+            profs = pr.data || [];
+          }
+          roster = profs.map(p => ({ id: p.id, name: p.full_name || p.email }));
+          const hwIds = assigns.map(a => a.id);
+          if (hwIds.length) {
+            const atRes = await sb.from("hsk_attempts").select("user_id, homework_id, status, score, attempt_no, vocab_correct, vocab_total, grammar_correct, grammar_total, time_spent_sec, updated_at").in("homework_id", hwIds);
+            attempts = (atRes.data || []);
+          }
+          selHw.innerHTML = `<option value="">— Tất cả bài của lớp —</option>` +
+            assigns.map(a => `<option value="${a.id}">${esc(a.title || lessonTitle(a.lesson_id))}</option>`).join("");
+          render();
+        }
+
+        // học viên được giao 1 bài: student_ids nếu có, ngược lại là cả lớp
+        function targetsOf(a) {
+          if (a.student_ids && a.student_ids.length) {
+            const set = new Set(a.student_ids);
+            return roster.filter(r => set.has(r.id));
+          }
+          return roster;
+        }
+
+        // trạng thái của 1 học viên với 1 bài
+        function statOf(a, sid) {
+          const mine = attempts.filter(x => x.homework_id === a.id && x.user_id === sid);
+          if (!mine.length) return { code: "notstarted", best: 0, used: 0, last: null, vc: 0, vt: 0, gc: 0, gt: 0, time: 0 };
+          const best = mine.reduce((m, x) => Math.max(m, x.score || 0), 0);
+          const bestRow = mine.slice().sort((p, q) => (q.score || 0) - (p.score || 0))[0] || mine[0];
+          const doneAtt = mine.some(x => x.status === "completed");
+          const last = mine.reduce((m, x) => (!m || x.updated_at > m) ? x.updated_at : m, null);
+          const time = mine.reduce((s, x) => s + (x.time_spent_sec || 0), 0);
+          let code = "inprogress";
+          if (doneAtt) code = (!a.required_score || best >= a.required_score) ? "passed" : "failed";
+          return { code, best, used: mine.length, last, time,
+                   vc: bestRow.vocab_correct || 0, vt: bestRow.vocab_total || 0,
+                   gc: bestRow.grammar_correct || 0, gt: bestRow.grammar_total || 0 };
+        }
+
+        const LABEL = { passed: "Hoàn thành", failed: "Chưa đạt", inprogress: "Đang làm", notstarted: "Chưa làm" };
+        const PILL = { passed: "done", failed: "bad", inprogress: "todo", notstarted: "off" };
+
+        function chipsRow(counts, total) {
+          const defs = [
+            ["all", "Tất cả", total],
+            ["passed", "Hoàn thành", counts.passed],
+            ["failed", "Chưa đạt", counts.failed],
+            ["inprogress", "Đang làm", counts.inprogress],
+            ["notstarted", "Chưa làm", counts.notstarted]
+          ];
+          chipBox.innerHTML = defs.map(([k, lb, n]) =>
+            `<button class="ghost hp-chip${filter === k ? " on" : ""}" data-k="${k}"
+               style="width:auto;padding:.3rem .6rem;font-size:.82rem;${filter === k ? "background:var(--tone-teal,#0d9488);color:#fff;border-color:transparent;" : ""}">${lb} (${n})</button>`).join("");
+        }
+
+        function studentTable(a) {
+          const tg = targetsOf(a);
+          const stats = tg.map(s => ({ s, st: statOf(a, s.id) }));
+          const counts = { passed: 0, failed: 0, inprogress: 0, notstarted: 0 };
+          stats.forEach(x => counts[x.st.code]++);
+          const attempted = stats.filter(x => x.st.used > 0);
+          const avg = attempted.length ? Math.round(attempted.reduce((s, x) => s + x.st.best, 0) / attempted.length) : 0;
+
+          const shown = filter === "all" ? stats : stats.filter(x => x.st.code === filter);
+          sumBox.innerHTML = `
+            <div class="lesson" style="background:var(--surface,#0000000a);border-radius:8px;">
+              <div class="meta">
+                <div class="title">${esc(a.title || lessonTitle(a.lesson_id))}</div>
+                <span class="kind">${esc(lessonTitle(a.lesson_id))}${a.required_score ? " · cần đạt " + a.required_score + "%" : ""}${a.max_attempts ? " · tối đa " + a.max_attempts + " lượt" : ""} · ${tg.length} học viên · điểm TB ${avg}%</span>
+              </div>
+            </div>`;
+          chipsRow(counts, tg.length);
+
+          if (!tg.length) { body.innerHTML = `<p class="empty" style="margin:0;">Bài này chưa nhắm tới học viên nào.</p>`; return; }
+          const rows = shown.map(({ s, st }) => `
+            <tr>
+              <td>${esc(s.name)}</td>
+              <td><span class="pill ${PILL[st.code]}">${LABEL[st.code]}</span></td>
+              <td style="text-align:center;">${st.used ? st.best + "%" : "—"}</td>
+              <td style="text-align:center;">${st.vt ? st.vc + "/" + st.vt : "—"}</td>
+              <td style="text-align:center;">${st.gt ? st.gc + "/" + st.gt : "—"}</td>
+              <td style="text-align:center;">${st.used || "—"}${a.max_attempts ? "/" + a.max_attempts : ""}</td>
+              <td style="text-align:center;">${st.used ? mmss(st.time) : "—"}</td>
+              <td style="white-space:nowrap;">${fmt(st.last)}</td>
+            </tr>`).join("");
+          body.innerHTML = `
+            <div style="overflow-x:auto;">
+              <table class="hp-table" style="width:100%;border-collapse:collapse;font-size:.9rem;">
+                <thead><tr style="text-align:left;border-bottom:1px solid var(--line,#0002);">
+                  <th style="padding:.4rem;">Học viên</th><th>Trạng thái</th>
+                  <th style="text-align:center;">Điểm</th><th style="text-align:center;">Từ vựng</th>
+                  <th style="text-align:center;">Ngữ pháp</th><th style="text-align:center;">Lượt</th>
+                  <th style="text-align:center;">Thời gian</th><th>Gần nhất</th>
+                </tr></thead>
+                <tbody>${rows || `<tr><td colspan="8" style="padding:.6rem;color:var(--muted);">Không có học viên ở trạng thái này.</td></tr>`}</tbody>
+              </table>
+            </div>`;
+        }
+
+        // tổng quan cả lớp: mỗi bài một dòng, bấm để xem chi tiết
+        function classOverview() {
+          if (!assigns.length) { sumBox.innerHTML = ""; chipBox.innerHTML = "";
+            body.innerHTML = `<p class="empty" style="margin:0;">Lớp này chưa được giao bài nào.</p>`; return; }
+          sumBox.innerHTML = ""; chipBox.innerHTML = "";
+          body.innerHTML = assigns.map(a => {
+            const tg = targetsOf(a);
+            const stats = tg.map(s => statOf(a, s.id));
+            const passed = stats.filter(s => s.code === "passed").length;
+            const started = stats.filter(s => s.used > 0);
+            const avg = started.length ? Math.round(started.reduce((s, x) => s + x.best, 0) / started.length) : 0;
+            return `
+              <div class="lesson" style="flex-wrap:wrap;">
+                <div class="meta">
+                  <div class="title">${esc(a.title || lessonTitle(a.lesson_id))}</div>
+                  <span class="kind">${esc(lessonTitle(a.lesson_id))} · ${passed}/${tg.length} hoàn thành · điểm TB ${avg}%${a.due_at ? " · hạn " + esc(fmt(a.due_at)) : ""}</span>
+                </div>
+                <button class="ghost hp-open" data-id="${a.id}">Xem chi tiết ▸</button>
+              </div>`;
+          }).join("");
+        }
+
+        function render() {
+          const a = assigns.find(x => x.id === selHw.value);
+          if (a) studentTable(a); else classOverview();
+        }
+
+        selClass.addEventListener("change", () => { filter = "all"; loadClass(selClass.value); });
+        selHw.addEventListener("change", () => { filter = "all"; render(); });
+        $("hp-refresh").addEventListener("click", () => { if (selClass.value) loadClass(selClass.value); });
+        chipBox.addEventListener("click", e => {
+          const c = e.target.closest(".hp-chip"); if (!c) return;
+          filter = c.dataset.k; render();
+        });
+        body.addEventListener("click", e => {
+          const o = e.target.closest(".hp-open"); if (!o) return;
+          selHw.value = o.dataset.id; filter = "all"; render();
+        });
+
+        loadClasses();
       })();
 
       // ================= ĐIỀU HƯỚNG (Navigation Management) — Phase 63 =================
