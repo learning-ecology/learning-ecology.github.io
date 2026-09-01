@@ -31,6 +31,7 @@
     "dictation.html":       ["chinese", "tools", "page:dictation"],
     "writing.html":         ["chinese", "tools", "page:writing"],
     "hsk-slides.html":      ["hsk", "chinese", "tools", "page:hsk", "page:hsk-slides"],
+    "vocab-practice.html":  ["hsk", "chinese", "tools", "page:vocab", "page:vocab-practice"],
     "vstep.html":           ["vstep", "english", "tools", "page:vstep"],
     "vstep-listening.html": ["vstep", "english", "tools", "page:vstep", "page:vstep-listening"],
     "vsat.html":            ["vsat", "english", "tools", "page:vsat"],

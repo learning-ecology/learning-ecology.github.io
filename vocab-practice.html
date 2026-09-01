@@ -42,6 +42,11 @@ img{max-width:100%}
 .view-tabs button.active{background:#fff;color:var(--ink);box-shadow:var(--shadow-sm)}
 .lang-tabs{display:flex;gap:3px;background:#eef1f7;padding:4px;border-radius:999px}
 .lang-tabs button{border:none;background:transparent;padding:6px 11px;border-radius:999px;font-weight:800;font-size:12px;color:var(--muted);letter-spacing:.3px}
+.vp-who{font-weight:700;font-size:13px;color:var(--ink);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vp-auth{display:flex;gap:6px;align-items:center}
+.vp-a{text-decoration:none;font-weight:700;font-size:13px;color:var(--ink);padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:#fff}
+.vp-a.vp-p{background:var(--brand);border-color:var(--brand);color:#fff}
+.vp-a:hover{filter:brightness(.97)}
 .lang-tabs button.active{background:var(--brand);color:#fff;box-shadow:var(--shadow-sm)}
 .hbtn{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 12px;font-size:13px;font-weight:700;color:var(--muted);box-shadow:var(--shadow-sm);display:inline-flex;align-items:center;gap:5px}
 .hbtn:hover{border-color:#c9d0dd;color:var(--ink)}
@@ -255,6 +260,11 @@ table.admin th{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color
       <button id="tabStudent" class="active" onclick="App.setView('student')">Student</button>
       <button id="tabAdmin" onclick="App.setView('admin')" style="display:none">Admin</button>
       <a id="backDash" href="dashboard.html" style="display:none;text-decoration:none;font-size:13px;font-weight:600;color:var(--muted);padding:6px 10px;border:1px solid var(--line);border-radius:8px">← Bảng điều khiển</a>
+    </div>
+    <span id="vpWho" class="vp-who" style="display:none" title="Tài khoản của bạn"></span>
+    <div id="vpAuth" class="vp-auth" style="display:none">
+      <a id="vpLogin" class="vp-a" href="login.html">Đăng nhập</a>
+      <a id="vpSignup" class="vp-a vp-p" href="signup.html">Đăng ký</a>
     </div>
   </div>
 </header>
@@ -681,6 +691,18 @@ const App={
     document.getElementById('tabAdmin').classList.toggle('active',v==='admin');
     if(v==='student')this.route={name:'home'};
     this.render();},
+  /* Giữ URL khớp vị trí đang xem (?lesson=…) để nút Đăng nhập quay lại đúng chỗ;
+     đồng thời cập nhật link ?next=. Không tải lại trang. */
+  reflectUrl(){
+    try{
+      const r=this.route;
+      const u=(r&&(r.name==='lesson'||r.name==='practice')&&r.lid)
+        ? 'vocab-practice.html?lesson='+encodeURIComponent(r.lid)
+        : 'vocab-practice.html';
+      history.replaceState(null,'',u);
+    }catch(e){}
+    if(window.__vpSyncAuth) window.__vpSyncAuth();
+  },
   go(route){
     /* Mở một bài: nạp dữ liệu (vocab/gapfill/arrange) từ CSDL nếu chưa có. */
     if(route.name==='lesson'||route.name==='practice'){
@@ -756,6 +778,7 @@ const App={
     /* Quản lý bài học nằm ở Bảng điều khiển (giống HSK Slides) — trang này chỉ
        là trình học cho học viên/khách, không có chế độ Admin. */
     if(this.view==='admin')this.view='student';
+    this.reflectUrl();
     const r=this.route;
     if(r.name==='home')this.renderHome();
     else if(r.name==='course')this.renderCourse(r.cid);
@@ -1581,8 +1604,9 @@ async function boot(){
         VP.GUEST=false; VP.USER=session.user;
         const _td=new Date().toISOString().slice(0,10);
         try{
-          const { data:p } = await DB.from('profiles').select('role,plan,premium_until').eq('id',VP.USER.id).maybeSingle();
+          const { data:p } = await DB.from('profiles').select('full_name,role,plan,premium_until').eq('id',VP.USER.id).maybeSingle();
           if(p){ VP.STAFF=['owner','admin','teacher'].indexOf(p.role)>=0;
+                 VP.NAME=p.full_name||VP.USER.email||'';
                  VP.PREMIUM=VP.STAFF||(p.plan==='premium'&&(!p.premium_until||p.premium_until>=_td)); }
         }catch(e){}
         /* đã đăng nhập → đọc thẳng bảng (RLS lo quyền); staff thấy cả bài chưa đăng để xem thử */
@@ -1604,10 +1628,25 @@ async function boot(){
   }
   Store.buildFromList(list);
   App.init();
+  syncAuthUI();
   /* liên kết trực tiếp ?lesson=<mã bài> */
   const want=new URLSearchParams(location.search).get('lesson')||'';
   if(want){ const f=Store.findLesson(want); if(f) App.go({name:'lesson',cid:f.c.id,lid:f.l.id}); }
 }
+
+/* Đăng nhập/Đăng ký dùng CHUNG hệ thống của web (login.html/signup.html) —
+   giữ nguyên trang: ?next= trỏ về đúng URL hiện tại (kèm ?lesson=). Đăng nhập
+   rồi hiện tên tài khoản. */
+function syncAuthUI(){
+  const who=document.getElementById('vpWho'), auth=document.getElementById('vpAuth');
+  const login=document.getElementById('vpLogin'), signup=document.getElementById('vpSignup');
+  const next=encodeURIComponent(location.href);
+  if(login) login.href='login.html?next='+next;
+  if(signup) signup.href='signup.html?next='+next;
+  if(VP.GUEST){ if(auth)auth.style.display=''; if(who)who.style.display='none'; }
+  else { if(auth)auth.style.display='none'; if(who){ who.style.display=''; who.textContent=(VP.NAME||(VP.USER&&VP.USER.email)||''); } }
+}
+window.__vpSyncAuth=syncAuthUI;
 window.addEventListener('DOMContentLoaded',boot);
 </script>
 </body>
