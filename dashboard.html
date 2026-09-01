@@ -4292,6 +4292,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               <label class="tk-scope"><input type="checkbox" class="tk-tok" data-tok="english" /> 🇬🇧 English pages</label>
               <label class="tk-scope"><input type="checkbox" class="tk-tok" data-tok="chinese" /> 🇨🇳 Chinese / HSK</label>
               <label class="tk-scope"><input type="checkbox" class="tk-tok" data-tok="hsk" /> HSK slides</label>
+              <label class="tk-scope"><input type="checkbox" class="tk-tok" data-tok="page:vocab" /> 🈺 Luyện từ vựng</label>
               <label class="tk-scope"><input type="checkbox" class="tk-tok" data-tok="vstep" /> VSTEP</label>
               <label class="tk-scope"><input type="checkbox" class="tk-tok" data-tok="vsat" /> V-SAT</label>
               <label class="tk-scope"><input type="checkbox" class="tk-tok" data-tok="tools" /> 🧰 Free tools</label>
@@ -4342,6 +4343,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               <label class="tk-scope"><input type="checkbox" class="gl-tok" data-tok="english" /> 🇬🇧 English pages</label>
               <label class="tk-scope"><input type="checkbox" class="gl-tok" data-tok="chinese" /> 🇨🇳 Chinese / HSK</label>
               <label class="tk-scope"><input type="checkbox" class="gl-tok" data-tok="hsk" /> HSK slides</label>
+              <label class="tk-scope"><input type="checkbox" class="gl-tok" data-tok="page:vocab" /> 🈺 Luyện từ vựng</label>
               <label class="tk-scope"><input type="checkbox" class="gl-tok" data-tok="vstep" /> VSTEP</label>
               <label class="tk-scope"><input type="checkbox" class="gl-tok" data-tok="vsat" /> V-SAT</label>
               <label class="tk-scope"><input type="checkbox" class="gl-tok" data-tok="tools" /> 🧰 Free tools</label>
@@ -10945,7 +10947,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
 
         // ---- targeting (Display on / Target audience) ----
         const TG_NAMES = { reading: "Reading", english: "English", chinese: "Chinese/HSK", hsk: "HSK",
-          vstep: "VSTEP", vsat: "V-SAT", tools: "Tools", courses: "Courses", "page:course": "Course preview" };
+          vstep: "VSTEP", vsat: "V-SAT", tools: "Tools", courses: "Courses", "page:course": "Course preview",
+          "page:vocab": "Luyện từ vựng" };
         F("tk-courses").innerHTML = (courses || []).length
           ? (courses || []).map(c => `<option value="course:${c.id}">${esc(c.title)}${c.category ? " · " + esc(c.category) : ""}</option>`).join("")
           : `<option value="" disabled>— no courses —</option>`;
