@@ -8590,8 +8590,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               ["LessonTitle", "Bài mới"], ["LessonOrder", "2"], ["Instructions", "Điền các trang Vocabulary, GapFill, Arrange. Level là 1–6."]]), "Info");
             XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
               ["Hanzi", "Pinyin", "Vietnamese", "English", "ImageURL", "AudioURL", "ExampleHanzi", "ExamplePinyin", "ExampleVietnamese", "ExampleAudioURL", "UseInMatching"],
-              ["水", "shuǐ", "nước", "water", "", "", "我喝水。", "Wǒ hē shuǐ.", "Tôi uống nước.", "", "yes"],
-              ["书", "shū", "sách", "book", "", "", "这是书。", "Zhè shì shū.", "Đây là sách.", "", "yes"],
+              ["水", "shuǐ", "nước", "water", "https://loremflickr.com/400/320/water", "", "我喝水。", "Wǒ hē shuǐ.", "Tôi uống nước.", "", "yes"],
+              ["书", "shū", "sách", "book", "https://loremflickr.com/400/320/book", "", "这是书。", "Zhè shì shū.", "Đây là sách.", "", "yes"],
               ["好", "hǎo", "tốt", "good", "", "", "你好！", "Nǐ hǎo!", "Xin chào!", "", "no"]]), "Vocabulary");
             XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
               ["Sentence", "CorrectAnswer", "Distractor1", "Distractor2", "Distractor3", "Pinyin"],
@@ -8714,7 +8714,21 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
 
         /* ---- inline metadata editor (nội dung sửa bằng cách nhập lại Excel) ---- */
         function openEditor(r, row) { if (openId === r.id) { openId = null; render(); return; } openId = r.id; render(); }
+
+        /* tải ảnh lên kho dùng chung hsk-media; hỏng thì nhúng thẳng data-URL */
+        async function uploadImg(file, lessonId) {
+          const ext = ((file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "")) || "jpg";
+          const path = "vocab/" + (lessonId || "x") + "/" + uid() + "." + ext;
+          try {
+            const up = await sb.storage.from("hsk-media").upload(path, file, { upsert: true, contentType: file.type || "image/jpeg", cacheControl: "31536000" });
+            if (!up.error) return sb.storage.from("hsk-media").getPublicUrl(path).data.publicUrl;
+          } catch (e) {}
+          return await new Promise(res => { const rd = new FileReader(); rd.onload = e => res(e.target.result); rd.readAsDataURL(file); });
+        }
+
         function mountEditor(r, row) {
+          const D = JSON.parse(JSON.stringify(r.data || {}));
+          D.vocab = D.vocab || []; D.gapfill = D.gapfill || []; D.arrange = D.arrange || [];
           const box = document.createElement("div");
           box.style.cssText = "flex-basis:100%; margin-top:.6rem; padding:.7rem; border:1px dashed var(--line); border-radius:8px;";
           box.innerHTML =
@@ -8725,23 +8739,89 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               '<div class="field"><label>Quyền</label><select id="ve-tier"><option value="free"' + (r.tier !== "premium" ? " selected" : "") + '>Free</option><option value="premium"' + (r.tier === "premium" ? " selected" : "") + '>Premium 👑</option></select></div>' +
               '<div class="field"><label>Thứ tự</label><input id="ve-order" type="number" value="' + (r.sort_order || 0) + '"></div>' +
             "</div>" +
-            '<div style="display:flex; gap:.5rem; align-items:center; margin-top:.6rem; flex-wrap:wrap;">' +
-              '<button id="ve-save">Lưu</button>' +
-              '<label class="ghost btn" style="cursor:pointer;">↻ Thay nội dung bằng Excel<input id="ve-reimport" type="file" accept=".xlsx,.xls" hidden></label>' +
+            '<div style="display:flex; align-items:center; justify-content:space-between; margin:.8rem 0 .4rem;">' +
+              '<h3 style="margin:0; font-size:1rem;">Từ vựng <span class="kind" id="ve-vcount"></span></h3>' +
+              '<button class="ghost" id="ve-add" type="button">+ Thêm từ</button>' +
+            "</div>" +
+            '<div id="ve-items"></div>' +
+            '<div style="display:flex; gap:.5rem; align-items:center; margin-top:.7rem; flex-wrap:wrap;">' +
+              '<button id="ve-save">Lưu tất cả</button>' +
+              '<label class="ghost btn" style="cursor:pointer;">↻ Thay bài tập (GapFill/Arrange) bằng Excel<input id="ve-reimport" type="file" accept=".xlsx,.xls" hidden></label>' +
               '<button class="ghost" id="ve-close">Đóng</button>' +
               '<span id="ve-msg" class="msg"></span>' +
             "</div>";
+
+          const itemsEl = box.querySelector("#ve-items");
+          const vcountEl = box.querySelector("#ve-vcount");
+          function itemCard(v, i) {
+            const hasImg = !!v.image;
+            const wrap = document.createElement("div");
+            wrap.style.cssText = "display:grid; grid-template-columns:120px 1fr; gap:.7rem; padding:.6rem; border:1px solid var(--line); border-radius:10px; margin-bottom:.55rem;";
+            wrap.innerHTML =
+              '<div>' +
+                '<div class="ve-thumb" style="width:120px; height:96px; border-radius:8px; border:1px solid var(--line); background:#0000000a center/cover no-repeat; display:flex; align-items:center; justify-content:center; overflow:hidden;">' +
+                  (hasImg ? '<img src="' + esc(v.image) + '" style="width:100%; height:100%; object-fit:cover;">' : '<span style="font-size:1.6rem;">🖼️</span>') +
+                "</div>" +
+                '<div style="display:flex; gap:.3rem; margin-top:.35rem; flex-wrap:wrap;">' +
+                  '<label class="ghost btn" style="cursor:pointer; font-size:.78rem; padding:.25rem .5rem;">Tải ảnh<input type="file" accept="image/*" data-b="up" hidden></label>' +
+                  (hasImg ? '<button class="ghost" data-b="rm" style="font-size:.78rem; padding:.25rem .5rem; color:var(--danger);">Xoá ảnh</button>' : "") +
+                "</div>" +
+                '<label style="display:flex; align-items:center; gap:.3rem; font-size:.76rem; margin-top:.35rem;"><input type="checkbox" data-f="match"' + (v.match === false ? "" : " checked") + " style=\"width:auto;\">Dùng cho nối hình</label>" +
+              "</div>" +
+              '<div class="form-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:.4rem;">' +
+                '<div class="field" style="margin:0;"><label>Chữ Hán</label><input data-f="hanzi" value="' + esc(v.hanzi || "") + '"></div>' +
+                '<div class="field" style="margin:0;"><label>Pinyin</label><input data-f="pinyin" value="' + esc(v.pinyin || "") + '"></div>' +
+                '<div class="field" style="margin:0;"><label>Tiếng Việt</label><input data-f="vi" value="' + esc(v.vi || "") + '"></div>' +
+                '<div class="field" style="margin:0;"><label>English</label><input data-f="en" value="' + esc(v.en || "") + '"></div>' +
+                '<div class="field" style="margin:0; grid-column:1/-1;"><label>Ảnh (URL)</label><input data-f="image" value="' + esc(v.image || "") + '" placeholder="https://… hoặc bấm Tải ảnh"></div>' +
+                '<div class="field" style="margin:0; grid-column:1/-1;"><label>Câu ví dụ (Hán)</label><input data-f="exHanzi" value="' + esc(v.exHanzi || "") + '"></div>' +
+                '<div class="field" style="margin:0;"><label>Ví dụ · pinyin</label><input data-f="exPinyin" value="' + esc(v.exPinyin || "") + '"></div>' +
+                '<div class="field" style="margin:0;"><label>Ví dụ · tiếng Việt</label><input data-f="exVi" value="' + esc(v.exVi || "") + '"></div>' +
+                '<div class="field" style="margin:0; grid-column:1/-1;"><label>Audio (URL, tuỳ chọn)</label><input data-f="audio" value="' + esc(v.audio || "") + '" placeholder="mp3 — để trống dùng giọng đọc tự động"></div>' +
+                '<div style="grid-column:1/-1; display:flex; gap:.35rem; justify-content:flex-end;">' +
+                  '<button class="ghost" data-b="up-i" title="Lên" style="padding:.2rem .5rem;">▲</button>' +
+                  '<button class="ghost" data-b="dn-i" title="Xuống" style="padding:.2rem .5rem;">▼</button>' +
+                  '<button class="ghost" data-b="del-i" style="padding:.2rem .5rem; color:var(--danger);">Xoá từ</button>' +
+                "</div>" +
+              "</div>";
+            wrap.querySelectorAll("[data-f]").forEach(inp => {
+              const f = inp.getAttribute("data-f");
+              if (f === "match") { inp.onchange = () => { v.match = inp.checked; }; return; }
+              inp.oninput = () => { v[f] = inp.value; if (f === "image") { renderItems(); } };
+            });
+            wrap.querySelector('[data-b="up"]').onchange = async e => {
+              const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+              const m = box.querySelector("#ve-msg"); m.className = "msg"; m.textContent = "Đang tải ảnh…";
+              v.image = await uploadImg(f, r.lesson_id); m.textContent = "Đã tải ảnh ✓"; renderItems();
+            };
+            const rm = wrap.querySelector('[data-b="rm"]'); if (rm) rm.onclick = () => { v.image = ""; renderItems(); };
+            wrap.querySelector('[data-b="del-i"]').onclick = () => { if (confirm("Xoá từ này?")) { D.vocab.splice(i, 1); renderItems(); } };
+            wrap.querySelector('[data-b="up-i"]').onclick = () => { if (i > 0) { const t = D.vocab[i - 1]; D.vocab[i - 1] = D.vocab[i]; D.vocab[i] = t; renderItems(); } };
+            wrap.querySelector('[data-b="dn-i"]').onclick = () => { if (i < D.vocab.length - 1) { const t = D.vocab[i + 1]; D.vocab[i + 1] = D.vocab[i]; D.vocab[i] = t; renderItems(); } };
+            return wrap;
+          }
+          function renderItems() {
+            itemsEl.innerHTML = "";
+            vcountEl.textContent = "(" + D.vocab.length + " từ · " + D.vocab.filter(v => v.image && v.match !== false).length + " có ảnh cho nối hình)";
+            if (!D.vocab.length) itemsEl.innerHTML = '<p class="empty" style="margin:0;">Chưa có từ nào — bấm “+ Thêm từ”.</p>';
+            else D.vocab.forEach((v, i) => itemsEl.appendChild(itemCard(v, i)));
+          }
+          renderItems();
+
+          box.querySelector("#ve-add").onclick = () => { D.vocab.push({ id: uid(), hanzi: "", pinyin: "", vi: "", en: "", image: "", exHanzi: "", exPinyin: "", exVi: "", audio: "", match: true }); renderItems(); };
           box.querySelector("#ve-close").onclick = () => { openId = null; render(); };
           box.querySelector("#ve-save").onclick = async () => {
+            const m = box.querySelector("#ve-msg"); m.className = "msg"; m.textContent = "Đang lưu…";
+            D.vocab.forEach(v => { if (!v.id) v.id = uid(); if (v.image && v.match !== false) v.match = true; });
+            const data = { vocab: D.vocab, gapfill: D.gapfill, arrange: D.arrange };
             const patch = { title: box.querySelector("#ve-title").value.trim() || r.title,
               hsk_level: Number(box.querySelector("#ve-lvl").value) || r.hsk_level,
-              lesson_no: box.querySelector("#ve-no").value.trim(),
-              tier: box.querySelector("#ve-tier").value, sort_order: Number(box.querySelector("#ve-order").value) || 0,
-              updated_at: new Date().toISOString() };
+              lesson_no: box.querySelector("#ve-no").value.trim(), tier: box.querySelector("#ve-tier").value,
+              sort_order: Number(box.querySelector("#ve-order").value) || 0,
+              data, vocab_count: data.vocab.length, updated_at: new Date().toISOString() };
             const { error } = await sb.from("vocab_lessons").update(patch).eq("id", r.id);
-            const m = box.querySelector("#ve-msg");
-            if (error) { m.textContent = error.message; m.className = "msg err"; return; }
-            Object.assign(r, patch); openId = null; render();
+            if (error) { m.className = "msg err"; m.textContent = error.message; return; }
+            Object.assign(r, patch); openId = null; render(); vsay("Đã lưu bài ✓ — ảnh sẽ hiện trên thẻ từ và bài nối hình.");
           };
           box.querySelector("#ve-reimport").onchange = async ev => {
             const f = ev.target.files[0]; ev.target.value = ""; if (!f) return;
@@ -8750,10 +8830,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               const XL = await loadXLSX(); const wb = XL.read(await f.arrayBuffer(), { type: "array" });
               const p = VX.parse(wb); const val = VX.validate(p);
               if (val.errs.length) { m.className = "msg err"; m.textContent = "Có lỗi — xem báo cáo phía trên."; report.innerHTML = ""; showReport(f.name, val.errs, val.warns); return; }
-              const data = VX.toData(p);
-              const { error } = await sb.from("vocab_lessons").update({ data, vocab_count: data.vocab.length, updated_at: new Date().toISOString() }).eq("id", r.id);
-              if (error) { m.className = "msg err"; m.textContent = error.message; return; }
-              r.data = data; r.vocab_count = data.vocab.length; openId = null; render(); vsay("Đã thay nội dung ✓");
+              const nd = VX.toData(p); D.gapfill = nd.gapfill; D.arrange = nd.arrange;
+              m.textContent = "Đã nạp lại GapFill/Arrange từ Excel — bấm “Lưu tất cả” để lưu.";
             } catch (err) { m.className = "msg err"; m.textContent = "Không đọc được: " + err.message; }
           };
           row.appendChild(box);

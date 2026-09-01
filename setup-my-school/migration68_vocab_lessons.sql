@@ -124,3 +124,15 @@ values (
   )
 )
 on conflict (lesson_id) do nothing;
+
+-- Ảnh minh hoạ cho bài mẫu (để trò "nối hình" chạy được ngay). Idempotent:
+-- chỉ đặt ảnh khi từ chưa có ảnh, nên không đè ảnh bạn tự thêm sau này.
+update public.vocab_lessons
+set data = jsonb_set(data, '{vocab}', jsonb_build_array(
+      jsonb_build_object('id','d1','hanzi','水','pinyin','shuǐ','vi','nước','en','water','image','https://loremflickr.com/400/320/water','exHanzi','我喝水。','exPinyin','Wǒ hē shuǐ.','exVi','Tôi uống nước.','match',true),
+      jsonb_build_object('id','d2','hanzi','书','pinyin','shū','vi','sách','en','book','image','https://loremflickr.com/400/320/book','exHanzi','这是书。','exPinyin','Zhè shì shū.','exVi','Đây là sách.','match',true),
+      jsonb_build_object('id','d3','hanzi','好','pinyin','hǎo','vi','tốt','en','good','image','https://loremflickr.com/400/320/thumbsup','exHanzi','你好！','exPinyin','Nǐ hǎo!','exVi','Xin chào!','match',true)
+    )),
+    updated_at = now()
+where lesson_id = 'vocab-hsk1-demo'
+  and coalesce(data->'vocab'->0->>'image','') = '';
