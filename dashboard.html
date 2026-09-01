@@ -3884,6 +3884,46 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           </div>
         </div>
 
+        <div class="tabpane" data-tab="vocab">
+          <div class="card">
+            <h2>🀄 Tạo bài Luyện từ vựng HSK từ Excel</h2>
+            <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
+              Soạn nội dung trong tệp Excel (bốn trang <b>Info · Vocabulary · GapFill · Arrange</b>) rồi tải lên —
+              hệ thống tự dựng bài luyện từ vựng tương tác: học từ (chữ Hán, pinyin, nghĩa, ví dụ, hình, phát âm),
+              trò chơi <b>nối hình</b>, <b>điền chỗ trống</b> và <b>sắp xếp câu</b>. Quản lý y như HSK Slides:
+              xem, lọc theo cấp, tìm kiếm, sửa, đăng/ẩn, free/Premium, sắp xếp lại. Không phải sửa HTML.</p>
+            <div class="form-row" style="align-items:flex-end; gap:0.7rem; flex-wrap:wrap;">
+              <div class="field" style="max-width:150px; margin:0;"><label>Cấp HSK khi nhập</label>
+                <select id="vk-lvl-in"><option value="1">HSK 1</option><option value="2">HSK 2</option>
+                  <option value="3">HSK 3</option><option value="4">HSK 4</option><option value="5">HSK 5</option>
+                  <option value="6">HSK 6</option></select></div>
+              <button class="ghost btn" id="vk-tpl" type="button">⬇ Tải tệp Excel mẫu</button>
+              <label class="btn" style="cursor:pointer;">⬆ Nhập bài (.xlsx)
+                <input type="file" id="vk-file" accept=".xlsx,.xls" hidden multiple /></label>
+              <a class="ghost btn" href="vocab-practice.html" target="_blank" rel="noopener" style="text-decoration:none;">👁 Mở trang luyện tập</a>
+            </div>
+            <p class="kind" style="margin:0.5rem 0 0; text-transform:none; letter-spacing:0;">
+              Cấp HSK lấy từ trang <b>Info</b> của tệp; ô trên chỉ dùng khi tệp không ghi cấp.</p>
+            <p id="vk-msg" class="msg"></p>
+            <div id="vk-report" style="margin-top:0.6rem;"></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>Bài luyện tập <span class="kind" id="vk-count"></span></h2>
+              <div style="display:flex; gap:0.6rem; align-items:flex-end; flex-wrap:wrap;">
+                <div class="field" style="margin:0;"><label>Tìm kiếm</label>
+                  <input type="text" id="vk-q" placeholder="Tên bài / mã bài…" style="min-width:180px;" /></div>
+                <div class="field" style="max-width:130px; margin:0;"><label>Cấp HSK</label>
+                  <select id="vk-lvl">
+                    <option value="0">Tất cả</option>
+                    <option value="1">HSK 1</option><option value="2">HSK 2</option><option value="3">HSK 3</option>
+                    <option value="4">HSK 4</option><option value="5">HSK 5</option><option value="6">HSK 6</option>
+                  </select></div>
+              </div>
+            </div>
+            <div id="vk-list"><p class="empty">Đang tải…</p></div>
+          </div>
+        </div>
+
         <div class="tabpane" data-tab="nav">
           <div class="card">
             <div class="card-head"><h2>🧭 Điều hướng</h2>
@@ -5088,6 +5128,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           { id: "reading", label: "Reading" + ((rtRes.data || []).length ? " (" + rtRes.data.length + ")" : ""), icon: "library", group: "Content" },
           { id: "vsat", label: "V-SAT" + (vsRows.length ? " (" + vsRows.length + ")" : ""), icon: "file-check", group: "Content" },
           { id: "hsk", label: "HSK Slides" + (hskRows.length ? " (" + hskRows.length + ")" : ""), icon: "presentation", group: "Content" },
+          { id: "vocab", label: "HSK Vocab Practice", icon: "wallet-cards", group: "Content" },
           { id: "vstep", label: "VSTEP" + ((vpRows.length + vlRows.length) ? " (" + (vpRows.length + vlRows.length) + ")" : ""), icon: "book-open", group: "Content" },
           { id: "shadow", label: "Shadowing" + ((svRes.data || []).length ? " (" + svRes.data.length + ")" : ""), icon: "video", group: "Content" },
           { id: "dict", label: "Dictation", icon: "headphones", group: "Content" },
@@ -8455,6 +8496,307 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         loadClasses();
       })();
 
+      // ================= HSK VOCAB PRACTICE (Phase 85) =================
+      // Quản lý bài Luyện từ vựng HSK y như HSK Slides: nhập Excel (Info/
+      // Vocabulary/GapFill/Arrange) → dựng dữ liệu → xem/sửa/đăng. Lưu ở bảng
+      // vocab_lessons (migration68); trang học là vocab-practice.html.
+      (function () {
+        const listEl = document.getElementById("vk-list");
+        if (!listEl) return;
+        const $ = id => document.getElementById(id);
+        const msg = $("vk-msg"), report = $("vk-report"), countEl = $("vk-count");
+        let ROWS = [], loaded = false, vLvl = 0, vQ = "", openId = null;
+        const vsay = (m, err) => { msg.textContent = m || ""; msg.className = "msg" + (err ? " err" : ""); };
+        const uid = () => Math.random().toString(36).slice(2, 9);
+        const slug = s => (s || "").toString().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+          .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32);
+
+        /* ---- Excel: parse / validate / toData / template (bê từ công cụ gốc) ---- */
+        const REQ = { Vocabulary: ["Hanzi", "Pinyin", "Vietnamese"],
+          GapFill: ["Sentence", "CorrectAnswer", "Distractor1", "Distractor2"],
+          Arrange: ["TargetSentence", "Chunks"] };
+        const VX = {
+          norm: s => String(s == null ? "" : s).trim(),
+          isUrl: s => /^(https?:\/\/|data:image\/)/i.test(s),
+          rows(wb, name) { const ws = wb.Sheets[name]; if (!ws) return null; return XLSX.utils.sheet_to_json(ws, { defval: "", raw: false }); },
+          parse(wb) {
+            let info = {}; const inf = this.rows(wb, "Info");
+            if (inf && inf.length) {
+              if ("Field" in inf[0] && "Value" in inf[0]) inf.forEach(r => { if (this.norm(r.Field)) info[this.norm(r.Field)] = this.norm(r.Value); });
+              else { const r = inf[0]; Object.keys(r).forEach(k => info[this.norm(k)] = this.norm(r[k])); }
+            }
+            const vocab = this.rows(wb, "Vocabulary"), gapfill = this.rows(wb, "GapFill"), arrange = this.rows(wb, "Arrange");
+            return { info, vocab, gapfill, arrange, sheets: { Vocabulary: vocab, GapFill: gapfill, Arrange: arrange } };
+          },
+          validate(p) {
+            const errs = [], warns = [];
+            const E = (s, r, m) => errs.push(s + (r ? " · dòng " + r : "") + ": " + m);
+            const W = (s, r, m) => warns.push(s + (r ? " · dòng " + r : "") + ": " + m);
+            const level = parseInt(p.info.Level || p.info.HSKLevel || "", 10);
+            if (p.info.Level && (isNaN(level) || level < 1 || level > 6)) E("Info", "", 'Level phải là số 1–6 (đang là "' + p.info.Level + '").');
+            if (!this.norm(p.info.LessonTitle)) W("Info", "", "chưa có LessonTitle — sẽ đặt tên mặc định.");
+            ["Vocabulary", "GapFill", "Arrange"].forEach(sn => { if (!p.sheets[sn]) E(sn, "", "thiếu trang này trong tệp."); });
+            const colCheck = (sn, rows) => {
+              if (!rows || !rows.length) { if (p.sheets[sn]) E(sn, "", "trang không có dòng nào."); return false; }
+              const have = Object.keys(rows[0]).map(k => this.norm(k));
+              (REQ[sn] || []).forEach(c => { if (!have.includes(c)) E(sn, "tiêu đề", "thiếu cột «" + c + "»."); });
+              return true;
+            };
+            if (p.vocab && colCheck("Vocabulary", p.vocab)) {
+              const seen = {};
+              p.vocab.forEach((r, i) => { const row = i + 2, hz = this.norm(r.Hanzi);
+                if (!hz) { E("Vocabulary", row, "thiếu chữ Hán (cột Hanzi)."); return; }
+                if (seen[hz]) W("Vocabulary", row, "«" + hz + "» trùng dòng " + seen[hz] + "."); else seen[hz] = row;
+                if (!this.norm(r.Pinyin)) W("Vocabulary", row, "«" + hz + "» chưa có pinyin.");
+                if (!this.norm(r.Vietnamese)) W("Vocabulary", row, "«" + hz + "» chưa có nghĩa tiếng Việt.");
+                const img = this.norm(r.ImageURL); if (img && !this.isUrl(img)) W("Vocabulary", row, "«" + hz + "» ImageURL không hợp lệ.");
+              });
+            }
+            if (p.gapfill && colCheck("GapFill", p.gapfill)) {
+              p.gapfill.forEach((r, i) => { const row = i + 2, s = this.norm(r.Sentence);
+                if (!s) E("GapFill", row, "thiếu câu (cột Sentence).");
+                else if (!s.includes("___")) E("GapFill", row, "câu phải có «___» ở chỗ trống.");
+                if (!this.norm(r.CorrectAnswer)) E("GapFill", row, "thiếu đáp án đúng (CorrectAnswer).");
+                const dist = [r.Distractor1, r.Distractor2, r.Distractor3].map(x => this.norm(x)).filter(Boolean);
+                if (dist.length < 2) E("GapFill", row, "cần ít nhất 2 phương án nhiễu.");
+                else if (dist.length < 3) W("GapFill", row, "nên có 3 phương án nhiễu.");
+              });
+            }
+            if (p.arrange && colCheck("Arrange", p.arrange)) {
+              p.arrange.forEach((r, i) => { const row = i + 2, tg = this.norm(r.TargetSentence);
+                if (!tg) E("Arrange", row, "thiếu câu đích (TargetSentence).");
+                const chunks = this.norm(r.Chunks).split(/[\/|]/).map(c => c.trim()).filter(Boolean);
+                if (chunks.length < 2) E("Arrange", row, "cần ít nhất 2 mảnh, cách nhau bằng «/».");
+              });
+            }
+            return { errs, warns };
+          },
+          toData(p) {
+            const vocab = (p.vocab || []).filter(r => this.norm(r.Hanzi)).map(r => ({ id: uid(),
+              hanzi: this.norm(r.Hanzi), pinyin: this.norm(r.Pinyin), vi: this.norm(r.Vietnamese), en: this.norm(r.English),
+              image: this.norm(r.ImageURL), audio: this.norm(r.AudioURL), exAudio: this.norm(r.ExampleAudioURL),
+              exHanzi: this.norm(r.ExampleHanzi), exPinyin: this.norm(r.ExamplePinyin), exVi: this.norm(r.ExampleVietnamese),
+              match: /^(n|no|false|0)$/i.test(this.norm(r.UseInMatching)) ? false : !!this.norm(r.ImageURL) }));
+            const gapfill = (p.gapfill || []).filter(r => this.norm(r.Sentence)).map(r => ({ id: uid(),
+              sentence: this.norm(r.Sentence), answer: this.norm(r.CorrectAnswer),
+              distractors: [r.Distractor1, r.Distractor2, r.Distractor3].map(x => this.norm(x)).filter(Boolean), pinyin: this.norm(r.Pinyin) }));
+            const arrange = (p.arrange || []).filter(r => this.norm(r.TargetSentence)).map(r => ({ id: uid(),
+              target: this.norm(r.TargetSentence), chunks: this.norm(r.Chunks).split(/[\/|]/).map(c => c.trim()).filter(Boolean), pinyin: this.norm(r.Pinyin) }));
+            return { vocab, gapfill, arrange };
+          },
+          buildTemplate() {
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Field", "Value"], ["Level", "1"],
+              ["LessonTitle", "Bài mới"], ["LessonOrder", "2"], ["Instructions", "Điền các trang Vocabulary, GapFill, Arrange. Level là 1–6."]]), "Info");
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+              ["Hanzi", "Pinyin", "Vietnamese", "English", "ImageURL", "AudioURL", "ExampleHanzi", "ExamplePinyin", "ExampleVietnamese", "ExampleAudioURL", "UseInMatching"],
+              ["水", "shuǐ", "nước", "water", "", "", "我喝水。", "Wǒ hē shuǐ.", "Tôi uống nước.", "", "yes"],
+              ["书", "shū", "sách", "book", "", "", "这是书。", "Zhè shì shū.", "Đây là sách.", "", "yes"],
+              ["好", "hǎo", "tốt", "good", "", "", "你好！", "Nǐ hǎo!", "Xin chào!", "", "no"]]), "Vocabulary");
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+              ["Sentence", "CorrectAnswer", "Distractor1", "Distractor2", "Distractor3", "Pinyin"],
+              ["我___水。", "喝", "是", "吃", "看", "Wǒ ___ shuǐ."],
+              ["这是我的___。", "书", "水", "好", "喝", "Zhè shì wǒ de ___."]]), "GapFill");
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+              ["TargetSentence", "Chunks", "Pinyin"], ["我喝水。", "我 / 喝 / 水", "Wǒ hē shuǐ."], ["这是书。", "这 / 是 / 书", "Zhè shì shū."]]), "Arrange");
+            return wb;
+          }
+        };
+
+        function showReport(name, errs, warns, okMsg) {
+          const box = document.createElement("div");
+          box.className = "card";
+          box.style.cssText = "margin:0.5rem 0; border-left:4px solid var(--" + (errs.length ? "danger" : "tone-teal,#0d9488") + ");";
+          box.innerHTML = "<b>" + esc(name) + "</b>" +
+            (okMsg ? '<div style="color:var(--tone-teal,#0d9488); font-size:.9rem; margin-top:.25rem;">' + esc(okMsg) + "</div>" : "") +
+            (errs.length ? '<div style="color:var(--danger); font-size:.85rem; margin-top:.35rem;"><b>Lỗi phải sửa (' + errs.length + "):</b><ul style='margin:.3rem 0 0 1.1rem;'>" +
+              errs.slice(0, 14).map(x => "<li>" + esc(x) + "</li>").join("") + (errs.length > 14 ? "<li>… và " + (errs.length - 14) + " lỗi nữa</li>" : "") + "</ul></div>" : "") +
+            (warns.length ? '<div style="color:var(--muted); font-size:.85rem; margin-top:.35rem;"><b>Nhắc (' + warns.length + "):</b><ul style='margin:.3rem 0 0 1.1rem;'>" +
+              warns.slice(0, 10).map(x => "<li>" + esc(x) + "</li>").join("") + (warns.length > 10 ? "<li>… và " + (warns.length - 10) + " mục nữa</li>" : "") + "</ul></div>" : "");
+          report.appendChild(box);
+        }
+
+        async function load() {
+          if (loaded) return; loaded = true;
+          let res;
+          try { res = await sb.from("vocab_lessons").select("*").order("hsk_level").order("sort_order").order("created_at"); }
+          catch (e) { res = { error: e }; }
+          if (res.error) {
+            listEl.innerHTML = '<p class="empty">Chưa dùng được — hãy chạy <b>migration68_vocab_lessons.sql</b>.</p>';
+            return;
+          }
+          ROWS = res.data || [];
+          render();
+        }
+
+        function view() {
+          let v = vLvl ? ROWS.filter(r => Number(r.hsk_level) === vLvl) : ROWS.slice();
+          if (vQ) { const q = vQ.toLowerCase(); v = v.filter(r => (r.title || "").toLowerCase().includes(q) || (r.lesson_id || "").toLowerCase().includes(q)); }
+          return v;
+        }
+        function counts(r) { const d = r.data || {}; return { v: (d.vocab || []).length, g: (d.gapfill || []).length, a: (d.arrange || []).length }; }
+
+        function render() {
+          const v = view();
+          countEl.textContent = ROWS.length ? "(" + v.length + (vLvl || vQ ? " / " + ROWS.length : "") + ")" : "";
+          if (!ROWS.length) { listEl.innerHTML = '<p class="empty">Chưa có bài nào — tải một tệp Excel để tạo.</p>'; return; }
+          if (!v.length) { listEl.innerHTML = '<p class="empty">Không có bài khớp bộ lọc.</p>'; return; }
+          listEl.innerHTML = "";
+          v.forEach(r => {
+            const c = counts(r);
+            const row = document.createElement("div");
+            row.className = "lesson"; row.style.flexWrap = "wrap";
+            row.innerHTML =
+              '<div class="meta"><div class="title">' + esc(r.title) + (r.tier === "premium" ? " 👑" : "") + (r.published ? "" : ' <span class="pill off">nháp</span>') + "</div>" +
+              '<span class="kind">HSK ' + esc(r.hsk_level) + " · #" + esc(r.lesson_no || "—") + " · " + c.v + " từ · " + c.g + " điền · " + c.a + " sắp xếp · <code>" + esc(r.lesson_id) + "</code></span></div>" +
+              '<div style="display:flex; gap:.35rem; flex-wrap:wrap; align-items:center;">' +
+                '<button class="ghost vk-up" title="Lên">▲</button>' +
+                '<button class="ghost vk-down" title="Xuống">▼</button>' +
+                '<a class="ghost" href="vocab-practice.html?lesson=' + encodeURIComponent(r.lesson_id) + '" target="_blank" rel="noopener" style="text-decoration:none;">👁</a>' +
+                '<button class="ghost vk-edit">✏️</button>' +
+                '<button class="ghost vk-tier">' + (r.tier === "premium" ? "Đặt Free" : "Đặt 👑") + "</button>" +
+                '<button class="' + (r.published ? "ghost" : "") + ' vk-pub">' + (r.published ? "Ẩn" : "Đăng") + "</button>" +
+                '<button class="ghost vk-dup">Nhân bản</button>' +
+                '<button class="ghost vk-del" style="color:var(--danger);">Xoá</button>' +
+              "</div>";
+            row.querySelector(".vk-pub").onclick = () => togglePub(r);
+            row.querySelector(".vk-tier").onclick = () => toggleTier(r);
+            row.querySelector(".vk-del").onclick = () => delRow(r);
+            row.querySelector(".vk-dup").onclick = () => dupRow(r);
+            row.querySelector(".vk-edit").onclick = () => openEditor(r, row);
+            row.querySelector(".vk-up").onclick = () => reorder(r, -1);
+            row.querySelector(".vk-down").onclick = () => reorder(r, 1);
+            listEl.appendChild(row);
+            if (openId === r.id) mountEditor(r, row);
+          });
+        }
+
+        async function togglePub(r) {
+          const { error } = await sb.from("vocab_lessons").update({ published: !r.published, updated_at: new Date().toISOString() }).eq("id", r.id);
+          if (error) { vsay(error.message, true); return; }
+          r.published = !r.published; render();
+        }
+        async function toggleTier(r) {
+          const nt = r.tier === "premium" ? "free" : "premium";
+          const { error } = await sb.from("vocab_lessons").update({ tier: nt, updated_at: new Date().toISOString() }).eq("id", r.id);
+          if (error) { vsay(error.message, true); return; }
+          r.tier = nt; render();
+        }
+        async function delRow(r) {
+          if (!confirm('Xoá bài «' + (r.title || r.lesson_id) + "»?")) return;
+          const { error } = await sb.from("vocab_lessons").delete().eq("id", r.id);
+          if (error) { vsay(error.message, true); return; }
+          ROWS = ROWS.filter(x => x.id !== r.id); if (openId === r.id) openId = null; render();
+        }
+        async function dupRow(r) {
+          const data = JSON.parse(JSON.stringify(r.data || {}));
+          ["vocab", "gapfill", "arrange"].forEach(k => (data[k] || []).forEach(x => x.id = uid()));
+          const ins = { lesson_id: (slug(r.title) || "vocab") + "-" + uid(), title: (r.title || "Bài") + " (copy)",
+            hsk_level: r.hsk_level, course_id: r.course_id || null, lesson_no: r.lesson_no || "", tier: r.tier || "free",
+            published: false, sort_order: ROWS.filter(x => x.hsk_level === r.hsk_level).length, data,
+            vocab_count: (data.vocab || []).length, created_by: user.id };
+          const { data: row, error } = await sb.from("vocab_lessons").insert(ins).select().single();
+          if (error) { vsay(error.message, true); return; }
+          ROWS.push(row); render(); vsay("Đã nhân bản ✓ — nhớ đổi tên và đăng lại.");
+        }
+        async function reorder(r, dir) {
+          const sib = ROWS.filter(x => x.hsk_level === r.hsk_level).sort((a, b) => a.sort_order - b.sort_order);
+          const i = sib.findIndex(x => x.id === r.id); const j = i + dir;
+          if (j < 0 || j >= sib.length) return;
+          const a = sib[i], b = sib[j]; const ao = a.sort_order, bo = b.sort_order;
+          a.sort_order = bo; b.sort_order = ao;
+          await Promise.all([
+            sb.from("vocab_lessons").update({ sort_order: a.sort_order }).eq("id", a.id),
+            sb.from("vocab_lessons").update({ sort_order: b.sort_order }).eq("id", b.id)
+          ]);
+          render();
+        }
+
+        /* ---- inline metadata editor (nội dung sửa bằng cách nhập lại Excel) ---- */
+        function openEditor(r, row) { if (openId === r.id) { openId = null; render(); return; } openId = r.id; render(); }
+        function mountEditor(r, row) {
+          const box = document.createElement("div");
+          box.style.cssText = "flex-basis:100%; margin-top:.6rem; padding:.7rem; border:1px dashed var(--line); border-radius:8px;";
+          box.innerHTML =
+            '<div class="form-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:.6rem;">' +
+              '<div class="field" style="grid-column:1/-1;"><label>Tên bài</label><input id="ve-title" value="' + esc(r.title || "") + '"></div>' +
+              '<div class="field"><label>Cấp HSK</label><select id="ve-lvl">' + [1, 2, 3, 4, 5, 6].map(n => '<option value="' + n + '"' + (Number(r.hsk_level) === n ? " selected" : "") + ">HSK " + n + "</option>").join("") + "</select></div>" +
+              '<div class="field"><label>Số bài</label><input id="ve-no" value="' + esc(r.lesson_no || "") + '"></div>' +
+              '<div class="field"><label>Quyền</label><select id="ve-tier"><option value="free"' + (r.tier !== "premium" ? " selected" : "") + '>Free</option><option value="premium"' + (r.tier === "premium" ? " selected" : "") + '>Premium 👑</option></select></div>' +
+              '<div class="field"><label>Thứ tự</label><input id="ve-order" type="number" value="' + (r.sort_order || 0) + '"></div>' +
+            "</div>" +
+            '<div style="display:flex; gap:.5rem; align-items:center; margin-top:.6rem; flex-wrap:wrap;">' +
+              '<button id="ve-save">Lưu</button>' +
+              '<label class="ghost btn" style="cursor:pointer;">↻ Thay nội dung bằng Excel<input id="ve-reimport" type="file" accept=".xlsx,.xls" hidden></label>' +
+              '<button class="ghost" id="ve-close">Đóng</button>' +
+              '<span id="ve-msg" class="msg"></span>' +
+            "</div>";
+          box.querySelector("#ve-close").onclick = () => { openId = null; render(); };
+          box.querySelector("#ve-save").onclick = async () => {
+            const patch = { title: box.querySelector("#ve-title").value.trim() || r.title,
+              hsk_level: Number(box.querySelector("#ve-lvl").value) || r.hsk_level,
+              lesson_no: box.querySelector("#ve-no").value.trim(),
+              tier: box.querySelector("#ve-tier").value, sort_order: Number(box.querySelector("#ve-order").value) || 0,
+              updated_at: new Date().toISOString() };
+            const { error } = await sb.from("vocab_lessons").update(patch).eq("id", r.id);
+            const m = box.querySelector("#ve-msg");
+            if (error) { m.textContent = error.message; m.className = "msg err"; return; }
+            Object.assign(r, patch); openId = null; render();
+          };
+          box.querySelector("#ve-reimport").onchange = async ev => {
+            const f = ev.target.files[0]; ev.target.value = ""; if (!f) return;
+            const m = box.querySelector("#ve-msg"); m.className = "msg"; m.textContent = "Đang đọc…";
+            try {
+              const XL = await loadXLSX(); const wb = XL.read(await f.arrayBuffer(), { type: "array" });
+              const p = VX.parse(wb); const val = VX.validate(p);
+              if (val.errs.length) { m.className = "msg err"; m.textContent = "Có lỗi — xem báo cáo phía trên."; report.innerHTML = ""; showReport(f.name, val.errs, val.warns); return; }
+              const data = VX.toData(p);
+              const { error } = await sb.from("vocab_lessons").update({ data, vocab_count: data.vocab.length, updated_at: new Date().toISOString() }).eq("id", r.id);
+              if (error) { m.className = "msg err"; m.textContent = error.message; return; }
+              r.data = data; r.vocab_count = data.vocab.length; openId = null; render(); vsay("Đã thay nội dung ✓");
+            } catch (err) { m.className = "msg err"; m.textContent = "Không đọc được: " + err.message; }
+          };
+          row.appendChild(box);
+        }
+
+        /* ---- import Excel → tạo bài mới ---- */
+        $("vk-file").addEventListener("change", async ev => {
+          const files = [...(ev.target.files || [])]; ev.target.value = "";
+          if (!files.length) return; report.innerHTML = "";
+          const XL = await loadXLSX().catch(() => null);
+          if (!XL) { vsay("Chưa tải được thư viện Excel (cần mạng).", true); return; }
+          const fallLvl = Number($("vk-lvl-in").value) || 1;
+          for (const f of files) {
+            vsay("Đang đọc " + f.name + "…");
+            let p, val;
+            try { const wb = XL.read(await f.arrayBuffer(), { type: "array" }); p = VX.parse(wb); val = VX.validate(p); }
+            catch (err) { showReport(f.name, ["Không đọc được tệp: " + err.message], []); continue; }
+            if (val.errs.length) { showReport(f.name, val.errs, val.warns); vsay("Chưa nhập được — xem lỗi bên dưới.", true); continue; }
+            const data = VX.toData(p);
+            const level = Math.min(6, Math.max(1, parseInt(p.info.Level, 10) || fallLvl));
+            const title = VX.norm(p.info.LessonTitle) || ("HSK " + level + " · Bài mới");
+            const row = { lesson_id: (slug(title) || "vocab") + "-" + level + "-" + uid(), title, hsk_level: level,
+              lesson_no: VX.norm(p.info.LessonOrder) || "", tier: "free", published: false,
+              sort_order: ROWS.filter(x => x.hsk_level === level).length, data, vocab_count: data.vocab.length, created_by: user.id };
+            const { data: ins, error } = await sb.from("vocab_lessons").upsert(row, { onConflict: "lesson_id" }).select().single();
+            if (error) { showReport(f.name, [error.message + (/vocab_lessons/.test(error.message || "") ? " — hình như chưa chạy migration68." : "")], []); continue; }
+            const i = ROWS.findIndex(x => x.lesson_id === ins.lesson_id); if (i >= 0) ROWS[i] = ins; else ROWS.push(ins);
+            showReport(f.name, [], val.warns, "Đã tạo bài «" + title + "» (HSK " + level + ", " + data.vocab.length + " từ). Bấm ✏️ để sửa, 👁 xem thử, rồi Đăng.");
+          }
+          render();
+          vsay("Xong — kiểm tra danh sách bên dưới.");
+        });
+        $("vk-tpl").addEventListener("click", async () => {
+          const XL = await loadXLSX().catch(() => null);
+          if (!XL) { vsay("Chưa tải được thư viện Excel (cần mạng).", true); return; }
+          XL.writeFile(VX.buildTemplate(), "HSK-Vocabulary-Lesson-Template.xlsx");
+        });
+        $("vk-lvl").addEventListener("change", () => { vLvl = Number($("vk-lvl").value) || 0; render(); });
+        $("vk-q").addEventListener("input", () => { vQ = $("vk-q").value.trim(); render(); });
+
+        load();
+      })();
+
       // ================= ĐIỀU HƯỚNG (Navigation Management) — Phase 63 =================
       // Chủ trung tâm tự quản cây điều hướng: Danh mục → Nhóm con → gán Mục
       // (khóa học / công cụ). Lưu trong nav_categories / nav_subcategories /
@@ -8473,7 +8815,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           { id: "sec:dict",    name: "Chép chính tả",           icon: "🎧" },
           { id: "sec:vsat",    name: "Luyện thi V-SAT",         icon: "📝" },
           { id: "sec:vstep",   name: "Luyện thi VSTEP",         icon: "📖" },
-          { id: "sec:hsk",     name: "Bài giảng HSK tương tác", icon: "🀄" }
+          { id: "sec:hsk",     name: "Bài giảng HSK tương tác", icon: "🀄" },
+          { id: "sec:vocab",   name: "Luyện từ vựng HSK",       icon: "🈺" }
         ];
         function itemList(){
           return (courses || []).map(c => ({ navId: c.id, name: c.title || "(khóa học)", icon: c.icon || "📚" }))
@@ -8788,7 +9131,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           { id: "dict",    name: "Chép chính tả",           icon: "🎧", unit: "video",     url: "dictation.html",  order: 30 },
           { id: "vsat",    name: "Luyện thi V-SAT",         icon: "📝", unit: "đề thi",    url: "vsat.html",       order: 40 },
           { id: "vstep",   name: "Luyện thi VSTEP",         icon: "📖", unit: "đề thi",    url: "vstep.html",      order: 50 },
-          { id: "hsk",     name: "Bài giảng HSK tương tác", icon: "🀄", unit: "bài giảng", url: "hsk-slides.html", order: 60 }
+          { id: "hsk",     name: "Bài giảng HSK tương tác", icon: "🀄", unit: "bài giảng", url: "hsk-slides.html", order: 60 },
+          { id: "vocab",   name: "Luyện từ vựng HSK",       icon: "🈺", unit: "bài luyện",  url: "vocab-practice.html", order: 65 }
         ];
 
         let CFG = {};        // section → config đã lưu
