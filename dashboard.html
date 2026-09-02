@@ -8621,7 +8621,9 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         async function load() {
           if (loaded) return; loaded = true;
           let res;
-          try { res = await sb.from("vocab_lessons").select("*").order("hsk_level").order("sort_order").order("created_at"); }
+          /* chỉ quản lý bài TIẾNG TRUNG ở tab này (bài tiếng Anh có tab riêng);
+             or(language.is.null) để tương thích hàng cũ trước migration69 */
+          try { res = await sb.from("vocab_lessons").select("*").or("language.eq.zh,language.is.null").order("hsk_level").order("sort_order").order("created_at"); }
           catch (e) { res = { error: e }; }
           if (res.error) {
             listEl.innerHTML = '<p class="empty">Chưa dùng được — hãy chạy <b>migration68_vocab_lessons.sql</b>.</p>';
