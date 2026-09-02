@@ -47,6 +47,10 @@ img{max-width:100%}
 .vp-a{text-decoration:none;font-weight:700;font-size:13px;color:var(--ink);padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:#fff}
 .vp-a.vp-p{background:var(--brand);border-color:var(--brand);color:#fff}
 .vp-a:hover{filter:brightness(.97)}
+.content-lang{display:flex;gap:4px;background:#eef1f7;padding:4px;border-radius:999px}
+.content-lang .cl-btn{border:none;background:transparent;padding:6px 12px;border-radius:999px;font-weight:700;font-size:13px;color:var(--muted);cursor:pointer;white-space:nowrap}
+.content-lang .cl-btn.active{background:#fff;color:var(--brand);box-shadow:var(--shadow-sm)}
+@media(max-width:640px){.content-lang .cl-btn{padding:6px 9px;font-size:12px}}
 .lang-tabs button.active{background:var(--brand);color:#fff;box-shadow:var(--shadow-sm)}
 .hbtn{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 12px;font-size:13px;font-weight:700;color:var(--muted);box-shadow:var(--shadow-sm);display:inline-flex;align-items:center;gap:5px}
 .hbtn:hover{border-color:#c9d0dd;color:var(--ink)}
@@ -245,9 +249,13 @@ table.admin th{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color
       <div class="logo hz">汉</div>
       <div>HSK Vocabulary Practice<small id="brandSub">HSK 1–6 · Interactive Learning</small></div>
     </div>
+    <div id="cLang" class="content-lang" title="Ngôn ngữ luyện tập">
+      <button type="button" class="cl-btn active" data-cl="zh" onclick="App.setContentLang('zh')">🇨🇳 Tiếng Trung</button>
+      <button type="button" class="cl-btn" data-cl="en" onclick="App.setContentLang('en')">🇬🇧 Tiếng Anh</button>
+    </div>
     <div class="spacer"></div>
     <button class="hbtn" id="audioBtn" title="Pronunciation settings">🔊 <span id="audioBtnLabel">Voice</span></button>
-    <div class="pinyin-toggle">
+    <div class="pinyin-toggle" id="pyWrap">
       <span id="pinyinWord">Pinyin</span>
       <button class="switch" id="pinyinSwitch" aria-pressed="true" title="Show / hide pinyin everywhere"></button>
       <span id="pinyinLabel">ON</span>
@@ -358,12 +366,25 @@ const Speech={voices:[],zhVoices:[],voice:null,bestScore:-1,ready:false,
   },
   hasZh(){return this.zhVoices&&this.zhVoices.length>0;},
   quality(){if(!this.hasZh())return 'none';if(this.bestScore>=70)return 'best';if(this.bestScore>=45)return 'ok';return 'low';},
-  speak(text,btn){
+  /* pick the best voice for a language (zh uses the tuned pick; en finds a
+     natural English voice — Google / Natural / Apple — else the default) */
+  pickVoice(lang){
+    if(lang && /^en/i.test(lang)){
+      const en=(this.voices||[]).filter(v=>/^en/i.test(v.lang||''));
+      const score=v=>{const n=((v.name||'')+' '+(v.voiceURI||'')).toLowerCase();let s=0;
+        if(/en[-_]?us/i.test(v.lang||''))s+=20;else if(/en[-_]?gb/i.test(v.lang||''))s+=15;
+        if(/google/.test(n))s+=45;if(/natural|neural|premium|enhanced|online|siri/.test(n))s+=45;
+        if(/samantha|aaron|allison|ava|daniel|karen|serena|tessa|zoe/.test(n))s+=25;return s;};
+      return en.sort((a,b)=>score(b)-score(a))[0]||null;
+    }
+    return this.voice;
+  },
+  speak(text,btn,lang){
     if(!('speechSynthesis'in window))return false;
     try{speechSynthesis.cancel();}catch(e){}
     const u=new SpeechSynthesisUtterance(text);
-    u.lang='zh-CN';u.rate=0.85;u.pitch=1;u.volume=1;
-    if(this.voice)u.voice=this.voice;
+    u.lang=(lang&&/^en/i.test(lang))?'en-US':'zh-CN';u.rate=(lang&&/^en/i.test(lang))?0.92:0.85;u.pitch=1;u.volume=1;
+    const v=this.pickVoice(lang); if(v)u.voice=v;
     if(btn){btn.classList.add('speaking');u.onend=u.onerror=()=>btn.classList.remove('speaking');}
     speechSynthesis.speak(u);
     return true;
@@ -373,12 +394,13 @@ const Speech={voices:[],zhVoices:[],voice:null,bestScore:-1,ready:false,
    token needed; works from a static GitHub Pages site. Auto-disables for the session on any
    failure so the fallback stays instant. */
 const OnlineTTS={cache:{},failed:false,
-  url(text){return 'https://translate.google.com/translate_tts?ie=UTF-8&tl=zh-CN&client=tw-ob&q='+encodeURIComponent(text);},
-  play(text,btn){
+  url(text,lang){const tl=(lang&&/^en/i.test(lang))?'en':'zh-CN';return 'https://translate.google.com/translate_tts?ie=UTF-8&tl='+tl+'&client=tw-ob&q='+encodeURIComponent(text);},
+  play(text,btn,lang){
     return new Promise((resolve,reject)=>{
       if(this.failed)return reject('disabled');
-      let a=this.cache[text];
-      if(!a){a=new Audio();a.src=this.url(text);a.preload='auto';this.cache[text]=a;}
+      const ck=(lang||'zh')+':'+text;
+      let a=this.cache[ck];
+      if(!a){a=new Audio();a.src=this.url(text,lang);a.preload='auto';this.cache[ck]=a;}
       const done=()=>{if(btn)btn.classList.remove('speaking');};
       const to=setTimeout(()=>{done();reject('timeout');},3500);
       a.onplaying=()=>clearTimeout(to);
@@ -395,22 +417,22 @@ const TTS={
   init(){Speech.init();},
   refresh(){Speech.refresh();},
   /* input: a string, or {text/hanzi, audio} to prefer a pre-recorded file for that item */
-  speak(input,btn){
+  speak(input,btn,lang){
     let text=input,audio=null;
     if(input&&typeof input==='object'){text=input.text||input.hanzi;audio=input.audio;}
     if(!text)return;
-    if(audio){this._file(audio,text,btn);return;}
+    if(audio){this._file(audio,text,btn,lang);return;}
     if(Settings.enhanced&&!OnlineTTS.failed){
-      OnlineTTS.play(text,btn).catch(()=>{OnlineTTS.failed=true;if(!Speech.speak(text,btn))this._none();});
+      OnlineTTS.play(text,btn,lang).catch(()=>{OnlineTTS.failed=true;if(!Speech.speak(text,btn,lang))this._none();});
       return;
     }
-    if(!Speech.speak(text,btn))this._none();
+    if(!Speech.speak(text,btn,lang))this._none();
   },
-  _file(src,text,btn){
+  _file(src,text,btn,lang){
     const a=new Audio(src);if(btn)btn.classList.add('speaking');
     a.onended=()=>{if(btn)btn.classList.remove('speaking');};
-    a.onerror=()=>{if(btn)btn.classList.remove('speaking');this.speak({text},btn);}; // fall through if file broken
-    a.play().catch(()=>{if(btn)btn.classList.remove('speaking');this.speak({text},btn);});
+    a.onerror=()=>{if(btn)btn.classList.remove('speaking');this.speak({text},btn,lang);}; // fall through if file broken
+    a.play().catch(()=>{if(btn)btn.classList.remove('speaking');this.speak({text},btn,lang);});
   },
   _none(){toast(t('noVoice'));}
 };
@@ -644,26 +666,52 @@ function sampleHSK1Lesson(){
    Danh mục cố định HSK 1–6; mỗi bài là một "stub" chỉ có metadata + số đếm,
    dữ liệu đầy đủ được nạp khi mở bài (App._openLesson). Với người đã đăng
    nhập, bảng trả sẵn `data` nên đánh dấu _loaded ngay. */
-const Store={courses:[],
+function stubOf(m,lang){
+  const stub={
+    id:m.lesson_id, title:m.title||m.lesson_id, language:lang, order:parseInt(m.sort_order,10)||0,
+    published:m.published!==false, premium:!!m.premium, courseId:m.course_id||null,
+    catId:m.category_id||null, subId:m.subcategory_id||null,
+    vocabCount:parseInt(m.vocab_count,10)||0, gapfillCount:parseInt(m.gapfill_count,10)||0,
+    arrangeCount:parseInt(m.arrange_count,10)||0, mcqCount:parseInt(m.mcq_count,10)||0,
+    vocab:[], gapfill:[], arrange:[], mcq:[], _loaded:false
+  };
+  if(m._data){ stub.vocab=m._data.vocab||[]; stub.gapfill=m._data.gapfill||[]; stub.arrange=m._data.arrange||[]; stub.mcq=m._data.mcq||[]; stub._loaded=true; }
+  return stub;
+}
+const Store={courses:[], lang:'zh', en:{tree:[],lessons:[]},
+  /* Tiếng Trung: danh mục cố định HSK 1–6 (giữ nguyên như cũ) */
   buildFromList(list){
     this.courses=[1,2,3,4,5,6].map(lv=>({id:'hsk'+lv,level:lv,title:'HSK '+lv,color:COLORS[lv],lessons:[]}));
     (list||[]).forEach(m=>{
       const lv=Math.min(6,Math.max(1,parseInt(m.hsk_level,10)||1));
-      const c=this.courses[lv-1];
-      const stub={
-        id:m.lesson_id, title:m.title||m.lesson_id, order:parseInt(m.sort_order,10)||(c.lessons.length+1),
-        published:m.published!==false, premium:!!m.premium, courseId:m.course_id||null,
-        vocabCount:parseInt(m.vocab_count,10)||0, gapfillCount:parseInt(m.gapfill_count,10)||0,
-        arrangeCount:parseInt(m.arrange_count,10)||0,
-        vocab:[], gapfill:[], arrange:[], _loaded:false
-      };
-      if(m._data){ stub.vocab=m._data.vocab||[]; stub.gapfill=m._data.gapfill||[]; stub.arrange=m._data.arrange||[]; stub._loaded=true; }
+      const c=this.courses[lv-1]; const stub=stubOf(m,'zh');
+      if(!stub.order)stub.order=c.lessons.length+1;
       c.lessons.push(stub);
     });
   },
+  /* Tiếng Anh: cây danh mục động (category → subcategory) + danh sách bài */
+  buildEn(tree,list){
+    this.en.tree=(tree||[]).map(c=>({id:c.id,name:c.name,sort:c.sort_order,
+      subs:(c.subs||[]).map(s=>({id:s.id,name:s.name,sort:s.sort_order,count:s.lesson_count||0}))}));
+    this.en.lessons=(list||[]).map(m=>stubOf(m,'en'));
+  },
   course(id){return this.courses.find(c=>c.id===id);},
-  lesson(cid,lid){const c=this.course(cid);return c&&c.lessons.find(l=>l.id===lid);},
-  findLesson(lid){for(const c of this.courses){const l=c.lessons.find(x=>x.id===lid);if(l)return{c,l};}return null;}
+  lesson(cid,lid){
+    const c=this.course(cid); const zl=c&&c.lessons.find(l=>l.id===lid); if(zl)return zl;
+    return this.en.lessons.find(l=>l.id===lid)||null;
+  },
+  /* Tiếng Anh — truy cập cây */
+  enCat(id){return this.en.tree.find(c=>c.id===id);},
+  enSub(id){for(const c of this.en.tree){const s=(c.subs||[]).find(x=>x.id===id);if(s)return{cat:c,sub:s};}return null;},
+  enSubTitle(id){const f=this.enSub(id);return f?f.sub.name:'';},
+  enLessonsBySub(subId){return this.en.lessons.filter(l=>l.published&&l.subId===subId).sort((a,b)=>a.order-b.order);},
+  enLessonsByCat(catId){return this.en.lessons.filter(l=>l.published&&l.catId===catId);},
+  findLesson(lid){
+    for(const c of this.courses){const l=c.lessons.find(x=>x.id===lid);if(l)return{lang:'zh',cid:c.id,l};}
+    const el=this.en.lessons.find(x=>x.id===lid);
+    if(el)return{lang:'en',cid:el.subId,l:el};
+    return null;
+  }
 };
 
 /* ============================================================================
@@ -691,6 +739,17 @@ const App={
     document.getElementById('tabAdmin').classList.toggle('active',v==='admin');
     if(v==='student')this.route={name:'home'};
     this.render();},
+  /* Ngôn ngữ NỘI DUNG (Trung / Anh) — khác với ngôn ngữ giao diện EN/VI */
+  setContentLang(lang){
+    if(Store.lang===lang){this.route=lang==='en'?{name:'enhome'}:{name:'home'};this.render();return;}
+    Store.lang=lang; try{localStorage.setItem('vp_content_lang',lang);}catch(e){}
+    this.route=lang==='en'?{name:'enhome'}:{name:'home'};
+    this.syncContentLang(); this.render();
+  },
+  syncContentLang(){
+    document.querySelectorAll('#cLang .cl-btn').forEach(b=>b.classList.toggle('active',b.getAttribute('data-cl')===Store.lang));
+    const py=document.getElementById('pyWrap'); if(py)py.style.display=Store.lang==='en'?'none':'';   // pinyin chỉ cho tiếng Trung
+  },
   /* Giữ URL khớp vị trí đang xem (?lesson=…) để nút Đăng nhập quay lại đúng chỗ;
      đồng thời cập nhật link ?next=. Không tải lại trang. */
   reflectUrl(){
@@ -723,7 +782,7 @@ const App={
         : 'Bài luyện tập này thuộc gói Premium — vui lòng nâng cấp để mở khoá.');
       return;
     }
-    l.vocab=d.data.vocab||[]; l.gapfill=d.data.gapfill||[]; l.arrange=d.data.arrange||[]; l._loaded=true;
+    l.vocab=d.data.vocab||[]; l.gapfill=d.data.gapfill||[]; l.arrange=d.data.arrange||[]; l.mcq=d.data.mcq||[]; l._loaded=true;
     this.route=route; if('speechSynthesis'in window)speechSynthesis.cancel(); this.render(); window.scrollTo(0,0);
   },
   togglePinyin(){Settings.pinyin=!Settings.pinyin;Settings.save();this.applyPinyin();this.syncHeader();},
@@ -780,11 +839,81 @@ const App={
     if(this.view==='admin')this.view='student';
     this.reflectUrl();
     const r=this.route;
+    if(Store.lang==='en'){
+      if(r.name==='encat')this.renderEnCat(r.catId);
+      else if(r.name==='ensub')this.renderEnSub(r.cid);
+      else if(r.name==='lesson')this.renderLesson(r.cid,r.lid);
+      else if(r.name==='practice')Practice.render(this.mount,r.cid,r.lid);
+      else this.renderEnHome();
+      return;
+    }
     if(r.name==='home')this.renderHome();
     else if(r.name==='course')this.renderCourse(r.cid);
     else if(r.name==='lesson')this.renderLesson(r.cid,r.lid);
     else if(r.name==='practice')Practice.render(this.mount,r.cid,r.lid);
     else this.renderHome();
+  },
+  /* ---------- Tiếng Anh: danh mục → chủ đề → bài ---------- */
+  renderEnHome(){
+    const wrap=el('<div></div>');
+    wrap.appendChild(el(`<h1 class="page-title">English Vocabulary</h1>`));
+    wrap.appendChild(el(`<p class="page-sub">${esc(t('enHomeSub')||'Chọn nhóm từ vựng, rồi chọn chủ đề để luyện tập.')}</p>`));
+    if(!Store.en.tree.length){wrap.appendChild(el(`<div class="empty">${esc(t('noPublished'))}</div>`));}
+    const grid=el('<div class="grid courses"></div>');
+    Store.en.tree.forEach((c,i)=>{
+      const tot=(c.subs||[]).reduce((n,s)=>n+(s.count||0),0);
+      const card=el(`<div class="course-card">
+        <div class="lvl ${COLORS[(i%6)+1]} hz" style="font-size:16px">${esc(c.name).slice(0,6)}</div>
+        <h3>${esc(c.name)}</h3>
+        <p>${(c.subs||[]).length} chủ đề · ${tot} bài</p>
+        <div class="bar"><i style="width:0%"></i></div>
+      </div>`);
+      card.onclick=()=>this.go({name:'encat',catId:c.id});
+      grid.appendChild(card);
+    });
+    wrap.appendChild(grid);
+    this.mount.appendChild(wrap);
+  },
+  renderEnCat(catId){
+    const c=Store.enCat(catId); if(!c){this.go({name:'enhome'});return;}
+    const wrap=el('<div></div>');
+    wrap.appendChild(el(`<div class="crumbs"><a onclick="App.go({name:'enhome'})">English</a><span class="sep">›</span><span>${esc(c.name)}</span></div>`));
+    wrap.appendChild(el(`<h1 class="page-title">${esc(c.name)}</h1>`));
+    if(!(c.subs||[]).length){wrap.appendChild(el(`<div class="empty">${esc(t('noPublished'))}</div>`));}
+    const grid=el('<div class="grid courses"></div>');
+    (c.subs||[]).forEach((s,i)=>{
+      const card=el(`<div class="course-card">
+        <div class="lvl ${COLORS[(i%6)+1]} hz" style="font-size:15px">${esc(s.name).slice(0,8)}</div>
+        <h3>${esc(s.name)}</h3>
+        <p>${esc(t('lessonCount',{n:s.count||0}))}</p>
+        <div class="bar"><i style="width:0%"></i></div>
+      </div>`);
+      card.onclick=()=>this.go({name:'ensub',cid:s.id});
+      grid.appendChild(card);
+    });
+    wrap.appendChild(grid);
+    this.mount.appendChild(wrap);
+  },
+  renderEnSub(subId){
+    const f=Store.enSub(subId); if(!f){this.go({name:'enhome'});return;}
+    const wrap=el('<div></div>');
+    wrap.appendChild(el(`<div class="crumbs"><a onclick="App.go({name:'enhome'})">English</a><span class="sep">›</span><a onclick="App.go({name:'encat',catId:'${f.cat.id}'})">${esc(f.cat.name)}</a><span class="sep">›</span><span>${esc(f.sub.name)}</span></div>`));
+    wrap.appendChild(el(`<h1 class="page-title">${esc(f.sub.name)} · ${esc(t('lessonsWord'))}</h1>`));
+    const pub=Store.enLessonsBySub(subId);
+    if(!pub.length){wrap.appendChild(el(`<div class="empty">${esc(t('noPublished'))}</div>`));}
+    const list=el('<div class="lesson-list"></div>');
+    pub.forEach((l,i)=>{
+      const res=Progress.get(l.id);
+      const row=el(`<div class="lesson-row">
+        <div class="num">${i+1}</div>
+        <div class="meta"><b>${esc(l.title)}${l.premium?' 👑':''}</b><small>${(l._loaded?l.vocab.length:l.vocabCount)} 📖 · ${(l._loaded?l.mcq.length:l.mcqCount)} ✏️</small></div>
+        ${res?`<span class="badge done">✓ ${res.pct}%</span>`:''}
+      </div>`);
+      row.onclick=()=>this.go({name:'lesson',cid:subId,lid:l.id});
+      list.appendChild(row);
+    });
+    wrap.appendChild(list);
+    this.mount.appendChild(wrap);
   },
 
   /* ---------- Home: course grid ---------- */
@@ -836,14 +965,23 @@ const App={
 
   /* ---------- Lesson: vocabulary presentation ---------- */
   renderLesson(cid,lid){
-    const c=Store.course(cid),l=Store.lesson(cid,lid);
-    if(!l){this.go({name:'course',cid});return;}
+    const l=Store.lesson(cid,lid);
+    if(!l){this.go(Store.lang==='en'?{name:'enhome'}:{name:'course',cid});return;}
+    const isEn=l.language==='en';
     const wrap=el('<div></div>');
-    wrap.appendChild(el(`<div class="crumbs"><a onclick="App.go({name:'home'})">${esc(t('courses'))}</a><span class="sep">›</span><a onclick="App.go({name:'course',cid:'${cid}'})">${esc(c.title)}</a><span class="sep">›</span><span>${esc(l.title)}</span></div>`));
+    if(isEn){
+      const f=Store.enSub(cid);
+      const crumb=f?`<a onclick="App.go({name:'enhome'})">English</a><span class="sep">›</span><a onclick="App.go({name:'encat',catId:'${f.cat.id}'})">${esc(f.cat.name)}</a><span class="sep">›</span><a onclick="App.go({name:'ensub',cid:'${cid}'})">${esc(f.sub.name)}</a><span class="sep">›</span><span>${esc(l.title)}</span>`
+        :`<a onclick="App.go({name:'enhome'})">English</a><span class="sep">›</span><span>${esc(l.title)}</span>`;
+      wrap.appendChild(el(`<div class="crumbs">${crumb}</div>`));
+    } else {
+      const c=Store.course(cid)||{title:''};
+      wrap.appendChild(el(`<div class="crumbs"><a onclick="App.go({name:'home'})">${esc(t('courses'))}</a><span class="sep">›</span><a onclick="App.go({name:'course',cid:'${cid}'})">${esc(c.title)}</a><span class="sep">›</span><span>${esc(l.title)}</span></div>`));
+    }
     wrap.appendChild(el(`<h1 class="page-title">${esc(l.title)}</h1>`));
     wrap.appendChild(el(`<p class="page-sub">${esc(t('studyStep',{n:l.vocab.length}))}</p>`));
     const grid=el('<div class="grid vocab-grid"></div>');
-    l.vocab.forEach(v=>grid.appendChild(vocabCard(v)));
+    l.vocab.forEach(v=>grid.appendChild(isEn?enVocabCard(v):vocabCard(v)));
     wrap.appendChild(grid);
     const cta=el(`<div class="btn-row" style="margin-top:26px;justify-content:center">
       <button class="btn primary" style="padding:13px 30px;font-size:16px">${esc(t('startPractice'))}</button></div>`);
@@ -858,9 +996,11 @@ function imageBox(v,opts){
   opts=opts||{};
   // In matching, the picture fallback must NOT reveal the hanzi (that would give away the answer);
   // show the Vietnamese meaning instead so the game still works when a photo is missing/offline.
-  const fb=opts.hideHanzi
+  const fb=opts.blank
+    ? `<div class="imgfallback"><div style="font-size:30px">🖼️</div></div>`
+    : opts.hideHanzi
     ? `<div class="imgfallback"><div style="font-size:26px">🖼️</div><div class="vi" style="font-size:15px;text-align:center;padding:0 8px">${esc(v.vi||v.en||'')}</div></div>`
-    : `<div class="imgfallback"><div class="fz hz">${esc(v.hanzi)}</div><small class="pinyin" data-py>${esc(v.pinyin)}</small></div>`;
+    : `<div class="imgfallback"><div class="fz ${v.hanzi?'hz':''}" style="${v.hanzi?'':'font-size:22px;font-weight:800'}">${esc(v.hanzi||v.word||'')}</div><small class="pinyin" data-py style="${v.hanzi?'':'text-transform:none'}">${esc(v.pinyin||v.pos||'')}</small></div>`;
   if(v.image){
     return `<div class="imgwrap ${opts.extraClass||''}"><img src="${esc(v.image)}" alt="${esc(v.vi)}" loading="lazy"
       onerror="this.style.display='none';this.insertAdjacentHTML('afterend',this.dataset.fb);this.dataset.fb='';" data-fb='${fb.replace(/'/g,"&#39;")}'></div>`;
@@ -891,6 +1031,27 @@ function vocabCard(v){
   if(btns[1])btns[1].onclick=()=>TTS.speak({text:v.exHanzi,audio:v.exAudio},btns[1]);
   return card;
 }
+/* Thẻ từ tiếng Anh: từ · loại từ · nghĩa Việt · định nghĩa · câu ví dụ · ảnh · phát âm en */
+function enVocabCard(v){
+  const card=el(`<div class="vcard">
+    ${imageBox(v)}
+    <div class="body">
+      <div class="hzrow">
+        <span class="hanzi" style="font-size:26px;font-weight:800">${esc(v.word||'')}</span>
+        <button class="speak lg" title="Play pronunciation">🔊</button>
+      </div>
+      ${v.pos?`<span class="pinyin" data-py style="text-transform:none;font-style:italic">${esc(v.pos)}</span>`:''}
+      <span class="vi">${esc(v.vi||'')}</span>
+      ${v.def?`<span class="en" style="font-style:italic">${esc(v.def)}</span>`:''}
+      ${v.example?`<div class="ex"><span class="exhz" style="font-size:15px">${esc(v.example)}</span>
+        <button class="speak" style="width:26px;height:26px;font-size:13px;vertical-align:middle;margin-left:4px">🔊</button></div>`:''}
+    </div>
+  </div>`);
+  const btns=card.querySelectorAll('.speak');
+  btns[0].onclick=()=>TTS.speak({text:v.word,audio:v.audio},btns[0],'en');
+  if(btns[1])btns[1].onclick=()=>TTS.speak({text:v.example,audio:v.exAudio},btns[1],'en');
+  return card;
+}
 
 /* ============================================================================
    Practice engine — Exercise A (match), B (gap-fill), C (arrange)
@@ -903,6 +1064,12 @@ const Practice={
 
   allUnits(){
     const l=this.lesson,units=[];
+    if(l.language==='en'){
+      // match3 = từ có ảnh + nghĩa Việt (đủ 3 mảnh word↔picture↔nghĩa)
+      l.vocab.filter(v=>v.match!==false && v.image && (v.vi||v.en)).forEach(v=>units.push({kind:'match3',data:v}));
+      (l.mcq||[]).forEach(m=>units.push({kind:'mcq',data:m}));
+      return units;
+    }
     const mv=l.vocab.filter(v=>v.match!==false && v.image); // matchable = has image
     mv.forEach(v=>units.push({kind:'match',data:v}));
     l.gapfill.forEach(g=>units.push({kind:'gap',data:g}));
@@ -911,9 +1078,12 @@ const Practice={
   },
   buildQueue(units){
     const q=[];
+    const m3=units.filter(u=>u.kind==='match3');
+    if(m3.length)q.push({type:'match3',vocab:shuffle(m3.map(u=>u.data))});
     const matches=units.filter(u=>u.kind==='match');
     if(matches.length)q.push({type:'match',vocab:shuffle(matches.map(u=>u.data))});
     shuffle(units.filter(u=>u.kind==='gap')).forEach(u=>q.push({type:'gap',data:u.data}));
+    shuffle(units.filter(u=>u.kind==='mcq')).forEach(u=>q.push({type:'mcq',data:u.data}));
     shuffle(units.filter(u=>u.kind==='arrange')).forEach(u=>q.push({type:'arrange',data:u.data}));
     return q;
   },
@@ -942,7 +1112,9 @@ const Practice={
     this.mount.innerHTML='';
     const l=this.lesson;
     const wrap=el('<div></div>');
-    wrap.appendChild(el(`<div class="crumbs"><a onclick="App.go({name:'course',cid:'${this.cid}'})">${esc(Store.course(this.cid).title)}</a><span class="sep">›</span><a onclick="App.go({name:'lesson',cid:'${this.cid}',lid:'${this.lid}'})">${esc(l.title)}</a><span class="sep">›</span><span>${esc(t('practice'))}</span></div>`));
+    const backName=l.language==='en'?(Store.enSubTitle(this.cid)||'English'):((Store.course(this.cid)||{}).title||'');
+    const backRoute=l.language==='en'?`{name:'ensub',cid:'${this.cid}'}`:`{name:'course',cid:'${this.cid}'}`;
+    wrap.appendChild(el(`<div class="crumbs"><a onclick="App.go(${backRoute})">${esc(backName)}</a><span class="sep">›</span><a onclick="App.go({name:'lesson',cid:'${this.cid}',lid:'${this.lid}'})">${esc(l.title)}</a><span class="sep">›</span><span>${esc(t('practice'))}</span></div>`));
     const stage=el(`<div class="stage">
       <div class="progress-top"><div class="track"><i style="width:${this.progressPct()}%"></i></div><div class="pct">${this.qi}/${this.queue.length}</div></div>
       <div class="stage-kicker">${kicker}</div>
@@ -956,6 +1128,8 @@ const Practice={
   next(){this.qi++;if(this.qi>=this.queue.length)this.results();else this.step();window.scrollTo(0,0);},
   step(){const s=this.queue[this.qi];
     if(s.type==='match')this.renderMatch(s);
+    else if(s.type==='match3')this.renderMatch3(s);
+    else if(s.type==='mcq')this.renderMcq(s);
     else if(s.type==='gap')this.renderGap(s);
     else this.renderArrange(s);},
 
@@ -1093,15 +1267,104 @@ const Practice={
     this.frame(t('exC'),t('arrTitle'),t('arrSub'),inner);
   },
 
+  /* ---------- English Exercise 1: Word ↔ Picture ↔ Vietnamese (3-way) ---------- */
+  renderMatch3(s){
+    const vocab=s.vocab;
+    const words=shuffle(vocab.slice()),pics=shuffle(vocab.slice()),means=shuffle(vocab.slice());
+    let selWord=null,selPic=null,matched=0;const wrong={};
+    const inner=el(`<div>
+      <div class="match-wrap" style="grid-template-columns:1fr 1.1fr 1fr">
+        <div class="match-col"><h4>${esc(t('words'))}</h4><div class="words"></div></div>
+        <div class="match-col"><h4>${esc(t('picturesTap'))}</h4><div class="pic-grid" style="grid-template-columns:1fr 1fr"></div></div>
+        <div class="match-col"><h4>Nghĩa tiếng Việt</h4><div class="means"></div></div>
+      </div>
+      <div class="feedback" id="m3fb"></div>
+      <div class="stage-actions"><span class="qcount">${t('matched',{n:'<b id="m3c">0</b>',total:vocab.length})}</span><button class="btn primary" id="m3next" disabled>${esc(t('continue'))}</button></div>
+    </div>`);
+    const wcol=inner.querySelector('.words'),pcol=inner.querySelector('.pic-grid'),mcol=inner.querySelector('.means');
+    const fb=inner.querySelector('#m3fb'),cnt=inner.querySelector('#m3c'),nextBtn=inner.querySelector('#m3next');
+    const clearSel=()=>{selWord=null;selPic=null;wcol.querySelectorAll('.word-chip').forEach(c=>c.classList.remove('selected'));pcol.querySelectorAll('.pic-cell').forEach(c=>c.classList.remove('selected'));};
+    const bad=id=>{wrong[id]=true;this.credit({kind:'match3',data:vocab.find(x=>x.id===id)},false);fb.className='feedback show no';fb.innerHTML='<span class="fx">✗</span> '+esc(t('notMatch'));clearSel();};
+    words.forEach(v=>{
+      const chip=el(`<div class="word-chip" data-id="${v.id}"><span class="hanzi" style="font-weight:800">${esc(v.word)}</span><button class="speak sm" style="width:28px;height:28px">🔊</button></div>`);
+      chip.querySelector('.speak').onclick=(e)=>{e.stopPropagation();TTS.speak({text:v.word,audio:v.audio},chip.querySelector('.speak'),'en');};
+      chip.onclick=()=>{if(chip.classList.contains('matched'))return;wcol.querySelectorAll('.word-chip').forEach(c=>c.classList.remove('selected'));chip.classList.add('selected');selWord=v.id;selPic=null;pcol.querySelectorAll('.pic-cell').forEach(c=>c.classList.remove('selected'));};
+      wcol.appendChild(chip);
+    });
+    pics.forEach(v=>{
+      const cell=el(`<div class="pic-cell" data-id="${v.id}">${imageBox(v,{hideHanzi:true,blank:true})}</div>`);
+      cell.onclick=()=>{if(cell.classList.contains('matched'))return;
+        if(!selWord){toast(t('pickWordFirst'));return;}
+        if(v.id===selWord){selPic=v.id;pcol.querySelectorAll('.pic-cell').forEach(c=>c.classList.remove('selected'));cell.classList.add('selected');fb.className='feedback';}
+        else bad(selWord);};
+      pcol.appendChild(cell);
+    });
+    means.forEach(v=>{
+      const chip=el(`<div class="word-chip" data-id="${v.id}" style="justify-content:center"><span>${esc(v.vi||v.en||'')}</span></div>`);
+      chip.onclick=()=>{if(chip.classList.contains('matched'))return;
+        if(!selWord||!selPic){toast('Chọn từ rồi ảnh trước');return;}
+        if(v.id===selWord){
+          this.credit({kind:'match3',data:vocab.find(x=>x.id===v.id)},!wrong[v.id]);
+          [wcol.querySelector(`.word-chip[data-id="${v.id}"]`),pcol.querySelector(`.pic-cell[data-id="${v.id}"]`),chip].forEach(e2=>{if(e2){e2.classList.add('matched');e2.classList.remove('selected');}});
+          matched++;cnt.textContent=matched;clearSel();
+          fb.className='feedback show ok';fb.innerHTML='<span class="fx">✓</span> '+esc(t('correct'));
+          if(matched===vocab.length){nextBtn.disabled=false;fb.innerHTML='<span class="fx">🎉</span> '+esc(t('allMatched'));}
+        } else bad(selWord);};
+      mcol.appendChild(chip);
+    });
+    nextBtn.onclick=()=>this.next();
+    this.frame(t('exA'),'Nối: Từ · Hình · Nghĩa','Chọn một TỪ, rồi HÌNH tương ứng, rồi NGHĨA tiếng Việt.',inner);
+  },
+
+  /* ---------- English Exercise 2: contextual gap-fill MCQ ---------- */
+  renderMcq(s){
+    const d=s.data,u={kind:'mcq',data:d};
+    const options=shuffle([d.answer].concat(d.distractors||[]).filter(Boolean));
+    const LETT=['A','B','C','D','E','F'];
+    let firstAttempt=true,done=false;
+    const raw=esc(d.sentence||'');
+    const sHtml=/_{2,}|\.{3,}|…/.test(d.sentence||'')
+      ? raw.replace(/_{2,}|\.{3,}|…/,'<span class="blank" id="qblank">______</span>')
+      : raw+' <span class="blank" id="qblank">______</span>';
+    const inner=el(`<div>
+      <div class="sentence" style="font-size:19px;line-height:1.7">${sHtml}</div>
+      <div class="options"></div>
+      <div class="feedback" id="qfb"></div>
+      <div class="stage-actions"><span class="qcount">A · B · C · D</span><button class="btn primary" id="qnext" disabled>${esc(t('next'))}</button></div>
+    </div>`);
+    const opts=inner.querySelector('.options'),fb=inner.querySelector('#qfb'),nextBtn=inner.querySelector('#qnext'),blank=inner.querySelector('#qblank');
+    options.forEach((o,i)=>{
+      const b=el(`<button class="opt" style="font-size:18px"><span class="lett" style="color:var(--muted);font-size:13px;margin-right:4px">${LETT[i]}</span>${esc(o)}</button>`);
+      b.onclick=()=>{
+        if(done||b.classList.contains('wrong'))return;
+        if(o===d.answer){
+          done=true;this.credit(u,firstAttempt);
+          b.classList.add('correct');if(blank){blank.textContent=o;blank.classList.add('filled');}
+          opts.querySelectorAll('.opt').forEach(x=>x.disabled=true);
+          fb.className='feedback show ok';fb.innerHTML='<span class="fx">✓</span> '+esc(firstAttempt?t('correctNice'):t('correctRetry'))+(d.explanation?` <span style="color:var(--muted);font-weight:400">— ${esc(d.explanation)}</span>`:'');
+          nextBtn.disabled=false;
+        }else{
+          firstAttempt=false;this.credit(u,false);
+          b.classList.add('wrong');b.disabled=true;
+          fb.className='feedback show no';fb.innerHTML='<span class="fx">✗</span> '+esc(t('notQuite'));
+        }
+      };
+      opts.appendChild(b);
+    });
+    nextBtn.onclick=()=>this.next();
+    this.frame(t('exB'),'Chọn từ đúng theo ngữ cảnh','Đọc câu và chọn phương án phù hợp nhất.',inner);
+  },
+
   /* ---------- Results ---------- */
   results(){
     const correct=this.correctIds.size,total=this.total;
     const pct=total?Math.round(correct/total*100):0;
     Progress.set(this.lid,{correct,total,pct});
     const emoji=pct>=90?'🏆':pct>=70?'🎉':pct>=50?'👍':'💪';
-    const c=Store.course(this.cid);
-    const idx=c.lessons.filter(x=>x.published).sort((a,b)=>a.order-b.order).findIndex(x=>x.id===this.lid);
-    const pubs=c.lessons.filter(x=>x.published).sort((a,b)=>a.order-b.order);
+    const isEn=this.lesson.language==='en';
+    const pubs=isEn?Store.enLessonsBySub(this.cid)
+      :((Store.course(this.cid)||{lessons:[]}).lessons.filter(x=>x.published).sort((a,b)=>a.order-b.order));
+    const idx=pubs.findIndex(x=>x.id===this.lid);
     const nextLesson=pubs[idx+1];
     const wrongCount=this.wrongSet.size;
     this.mount.innerHTML='';
@@ -1135,7 +1398,7 @@ const Practice={
       row.appendChild(nb);
     }else{
       const nb=el('<button class="btn primary">'+esc(t('finish'))+'</button>');
-      nb.onclick=()=>App.go({name:'course',cid:this.cid});
+      nb.onclick=()=>App.go(isEn?{name:'ensub',cid:this.cid}:{name:'course',cid:this.cid});
       row.appendChild(nb);
     }
     this.mount.appendChild(inner);
@@ -1144,6 +1407,8 @@ const Practice={
   unitFromKey(k){
     const [kind,id]=[k.slice(0,k.indexOf(':')),k.slice(k.indexOf(':')+1)];
     if(kind==='match'){const v=this.lesson.vocab.find(x=>x.id===id);return v?{kind:'match',data:v}:null;}
+    if(kind==='match3'){const v=this.lesson.vocab.find(x=>x.id===id);return v?{kind:'match3',data:v}:null;}
+    if(kind==='mcq'){const d=(this.lesson.mcq||[]).find(x=>x.id===id);return d?{kind:'mcq',data:d}:null;}
     if(kind==='gap'){const d=this.lesson.gapfill.find(x=>x.id===id);return d?{kind:'gap',data:d}:null;}
     if(kind==='arrange'){const d=this.lesson.arrange.find(x=>x.id===id);return d?{kind:'arrange',data:d}:null;}
     return null;
@@ -1596,7 +1861,15 @@ function lessonPreviewNode(lesson){
    Boot — nạp bài từ CSDL rồi khởi động App (giống hsk-slides.html)
 ============================================================================ */
 async function boot(){
-  let list=[];
+  let zhList=[], enList=[], enTree=[];
+  const mapRow=r=>({
+    lesson_id:r.lesson_id, title:r.title, language:r.language||'zh', hsk_level:r.hsk_level, lesson_no:r.lesson_no,
+    category_id:r.category_id||null, subcategory_id:r.subcategory_id||null,
+    vocab_count:r.vocab_count, sort_order:r.sort_order,
+    gapfill_count:((r.data&&r.data.gapfill)||[]).length, arrange_count:((r.data&&r.data.arrange)||[]).length,
+    mcq_count:((r.data&&r.data.mcq)||[]).length,
+    premium:r.tier==='premium', course_id:r.course_id, published:r.published, _data:r.data
+  });
   if(DB){
     try{
       const { data:{ session } } = await DB.auth.getSession();
@@ -1609,29 +1882,38 @@ async function boot(){
                  VP.NAME=p.full_name||VP.USER.email||'';
                  VP.PREMIUM=VP.STAFF||(p.plan==='premium'&&(!p.premium_until||p.premium_until>=_td)); }
         }catch(e){}
-        /* đã đăng nhập → đọc thẳng bảng (RLS lo quyền); staff thấy cả bài chưa đăng để xem thử */
-        const { data } = await DB.from('vocab_lessons')
-          .select('lesson_id,title,hsk_level,lesson_no,vocab_count,sort_order,tier,course_id,published,data')
-          .order('hsk_level').order('sort_order').order('created_at');
-        list=(data||[]).map(r=>({
-          lesson_id:r.lesson_id, title:r.title, hsk_level:r.hsk_level, lesson_no:r.lesson_no,
-          vocab_count:r.vocab_count, sort_order:r.sort_order,
-          gapfill_count:((r.data&&r.data.gapfill)||[]).length, arrange_count:((r.data&&r.data.arrange)||[]).length,
-          premium:r.tier==='premium', course_id:r.course_id, published:r.published, _data:r.data
-        }));
+        /* đã đăng nhập → đọc thẳng bảng (RLS lo quyền); staff thấy cả bài chưa đăng */
+        const [lr, tr] = await Promise.all([
+          DB.from('vocab_lessons')
+            .select('lesson_id,title,language,hsk_level,lesson_no,category_id,subcategory_id,vocab_count,sort_order,tier,course_id,published,data')
+            .order('sort_order').order('created_at'),
+          DB.rpc('public_vocab_tree',{p_language:'en'})
+        ]);
+        (lr.data||[]).forEach(r=>{ const m=mapRow(r); (m.language==='en'?enList:zhList).push(m); });
+        enTree=Array.isArray(tr.data)?tr.data:[];
         const bd=document.getElementById('backDash'); if(bd&&VP.STAFF)bd.style.display='';
       }else{
-        const { data } = await DB.rpc('public_vocab_lessons',{p_level:null});
-        list=Array.isArray(data)?data:[];
+        const [zr, er, tr] = await Promise.all([
+          DB.rpc('public_vocab_lessons',{p_level:null,p_language:'zh'}),
+          DB.rpc('public_vocab_lessons',{p_level:null,p_language:'en'}),
+          DB.rpc('public_vocab_tree',{p_language:'en'})
+        ]);
+        zhList=Array.isArray(zr.data)?zr.data:[];
+        enList=Array.isArray(er.data)?er.data:[];
+        enTree=Array.isArray(tr.data)?tr.data:[];
       }
-    }catch(e){ /* mạng lỗi / chưa chạy migration68 → danh mục trống, không vỡ trang */ }
+    }catch(e){ /* mạng lỗi / chưa chạy migration → danh mục trống, không vỡ trang */ }
   }
-  Store.buildFromList(list);
+  Store.buildFromList(zhList);
+  Store.buildEn(enTree, enList);
+  /* ngôn ngữ nội dung đã chọn lần trước */
+  try{ const cl=localStorage.getItem('vp_content_lang'); if(cl==='en'||cl==='zh')Store.lang=cl; }catch(e){}
   App.init();
   syncAuthUI();
-  /* liên kết trực tiếp ?lesson=<mã bài> */
+  App.syncContentLang();
+  /* liên kết trực tiếp ?lesson=<mã bài> (tự chuyển ngôn ngữ nếu cần) */
   const want=new URLSearchParams(location.search).get('lesson')||'';
-  if(want){ const f=Store.findLesson(want); if(f) App.go({name:'lesson',cid:f.c.id,lid:f.l.id}); }
+  if(want){ const f=Store.findLesson(want); if(f){ if(f.lang!==Store.lang){Store.lang=f.lang;App.syncContentLang();} App.go({name:'lesson',cid:f.cid,lid:f.l.id}); } }
 }
 
 /* Đăng nhập/Đăng ký dùng CHUNG hệ thống của web (login.html/signup.html) —
