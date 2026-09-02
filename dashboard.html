@@ -3885,6 +3885,14 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         </div>
 
         <div class="tabpane" data-tab="vocab">
+          <div class="card" style="padding:0.7rem 1rem;">
+            <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+              <b style="font-size:0.95rem;">Ngôn ngữ:</b>
+              <button class="vkl-btn on" id="vkl-zh" type="button" data-vl="zh" style="padding:0.4rem 0.9rem; border-radius:999px; border:1px solid var(--line);">🇨🇳 Tiếng Trung / HSK</button>
+              <button class="vkl-btn" id="vkl-en" type="button" data-vl="en" style="padding:0.4rem 0.9rem; border-radius:999px; border:1px solid var(--line); background:#fff;">🇬🇧 Tiếng Anh</button>
+            </div>
+          </div>
+          <div id="vk-zh">
           <div class="card">
             <h2>🀄 Tạo bài Luyện từ vựng HSK từ Excel</h2>
             <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
@@ -3922,6 +3930,54 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             </div>
             <div id="vk-list"><p class="empty">Đang tải…</p></div>
           </div>
+          </div><!-- /vk-zh -->
+
+          <div id="vk-en" hidden>
+            <div class="card">
+              <div class="card-head"><h2>🗂️ Danh mục tiếng Anh</h2>
+                <button class="ghost" id="ven-refresh" style="width:auto; padding:.35rem .7rem; font-size:.85rem;">↻ Làm mới</button></div>
+              <p class="kind" style="margin:0 0 0.6rem; text-transform:none; letter-spacing:0;">
+                Cây danh mục → chủ đề động. Đổi tên / di chuyển không mất bài; xoá danh mục còn bài sẽ hỏi chuyển bài đi đâu.</p>
+              <div style="display:flex; gap:0.5rem; align-items:flex-end; flex-wrap:wrap; margin-bottom:0.6rem;">
+                <div class="field" style="margin:0;"><label>Thêm danh mục mới</label>
+                  <input type="text" id="ven-newcat" placeholder="vd. Academic English" style="min-width:200px;" /></div>
+                <button id="ven-addcat">+ Thêm danh mục</button>
+                <span id="ven-cmsg" class="msg"></span>
+              </div>
+              <div id="ven-cats"><p class="empty" style="margin:0;">Đang tải…</p></div>
+            </div>
+
+            <div class="card">
+              <h2>🇬🇧 Nhập bài Từ vựng tiếng Anh từ Excel</h2>
+              <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
+                Tệp Excel ba trang <b>Info · Vocabulary · MCQ</b>. Trò <b>Nối Từ·Hình·Nghĩa</b> tự sinh từ Vocabulary (từ có ảnh + nghĩa Việt).
+                Chọn <b>Danh mục</b> và <b>Chủ đề</b> bên dưới để đặt bài (ghi đè thông tin trong tệp).</p>
+              <div class="form-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:0.7rem;">
+                <div class="field"><label>Danh mục</label><select id="ven-in-cat"><option value="">— Chọn danh mục —</option></select></div>
+                <div class="field"><label>Chủ đề</label><select id="ven-in-sub"><option value="">— Chọn chủ đề —</option></select></div>
+              </div>
+              <div class="form-row" style="align-items:flex-end; gap:0.7rem; flex-wrap:wrap; margin-top:0.6rem;">
+                <button class="ghost btn" id="ven-tpl" type="button">⬇ Tải tệp Excel mẫu (tiếng Anh)</button>
+                <label class="btn" style="cursor:pointer;">⬆ Nhập bài (.xlsx)
+                  <input type="file" id="ven-file" accept=".xlsx,.xls" hidden multiple /></label>
+                <a class="ghost btn" href="vocab-practice.html" target="_blank" rel="noopener" style="text-decoration:none;">👁 Mở trang luyện tập</a>
+              </div>
+              <p id="ven-msg" class="msg"></p>
+              <div id="ven-report" style="margin-top:0.6rem;"></div>
+            </div>
+
+            <div class="card">
+              <div class="card-head"><h2>Bài tiếng Anh <span class="kind" id="ven-count"></span></h2>
+                <div style="display:flex; gap:0.6rem; align-items:flex-end; flex-wrap:wrap;">
+                  <div class="field" style="margin:0;"><label>Tìm kiếm</label>
+                    <input type="text" id="ven-q" placeholder="Tên bài / mã bài…" style="min-width:170px;" /></div>
+                  <div class="field" style="margin:0;"><label>Danh mục</label>
+                    <select id="ven-fcat"><option value="">Tất cả</option></select></div>
+                </div>
+              </div>
+              <div id="ven-list"><p class="empty">Đang tải…</p></div>
+            </div>
+          </div><!-- /vk-en -->
         </div>
 
         <div class="tabpane" data-tab="nav">
@@ -8877,6 +8933,403 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         $("vk-q").addEventListener("input", () => { vQ = $("vk-q").value.trim(); render(); });
 
         load();
+      })();
+
+      // ================= VOCAB PRACTICE — TIẾNG ANH (Phase 90) =================
+      // Quản lý danh mục động + nhập bài tiếng Anh (Info/Vocabulary/MCQ).
+      (function () {
+        const zhBox = document.getElementById("vk-zh"), enBox = document.getElementById("vk-en");
+        if (!enBox) return;
+        const $ = id => document.getElementById(id);
+        const uid = () => Math.random().toString(36).slice(2, 9);
+        const slug = s => (s || "").toString().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+          .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32);
+        const now = () => new Date().toISOString();
+        let TREE = [], ROWS = [], enLoaded = false, vQ = "", vFcat = "", openId = null;
+
+        async function uploadImg(file, key) {
+          const ext = ((file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "")) || "jpg";
+          const path = "vocab-en/" + (key || "x") + "/" + uid() + "." + ext;
+          try { const up = await sb.storage.from("hsk-media").upload(path, file, { upsert: true, contentType: file.type || "image/jpeg", cacheControl: "31536000" });
+            if (!up.error) return sb.storage.from("hsk-media").getPublicUrl(path).data.publicUrl; } catch (e) {}
+          return await new Promise(res => { const rd = new FileReader(); rd.onload = e => res(e.target.result); rd.readAsDataURL(file); });
+        }
+
+        // ---- language toggle ----
+        function setLang(l) {
+          $("vkl-zh").classList.toggle("on", l === "zh"); $("vkl-en").classList.toggle("on", l === "en");
+          $("vkl-zh").style.cssText = "padding:0.4rem 0.9rem;border-radius:999px;border:1px solid var(--line);" + (l === "zh" ? "background:var(--tone-red,#c0392b);color:#fff;" : "background:#fff;");
+          $("vkl-en").style.cssText = "padding:0.4rem 0.9rem;border-radius:999px;border:1px solid var(--line);" + (l === "en" ? "background:var(--tone-teal,#0d9488);color:#fff;" : "background:#fff;");
+          zhBox.hidden = l !== "zh"; enBox.hidden = l !== "en";
+          if (l === "en" && !enLoaded) { enLoaded = true; loadEn(); }
+        }
+        $("vkl-zh").addEventListener("click", () => setLang("zh"));
+        $("vkl-en").addEventListener("click", () => setLang("en"));
+
+        // ---- data ----
+        async function loadEn() { await Promise.all([loadTree(), loadRows()]); }
+        async function loadTree() {
+          let cRes, sRes;
+          try { [cRes, sRes] = await Promise.all([
+            sb.from("vocab_categories").select("*").eq("language", "en").order("sort_order").order("name"),
+            sb.from("vocab_subcategories").select("*").order("sort_order").order("name")]); }
+          catch (e) { cRes = { error: e }; }
+          if (cRes.error) { $("ven-cats").innerHTML = '<p class="empty">Chưa dùng được — hãy chạy <b>migration69</b>.</p>'; return; }
+          const subs = (sRes && sRes.data) || [];
+          TREE = (cRes.data || []).map(c => Object.assign({}, c, { subs: subs.filter(s => s.category_id === c.id).sort((a, b) => a.sort_order - b.sort_order) }));
+          renderCats(); fillDropdowns();
+        }
+        async function loadRows() {
+          let res; try { res = await sb.from("vocab_lessons").select("*").eq("language", "en").order("sort_order").order("created_at"); }
+          catch (e) { res = { error: e }; }
+          ROWS = res.error ? [] : (res.data || []); renderList();
+        }
+        const catName = id => { const c = TREE.find(x => x.id === id); return c ? c.name : "—"; };
+        const subName = id => { for (const c of TREE) { const s = c.subs.find(x => x.id === id); if (s) return s.name; } return "—"; };
+        const lessonsInCat = id => ROWS.filter(r => r.category_id === id);
+        const lessonsInSub = id => ROWS.filter(r => r.subcategory_id === id);
+
+        // ---- category / subcategory CRUD ----
+        function renderCats() {
+          const box = $("ven-cats");
+          if (!TREE.length) { box.innerHTML = '<p class="empty" style="margin:0;">Chưa có danh mục. Thêm ở trên.</p>'; return; }
+          box.innerHTML = "";
+          TREE.forEach((c, ci) => {
+            const cd = document.createElement("div");
+            cd.style.cssText = "border:1px solid var(--line); border-radius:10px; padding:.55rem .7rem; margin-bottom:.55rem;";
+            cd.innerHTML =
+              '<div style="display:flex; align-items:center; gap:.4rem; flex-wrap:wrap;">' +
+                '<b style="font-size:1rem; flex:1 1 auto;">' + esc(c.name) + ' <span class="kind">(' + lessonsInCat(c.id).length + ' bài · ' + c.subs.length + ' chủ đề)</span></b>' +
+                '<button class="ghost c-up" title="Lên" style="padding:.2rem .5rem;">▲</button>' +
+                '<button class="ghost c-down" title="Xuống" style="padding:.2rem .5rem;">▼</button>' +
+                '<button class="ghost c-ren" style="padding:.2rem .5rem;">Đổi tên</button>' +
+                '<button class="ghost c-del" style="padding:.2rem .5rem; color:var(--danger);">Xoá</button>' +
+              "</div>" +
+              '<div class="ven-subs" style="margin:.5rem 0 .2rem; padding-left:.6rem; border-left:2px solid var(--line);"></div>' +
+              '<div style="display:flex; gap:.4rem; margin-top:.3rem;"><input class="c-newsub" placeholder="Thêm chủ đề…" style="max-width:220px;"><button class="ghost c-addsub" style="padding:.25rem .6rem;">+ Chủ đề</button></div>';
+            const subsEl = cd.querySelector(".ven-subs");
+            if (!c.subs.length) subsEl.innerHTML = '<span class="kind">Chưa có chủ đề.</span>';
+            c.subs.forEach((s, si) => {
+              const sr = document.createElement("div");
+              sr.style.cssText = "display:flex; align-items:center; gap:.35rem; flex-wrap:wrap; padding:.2rem 0;";
+              sr.innerHTML = '<span style="flex:1 1 auto;">• ' + esc(s.name) + ' <span class="kind">(' + lessonsInSub(s.id).length + ' bài)</span></span>' +
+                '<button class="ghost s-up" style="padding:.15rem .45rem;">▲</button>' +
+                '<button class="ghost s-down" style="padding:.15rem .45rem;">▼</button>' +
+                '<button class="ghost s-ren" style="padding:.15rem .45rem;">Đổi tên</button>' +
+                '<button class="ghost s-move" style="padding:.15rem .45rem;">Chuyển</button>' +
+                '<button class="ghost s-del" style="padding:.15rem .45rem; color:var(--danger);">Xoá</button>';
+              sr.querySelector(".s-up").onclick = () => reorderSub(c, si, -1);
+              sr.querySelector(".s-down").onclick = () => reorderSub(c, si, 1);
+              sr.querySelector(".s-ren").onclick = () => renameSub(s);
+              sr.querySelector(".s-move").onclick = () => moveSub(s);
+              sr.querySelector(".s-del").onclick = () => delSub(s);
+              subsEl.appendChild(sr);
+            });
+            cd.querySelector(".c-up").onclick = () => reorderCat(ci, -1);
+            cd.querySelector(".c-down").onclick = () => reorderCat(ci, 1);
+            cd.querySelector(".c-ren").onclick = () => renameCat(c);
+            cd.querySelector(".c-del").onclick = () => delCat(c);
+            cd.querySelector(".c-addsub").onclick = () => { const v = cd.querySelector(".c-newsub").value.trim(); if (v) addSub(c, v); };
+            box.appendChild(cd);
+          });
+        }
+        async function addCat(name) {
+          const so = (TREE.reduce((m, c) => Math.max(m, c.sort_order), 0)) + 10;
+          const { error } = await sb.from("vocab_categories").insert({ language: "en", name, sort_order: so });
+          const m = $("ven-cmsg"); if (error) { m.textContent = error.message; m.className = "msg err"; return; }
+          m.textContent = ""; $("ven-newcat").value = ""; await loadTree();
+        }
+        async function renameCat(c) { const v = prompt("Tên danh mục mới:", c.name); if (v == null) return; const n = v.trim(); if (!n || n === c.name) return;
+          const { error } = await sb.from("vocab_categories").update({ name: n, updated_at: now() }).eq("id", c.id); if (error) { alert(error.message); return; } await loadEn(); }
+        async function delCat(c) {
+          const n = lessonsInCat(c.id).length;
+          if (n > 0) {
+            const dest = prompt("Danh mục «" + c.name + "» còn " + n + " bài.\nNhập TÊN danh mục khác để CHUYỂN bài sang, hoặc để trống = các bài thành “chưa phân loại” (không mất bài).\nBấm Cancel để huỷ.");
+            if (dest == null) return;
+            if (dest.trim()) { const t = TREE.find(x => x.name.toLowerCase() === dest.trim().toLowerCase() && x.id !== c.id);
+              if (!t) { alert("Không tìm thấy danh mục «" + dest + "»."); return; }
+              await sb.from("vocab_lessons").update({ category_id: t.id, subcategory_id: null }).eq("category_id", c.id); }
+          } else if (!confirm("Xoá danh mục «" + c.name + "»?")) return;
+          const { error } = await sb.from("vocab_categories").delete().eq("id", c.id);
+          if (error) { alert(error.message); return; } await loadEn();
+        }
+        async function reorderCat(i, dir) { const j = i + dir; if (j < 0 || j >= TREE.length) return;
+          const a = TREE[i], b = TREE[j], ao = a.sort_order, bo = b.sort_order;
+          await Promise.all([sb.from("vocab_categories").update({ sort_order: bo }).eq("id", a.id), sb.from("vocab_categories").update({ sort_order: ao }).eq("id", b.id)]); await loadTree(); }
+        async function addSub(c, name) { const so = (c.subs.reduce((m, s) => Math.max(m, s.sort_order), 0)) + 10;
+          const { error } = await sb.from("vocab_subcategories").insert({ category_id: c.id, name, sort_order: so }); if (error) { alert(error.message); return; } await loadTree(); }
+        async function renameSub(s) { const v = prompt("Tên chủ đề mới:", s.name); if (v == null) return; const n = v.trim(); if (!n || n === s.name) return;
+          const { error } = await sb.from("vocab_subcategories").update({ name: n, updated_at: now() }).eq("id", s.id); if (error) { alert(error.message); return; } await loadEn(); }
+        async function delSub(s) {
+          const n = lessonsInSub(s.id).length;
+          if (n > 0) { const dest = prompt("Chủ đề «" + s.name + "» còn " + n + " bài.\nNhập TÊN chủ đề khác (trong bất kỳ danh mục nào) để CHUYỂN bài sang, hoặc để trống = bỏ chủ đề (bài vẫn còn).\nCancel để huỷ.");
+            if (dest == null) return;
+            if (dest.trim()) { let td = null; for (const c of TREE) { const f = c.subs.find(x => x.name.toLowerCase() === dest.trim().toLowerCase() && x.id !== s.id); if (f) { td = f; break; } }
+              if (!td) { alert("Không tìm thấy chủ đề «" + dest + "»."); return; }
+              await sb.from("vocab_lessons").update({ subcategory_id: td.id, category_id: td.category_id }).eq("subcategory_id", s.id); }
+          } else if (!confirm("Xoá chủ đề «" + s.name + "»?")) return;
+          const { error } = await sb.from("vocab_subcategories").delete().eq("id", s.id); if (error) { alert(error.message); return; } await loadEn();
+        }
+        async function reorderSub(c, i, dir) { const j = i + dir; if (j < 0 || j >= c.subs.length) return;
+          const a = c.subs[i], b = c.subs[j], ao = a.sort_order, bo = b.sort_order;
+          await Promise.all([sb.from("vocab_subcategories").update({ sort_order: bo }).eq("id", a.id), sb.from("vocab_subcategories").update({ sort_order: ao }).eq("id", b.id)]); await loadTree(); }
+        async function moveSub(s) {
+          const names = TREE.filter(c => c.id !== s.category_id).map(c => c.name);
+          const dest = prompt("Chuyển chủ đề «" + s.name + "» sang danh mục nào?\n(" + names.join(", ") + ")");
+          if (dest == null) return; const t = TREE.find(c => c.name.toLowerCase() === dest.trim().toLowerCase());
+          if (!t) { alert("Không tìm thấy danh mục."); return; }
+          // move the subcategory + its lessons follow (they reference subcategory_id; update their category_id too)
+          await sb.from("vocab_subcategories").update({ category_id: t.id }).eq("id", s.id);
+          await sb.from("vocab_lessons").update({ category_id: t.id }).eq("subcategory_id", s.id);
+          await loadEn();
+        }
+        $("ven-addcat").addEventListener("click", () => { const v = $("ven-newcat").value.trim(); if (v) addCat(v); });
+        $("ven-refresh").addEventListener("click", () => loadEn());
+
+        function fillDropdowns() {
+          const opts = '<option value="">— Chọn danh mục —</option>' + TREE.map(c => '<option value="' + c.id + '">' + esc(c.name) + "</option>").join("");
+          $("ven-in-cat").innerHTML = opts;
+          $("ven-fcat").innerHTML = '<option value="">Tất cả</option>' + TREE.map(c => '<option value="' + c.id + '">' + esc(c.name) + "</option>").join("");
+          syncSubDropdown();
+        }
+        function syncSubDropdown() {
+          const c = TREE.find(x => x.id === $("ven-in-cat").value);
+          $("ven-in-sub").innerHTML = '<option value="">— Chọn chủ đề —</option>' + (c ? c.subs.map(s => '<option value="' + s.id + '">' + esc(s.name) + "</option>").join("") : "");
+        }
+        $("ven-in-cat").addEventListener("change", syncSubDropdown);
+        $("ven-fcat").addEventListener("change", () => { vFcat = $("ven-fcat").value; renderList(); });
+        $("ven-q").addEventListener("input", () => { vQ = $("ven-q").value.trim().toLowerCase(); renderList(); });
+
+        // ---- English Excel (Info / Vocabulary / MCQ) ----
+        const EN_REQ = { Vocabulary: ["Word", "Vietnamese"], MCQ: ["Sentence", "CorrectAnswer", "Distractor1", "Distractor2"] };
+        const EX = {
+          norm: s => String(s == null ? "" : s).trim(),
+          isUrl: s => /^(https?:\/\/|data:image\/)/i.test(s),
+          rows(wb, name) { const ws = wb.Sheets[name]; if (!ws) return null; return XLSX.utils.sheet_to_json(ws, { defval: "", raw: false }); },
+          parse(wb) {
+            let info = {}; const inf = this.rows(wb, "Info");
+            if (inf && inf.length) { if ("Field" in inf[0] && "Value" in inf[0]) inf.forEach(r => { if (this.norm(r.Field)) info[this.norm(r.Field)] = this.norm(r.Value); });
+              else { const r = inf[0]; Object.keys(r).forEach(k => info[this.norm(k)] = this.norm(r[k])); } }
+            const vocab = this.rows(wb, "Vocabulary"), mcq = this.rows(wb, "MCQ");
+            return { info, vocab, mcq, sheets: { Vocabulary: vocab, MCQ: mcq } };
+          },
+          validate(p) {
+            const errs = [], warns = [];
+            const E = (s, r, m) => errs.push(s + (r ? " · dòng " + r : "") + ": " + m);
+            const W = (s, r, m) => warns.push(s + (r ? " · dòng " + r : "") + ": " + m);
+            if (!this.norm(p.info.LessonTitle)) W("Info", "", "chưa có LessonTitle — sẽ đặt tên mặc định.");
+            ["Vocabulary", "MCQ"].forEach(sn => { if (!p.sheets[sn]) E(sn, "", "thiếu trang này trong tệp."); });
+            const colCheck = (sn, rows) => { if (!rows || !rows.length) { if (p.sheets[sn]) E(sn, "", "trang không có dòng nào."); return false; }
+              const have = Object.keys(rows[0]).map(k => this.norm(k)); (EN_REQ[sn] || []).forEach(c => { if (!have.includes(c)) E(sn, "tiêu đề", "thiếu cột «" + c + "»."); }); return true; };
+            if (p.vocab && colCheck("Vocabulary", p.vocab)) {
+              const seen = {}; p.vocab.forEach((r, i) => { const row = i + 2, w = this.norm(r.Word);
+                if (!w) { E("Vocabulary", row, "thiếu từ (cột Word)."); return; }
+                if (seen[w]) W("Vocabulary", row, "«" + w + "» trùng dòng " + seen[w] + "."); else seen[w] = row;
+                if (!this.norm(r.Vietnamese)) E("Vocabulary", row, "«" + w + "» thiếu nghĩa tiếng Việt.");
+                const img = this.norm(r.ImageURL); if (img && !this.isUrl(img)) W("Vocabulary", row, "«" + w + "» ImageURL không hợp lệ.");
+                if (!img) W("Vocabulary", row, "«" + w + "» chưa có ảnh — sẽ không dùng cho trò Nối hình.");
+              });
+            }
+            if (p.mcq && colCheck("MCQ", p.mcq)) {
+              p.mcq.forEach((r, i) => { const row = i + 2, s = this.norm(r.Sentence);
+                if (!s) E("MCQ", row, "thiếu câu (cột Sentence).");
+                if (!this.norm(r.CorrectAnswer)) E("MCQ", row, "thiếu đáp án đúng (CorrectAnswer).");
+                const dist = [r.Distractor1, r.Distractor2, r.Distractor3].map(x => this.norm(x)).filter(Boolean);
+                if (dist.length < 2) E("MCQ", row, "cần ít nhất 2 phương án nhiễu.");
+              });
+            }
+            return { errs, warns };
+          },
+          toData(p) {
+            const vocab = (p.vocab || []).filter(r => this.norm(r.Word)).map(r => { const image = this.norm(r.ImageURL);
+              return { id: uid(), word: this.norm(r.Word), pos: this.norm(r.PartOfSpeech || r.POS), vi: this.norm(r.Vietnamese),
+                def: this.norm(r.Definition), example: this.norm(r.Example), image, imgKeyword: this.norm(r.ImageKeyword),
+                audio: this.norm(r.AudioURL), match: !!image }; });
+            const mcq = (p.mcq || []).filter(r => this.norm(r.Sentence)).map(r => ({ id: uid(), sentence: this.norm(r.Sentence),
+              answer: this.norm(r.CorrectAnswer), distractors: [r.Distractor1, r.Distractor2, r.Distractor3].map(x => this.norm(x)).filter(Boolean),
+              explanation: this.norm(r.Explanation) }));
+            return { vocab, mcq };
+          },
+          buildTemplate() {
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Field", "Value"], ["LessonTitle", "B1 · Travel — Getting Around"],
+              ["Category", "B1"], ["Subcategory", "Travel"], ["Order", "1"], ["Access", "free"],
+              ["Instructions", "Điền Vocabulary + MCQ. Chọn Danh mục/Chủ đề khi nhập ở Bảng điều khiển."]]), "Info");
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+              ["Word", "PartOfSpeech", "Vietnamese", "Definition", "Example", "ImageURL", "ImageKeyword", "AudioURL"],
+              ["commute", "verb / noun", "đi lại hằng ngày", "to travel regularly between home and work", "She commutes to the city every day.", "https://loremflickr.com/400/320/commute,train", "commute", ""],
+              ["luggage", "noun", "hành lý", "the bags you take when travelling", "We checked our luggage before the flight.", "https://loremflickr.com/400/320/luggage", "luggage", ""],
+              ["departure", "noun", "sự khởi hành", "the act of leaving to start a journey", "The departure was delayed by two hours.", "https://loremflickr.com/400/320/airport", "departure", ""],
+              ["fare", "noun", "giá vé", "the money you pay for a journey", "The bus fare went up last month.", "https://loremflickr.com/400/320/bus,ticket", "fare", ""]]), "Vocabulary");
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+              ["Sentence", "CorrectAnswer", "Distractor1", "Distractor2", "Distractor3", "Explanation"],
+              ["I ______ to work by train because driving is stressful.", "commute", "depart", "arrive", "wander", "commute = travel regularly to work"],
+              ["Please keep your ______ with you at the airport.", "luggage", "fare", "departure", "commute", "luggage = travel bags"],
+              ["The train ______ is at 9:15, so arrive by 9:00.", "departure", "luggage", "fare", "commute", "departure = the leaving/start of a journey"]]), "MCQ");
+            return wb;
+          }
+        };
+        function showReport(name, errs, warns, ok) {
+          const box = document.createElement("div"); box.className = "card";
+          box.style.cssText = "margin:.5rem 0; border-left:4px solid var(--" + (errs.length ? "danger" : "tone-teal,#0d9488") + ");";
+          box.innerHTML = "<b>" + esc(name) + "</b>" +
+            (ok ? '<div style="color:var(--tone-teal,#0d9488);font-size:.9rem;margin-top:.25rem;">' + esc(ok) + "</div>" : "") +
+            (errs.length ? '<div style="color:var(--danger);font-size:.85rem;margin-top:.35rem;"><b>Lỗi (' + errs.length + "):</b><ul style='margin:.3rem 0 0 1.1rem;'>" + errs.slice(0, 14).map(x => "<li>" + esc(x) + "</li>").join("") + "</ul></div>" : "") +
+            (warns.length ? '<div style="color:var(--muted);font-size:.85rem;margin-top:.35rem;"><b>Nhắc (' + warns.length + "):</b><ul style='margin:.3rem 0 0 1.1rem;'>" + warns.slice(0, 10).map(x => "<li>" + esc(x) + "</li>").join("") + "</ul></div>" : "");
+          $("ven-report").appendChild(box);
+        }
+        const emsg = (m, err) => { $("ven-msg").textContent = m || ""; $("ven-msg").className = "msg" + (err ? " err" : ""); };
+
+        $("ven-tpl").addEventListener("click", async () => { const XL = await loadXLSX().catch(() => null);
+          if (!XL) { emsg("Chưa tải được thư viện Excel.", true); return; } XL.writeFile(EX.buildTemplate(), "English-Vocabulary-Lesson-Template.xlsx"); });
+
+        $("ven-file").addEventListener("change", async ev => {
+          const files = [...(ev.target.files || [])]; ev.target.value = ""; if (!files.length) return;
+          $("ven-report").innerHTML = "";
+          const catId = $("ven-in-cat").value, subId = $("ven-in-sub").value;
+          if (!catId) { emsg("Hãy chọn Danh mục trước khi nhập.", true); return; }
+          const XL = await loadXLSX().catch(() => null); if (!XL) { emsg("Chưa tải được thư viện Excel.", true); return; }
+          for (const f of files) {
+            emsg("Đang đọc " + f.name + "…");
+            let p, val; try { const wb = XL.read(await f.arrayBuffer(), { type: "array" }); p = EX.parse(wb); val = EX.validate(p); }
+            catch (err) { showReport(f.name, ["Không đọc được tệp: " + err.message], []); continue; }
+            if (val.errs.length) { showReport(f.name, val.errs, val.warns); emsg("Chưa nhập được — xem lỗi.", true); continue; }
+            const data = EX.toData(p);
+            const title = EX.norm(p.info.LessonTitle) || "English lesson";
+            const row = { lesson_id: "en-" + (slug(title) || "vocab") + "-" + uid(), title, language: "en", hsk_level: 1,
+              category_id: catId, subcategory_id: subId || null, lesson_no: EX.norm(p.info.Order) || "",
+              tier: /prem/i.test(EX.norm(p.info.Access)) ? "premium" : "free", published: false,
+              sort_order: ROWS.filter(x => x.category_id === catId).length, data, vocab_count: data.vocab.length, created_by: user.id };
+            const { data: ins, error } = await sb.from("vocab_lessons").upsert(row, { onConflict: "lesson_id" }).select().single();
+            if (error) { showReport(f.name, [error.message], []); continue; }
+            const i = ROWS.findIndex(x => x.lesson_id === ins.lesson_id); if (i >= 0) ROWS[i] = ins; else ROWS.push(ins);
+            showReport(f.name, [], val.warns, "Đã tạo «" + title + "» (" + data.vocab.length + " từ, " + data.mcq.length + " câu MCQ) trong " + catName(catId) + (subId ? " · " + subName(subId) : "") + ". Bấm ✏️ để sửa, 👁 xem thử, rồi Đăng.");
+          }
+          renderList(); loadTree(); emsg("Xong.");
+        });
+
+        // ---- English lesson list + editor ----
+        function counts(r) { const d = r.data || {}; return { v: (d.vocab || []).length, m: (d.mcq || []).length }; }
+        function view() {
+          let v = vFcat ? ROWS.filter(r => r.category_id === vFcat) : ROWS.slice();
+          if (vQ) v = v.filter(r => (r.title || "").toLowerCase().includes(vQ) || (r.lesson_id || "").toLowerCase().includes(vQ));
+          return v;
+        }
+        function renderList() {
+          const list = $("ven-list"), v = view();
+          $("ven-count").textContent = ROWS.length ? "(" + v.length + (vFcat || vQ ? " / " + ROWS.length : "") + ")" : "";
+          if (!ROWS.length) { list.innerHTML = '<p class="empty">Chưa có bài tiếng Anh — chọn danh mục rồi nhập Excel.</p>'; return; }
+          if (!v.length) { list.innerHTML = '<p class="empty">Không có bài khớp bộ lọc.</p>'; return; }
+          list.innerHTML = "";
+          v.forEach(r => {
+            const c = counts(r), row = document.createElement("div");
+            row.className = "lesson"; row.style.flexWrap = "wrap";
+            row.innerHTML =
+              '<div class="meta"><div class="title">' + esc(r.title) + (r.tier === "premium" ? " 👑" : "") + (r.published ? "" : ' <span class="pill off">nháp</span>') + "</div>" +
+              '<span class="kind">' + esc(catName(r.category_id)) + " · " + esc(subName(r.subcategory_id)) + " · " + c.v + " từ · " + c.m + " MCQ · <code>" + esc(r.lesson_id) + "</code></span></div>" +
+              '<div style="display:flex; gap:.35rem; flex-wrap:wrap; align-items:center;">' +
+                '<a class="ghost" href="vocab-practice.html?lesson=' + encodeURIComponent(r.lesson_id) + '" target="_blank" rel="noopener" style="text-decoration:none;">👁</a>' +
+                '<button class="ghost e-edit">✏️</button>' +
+                '<button class="ghost e-tier">' + (r.tier === "premium" ? "Đặt Free" : "Đặt 👑") + "</button>" +
+                '<button class="' + (r.published ? "ghost " : "") + 'e-pub">' + (r.published ? "Ẩn" : "Đăng") + "</button>" +
+                '<button class="ghost e-del" style="color:var(--danger);">Xoá</button>' +
+              "</div>";
+            row.querySelector(".e-pub").onclick = async () => { const { error } = await sb.from("vocab_lessons").update({ published: !r.published, updated_at: now() }).eq("id", r.id); if (!error) { r.published = !r.published; renderList(); } };
+            row.querySelector(".e-tier").onclick = async () => { const nt = r.tier === "premium" ? "free" : "premium"; const { error } = await sb.from("vocab_lessons").update({ tier: nt, updated_at: now() }).eq("id", r.id); if (!error) { r.tier = nt; renderList(); } };
+            row.querySelector(".e-del").onclick = async () => { if (!confirm("Xoá bài «" + (r.title || r.lesson_id) + "»?")) return; const { error } = await sb.from("vocab_lessons").delete().eq("id", r.id); if (!error) { ROWS = ROWS.filter(x => x.id !== r.id); if (openId === r.id) openId = null; renderList(); loadTree(); } };
+            row.querySelector(".e-edit").onclick = () => { openId = openId === r.id ? null : r.id; renderList(); };
+            list.appendChild(row);
+            if (openId === r.id) mountEditor(r, row);
+          });
+        }
+        function mountEditor(r, row) {
+          const D = JSON.parse(JSON.stringify(r.data || {})); D.vocab = D.vocab || []; D.mcq = D.mcq || [];
+          const box = document.createElement("div");
+          box.style.cssText = "flex-basis:100%; margin-top:.6rem; padding:.7rem; border:1px dashed var(--line); border-radius:8px;";
+          const catOpts = TREE.map(c => '<option value="' + c.id + '"' + (r.category_id === c.id ? " selected" : "") + ">" + esc(c.name) + "</option>").join("");
+          const subOptsFor = cid => { const c = TREE.find(x => x.id === cid); return '<option value="">— (không) —</option>' + (c ? c.subs.map(s => '<option value="' + s.id + '"' + (r.subcategory_id === s.id ? " selected" : "") + ">" + esc(s.name) + "</option>").join("") : ""); };
+          box.innerHTML =
+            '<div class="form-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:.6rem;">' +
+              '<div class="field" style="grid-column:1/-1;"><label>Tên bài</label><input id="ee-title" value="' + esc(r.title || "") + '"></div>' +
+              '<div class="field"><label>Danh mục</label><select id="ee-cat">' + catOpts + "</select></div>" +
+              '<div class="field"><label>Chủ đề</label><select id="ee-sub">' + subOptsFor(r.category_id) + "</select></div>" +
+              '<div class="field"><label>Quyền</label><select id="ee-tier"><option value="free"' + (r.tier !== "premium" ? " selected" : "") + '>Free</option><option value="premium"' + (r.tier === "premium" ? " selected" : "") + '>Premium 👑</option></select></div>' +
+              '<div class="field"><label>Thứ tự</label><input id="ee-order" type="number" value="' + (r.sort_order || 0) + '"></div>' +
+            "</div>" +
+            '<div style="display:flex; align-items:center; justify-content:space-between; margin:.8rem 0 .3rem;"><h3 style="margin:0; font-size:1rem;">Từ vựng <span class="kind" id="ee-vc"></span></h3><button class="ghost" id="ee-addv" type="button">+ Thêm từ</button></div>' +
+            '<div id="ee-vlist"></div>' +
+            '<div style="display:flex; align-items:center; justify-content:space-between; margin:.8rem 0 .3rem;"><h3 style="margin:0; font-size:1rem;">Câu hỏi MCQ <span class="kind" id="ee-mc"></span></h3><button class="ghost" id="ee-addm" type="button">+ Thêm câu</button></div>' +
+            '<div id="ee-mlist"></div>' +
+            '<div style="display:flex; gap:.5rem; align-items:center; margin-top:.7rem; flex-wrap:wrap;"><button id="ee-save">Lưu tất cả</button><button class="ghost" id="ee-close">Đóng</button><span id="ee-msg" class="msg"></span></div>';
+          box.querySelector("#ee-cat").onchange = () => { box.querySelector("#ee-sub").innerHTML = subOptsFor(box.querySelector("#ee-cat").value); };
+          const vl = box.querySelector("#ee-vlist"), ml = box.querySelector("#ee-mlist");
+          function drawV() {
+            box.querySelector("#ee-vc").textContent = "(" + D.vocab.length + " từ · " + D.vocab.filter(v => v.image).length + " có ảnh)";
+            vl.innerHTML = ""; if (!D.vocab.length) vl.innerHTML = '<p class="empty" style="margin:0;">Chưa có từ.</p>';
+            D.vocab.forEach((v, i) => {
+              const w = document.createElement("div");
+              w.style.cssText = "display:grid; grid-template-columns:100px 1fr; gap:.6rem; padding:.5rem; border:1px solid var(--line); border-radius:9px; margin-bottom:.5rem;";
+              w.innerHTML = '<div><div style="width:100px;height:78px;border:1px solid var(--line);border-radius:7px;background:#0000000a;display:flex;align-items:center;justify-content:center;overflow:hidden;">' +
+                  (v.image ? '<img src="' + esc(v.image) + '" style="width:100%;height:100%;object-fit:cover;">' : '<span style="font-size:1.4rem;">🖼️</span>') + "</div>" +
+                  '<div style="display:flex;gap:.25rem;margin-top:.3rem;flex-wrap:wrap;"><label class="ghost btn" style="cursor:pointer;font-size:.72rem;padding:.2rem .45rem;">Ảnh<input type="file" accept="image/*" data-b="up" hidden></label>' + (v.image ? '<button class="ghost" data-b="rm" style="font-size:.72rem;padding:.2rem .45rem;color:var(--danger);">Xoá</button>' : "") + "</div></div>" +
+                '<div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;">' +
+                  '<div class="field" style="margin:0;"><label>Word</label><input data-f="word" value="' + esc(v.word || "") + '"></div>' +
+                  '<div class="field" style="margin:0;"><label>Part of speech</label><input data-f="pos" value="' + esc(v.pos || "") + '"></div>' +
+                  '<div class="field" style="margin:0;"><label>Nghĩa tiếng Việt</label><input data-f="vi" value="' + esc(v.vi || "") + '"></div>' +
+                  '<div class="field" style="margin:0;"><label>Definition (EN)</label><input data-f="def" value="' + esc(v.def || "") + '"></div>' +
+                  '<div class="field" style="margin:0;grid-column:1/-1;"><label>Example</label><input data-f="example" value="' + esc(v.example || "") + '"></div>' +
+                  '<div class="field" style="margin:0;grid-column:1/-1;"><label>Ảnh (URL)</label><input data-f="image" value="' + esc(v.image || "") + '"></div>' +
+                  '<div class="field" style="margin:0;"><label>Audio URL (tuỳ chọn)</label><input data-f="audio" value="' + esc(v.audio || "") + '"></div>' +
+                  '<div style="grid-column:1/-1;display:flex;justify-content:flex-end;"><button class="ghost" data-b="del" style="padding:.2rem .5rem;color:var(--danger);">Xoá từ</button></div>' +
+                "</div>";
+              w.querySelectorAll("[data-f]").forEach(inp => { inp.oninput = () => { v[inp.getAttribute("data-f")] = inp.value; if (inp.getAttribute("data-f") === "image") drawV(); }; });
+              w.querySelector('[data-b="up"]').onchange = async e => { const f = e.target.files[0]; e.target.value = ""; if (!f) return; box.querySelector("#ee-msg").textContent = "Đang tải ảnh…"; v.image = await uploadImg(f, r.lesson_id); box.querySelector("#ee-msg").textContent = "Đã tải ảnh ✓"; drawV(); };
+              const rm = w.querySelector('[data-b="rm"]'); if (rm) rm.onclick = () => { v.image = ""; drawV(); };
+              w.querySelector('[data-b="del"]').onclick = () => { if (confirm("Xoá từ?")) { D.vocab.splice(i, 1); drawV(); } };
+              vl.appendChild(w);
+            });
+          }
+          function drawM() {
+            box.querySelector("#ee-mc").textContent = "(" + D.mcq.length + " câu)";
+            ml.innerHTML = ""; if (!D.mcq.length) ml.innerHTML = '<p class="empty" style="margin:0;">Chưa có câu hỏi.</p>';
+            D.mcq.forEach((m, i) => {
+              m.distractors = m.distractors || [];
+              const w = document.createElement("div");
+              w.style.cssText = "padding:.5rem; border:1px solid var(--line); border-radius:9px; margin-bottom:.5rem;";
+              w.innerHTML = '<div class="field" style="margin:0 0 .35rem;"><label>Câu (dùng ______ cho chỗ trống)</label><input data-f="sentence" value="' + esc(m.sentence || "") + '"></div>' +
+                '<div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;">' +
+                  '<div class="field" style="margin:0;"><label>Đáp án đúng</label><input data-f="answer" value="' + esc(m.answer || "") + '"></div>' +
+                  '<div class="field" style="margin:0;"><label>Nhiễu 1</label><input data-d="0" value="' + esc(m.distractors[0] || "") + '"></div>' +
+                  '<div class="field" style="margin:0;"><label>Nhiễu 2</label><input data-d="1" value="' + esc(m.distractors[1] || "") + '"></div>' +
+                  '<div class="field" style="margin:0;"><label>Nhiễu 3</label><input data-d="2" value="' + esc(m.distractors[2] || "") + '"></div>' +
+                  '<div class="field" style="margin:0;grid-column:1/-1;"><label>Giải thích (tuỳ chọn)</label><input data-f="explanation" value="' + esc(m.explanation || "") + '"></div>' +
+                  '<div style="grid-column:1/-1;display:flex;justify-content:flex-end;"><button class="ghost" data-b="del" style="padding:.2rem .5rem;color:var(--danger);">Xoá câu</button></div>' +
+                "</div>";
+              w.querySelectorAll("[data-f]").forEach(inp => { inp.oninput = () => { m[inp.getAttribute("data-f")] = inp.value; }; });
+              w.querySelectorAll("[data-d]").forEach(inp => { inp.oninput = () => { m.distractors[Number(inp.getAttribute("data-d"))] = inp.value; }; });
+              w.querySelector('[data-b="del"]').onclick = () => { if (confirm("Xoá câu?")) { D.mcq.splice(i, 1); drawM(); } };
+              ml.appendChild(w);
+            });
+          }
+          drawV(); drawM();
+          box.querySelector("#ee-addv").onclick = () => { D.vocab.push({ id: uid(), word: "", pos: "", vi: "", def: "", example: "", image: "", audio: "", match: false }); drawV(); };
+          box.querySelector("#ee-addm").onclick = () => { D.mcq.push({ id: uid(), sentence: "", answer: "", distractors: ["", "", ""], explanation: "" }); drawM(); };
+          box.querySelector("#ee-close").onclick = () => { openId = null; renderList(); };
+          box.querySelector("#ee-save").onclick = async () => {
+            const m = box.querySelector("#ee-msg"); m.className = "msg"; m.textContent = "Đang lưu…";
+            D.vocab.forEach(v => { if (!v.id) v.id = uid(); v.match = !!v.image; });
+            D.mcq.forEach(q => { if (!q.id) q.id = uid(); q.distractors = (q.distractors || []).filter(x => x && x.trim()); });
+            const data = { vocab: D.vocab, mcq: D.mcq };
+            const patch = { title: box.querySelector("#ee-title").value.trim() || r.title,
+              category_id: box.querySelector("#ee-cat").value || null, subcategory_id: box.querySelector("#ee-sub").value || null,
+              tier: box.querySelector("#ee-tier").value, sort_order: Number(box.querySelector("#ee-order").value) || 0,
+              data, vocab_count: data.vocab.length, updated_at: now() };
+            const { error } = await sb.from("vocab_lessons").update(patch).eq("id", r.id);
+            if (error) { m.className = "msg err"; m.textContent = error.message; return; }
+            Object.assign(r, patch); openId = null; renderList(); loadTree();
+          };
+          row.appendChild(box);
+        }
       })();
 
       // ================= ĐIỀU HƯỚNG (Navigation Management) — Phase 63 =================
