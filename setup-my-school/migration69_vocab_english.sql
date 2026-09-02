@@ -170,19 +170,19 @@ begin
     insert into public.vocab_subcategories (category_id, name, sort_order)
       select id, x.name, x.so from public.vocab_categories,
         (values ('Travel',10),('Education',20),('Health',30),('Technology',40)) as x(name, so)
-      where language='en' and name='B1';
+      where vocab_categories.language='en' and vocab_categories.name='B1';
     insert into public.vocab_subcategories (category_id, name, sort_order)
       select id, x.name, x.so from public.vocab_categories,
         (values ('Academic Vocabulary',10),('Writing Vocabulary',20),('Speaking Vocabulary',30)) as x(name, so)
-      where language='en' and name='IELTS';
+      where vocab_categories.language='en' and vocab_categories.name='IELTS';
     insert into public.vocab_subcategories (category_id, name, sort_order)
       select id, x.name, x.so from public.vocab_categories,
         (values ('Everyday Life',10),('Work & Study',20),('Travel',30)) as x(name, so)
-      where language='en' and name='Collocations in Use';
+      where vocab_categories.language='en' and vocab_categories.name='Collocations in Use';
     insert into public.vocab_subcategories (category_id, name, sort_order)
       select id, x.name, x.so from public.vocab_categories,
         (values ('Daily Communication',10),('Work',20),('Emotions',30)) as x(name, so)
-      where language='en' and name='Common Idioms';
+      where vocab_categories.language='en' and vocab_categories.name='Common Idioms';
 
     -- one complete sample English lesson under B1 → Travel (free, published)
     insert into public.vocab_lessons
