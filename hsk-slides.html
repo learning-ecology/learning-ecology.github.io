@@ -155,6 +155,10 @@ body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink)}
   gap:.15em;background:#f4f6fa;border:1px solid var(--line);border-radius:12px;padding:.25em;overflow:hidden}
 .pic img{max-width:100%;max-height:var(--pic-max,11em);width:auto;height:auto;
   object-fit:contain;display:block;border-radius:8px}
+/* emoji Twemoji: nền trắng, chừa lề, icon to rõ — không cắt/kéo giãn */
+.pic-emoji{background:#fff}
+.pic-emoji img{max-height:calc(var(--pic-max,11em) * .82);padding:.4em}
+.pic-broken::after{content:"⚠ ảnh không tải được";font-size:.6em;color:var(--muted);padding:.6em;text-align:center}
 .pic-zoom{position:absolute;right:.3em;top:.3em;border:1px solid var(--line);
   background:rgba(255,255,255,.92);border-radius:8px;cursor:pointer;font-size:.62em;
   padding:.2em .45em;line-height:1;opacity:.8}
@@ -603,10 +607,14 @@ body.hz-nopy .rd-py, body.hz-nopy .rad-py, body.hz-nopy .wf-py { display:none !i
      chỉ phải sửa một lần. */
   function picture(url, alt, opts) {
     opts = opts || {};
-    return '<figure class="pic' + (opts.cls ? ' ' + opts.cls : '') + '">' +
+    /* emoji Twemoji: SVG icon vuông, nền trong suốt — cho khung nền trắng và
+       chừa lề để nhìn rõ, KHÔNG cắt/kéo giãn (object-fit:contain sẵn có). */
+    var isEmoji = /\/twemoji\//.test(url || '');
+    return '<figure class="pic' + (opts.cls ? ' ' + opts.cls : '') + (isEmoji ? ' pic-emoji' : '') + '">' +
       /* KHÔNG dùng loading="lazy": mỗi lúc chỉ hiện một slide, ảnh chính là
          nội dung của slide đó — hoãn tải chỉ tổ chớp một cái rồi mới hiện */
-      '<img src="' + esc(url) + '" alt="' + esc(alt || '') + '">' +
+      '<img src="' + esc(url) + '" alt="' + esc(alt || '') +
+        '" onerror="this.style.display=\'none\';var f=this.parentNode;f.classList.add(\'pic-broken\');">' +
       '<button class="pic-zoom" data-act="zoom" data-src="' + esc(url) + '" data-cap="' + esc(opts.caption || alt || '') +
         '" title="Phóng to ảnh">⛶</button>' +
       (opts.credit ? '<figcaption>Ảnh: ' + esc(opts.credit) + '</figcaption>' : '') +

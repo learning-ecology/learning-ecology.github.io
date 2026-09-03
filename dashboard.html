@@ -3806,10 +3806,11 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               <b>Thầy chỉ bắt buộc điền hai cột:</b> <code>chinese</code> và <code>vietnamese</code>.
               <b>Pinyin</b> sinh tự động có dấu thanh (đúng cả chữ đa âm) — thầy điền sẵn thì hệ thống không ghi đè.
               <b>Thứ tự nét</b> vẽ tự động cho mọi chữ Hán, không cần tải GIF.
-              <b>Ảnh minh hoạ</b> tự tìm cho <b>mọi từ</b> — có <code>imagekeyword</code> (một từ tiếng Anh, vd <i>apple</i>)
-              thì tìm theo từ đó, không có thì tìm theo nghĩa tiếng Việt. Ảnh nào hệ thống tự đoán sẽ được đánh dấu
-              <b>“nên xem lại”</b>; bấm ✏️ rồi <b>dán ảnh (⌘V)</b>, kéo thả hoặc tải tệp để thay.
-              Mỗi ảnh đã duyệt vào thư viện và <b>dùng lại cho các bài sau</b>.
+              <b>Ảnh minh hoạ</b> tự chọn <b>emoji Twemoji</b> theo NGHĨA của từ (dùng nghĩa tiếng Việt +
+              <code>imagekeyword</code> tiếng Anh nếu có) rồi tạo URL SVG ổn định — <i>苹果 → 🍎, 医院 → 🏥, 雨伞 → ☔</i>.
+              Từ trừu tượng (vd “tuy nhiên”, “phương pháp”) không ép emoji sai mà báo <b>“chưa có emoji — tự chọn ảnh”</b>.
+              Bấm ✏️ rồi <b>🔄 chọn lại emoji</b>, hoặc <b>dán ảnh (⌘V)</b>/tải tệp/dán link để thay; ảnh thầy tự đặt
+              luôn được giữ, không bị ghi đè. Bài cũ có thể bấm <b>“🔄 Chuyển ảnh tự động sang Twemoji”</b> để đổi hàng loạt.
               <b>Bài luyện tập</b> có sáu loại bấm được ngay trên lớp: trắc nghiệm, điền chỗ trống, sắp xếp câu,
               nối từ, nối pinyin, nhìn hình chọn từ.</p>
             <div class="form-row">
@@ -3817,6 +3818,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               <label class="btn" style="cursor:pointer;">⬆ Nhập bài giảng (.xlsx)
                 <input type="file" id="hs-file" accept=".xlsx,.xls" hidden multiple /></label>
               <a class="ghost btn" href="hsk-slides.html" target="_blank" rel="noopener" style="text-decoration:none;">👁 Mở trang bài giảng</a>
+              <button class="ghost btn" id="hs-emoji-mig" type="button" title="Đổi ảnh TỰ ĐỘNG (Pexels…) của các bài đã có sang emoji Twemoji — giữ nguyên ảnh thầy tự đặt">🔄 Chuyển ảnh tự động sang Twemoji</button>
             </div>
             <p id="hs-msg" class="msg"></p>
             <div id="hs-report" style="margin-top:0.6rem;"></div>
@@ -7838,8 +7840,9 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
 
           const thumb = (v, i) => {
             const on = active === i;
+            const isEmo = window.__EMO && window.__EMO.isEmojiImg(v.image);
             const inner = v.image && v.image.url
-              ? `<img src="${esc(v.image.url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:7px;" />`
+              ? `<img src="${esc(v.image.url)}" alt="" style="width:100%;height:100%;object-fit:${isEmo ? "contain" : "cover"};${isEmo ? "padding:5px;background:#fff;" : ""}border-radius:7px;" onerror="this.style.opacity=.25;" />`
               : `<span style="font-size:0.72rem;color:var(--muted);text-align:center;line-height:1.25;">＋<br />ảnh</span>`;
             return `<div class="hs-thumb" data-thumb="${i}" title="Bấm để chọn, rồi dán ⌘V — hoặc kéo thả ảnh vào đây"
               style="width:74px;height:56px;flex:none;border:2px ${on ? "solid var(--accent)" : "dashed var(--line)"};
@@ -7873,6 +7876,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
                 ${thumb(v, i)}
                 <div style="display:flex;flex-direction:column;gap:0.25rem;align-items:center;">
                   <div style="display:flex;gap:0.15rem;">
+                    <button class="ghost" data-emo="${i}" title="Chọn lại emoji minh hoạ" style="padding:0.2rem 0.4rem;">🔄</button>
                     <button class="ghost" data-up="${i}" title="Tải ảnh từ máy" style="padding:0.2rem 0.4rem;">📁</button>
                     <button class="ghost" data-url="${i}" title="Dán link ảnh" style="padding:0.2rem 0.4rem;">🔗</button>
                     <button class="ghost" data-noimg="${i}" title="Xoá ảnh" style="padding:0.2rem 0.4rem;">✕</button>
@@ -7971,6 +7975,14 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             const up = e.target.closest("[data-up]"), ur = e.target.closest("[data-url]");
             const ni = e.target.closest("[data-noimg]"), mo = e.target.closest("[data-more]");
             const mv = e.target.closest("[data-mv]"), rm = e.target.closest("[data-rm]");
+            const em = e.target.closest("[data-emo]");
+            if (em) { const i = Number(em.dataset.emo), v = L.vocabulary[i];
+              const cands = (window.__EMO ? window.__EMO.candidates(v) : []);
+              if (!cands.length) { note("⚠️ Chưa có emoji phù hợp cho “" + v.chinese + " / " + (v.vietnamese || "") + "” — hãy tự tải/dán ảnh."); return; }
+              const cur = (v.image && v.image.emoji) ? cands.indexOf(v.image.emoji) : -1;
+              const nx = cands[(cur + 1) % cands.length];
+              L.vocabulary[i].image = { url: window.__EMO.url(nx), source: "emoji", emoji: nx, credit: "" };
+              draw(); note("Emoji " + nx + (cands.length > 1 ? " — bấm 🔄 để đổi (" + cands.length + " lựa chọn)" : "") + " · nhớ Lưu."); return; }
             if (th) { active = Number(th.dataset.thumb); draw();
                       note("Ô ảnh của “" + L.vocabulary[active].chinese + "” đang chọn — dán ảnh bằng ⌘V."); return; }
             if (up) { active = Number(up.dataset.up); filePick.dataset.i = up.dataset.up; filePick.click(); return; }
@@ -8028,60 +8040,120 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
            với Bài 1. Nay nghĩa tiếng Việt cũng dùng làm từ khoá tìm được
            (Pexels có hỗ trợ tìm tiếng Việt), ảnh kiểu này đánh dấu là
            "tự tìm" để bảng kiểm tra nhắc thầy xem lại. */
+        /* ============================================================
+           EMOJI (Twemoji) minh hoạ từ vựng — Phase 92
+           Chọn emoji theo NGHĨA (từ khoá tiếng Anh + nghĩa tiếng Việt), rồi
+           đổi sang URL SVG Twemoji ổn định. Không dùng nguồn ảnh ngoài nữa.
+           ============================================================ */
+        const EMO = {
+          /* keyword (thường tiếng Anh, có thêm tiếng Việt bỏ dấu) -> emoji hoặc [emoji…] */
+          /* keyword TIẾNG ANH -> emoji (đơn hoặc [nhiều]) — nguồn đáng tin nhất */
+          MAP: {
+            hello:"👋",goodbye:"👋",you:"🫵",teacher:"🧑‍🏫",student:["🎓","🧑‍🎓"],doctor:"🧑‍⚕️",nurse:"👩‍⚕️",police:"👮",farmer:"🧑‍🌾",chef:"🧑‍🍳",cook:"🧑‍🍳",worker:"👷",everyone:"👥",people:"👥",friend:"🧑‍🤝‍🧑",baby:"👶",child:"🧒",man:"👨",woman:"👩",family:"👪",mother:"👩",mom:"👩",father:"👨",dad:"👨",grandmother:"👵",grandfather:"👴",
+            apple:"🍎",banana:"🍌",orange:"🍊",grape:"🍇",watermelon:"🍉",strawberry:"🍓",peach:"🍑",pear:"🍐",lemon:"🍋",pineapple:"🍍",tomato:"🍅",fruit:"🍎",rice:"🍚",bread:"🍞",noodle:"🍜",noodles:"🍜",egg:"🥚",meat:"🍖",fish:"🐟",chicken:"🐔",cake:"🎂",dumpling:"🥟",vegetable:"🥬",water:"💧",tea:"🍵",coffee:"☕",milk:"🥛",beer:"🍺",wine:"🍷",juice:"🧃",soup:"🍲",food:"🍽️",
+            dog:"🐕",cat:"🐈",bird:"🐦",pig:"🐷",cow:"🐄",horse:"🐎",sheep:"🐑",rabbit:"🐇",tiger:"🐅",panda:"🐼",monkey:"🐒",elephant:"🐘",mouse:"🐁",duck:"🦆",animal:"🐾",
+            sun:"☀️",moon:"🌙",star:"⭐",rain:"🌧️",snow:"❄️",cloud:"☁️",wind:"🌬️",umbrella:"☂️",flower:"🌸",tree:"🌳",mountain:"⛰️",sea:"🌊",river:"🏞️",fire:"🔥",weather:"🌦️",
+            home:"🏠",house:"🏠",hospital:"🏥",school:"🏫",bank:"🏦",hotel:"🏨",restaurant:"🍽️",store:"🏪",shop:"🏪",market:"🏪",library:"📚",church:"⛪",office:"🏢",company:"🏢",park:"🏞️",airport:"🛫",station:"🚉",factory:"🏭",city:"🏙️",
+            car:"🚗",bus:"🚌",train:"🚆",bike:"🚲",bicycle:"🚲",motorbike:"🏍️",airplane:"✈️",plane:"✈️",boat:"⛵",ship:"🚢",taxi:"🚕",subway:"🚇","traffic light":"🚦","traffic":"🚦",
+            book:"📖",pen:"🖊️",pencil:"✏️",paper:"📄",bag:"🎒",phone:"📱",telephone:"☎️",computer:"💻",laptop:"💻",television:"📺",tv:"📺",clock:"🕐",watch:"⌚",key:"🔑",door:"🚪",window:"🪟",chair:"🪑",table:"🪑",bed:"🛏️",lamp:"💡",light:"💡",money:"💰",cash:"💵",card:"💳",letter:"✉️",mail:"✉️",email:"📧",camera:"📷",gift:"🎁",box:"📦",bottle:"🍾",cup:"🥤",
+            clothes:"👕",shirt:"👕",pants:"👖",dress:"👗",shoe:"👟",shoes:"👟",hat:"🧢",glasses:"👓",
+            homework:"📝",exam:"📝",test:"📝",class:"🏫",question:"❓",answer:"✅",map:"🗺️",dictionary:"📕",
+            eye:"👁️",ear:"👂",nose:"👃",mouth:"👄",hand:"✋",foot:"🦶",heart:"❤️",tooth:"🦷",hair:"💇",face:"😀",
+            time:"⏰",day:"📅",today:"📅",tomorrow:"📅",year:"📆",month:"📆",week:"📆",morning:"🌅",night:"🌙",birthday:"🎂",calendar:"📅",
+            medicine:"💊",pill:"💊",injection:"💉",sick:"🤒",illness:"🤒",
+            eat:"🍽️",drink:"🥤",sleep:"😴",run:"🏃",walk:"🚶",read:"📖",write:"✍️",study:"📚",work:"💼",job:"💼",play:"🎮",sing:"🎤",dance:"💃",swim:"🏊",buy:"🛒",sell:"🏷️",shopping:"🛍️",listen:"👂",speak:"🗣️",love:"❤️",smile:"😊",cry:"😢",think:"🤔",travel:"🧳",drive:"🚗",fly:"✈️",rest:"😌",
+            football:"⚽",soccer:"⚽",basketball:"🏀",ball:"⚽",music:"🎵",song:"🎵",movie:"🎬",film:"🎬",game:"🎮",sport:"⚽",
+            color:"🎨",red:"🟥",blue:"🟦",green:"🟩",yellow:"🟨",number:"🔢",world:"🌍",earth:"🌍",flag:"🚩",language:"🗣️",word:"🔤",name:"🏷️"
+          },
+          /* nghĩa TIẾNG VIỆT CÓ DẤU -> emoji (dấu thanh giúp tránh nhầm chó/chợ, gió/giờ…) */
+          VI: {
+            "xin chào":"👋","học sinh":["🎓","🧑‍🎓"],"học viên":"🧑‍🎓","giáo viên":"🧑‍🏫","cô giáo":"👩‍🏫","thầy giáo":"👨‍🏫","bác sĩ":"🧑‍⚕️","y tá":"👩‍⚕️","cảnh sát":"👮","nông dân":"🧑‍🌾","đầu bếp":"🧑‍🍳","công nhân":"👷","mọi người":"👥","bạn bè":"🧑‍🤝‍🧑","em bé":"👶","trẻ em":"🧒","đàn ông":"👨","phụ nữ":"👩","gia đình":"👪","mẹ":"👩","bố":"👨","cha":"👨","bà":"👵","ông":"👴",
+            "táo":"🍎","chuối":"🍌","cam":"🍊","nho":"🍇","dưa hấu":"🍉","dâu":"🍓","đào":"🍑","lê":"🍐","chanh":"🍋","dứa":"🍍","cà chua":"🍅","trái cây":"🍎","hoa quả":"🍎","cơm":"🍚","bánh mì":"🍞","mì":"🍜","phở":"🍜","trứng":"🥚","thịt":"🍖","cá":"🐟","gà":"🐔","bánh":"🍰","bánh ngọt":"🍰","rau":"🥬","nước":"💧","trà":"🍵","cà phê":"☕","sữa":"🥛","bia":"🍺","rượu":"🍷","canh":"🍲","súp":"🍲","đồ ăn":"🍽️","thức ăn":"🍽️",
+            "chó":"🐕","con chó":"🐕","mèo":"🐈","con mèo":"🐈","chim":"🐦","lợn":"🐷","heo":"🐷","bò":"🐄","con bò":"🐄","ngựa":"🐎","cừu":"🐑","thỏ":"🐇","hổ":"🐅","gấu trúc":"🐼","khỉ":"🐒","voi":"🐘","chuột":"🐁","vịt":"🦆","động vật":"🐾","con vật":"🐾",
+            "mặt trời":"☀️","mặt trăng":"🌙","ngôi sao":"⭐","sao":"⭐","mưa":"🌧️","tuyết":"❄️","mây":"☁️","gió":"🌬️","ô":"☂️","dù":"☂️","hoa":"🌸","cây":"🌳","núi":"⛰️","biển":"🌊","sông":"🏞️","lửa":"🔥","thời tiết":"🌦️",
+            "nhà":"🏠","bệnh viện":"🏥","trường":"🏫","trường học":"🏫","ngân hàng":"🏦","khách sạn":"🏨","nhà hàng":"🍽️","cửa hàng":"🏪","chợ":"🏪","thư viện":"📚","nhà thờ":"⛪","văn phòng":"🏢","công ty":"🏢","công viên":"🏞️","sân bay":"🛫","nhà ga":"🚉","nhà máy":"🏭","thành phố":"🏙️",
+            "xe hơi":"🚗","ô tô":"🚗","xe buýt":"🚌","tàu hỏa":"🚆","xe lửa":"🚆","xe đạp":"🚲","xe máy":"🏍️","máy bay":"✈️","thuyền":"⛵","tàu":"🚢","đèn giao thông":"🚦",
+            "sách":"📖","bút":"🖊️","bút chì":"✏️","giấy":"📄","túi":"🎒","cặp sách":"🎒","điện thoại":"📱","máy tính":"💻","tivi":"📺","đồng hồ":"⌚","chìa khóa":"🔑","cửa":"🚪","cửa sổ":"🪟","ghế":"🪑","bàn":"🪑","giường":"🛏️","đèn":"💡","tiền":"💰","thẻ":"💳","thư":"✉️","máy ảnh":"📷","quà":"🎁","quà tặng":"🎁","hộp":"📦","chai":"🍾","cốc":"🥤","ly":"🥤",
+            "quần áo":"👕","áo":"👕","áo sơ mi":"👕","quần":"👖","váy":"👗","đầm":"👗","giày":"👟","mũ":"🧢","nón":"👒","kính":"👓","mắt kính":"👓",
+            "bài tập":"📝","kiểm tra":"📝","lớp":"🏫","lớp học":"🏫","câu hỏi":"❓","bản đồ":"🗺️","từ điển":"📕",
+            "mắt":"👁️","tai":"👂","mũi":"👃","miệng":"👄","tay":"✋","chân":"🦶","tim":"❤️","răng":"🦷","tóc":"💇",
+            "thời gian":"⏰","ngày":"📅","hôm nay":"📅","ngày mai":"📅","năm":"📆","tháng":"📆","tuần":"📆","buổi sáng":"🌅","buổi tối":"🌙","sinh nhật":"🎂","lịch":"📅",
+            "thuốc":"💊","tiêm":"💉","ốm":"🤒","bệnh":"🤒",
+            "ăn":"🍽️","uống":"🥤","ngủ":"😴","chạy":"🏃","đi bộ":"🚶","đọc":"📖","viết":"✍️","học":"📚","làm việc":"💼","công việc":"💼","chơi":"🎮","hát":"🎤","nhảy":"💃","múa":"💃","bơi":"🏊","nấu ăn":"🍳","mua sắm":"🛍️","yêu":"❤️","tình yêu":"❤️","cười":"😊","khóc":"😢","du lịch":"🧳","lái xe":"🚗","bay":"✈️","nghỉ ngơi":"😌",
+            "bóng đá":"⚽","bóng rổ":"🏀","bóng":"⚽","âm nhạc":"🎵","nhạc":"🎵","bài hát":"🎵","phim":"🎬","trò chơi":"🎮","thể thao":"⚽",
+            "màu":"🎨","màu sắc":"🎨","đỏ":"🟥","vàng":"🟨","số":"🔢","thế giới":"🌍","trái đất":"🌍","cờ":"🚩","tên":"🏷️"
+          },
+          low(s){ return String(s || "").toLowerCase().trim(); },
+          words(s){ return this.low(s).split(/[,;/()\[\]{}·|"'.]+|\s+|–|-/).map(w => w.trim()).filter(Boolean); },
+          hit(m, str){ const k = this.low(str); if (m[k]) return m[k]; const s = k.replace(/s$/, ""); return (s !== k && m[s]) ? m[s] : null; },
+          candidates(v){
+            const out = []; const add = e => (Array.isArray(e) ? e : [e]).forEach(x => { if (x && out.indexOf(x) < 0) out.push(x); });
+            const tryM = (m, str) => { const h = this.hit(m, str); if (h) add(h); };
+            const kw = (v.imageKeyword || "").trim();
+            if (kw) { tryM(this.MAP, kw); this.words(kw).forEach(w => tryM(this.MAP, w)); }
+            if (v.en) { tryM(this.MAP, v.en); this.words(v.en).forEach(w => tryM(this.MAP, w)); }
+            const vi = (v.vietnamese || "").trim();
+            if (vi) { tryM(this.VI, vi); tryM(this.VI, this.low(vi).split(/[,;(/]/)[0].trim()); this.words(vi).forEach(w => tryM(this.VI, w)); }
+            return out;
+          },
+          pick(v){ const c = this.candidates(v); return c[0] || null; },
+          toCodePoint(str, sep){
+            let r = [], c = 0, p = 0, i = 0;
+            while (i < str.length) { c = str.charCodeAt(i++);
+              if (p) { r.push((0x10000 + ((p - 0xd800) << 10) + (c - 0xdc00)).toString(16)); p = 0; }
+              else if (0xd800 <= c && c <= 0xdbff) { p = c; }
+              else r.push(c.toString(16)); }
+            return r.join(sep || "-");
+          },
+          url(emoji){ const Z = String.fromCharCode(0x200d);
+            const t = emoji.indexOf(Z) < 0 ? emoji.replace(/️/g, "") : emoji;
+            return "https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/svg/" + this.toCodePoint(t) + ".svg"; },
+          isEmojiImg(img){ return !!(img && (img.source === "emoji" || /twemoji/.test(img.url || ""))); }
+        };
+        window.__EMO = EMO;   // dùng lại cho nút "Chuyển ảnh sang Twemoji"
+
+        /* Tự chọn EMOJI minh hoạ cho từ chưa có ảnh (thay cho tìm ảnh ngoài).
+           Ảnh do thầy đặt (source 'teacher') luôn được giữ nguyên. */
         async function fetchImages(lesson, log) {
           const need = (lesson.vocabulary || []).filter(v => !(v.image && v.image.url));
-          if (!need.length) return { got: 0, failed: 0, reused: 0, noKey: false };
-          let got = 0, failed = 0, reused = 0;
-
-          /* 1. thư viện — không cần khoá, không tốn lượt gọi */
-          const rest = [];
+          let got = 0, none = 0;
           for (const v of need) {
-            try {
-              const { data: hit } = await sb.from("hsk_media")
-                .select("url,credit").eq("media_key", v.chinese).eq("kind", "image").maybeSingle();
-              if (hit && hit.url) { v.image = { url: hit.url, source: "library", credit: hit.credit || "" }; reused++; continue; }
-            } catch (e) {}
-            rest.push(v);
+            const emoji = EMO.pick(v);
+            if (emoji) { v.image = { url: EMO.url(emoji), source: "emoji", emoji, credit: "" }; got++; }
+            else { none++; if (log) log("• " + v.chinese + " (" + (v.vietnamese || "") + "): chưa có emoji phù hợp — hãy tự chọn ảnh ở ✏️."); }
           }
-          if (!rest.length) return { got, failed, reused, noKey: false };
-
-          let key = "";
-          try {
-            const { data: cs } = await sb.from("cover_settings").select("pexels_key").eq("id", 1).maybeSingle();
-            key = (cs && cs.pexels_key) || "";
-          } catch (e) {}
-          if (!key) {
-            log("• Chưa có khoá Pexels nên không tìm được ảnh cho " + rest.length +
-                " từ. Vào tab Đọc hiểu → 🖼 Ảnh bìa tự động để lưu khoá, hoặc tự dán ảnh ở ✏️.");
-            return { got, failed: rest.length, reused, noKey: true };
-          }
-
-          for (const v of rest) {
-            /* từ khoá của thầy trước; không có thì lấy nghĩa tiếng Việt */
-            const kw = (v.imageKeyword || "").trim();
-            const viWord = String(v.vietnamese || "").split(/[,;(/]/)[0].trim();
-            const query = kw || viWord;
-            const locale = kw ? "en-US" : "vi-VN";
-            if (!query) { failed++; continue; }
-            try {
-              const r = await fetch("https://api.pexels.com/v1/search?per_page=1&orientation=landscape&size=medium" +
-                                    "&locale=" + locale + "&query=" + encodeURIComponent(query),
-                                    { headers: { Authorization: key } });
-              if (!r.ok) throw new Error("HTTP " + r.status);
-              const j = await r.json();
-              const ph = (j.photos || [])[0];
-              if (!ph) { failed++; log("• " + v.chinese + ": không tìm thấy ảnh cho “" + query + "”"); continue; }
-              const src = ph.src && (ph.src.large || ph.src.medium);
-              const blob = await (await fetch(src)).blob();
-              const source = kw ? "pexels" : "auto";
-              const url = await putImage(v.chinese, blob, source);
-              v.image = { url, source, credit: ph.photographer || "" };
-              got++;
-            } catch (e) { failed++; log("• " + v.chinese + ": không lấy được ảnh (" + (e.message || e) + ")"); }
-            await new Promise(r => setTimeout(r, 300));   // nhẹ tay với Pexels
-          }
-          return { got, failed, reused, noKey: false };
+          return { got, failed: none, reused: 0, noKey: false, none };
         }
+
+        /* Chuyển ảnh TỰ ĐỘNG cũ (Pexels/thư viện) của mọi bài sang emoji Twemoji.
+           Giữ nguyên: ảnh thầy tự đặt (source 'teacher') và emoji đã có. */
+        const emoMig = document.getElementById("hs-emoji-mig");
+        if (emoMig) emoMig.addEventListener("click", async () => {
+          if (!confirm("Đổi các ảnh TỰ ĐỘNG (Pexels/thư viện) của MỌI bài giảng sang emoji Twemoji?\n\nẢnh thầy tự tải/dán (đánh dấu 'teacher') và emoji sẵn có sẽ ĐƯỢC GIỮ NGUYÊN.")) return;
+          said("Đang tải các bài giảng…");
+          let rows;
+          try { const r = await sb.from("hsk_lessons").select("id,data"); if (r.error) throw r.error; rows = r.data || []; }
+          catch (e) { said("Không tải được: " + (e.message || e), true); return; }
+          let lessons = 0, changed = 0, noEmoji = 0;
+          for (const row of rows) {
+            const data = row.data; if (!data || !Array.isArray(data.vocabulary)) continue;
+            let touched = false;
+            data.vocabulary.forEach(v => {
+              const img = v.image; if (!img || !img.url) return;
+              if (img.source === "teacher") return;      // giữ ảnh thầy đặt
+              if (EMO.isEmojiImg(img)) return;           // đã là emoji
+              const emoji = EMO.pick(v);
+              if (emoji) { v.image = { url: EMO.url(emoji), source: "emoji", emoji, credit: "" }; changed++; touched = true; }
+              else noEmoji++;                            // không có emoji → giữ ảnh cũ để xem lại
+            });
+            if (touched) {
+              const { error } = await sb.from("hsk_lessons").update({ data, updated_at: new Date().toISOString() }).eq("id", row.id);
+              if (!error) { lessons++; const li = hskRows.findIndex(x => x.id === row.id); if (li >= 0) hskRows[li].data = data; }
+            }
+          }
+          said("Xong — đổi " + changed + " ảnh sang emoji ở " + lessons + " bài." + (noEmoji ? " Còn " + noEmoji + " từ chưa có emoji phù hợp (giữ ảnh cũ — xem lại ở ✏️)." : ""));
+          closeEditor(); renderHs();
+        });
 
         /* ---------- thứ tự nét: chữ nào HanziWriter thật sự có? ----------
            Nói "vẽ được mọi chữ Hán" mà không kiểm tra thì đến lớp mới biết
@@ -8116,8 +8188,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           const box = document.createElement("div");
           box.className = "card"; box.style.cssText = "margin:0.5rem 0 0;padding:0.7rem 0.9rem;";
           const badge = st => st === "error" ? "⛔" : st === "warn" ? "⚠" : "✓";
-          const ILL = { teacher: "✓ ảnh của thầy", library: "✓ ảnh dùng lại", pexels: "✓ ảnh đã tìm",
-                        auto: "⚠ ảnh tự tìm — nên xem lại", none: "⚠ chưa có ảnh" };
+          const ILL = { teacher: "✓ ảnh của thầy", emoji: "✓ emoji minh hoạ", library: "✓ ảnh dùng lại", pexels: "✓ ảnh đã tìm",
+                        auto: "⚠ ảnh tự tìm — nên xem lại", none: "⚠ chưa có emoji — tự chọn ảnh" };
           const STR = { ready: "✓ có thứ tự nét", partial: "⚠ thiếu nét vài chữ",
                         missing: "⚠ chưa có thứ tự nét", none: "—", unknown: "" };
           box.innerHTML =
@@ -8196,7 +8268,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             if (i >= 0) hskRows[i] = ins; else hskRows.push(ins);
             v.warns = v.warns.concat(logs);
             showReport(f.name, v, true,
-              `ảnh: ${img.got} mới, ${img.reused} dùng lại${img.failed ? ", " + img.failed + " chưa có" : ""}`);
+              `emoji: ${img.got} từ có emoji minh hoạ${img.none ? ", " + img.none + " từ chưa có emoji (tự chọn ảnh ở ✏️)" : ""}`);
           }
           closeEditor(); renderHs();
           said("Xong — bấm ✏️ để sửa, 👁 xem thử, rồi tick “đăng” cho học viên thấy.");
