@@ -7902,7 +7902,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
                     <input data-f="imageKeyword" data-i="${i}" value="${esc(v.imageKeyword || "")}" placeholder="từ khoá tìm ảnh (tiếng Anh)" style="max-width:190px;" />
                   </div>
                   <div class="form-row" style="gap:0.3rem;margin-top:0.3rem;">
-                    <input data-f="imageConcept" data-i="${i}" value="${esc(v.imageConcept || "")}" placeholder="💡 Ý tưởng hình ảnh (vd: student practicing Chinese characters) — 🔄 sẽ tìm theo câu này" style="flex:1;min-width:300px;" />
+                    <input data-f="imageConcept" data-i="${i}" value="${esc(v.imageConcept || "")}" placeholder="💡 Bạn muốn hình trông như thế nào? (mô tả cảnh, vd: một học sinh làm rơi sách của bạn và đang xin lỗi) — 🔄 tìm theo mô tả này" style="flex:1;min-width:300px;" />
                   </div>
                   ${exRows}
                   <div class="form-row" style="gap:0.3rem;margin-top:0.3rem;">
@@ -8055,7 +8055,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             if (ap) { const i = Number(ap.dataset.approve), v = L.vocabulary[i];
               if (!(v.image && v.image.url)) { note("Chưa có ảnh để duyệt — bấm 🔄 để gợi ý."); return; }
               v.image = { url: v.image.url, source: "approved", credit: v.image.credit || "" };
-              draw(); updateListBadge(); note("✅ Đã duyệt ảnh cho “" + v.chinese + "” — nhớ bấm Lưu."); return; }
+              libSave(v, window.__CONCEPT ? window.__CONCEPT.wordType(v) : "");   // lưu vào thư viện dùng lại
+              draw(); updateListBadge(); note("✅ Đã duyệt & lưu vào thư viện ảnh cho “" + v.chinese + "” — sẽ tự dùng lại ở bài khác. Nhớ Lưu."); return; }
             const idb = e.target.closest("[data-idea]");
             if (idb) {  // 💡 đổi Ý TƯỞNG hình ảnh
               const i = Number(idb.dataset.idea), v = L.vocabulary[i];
@@ -8084,7 +8085,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
                 note("Ý tưởng: " + c.label + " — 🔄 để đổi ảnh trong ý tưởng này."); applyConcept();
               }; });
               panel.querySelector(".idea-custom").onclick = () => {
-                const cur = prompt("Nhập ý tưởng hình ảnh (tiếng Anh dễ tìm, vd: student writing Chinese characters):", v.imageConcept || "");
+                const cur = prompt("Bạn muốn hình trông như thế nào?\n(Mô tả cảnh bằng tiếng Việt hoặc tiếng Anh — vd: một học sinh làm rơi sách của bạn và đang xin lỗi)", v.imageConcept || "");
                 if (cur == null) return;
                 v.imageConcept = cur.trim(); delete v._car; applyConcept();
               };
@@ -8173,7 +8174,12 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             medicine:"💊",pill:"💊",injection:"💉",sick:"🤒",illness:"🤒",
             eat:"🍽️",drink:"🥤",sleep:"😴",run:"🏃",walk:"🚶",read:"📖",write:"✍️",study:"📚",work:"💼",job:"💼",play:"🎮",sing:"🎤",dance:"💃",swim:"🏊",buy:"🛒",sell:"🏷️",shopping:"🛍️",listen:"👂",speak:"🗣️",love:"❤️",smile:"😊",cry:"😢",think:"🤔",travel:"🧳",drive:"🚗",fly:"✈️",rest:"😌",
             football:"⚽",soccer:"⚽",basketball:"🏀",ball:"⚽",music:"🎵",song:"🎵",movie:"🎬",film:"🎬",game:"🎮",sport:"⚽",
-            color:"🎨",red:"🟥",blue:"🟦",green:"🟩",yellow:"🟨",number:"🔢",world:"🌍",earth:"🌍",flag:"🚩",language:"🗣️",word:"🔤",name:"🏷️"
+            color:"🎨",red:"🟥",blue:"🟦",green:"🟩",yellow:"🟨",number:"🔢",world:"🌍",earth:"🌍",flag:"🚩",language:"🗣️",word:"🔤",name:"🏷️",
+            /* cảm xúc & giao tiếp — emoji cử chỉ rõ nghĩa hơn ảnh chụp nhiều */
+            sorry:"🙇",apologize:"🙇",apology:"🙇",thanks:"🙏","thank you":"🙏",thank:"🙏",please:"🙏",welcome:"🤗",congratulations:"🎉",
+            angry:"😠",mad:"😠",happy:"😊",glad:"😄",sad:"😢",cry:"😢",worried:"😟",worry:"😟",nervous:"😰",afraid:"😨",scared:"😨",fear:"😨",
+            tired:"😫",sleepy:"😪",bored:"😑",surprised:"😲",excited:"🤩",shy:"😳",proud:"😌",confident:"😎",lonely:"😔",disappointed:"😞",
+            laugh:"😄",smile:"😊",kiss:"😘",hug:"🤗",think:"🤔",confused:"😕",sick:"🤒",hungry:"😋",thirsty:"😮‍💨"
           },
           /* nghĩa TIẾNG VIỆT CÓ DẤU -> emoji (dấu thanh giúp tránh nhầm chó/chợ, gió/giờ…) */
           VI: {
@@ -8191,7 +8197,13 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             "thuốc":"💊","tiêm":"💉","ốm":"🤒","bệnh":"🤒",
             "ăn":"🍽️","uống":"🥤","ngủ":"😴","chạy":"🏃","đi bộ":"🚶","đọc":"📖","viết":"✍️","học":"📚","làm việc":"💼","công việc":"💼","chơi":"🎮","hát":"🎤","nhảy":"💃","múa":"💃","bơi":"🏊","nấu ăn":"🍳","mua sắm":"🛍️","yêu":"❤️","tình yêu":"❤️","cười":"😊","khóc":"😢","du lịch":"🧳","lái xe":"🚗","bay":"✈️","nghỉ ngơi":"😌",
             "bóng đá":"⚽","bóng rổ":"🏀","bóng":"⚽","âm nhạc":"🎵","nhạc":"🎵","bài hát":"🎵","phim":"🎬","trò chơi":"🎮","thể thao":"⚽",
-            "màu":"🎨","màu sắc":"🎨","đỏ":"🟥","vàng":"🟨","số":"🔢","thế giới":"🌍","trái đất":"🌍","cờ":"🚩","tên":"🏷️"
+            "màu":"🎨","màu sắc":"🎨","đỏ":"🟥","vàng":"🟨","số":"🔢","thế giới":"🌍","trái đất":"🌍","cờ":"🚩","tên":"🏷️",
+            /* cảm xúc & giao tiếp */
+            "xin lỗi":"🙇","cảm ơn":"🙏","cám ơn":"🙏","xin":"🙏","mời":"🙏","chúc mừng":"🎉","hoan nghênh":"🤗",
+            "tức giận":"😠","giận":"😠","vui":"😊","vui vẻ":"😄","vui mừng":"😄","buồn":"😢","khóc":"😢","lo lắng":"😟","lo":"😟",
+            "hồi hộp":"😰","căng thẳng":"😰","sợ":"😨","sợ hãi":"😨","mệt":"😫","mệt mỏi":"😫","buồn ngủ":"😪","chán":"😑",
+            "ngạc nhiên":"😲","hào hứng":"🤩","phấn khích":"🤩","xấu hổ":"😳","tự hào":"😌","tự tin":"😎","cô đơn":"😔","thất vọng":"😞",
+            "cười":"😄","mỉm cười":"😊","ôm":"🤗","suy nghĩ":"🤔","bối rối":"😕","đói":"😋","khát":"😮‍💨","yêu":"❤️","thích":"😍"
           },
           low(s){ return String(s || "").toLowerCase().trim(); },
           words(s){ return this.low(s).split(/[,;/()\[\]{}·|"'.]+|\s+|–|-/).map(w => w.trim()).filter(Boolean); },
@@ -8360,7 +8372,18 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             "freedom":["bird flying free in open sky","person with open arms freedom"],"tu do":["bird flying free in the sky","person with open arms"],
             "peace":["white dove peace symbol","people holding hands peace"],"hoa binh":["white dove of peace","people holding hands"],
             "health":["healthy person exercising","heart and healthy lifestyle"],"suc khoe":["healthy person exercising","heart healthy lifestyle"],
-            "safety":["safety helmet and shield","seatbelt safety protection"],"an toan":["safety helmet and shield","seatbelt protection"]
+            "safety":["safety helmet and shield","seatbelt safety protection"],"an toan":["safety helmet and shield","seatbelt protection"],
+            // social / communicative — NHIỀU tình huống cụ thể (đổi bằng 💡)
+            "sorry":["person bowing apology after bumping into someone","student apologizing after dropping another's books","person apologizing for arriving late","waiter apologizing after spilling a drink"],
+            "xin loi":["person bowing apology after bumping into someone","student apologizing after dropping another's books","person apologizing for being late","apology bowing gesture"],
+            "thanks":["person receiving a gift saying thank you","student thanking a teacher","hands together in a thank-you gesture","person bowing in gratitude"],"cam on":["person receiving a gift saying thank you","student thanking a teacher","hands together thank you gesture","bowing in gratitude"],
+            "you are welcome":["person reassuring another it is okay","friendly wave it's fine gesture"],"khong sao":["person reassuring another it is okay","waving hand it's fine gesture"],
+            "please":["person politely inviting with an open hand","gesture inviting please come in"],"moi":["person politely inviting with open hand","welcoming gesture please come in"],
+            "goodbye":["person waving goodbye at a door","friends waving farewell"],"tam biet":["person waving goodbye at a door","waving farewell"],
+            "angry":["visibly angry person with frowning face and clenched fists","person shouting in anger"],"tuc gian":["visibly angry person frowning with clenched fists","person shouting in anger"],
+            "worried":["worried person holding forehead looking at phone anxiously","anxious person biting nails"],"lo lang":["worried person holding forehead looking anxiously at phone","anxious person biting nails"],
+            "nervous":["nervous student sweating before an exam","anxious person before a presentation"],"hoi hop":["nervous student before an exam","anxious person before presentation"],
+            "tired":["exhausted person slumped at a desk after work","yawning tired person rubbing eyes"],"met":["exhausted person slumped at desk after work","yawning tired person rubbing eyes"]
           },
           keys(v){ const out=[]; const kw=(v.imageKeyword||"").toLowerCase().trim();
             if(kw){ out.push(kw); kw.split(/\s+/).forEach(w=>{if(w.length>1)out.push(w);}); }
@@ -8369,6 +8392,20 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             const first=this.norm(vi.split(/[,;(/]/)[0]); if(first)out.push(first);
             return [...new Set(out.filter(Boolean))]; },
           lookup(v){ const ks=this.keys(v); for(const k of ks){ if(this.MAP[k])return this.MAP[k]; } for(const k of ks){ const s=k.replace(/s$/,""); if(s!==k&&this.MAP[s])return this.MAP[s]; } return null; },
+          /* phân loại từ để chọn kiểu minh hoạ + lưu thư viện */
+          wordType(v){
+            const nvi=" "+this.norm(v.vietnamese||"")+" ";
+            const social=["xin loi","cam on","cam on","cam on","xin","moi","chao","tam biet","khong sao","chuc mung","lam on"];
+            if(social.some(s=>nvi.indexOf(" "+s+" ")>=0 || nvi.indexOf(" "+s)>=0)) return "social";
+            const wc=this.norm(v.wordClass||v.pos||"");
+            const emo=["tuc gian","gian","vui","buon","lo lang","lo","so","met","hoi hop","ngac nhien","xau ho","chan","yeu"];
+            if(emo.some(s=>nvi.indexOf(" "+s+" ")>=0)) return "state";
+            if(/dong tu|verb|^v$|\bv\b|đt/.test(wc)) return "action";
+            if(/tinh tu|adj|đặc điểm|tt/.test(wc)) return "state";
+            const em=(window.__EMO?window.__EMO.candidates(v):[]);
+            if(em.length) return "concrete";
+            return this.lookup(v) ? "abstract" : "abstract";
+          },
           concepts(v){
             const out=[], seen={};
             const add=(label,terms,emoji)=>{ terms=(Array.isArray(terms)?terms:[terms]).map(t=>String(t||"").trim()).filter(Boolean);
@@ -8415,12 +8452,34 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
 
         /* Tự chọn EMOJI minh hoạ cho từ chưa có ảnh (thay cho tìm ảnh ngoài).
            Ảnh do thầy đặt (source 'teacher') luôn được giữ nguyên. */
+        /* Thư viện ảnh đã duyệt: tra theo chữ Hán, dùng lại ảnh thầy đã duyệt ở bài khác */
+        async function libGet(words) {
+          const lib = {}; const ws = [...new Set((words || []).filter(Boolean))];
+          if (!ws.length) return lib;
+          try { const { data } = await sb.from("hsk_image_library").select("chinese,url,concept,word_type").in("chinese", ws);
+            (data || []).forEach(r => lib[r.chinese] = r); } catch (e) {}
+          return lib;
+        }
+        async function libSave(v, wordType) {
+          try { await sb.from("hsk_image_library").upsert({ chinese: v.chinese, vietnamese: v.vietnamese || "",
+            concept: v.imageConcept || "", url: v.image.url, source: "approved", word_type: wordType || "",
+            created_by: user.id, updated_at: new Date().toISOString() }, { onConflict: "chinese" }); } catch (e) {}
+        }
         async function fetchImages(lesson, log) {
-          /* Gán KHÔNG TRÙNG trong cả bài: emoji tốt nhất → emoji thay thế →
-             OpenMoji (nguồn phụ) → để trống & xem lại. Giữ ảnh thầy tự đặt. */
+          /* 1) DÙNG LẠI ảnh đã duyệt trong thư viện (theo chữ Hán) */
+          let reused = 0;
+          const lib = await libGet((lesson.vocabulary || []).map(v => v.chinese));
+          (lesson.vocabulary || []).forEach(v => {
+            if (!(v.image && v.image.url) && lib[v.chinese]) {
+              v.image = { url: lib[v.chinese].url, source: "approved", credit: "" };
+              if (lib[v.chinese].concept && !v.imageConcept) v.imageConcept = lib[v.chinese].concept;
+              reused++;
+            }
+          });
+          /* 2) Gán KHÔNG TRÙNG cho phần còn lại: emoji → OpenMoji → để trống & xem lại */
           const st = EMO.assignLesson(lesson.vocabulary || []);
-          (lesson.vocabulary || []).forEach(v => { if (v._review && log) log("• " + v.chinese + " (" + (v.vietnamese || "") + "): chưa có ảnh riêng phù hợp — tự chọn ảnh ở ✏️."); delete v._review; });
-          return { got: st.emoji + st.alt + st.second, failed: st.review, reused: 0, noKey: false,
+          (lesson.vocabulary || []).forEach(v => { if (v._review && log) log("• " + v.chinese + " (" + (v.vietnamese || "") + "): chưa có ảnh riêng phù hợp — bấm ✏️ rồi 🔄/💡 để chọn."); delete v._review; });
+          return { got: st.emoji + st.alt + st.second, failed: st.review, reused, noKey: false,
                    none: st.review, alt: st.alt, second: st.second };
         }
 
