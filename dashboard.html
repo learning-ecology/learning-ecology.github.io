@@ -165,6 +165,8 @@
   .vrow-warn{ background:#fff8e6; border-radius:8px; box-shadow:inset 3px 0 0 #e0a800; }
   .vrow-badge{ font-size:0.72rem; font-weight:700; color:#8a6d00; background:#ffe9a8; border:1px solid #e6c65c;
                border-radius:999px; padding:0.05rem 0.45rem; white-space:nowrap; align-self:center; }
+  .hs-spin{ display:inline-block; animation:hsspin 0.9s linear infinite; }
+  @keyframes hsspin{ to{ transform:rotate(360deg); } }
   </style>
 </head>
 <body>
@@ -7654,7 +7656,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         const stSel = document.getElementById("hs-status");
         if (stSel) stSel.addEventListener("change", () => { hsStatus = stSel.value || "all"; closeEditor(); renderHs(); });
         /* số từ CHƯA có ảnh trong một bài = số ảnh cần xem lại */
-        function reviewCountOf(data){ return (data && Array.isArray(data.vocabulary)) ? data.vocabulary.filter(v => !(v.image && v.image.url)).length : 0; }
+        /* cần xem lại = chưa có ảnh, HOẶC đang xem ảnh gợi ý thật chưa duyệt */
+        function reviewCountOf(data){ return (data && Array.isArray(data.vocabulary)) ? data.vocabulary.filter(v => !(v.image && v.image.url) || (v.image && v.image.source === "suggest")).length : 0; }
         function reviewCount(l){ return reviewCountOf(l && l.data); }
         function goReviewFilter(){ hsStatus = "review"; if (stSel) stSel.value = "review"; closeEditor(); renderHs();
           const c = document.querySelector('[data-tab="hsk"] #hs-list'); if (c) c.scrollIntoView({ behavior: "smooth", block: "start" }); }
@@ -7868,9 +7871,12 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
 
           const thumb = (v, i) => {
             const on = active === i;
-            const isEmo = window.__EMO && window.__EMO.isEmojiImg(v.image);
-            const inner = v.image && v.image.url
-              ? `<img src="${esc(v.image.url)}" alt="" style="width:100%;height:100%;object-fit:${isEmo ? "contain" : "cover"};${isEmo ? "padding:5px;background:#fff;" : ""}border-radius:7px;" onerror="this.style.opacity=.25;" />`
+            const u = v.image && v.image.url;
+            const icon = u && /twemoji|openmoji|iconify\.design/.test(u);   // icon SVG → chứa gọn; ảnh thật → phủ đầy
+            const inner = v._loading
+              ? '<span class="hs-spin" style="font-size:1rem;">⏳</span>'
+              : u
+              ? `<img src="${esc(u)}" alt="" style="width:100%;height:100%;object-fit:${icon ? "contain" : "cover"};${icon ? "padding:4px;background:#fff;" : ""}border-radius:7px;" onerror="this.style.opacity=.25;" />`
               : `<span style="font-size:0.72rem;color:var(--muted);text-align:center;line-height:1.25;">＋<br />ảnh</span>`;
             return `<div class="hs-thumb" data-thumb="${i}" title="Bấm để chọn, rồi dán ⌘V — hoặc kéo thả ảnh vào đây"
               style="width:74px;height:56px;flex:none;border:2px ${on ? "solid var(--accent)" : "dashed var(--line)"};
@@ -7900,13 +7906,22 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
                     <input data-f="notes" data-i="${i}" value="${esc(v.notes || "")}" placeholder="ghi chú / mẹo nhớ chữ" style="flex:1;min-width:260px;" />
                   </div>
                 </div>` : "";
-              const needImg = !(v.image && v.image.url);
+              const src = v.image && v.image.url ? (v.image.source || "teacher") : "none";
+              const stt = src === "none" ? "review" : src === "suggest" ? "suggest" : src === "approved" ? "approved"
+                : src === "teacher" ? "manual" : "auto";
+              const needImg = (stt === "review" || stt === "suggest");
+              const badge = stt === "review" ? '<span class="vrow-badge">⚠️ Cần xem lại ảnh</span>'
+                : stt === "suggest" ? '<span class="vrow-badge" style="background:#e7f0ff;border-color:#9db8e6;color:#1b4a86;">🔎 Ảnh đề xuất · ✓ để duyệt</span>'
+                : stt === "approved" ? '<span class="vrow-badge" style="background:#e6f6ec;border-color:#8fce9f;color:#1a7f4b;">✅ Đã duyệt ảnh</span>'
+                : stt === "manual" ? '<span class="vrow-badge" style="background:#eef1f7;border-color:#cbd3e0;color:#48536b;">🖼️ Ảnh tự chọn</span>' : "";
               return `<div class="lesson${needImg ? " vrow-warn" : ""}" style="flex-wrap:wrap;gap:0.4rem;align-items:flex-start;">
                 ${thumb(v, i)}
                 <div style="display:flex;flex-direction:column;gap:0.25rem;align-items:center;">
-                  ${needImg ? '<span class="vrow-badge">⚠️ Cần xem lại ảnh</span>' : ""}
+                  ${badge}
                   <div style="display:flex;gap:0.15rem;">
-                    <button class="ghost" data-emo="${i}" title="Chọn lại emoji minh hoạ" style="padding:0.2rem 0.4rem;">🔄</button>
+                    <button class="ghost" data-prev="${i}" title="Ảnh trước" style="padding:0.2rem 0.4rem;">←</button>
+                    <button class="ghost" data-emo="${i}" title="Gợi ý ảnh khác (emoji → icon → ảnh)" style="padding:0.2rem 0.4rem;">🔄</button>
+                    <button class="ghost" data-approve="${i}" title="Dùng ảnh này (duyệt)" style="padding:0.2rem 0.4rem;">✓</button>
                     <button class="ghost" data-up="${i}" title="Tải ảnh từ máy" style="padding:0.2rem 0.4rem;">📁</button>
                     <button class="ghost" data-url="${i}" title="Dán link ảnh" style="padding:0.2rem 0.4rem;">🔗</button>
                     <button class="ghost" data-noimg="${i}" title="Xoá ảnh" style="padding:0.2rem 0.4rem;">✕</button>
@@ -8014,14 +8029,28 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             const up = e.target.closest("[data-up]"), ur = e.target.closest("[data-url]");
             const ni = e.target.closest("[data-noimg]"), mo = e.target.closest("[data-more]");
             const mv = e.target.closest("[data-mv]"), rm = e.target.closest("[data-rm]");
-            const em = e.target.closest("[data-emo]");
-            if (em) { const i = Number(em.dataset.emo), v = L.vocabulary[i];
-              const cands = (window.__EMO ? window.__EMO.candidates(v) : []);
-              if (!cands.length) { note("⚠️ Chưa có emoji phù hợp cho “" + v.chinese + " / " + (v.vietnamese || "") + "” — hãy tự tải/dán ảnh."); return; }
-              const cur = (v.image && v.image.emoji) ? cands.indexOf(v.image.emoji) : -1;
-              const nx = cands[(cur + 1) % cands.length];
-              L.vocabulary[i].image = { url: window.__EMO.url(nx), source: "emoji", emoji: nx, credit: "" };
-              draw(); note("Emoji " + nx + (cands.length > 1 ? " — bấm 🔄 để đổi (" + cands.length + " lựa chọn)" : "") + " · nhớ Lưu."); return; }
+            const em = e.target.closest("[data-emo]"), pv = e.target.closest("[data-prev]"), ap = e.target.closest("[data-approve]");
+            if (em) {  // 🔄 gợi ý ảnh KHÁC (emoji → icon → ảnh thật), không lặp
+              const i = Number(em.dataset.emo), v = L.vocabulary[i];
+              const others = (L.vocabulary || []).filter((_, k) => k !== i).map(x => x.image && x.image.url).filter(Boolean);
+              v._loading = true; draw();
+              carNext(v, others).then(u => {
+                v._loading = false;
+                if (!u) { note("Hết ứng viên phù hợp cho “" + v.chinese + " / " + (v.vietnamese || "") + "” — thử 🔗 dán link / 📁 tải ảnh."); draw(); return; }
+                v.image = { url: u, source: urlSource(u), credit: "" };
+                draw(); updateListBadge(); note("Ảnh gợi ý — bấm ← xem lại, 🔄 đổi tiếp, ✓ để dùng.");
+              });
+              return;
+            }
+            if (pv) { const i = Number(pv.dataset.prev), v = L.vocabulary[i];
+              const u = carPrev(v);
+              if (!u) { note("Không còn ảnh trước."); return; }
+              v.image = { url: u, source: urlSource(u), credit: "" };
+              draw(); updateListBadge(); return; }
+            if (ap) { const i = Number(ap.dataset.approve), v = L.vocabulary[i];
+              if (!(v.image && v.image.url)) { note("Chưa có ảnh để duyệt — bấm 🔄 để gợi ý."); return; }
+              v.image = { url: v.image.url, source: "approved", credit: v.image.credit || "" };
+              draw(); updateListBadge(); note("✅ Đã duyệt ảnh cho “" + v.chinese + "” — nhớ bấm Lưu."); return; }
             if (th) { active = Number(th.dataset.thumb); draw();
                       note("Ô ảnh của “" + L.vocabulary[active].chinese + "” đang chọn — dán ảnh bằng ⌘V."); return; }
             if (up) { active = Number(up.dataset.up); filePick.dataset.i = up.dataset.up; filePick.click(); return; }
@@ -8054,6 +8083,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               v.order = k + 1;
               v.examples = (v.examples || []).filter(e => (e.zh || "").trim());
               v.chars = Array.from(String(v.chinese || "")).filter(c => /[一-鿿㐀-䶿]/.test(c));
+              delete v._car; delete v._loading;   // trạng thái băng chuyền chỉ trong phiên; giữ v.rejected
+              if (v.rejected && v.rejected.length > 40) v.rejected = v.rejected.slice(-40);
             });
             L.speech = { voice: vSel.value, rate: Number(rSel.value) || 0 };
             const plan = window.HSKParser.buildSlidePlan(L);
@@ -8155,12 +8186,13 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           /* Gán ảnh cho CẢ BÀI, KHÔNG trùng: emoji tốt nhất chưa dùng → emoji thay thế
              → OpenMoji (nguồn phụ) → nếu hết thì để trống & đánh dấu xem lại.
              Ảnh thầy tự đặt (source 'teacher') luôn giữ nguyên. */
+          isKept(img){ return !!(img && (img.source === "teacher" || img.source === "approved")); },
           assignLesson(vocabulary){
             const used = new Set();
-            (vocabulary || []).forEach(v => { if (v.image && v.image.url && v.image.source === "teacher") used.add(v.image.url); });
+            (vocabulary || []).forEach(v => { if (v.image && v.image.url && this.isKept(v.image)) used.add(v.image.url); });
             const st = { emoji: 0, alt: 0, second: 0, review: 0 };
             // gán từ có ÍT lựa chọn trước (ràng buộc nhất) để giảm đụng độ
-            const list = (vocabulary || []).filter(v => !(v.image && v.image.source === "teacher"));
+            const list = (vocabulary || []).filter(v => !this.isKept(v.image));
             const withC = list.map(v => ({ v, c: this.candidates(v) })).sort((a, b) => (a.c.length || 99) - (b.c.length || 99));
             withC.forEach(({ v, c }) => {
               v._review = false;
@@ -8177,6 +8209,84 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           }
         };
         window.__EMO = EMO;   // dùng lại cho nút "Chuyển ảnh sang Twemoji"
+
+        /* ============================================================
+           Băng chuyền GỢI Ý ẢNH (nút 🔄) — Phase 95
+           Lớp nguồn: Twemoji → OpenMoji → icon Iconify → ảnh Wikimedia
+           Commons. Không cần khoá, nhúng trực tiếp, CORS sẵn. Mỗi từ giữ
+           lịch sử ứng viên riêng để không lặp lại; ← xem ảnh trước, ✓ duyệt.
+           ============================================================ */
+        const IMG = {
+          async iconify(terms) {
+            const out = [];
+            for (const t of terms.slice(0, 3)) {
+              if (!t || !/[a-z]/i.test(t)) continue;   // Iconify chỉ hợp từ tiếng Anh
+              try {
+                const r = await fetch("https://api.iconify.design/search?query=" + encodeURIComponent(t) + "&limit=16");
+                const j = await r.json();
+                (j.icons || []).forEach(name => { const p = name.split(":"); if (p.length === 2) out.push("https://api.iconify.design/" + p[0] + "/" + p[1] + ".svg?height=220"); });
+              } catch (e) {}
+              if (out.length >= 16) break;
+            }
+            return [...new Set(out)];
+          },
+          async commons(terms) {
+            const out = [];
+            for (const t of terms.slice(0, 3)) {
+              if (!t) continue;
+              try {
+                const r = await fetch("https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=" +
+                  encodeURIComponent(t) + "&gsrnamespace=6&gsrlimit=8&prop=imageinfo&iiprop=url&iiurlwidth=400&format=json&origin=*");
+                const j = await r.json();
+                const pp = (j.query && j.query.pages) || {};
+                Object.keys(pp).forEach(k => { const ii = pp[k].imageinfo && pp[k].imageinfo[0]; if (ii && ii.thumburl) out.push(ii.thumburl.split("?")[0]); });
+              } catch (e) {}
+              if (out.length >= 12) break;
+            }
+            return [...new Set(out)].filter(u => /\.(png|jpe?g|svg|gif|webp)$/i.test(u.split("?")[0]));
+          },
+          /* từ khoá tiếng Anh (cho Iconify): imageKeyword + vài mở rộng */
+          concepts(v) {
+            const kw = (v.imageKeyword || "").toLowerCase().trim();
+            const out = [];
+            if (kw) { out.push(kw); kw.split(/\s+/).forEach(w => { if (w.length > 1) out.push(w); }); }
+            return [...new Set(out)];
+          },
+          /* từ khoá đa ngôn ngữ (cho Commons): tiếng Anh + tiếng Việt + chữ Hán */
+          terms(v) {
+            const out = [];
+            if (v.imageKeyword) out.push(String(v.imageKeyword).trim());
+            const vi = String(v.vietnamese || "").split(/[,;(/]/)[0].trim(); if (vi) out.push(vi);
+            if (v.chinese) out.push(String(v.chinese).trim());
+            return [...new Set(out.filter(Boolean))];
+          }
+        };
+        window.__IMG = IMG;
+
+        function urlSource(u) { return /twemoji/.test(u) ? "emoji" : /openmoji/.test(u) ? "emoji2" : "suggest"; }
+        async function carPull(v, lessonUrls) {
+          const c = v._car;
+          const used = new Set([].concat(lessonUrls || [], c.hist || [], v.rejected || []));
+          const pick = () => { for (const u of c.pool) if (!used.has(u)) return u; return null; };
+          if (c.st === 0) { c.st = 1; EMO.candidates(v).forEach(e => c.pool.push(EMO.url(e))); EMO.candidates(v).forEach(e => c.pool.push(EMO.urlAlt(e))); }
+          let u = pick(); if (u) return u;
+          if (c.st === 1) { c.st = 2; (await IMG.iconify(IMG.concepts(v))).forEach(x => c.pool.push(x)); u = pick(); if (u) return u; }
+          if (c.st === 2) { c.st = 3; (await IMG.commons(IMG.terms(v))).forEach(x => c.pool.push(x)); u = pick(); if (u) return u; }
+          return null;
+        }
+        async function carNext(v, lessonUrls) {
+          if (!v._car) { v._car = { hist: [], pos: -1, pool: [], st: 0 };     // gieo ảnh hiện tại làm mốc lịch sử
+            if (v.image && v.image.url) { v._car.hist.push(v.image.url); v._car.pos = 0; } }
+          const c = v._car;
+          if (c.pos < c.hist.length - 1) { c.pos++; return c.hist[c.pos]; }   // đi tới trong lịch sử
+          const cur = c.hist[c.pos];                                          // ảnh đang xem coi như bỏ qua
+          if (cur) { v.rejected = v.rejected || []; if (v.rejected.indexOf(cur) < 0) v.rejected.push(cur); if (v.rejected.length > 40) v.rejected.shift(); }
+          const u = await carPull(v, lessonUrls);
+          if (u) { c.hist.push(u); c.pos = c.hist.length - 1; return u; }
+          if (c.hist.length) { c.pos = (c.pos + 1) % c.hist.length; return c.hist[c.pos]; }  // hết ứng viên → quay vòng lịch sử
+          return null;
+        }
+        function carPrev(v) { const c = v._car; if (!c || c.pos <= 0) return null; c.pos--; return c.hist[c.pos]; }
 
         /* Tự chọn EMOJI minh hoạ cho từ chưa có ảnh (thay cho tìm ảnh ngoài).
            Ảnh do thầy đặt (source 'teacher') luôn được giữ nguyên. */
