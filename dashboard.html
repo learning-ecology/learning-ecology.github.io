@@ -7901,6 +7901,9 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
                     <input data-f="imageUrl" data-i="${i}" value="${esc(v.image ? v.image.url : "")}" placeholder="link ảnh minh hoạ (https://…)" style="flex:1;min-width:220px;" />
                     <input data-f="imageKeyword" data-i="${i}" value="${esc(v.imageKeyword || "")}" placeholder="từ khoá tìm ảnh (tiếng Anh)" style="max-width:190px;" />
                   </div>
+                  <div class="form-row" style="gap:0.3rem;margin-top:0.3rem;">
+                    <input data-f="imageConcept" data-i="${i}" value="${esc(v.imageConcept || "")}" placeholder="💡 Ý tưởng hình ảnh (vd: student practicing Chinese characters) — 🔄 sẽ tìm theo câu này" style="flex:1;min-width:300px;" />
+                  </div>
                   ${exRows}
                   <div class="form-row" style="gap:0.3rem;margin-top:0.3rem;">
                     <input data-f="notes" data-i="${i}" value="${esc(v.notes || "")}" placeholder="ghi chú / mẹo nhớ chữ" style="flex:1;min-width:260px;" />
@@ -7920,7 +7923,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
                   ${badge}
                   <div style="display:flex;gap:0.15rem;">
                     <button class="ghost" data-prev="${i}" title="Ảnh trước" style="padding:0.2rem 0.4rem;">←</button>
-                    <button class="ghost" data-emo="${i}" title="Gợi ý ảnh khác (emoji → icon → ảnh)" style="padding:0.2rem 0.4rem;">🔄</button>
+                    <button class="ghost" data-emo="${i}" title="Ảnh khác (cùng ý tưởng)" style="padding:0.2rem 0.4rem;">🔄</button>
+                    <button class="ghost" data-idea="${i}" title="Đổi ý tưởng hình ảnh" style="padding:0.2rem 0.4rem;">💡</button>
                     <button class="ghost" data-approve="${i}" title="Dùng ảnh này (duyệt)" style="padding:0.2rem 0.4rem;">✓</button>
                     <button class="ghost" data-up="${i}" title="Tải ảnh từ máy" style="padding:0.2rem 0.4rem;">📁</button>
                     <button class="ghost" data-url="${i}" title="Dán link ảnh" style="padding:0.2rem 0.4rem;">🔗</button>
@@ -8021,7 +8025,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             }
             if (!f) return;
             if (f === "imageUrl") v.image = e.target.value.trim() ? { url: e.target.value.trim(), source: "teacher", credit: "" } : null;
-            else { v[f] = e.target.value; if (f === "pinyin") v.pinyinSource = "teacher"; }
+            else { v[f] = e.target.value; if (f === "pinyin") v.pinyinSource = "teacher";
+              if (f === "imageConcept" || f === "imageKeyword") delete v._car; }  // dựng lại ý tưởng khi đổi khoá/ý tưởng
           });
 
           rows.addEventListener("click", e => {
@@ -8051,6 +8056,40 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               if (!(v.image && v.image.url)) { note("Chưa có ảnh để duyệt — bấm 🔄 để gợi ý."); return; }
               v.image = { url: v.image.url, source: "approved", credit: v.image.credit || "" };
               draw(); updateListBadge(); note("✅ Đã duyệt ảnh cho “" + v.chinese + "” — nhớ bấm Lưu."); return; }
+            const idb = e.target.closest("[data-idea]");
+            if (idb) {  // 💡 đổi Ý TƯỞNG hình ảnh
+              const i = Number(idb.dataset.idea), v = L.vocabulary[i];
+              const existing = rows.querySelector(".idea-panel");
+              if (existing) { const same = existing.dataset.for === String(i); existing.remove(); if (same) return; }
+              if (!v._car) initCar(v);
+              const others = (L.vocabulary || []).filter((_, k) => k !== i).map(x => x.image && x.image.url).filter(Boolean);
+              const rowEl = idb.closest(".lesson");
+              const panel = document.createElement("div");
+              panel.className = "idea-panel"; panel.dataset.for = i;
+              panel.style.cssText = "flex-basis:100%;margin:.35rem 0;padding:.55rem;border:1px solid var(--line);border-radius:9px;background:#fbfcfe;";
+              panel.innerHTML = '<div style="font-weight:700;font-size:.85rem;margin-bottom:.35rem;">💡 Ý tưởng hình ảnh cho “' + esc(v.chinese) + " / " + esc(v.vietnamese || "") + "”</div>" +
+                (v._car.concepts || []).map((c, ci) => '<button class="ghost idea-chip" data-ci="' + ci + '" style="margin:.15rem;padding:.25rem .55rem;font-size:.82rem;' + (ci === v._car.ci ? "border-color:var(--accent);background:#eef5ff;" : "") + '">' + esc(c.label) + "</button>").join("") +
+                '<button class="ghost idea-custom" style="margin:.15rem;padding:.25rem .55rem;font-size:.82rem;">✏️ Tùy chỉnh…</button>';
+              rowEl.appendChild(panel);
+              const applyConcept = async () => {
+                panel.remove(); v._loading = true; draw();
+                const u = await carNext(v, others); v._loading = false;
+                if (u) v.image = { url: u, source: urlSource(u), credit: "" };
+                draw(); updateListBadge();
+              };
+              panel.querySelectorAll(".idea-chip").forEach(btn => { btn.onclick = () => {
+                const ci = Number(btn.dataset.ci); v._car.ci = ci;
+                const c = v._car.concepts[ci]; const term = c.terms[0] || "";
+                if (term && !c.emoji) v.imageConcept = term;   // nhớ ý tưởng cho lần sau
+                note("Ý tưởng: " + c.label + " — 🔄 để đổi ảnh trong ý tưởng này."); applyConcept();
+              }; });
+              panel.querySelector(".idea-custom").onclick = () => {
+                const cur = prompt("Nhập ý tưởng hình ảnh (tiếng Anh dễ tìm, vd: student writing Chinese characters):", v.imageConcept || "");
+                if (cur == null) return;
+                v.imageConcept = cur.trim(); delete v._car; applyConcept();
+              };
+              return;
+            }
             if (th) { active = Number(th.dataset.thumb); draw();
                       note("Ô ảnh của “" + L.vocabulary[active].chinese + "” đang chọn — dán ảnh bằng ⌘V."); return; }
             if (up) { active = Number(up.dataset.up); filePick.dataset.i = up.dataset.up; filePick.click(); return; }
@@ -8235,15 +8274,18 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             for (const t of terms.slice(0, 3)) {
               if (!t) continue;
               try {
+                /* loại PDF/DjVu (bản quét sách) — ưu tiên ảnh thật/vẽ */
+                const q = t + " -filemime:application/pdf -filemime:image/vnd.djvu";
                 const r = await fetch("https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=" +
-                  encodeURIComponent(t) + "&gsrnamespace=6&gsrlimit=8&prop=imageinfo&iiprop=url&iiurlwidth=400&format=json&origin=*");
+                  encodeURIComponent(q) + "&gsrnamespace=6&gsrlimit=8&prop=imageinfo&iiprop=url|mime&iiurlwidth=400&format=json&origin=*");
                 const j = await r.json();
                 const pp = (j.query && j.query.pages) || {};
-                Object.keys(pp).forEach(k => { const ii = pp[k].imageinfo && pp[k].imageinfo[0]; if (ii && ii.thumburl) out.push(ii.thumburl.split("?")[0]); });
+                Object.keys(pp).forEach(k => { const ii = pp[k].imageinfo && pp[k].imageinfo[0];
+                  if (ii && ii.thumburl && !/pdf|djvu/i.test((ii.mime || "") + " " + (ii.url || ""))) out.push(ii.thumburl.split("?")[0]); });
               } catch (e) {}
               if (out.length >= 12) break;
             }
-            return [...new Set(out)].filter(u => /\.(png|jpe?g|svg|gif|webp)$/i.test(u.split("?")[0]));
+            return [...new Set(out)].filter(u => /\.(png|jpe?g|svg|gif|webp)$/i.test(u.split("?")[0]) && !/\.(pdf|djvu)\./i.test(u));
           },
           /* từ khoá tiếng Anh (cho Iconify): imageKeyword + vài mở rộng */
           concepts(v) {
@@ -8263,30 +8305,113 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         };
         window.__IMG = IMG;
 
+        /* ============================================================
+           Lớp Ý TƯỞNG HÌNH ẢNH (visual concept) — Phase 96
+           Trước khi tìm ảnh, dựng 3–5 "ý tưởng hình" cụ thể (câu tiếng Anh dễ
+           minh hoạ) cho từ, thay vì tìm thẳng bằng chữ Hán / nghĩa. 🔄 đổi ẢNH
+           trong cùng ý tưởng; 💡 đổi Ý TƯỞNG. Ý tưởng do thầy đặt (imageConcept)
+           được ưu tiên và lưu cùng từ.
+           ============================================================ */
+        const CONCEPT = {
+          norm(x){ return String(x||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/đ/g,"d").trim(); },
+          MAP: {
+            // actions (verb -> visible human action)
+            "wait":["person waiting at a bus stop","people waiting in a queue","person checking watch waiting"],"doi":["person waiting at a bus stop","people waiting in a queue"],"cho":["person waiting at a bus stop","people waiting in line"],
+            "help":["one person helping another person up","volunteer helping someone","helping hand"],"giup":["one person helping another person up","volunteer helping someone"],"giup do":["one person helping another"],
+            "choose":["person choosing between two paths","crossroads decision","two doors to choose"],"choice":["person at a crossroads choosing","two paths decision"],"lua chon":["person choosing between two paths","crossroads decision"],"chon":["person choosing between two paths"],
+            "meet":["two people shaking hands meeting","people greeting each other"],"gap":["two people meeting and greeting"],
+            "study":["student studying with books","person learning at desk"],"hoc":["student studying with books at desk"],
+            "practice":["student practicing writing on paper","person repeating an exercise"],"luyen tap":["student practicing writing on paper"],
+            "solve":["person solving a puzzle","fixing a problem","completed maze"],"giai quyet":["person solving a puzzle","fixing a problem"],
+            "change":["before and after comparison","transformation arrows","seasons changing"],"thay doi":["before and after comparison","transformation arrows"],
+            "grow":["seedling growing into plant","child growth stages"],"phat trien":["upward growth chart","seedling growing into a tree"],
+            // states / adjectives (situation showing the state)
+            "tired":["tired person resting after work","exhausted person yawning at desk"],"met":["tired person resting after work","exhausted person at desk"],
+            "quiet":["quiet library reading","finger on lips silence","calm peaceful room"],"yen tinh":["quiet library reading","finger on lips silence"],"an tinh":["quiet peaceful room"],
+            "dangerous":["warning danger sign","person near a cliff edge caution","hazard warning sign"],"danger":["warning danger sign","hazard caution sign"],"nguy hiem":["warning danger sign","person near a cliff edge"],
+            "busy":["busy office with many tasks","person with a full schedule"],"ban":["busy office with many tasks"],
+            "happy":["happy smiling person","people celebrating joy"],"vui":["happy smiling person","people celebrating"],
+            "important":["highlighted priority on a checklist","big exclamation mark","star marked priority"],"quan trong":["highlighted priority on a checklist","exclamation mark important"],
+            "difficult":["person climbing a steep obstacle","struggling uphill","tangled knot problem"],"kho khan":["person climbing a steep obstacle","struggling uphill"],"kho":["person struggling with a hard task"],
+            "convenient":["easy one tap on a phone","smooth simple process"],"tien loi":["easy convenient process","one tap on phone"],
+            // abstract (concrete visual metaphor)
+            "method":["person following numbered steps","step by step instructions diagram","process flowchart"],"phuong phap":["person following numbered steps","step by step instructions"],
+            "experience":["experienced worker teaching a beginner","mentor training a new employee","expert giving advice"],"kinh nghiem":["experienced worker teaching a beginner","mentor training a new employee","expert giving advice"],
+            "influence":["domino effect chain reaction","one person influencing a group","ripple effect in water"],"anh huong":["domino effect chain reaction","one person influencing a group","ripple effect in water"],
+            "relationship":["two people shaking hands","people connected in a network","friends talking together"],"quan he":["two people shaking hands","people connected network","friends talking"],"moi quan he":["two people connected","people in a network"],
+            "progress":["person climbing upward steps","rising growth chart arrow","climbing stairs to success"],"tien bo":["person climbing upward steps","rising growth chart"],
+            "success":["person reaching a finish line","winner holding a trophy","reaching a mountain top"],"thanh cong":["person reaching a finish line","winner with trophy","reaching mountain top"],
+            "opportunity":["open door with bright light","new path opening ahead","door of opportunity"],"co hoi":["open door with bright light","new path opening"],
+            "plan":["calendar with a checklist","planning board with schedule","to do list on paper"],"ke hoach":["calendar with a checklist","planning board schedule"],
+            "goal":["arrow hitting a target bullseye","dart on a target","goal flag on a hill"],"muc tieu":["arrow hitting a target bullseye","dart on a target"],
+            "responsible":["person completing an assigned task","hand on chest responsibility","worker taking charge"],"chiu trach nhiem":["person completing an assigned task","worker taking charge"],"trach nhiem":["person completing an assigned task"],
+            "problem":["question mark over a person's head","tangled knot problem","obstacle in the way"],"van de":["question mark problem","tangled knot"],
+            "reason":["cause and effect diagram","because arrow explanation"],"ly do":["cause and effect diagram"],"nguyen nhan":["cause and effect diagram","root of a tree cause"],
+            "result":["finish line result","cause leading to effect arrow"],"ket qua":["cause and effect result arrow","report card result"],
+            "knowledge":["open book with a lightbulb","brain full of ideas","student learning knowledge"],"kien thuc":["open book with a lightbulb","brain full of ideas"],
+            "ability":["strong arm flexing capability","person doing a skilled task"],"kha nang":["person performing a skilled task","strong capable arm"],
+            "level":["stacked bars increasing level","stairs going up levels"],"trinh do":["increasing level bars","stairs going up"],
+            "culture":["traditional cultural festival","people in traditional costumes"],"van hoa":["traditional cultural festival","traditional costumes"],
+            "society":["crowd of many people community","group of diverse people"],"xa hoi":["crowd of people community","group of diverse people"],
+            "economy":["rising money growth chart","coins and financial graph"],"kinh te":["rising money chart","coins and graph"],
+            "environment":["green earth nature protection","clean environment trees"],"moi truong":["green earth nature","clean environment with trees"],
+            "history":["old scroll and ancient ruins","timeline of past events"],"lich su":["old scroll ancient ruins","history timeline"],
+            "future":["road leading to a bright horizon","person looking toward the future"],"tuong lai":["road to a bright horizon","looking toward the future"],
+            "freedom":["bird flying free in open sky","person with open arms freedom"],"tu do":["bird flying free in the sky","person with open arms"],
+            "peace":["white dove peace symbol","people holding hands peace"],"hoa binh":["white dove of peace","people holding hands"],
+            "health":["healthy person exercising","heart and healthy lifestyle"],"suc khoe":["healthy person exercising","heart healthy lifestyle"],
+            "safety":["safety helmet and shield","seatbelt safety protection"],"an toan":["safety helmet and shield","seatbelt protection"]
+          },
+          keys(v){ const out=[]; const kw=(v.imageKeyword||"").toLowerCase().trim();
+            if(kw){ out.push(kw); kw.split(/\s+/).forEach(w=>{if(w.length>1)out.push(w);}); }
+            const vi=String(v.vietnamese||"").toLowerCase(); const nvi=this.norm(vi);
+            out.push(nvi); nvi.split(/[,;/()\s]+/).forEach(w=>{if(w.length>1)out.push(w);});
+            const first=this.norm(vi.split(/[,;(/]/)[0]); if(first)out.push(first);
+            return [...new Set(out.filter(Boolean))]; },
+          lookup(v){ const ks=this.keys(v); for(const k of ks){ if(this.MAP[k])return this.MAP[k]; } for(const k of ks){ const s=k.replace(/s$/,""); if(s!==k&&this.MAP[s])return this.MAP[s]; } return null; },
+          concepts(v){
+            const out=[], seen={};
+            const add=(label,terms,emoji)=>{ terms=(Array.isArray(terms)?terms:[terms]).map(t=>String(t||"").trim()).filter(Boolean);
+              if(!terms.length)return; const key=label.toLowerCase(); if(seen[key])return; seen[key]=1; out.push({label,terms,emoji:!!emoji}); };
+            if(v.imageConcept) add("✏️ "+v.imageConcept, [v.imageConcept, v.imageConcept+" illustration"]);
+            const em=(window.__EMO?window.__EMO.candidates(v):[]);
+            if(em.length){ const kw=(v.imageKeyword||"").trim();
+              add("🔣 "+(kw||v.vietnamese||"biểu tượng"), [kw, kw&&kw+" illustration", v.vietnamese, v.chinese], true); }
+            const cur=this.lookup(v); if(cur) cur.forEach(p=>add("💡 "+p, [p, p+" illustration"]));
+            if(v.imageKeyword) add("🔎 "+v.imageKeyword, [v.imageKeyword, v.imageKeyword+" illustration"]);
+            add("🔎 "+(v.vietnamese||v.chinese||""), [v.vietnamese, v.chinese]);
+            return out;
+          }
+        };
+        window.__CONCEPT = CONCEPT;
+
         function urlSource(u) { return /twemoji/.test(u) ? "emoji" : /openmoji/.test(u) ? "emoji2" : "suggest"; }
-        async function carPull(v, lessonUrls) {
-          const c = v._car;
-          const used = new Set([].concat(lessonUrls || [], c.hist || [], v.rejected || []));
-          const pick = () => { for (const u of c.pool) if (!used.has(u)) return u; return null; };
-          if (c.st === 0) { c.st = 1; EMO.candidates(v).forEach(e => c.pool.push(EMO.url(e))); EMO.candidates(v).forEach(e => c.pool.push(EMO.urlAlt(e))); }
-          let u = pick(); if (u) return u;
-          if (c.st === 1) { c.st = 2; (await IMG.iconify(IMG.concepts(v))).forEach(x => c.pool.push(x)); u = pick(); if (u) return u; }
-          if (c.st === 2) { c.st = 3; (await IMG.commons(IMG.terms(v))).forEach(x => c.pool.push(x)); u = pick(); if (u) return u; }
+        function cstate(v){ const c=v._car; c.byC[c.ci]=c.byC[c.ci]||{hist:[],pos:-1,pool:[],st:0}; return c.byC[c.ci]; }
+        function initCar(v){ v._car={ concepts:CONCEPT.concepts(v), ci:0, byC:{} };
+          const s=cstate(v); if(v.image&&v.image.url){ s.hist.push(v.image.url); s.pos=0; } }
+        async function carPull(v, others){
+          const c=v._car, concept=c.concepts[c.ci]||{terms:[v.vietnamese||v.chinese],emoji:false}, s=cstate(v);
+          const used=new Set([].concat(others||[], s.hist||[], v.rejected||[]));
+          const pick=()=>{ for(const u of s.pool) if(!used.has(u)) return u; return null; };
+          if(s.st===0){ s.st=1; if(concept.emoji && window.__EMO){ window.__EMO.candidates(v).forEach(e=>s.pool.push(window.__EMO.url(e))); window.__EMO.candidates(v).forEach(e=>s.pool.push(window.__EMO.urlAlt(e))); } }
+          let u=pick(); if(u)return u;
+          if(s.st===1){ s.st=2; (await IMG.iconify(concept.terms)).forEach(x=>s.pool.push(x)); u=pick(); if(u)return u; }
+          if(s.st===2){ s.st=3; (await IMG.commons(concept.terms)).forEach(x=>s.pool.push(x)); u=pick(); if(u)return u; }
           return null;
         }
-        async function carNext(v, lessonUrls) {
-          if (!v._car) { v._car = { hist: [], pos: -1, pool: [], st: 0 };     // gieo ảnh hiện tại làm mốc lịch sử
-            if (v.image && v.image.url) { v._car.hist.push(v.image.url); v._car.pos = 0; } }
-          const c = v._car;
-          if (c.pos < c.hist.length - 1) { c.pos++; return c.hist[c.pos]; }   // đi tới trong lịch sử
-          const cur = c.hist[c.pos];                                          // ảnh đang xem coi như bỏ qua
-          if (cur) { v.rejected = v.rejected || []; if (v.rejected.indexOf(cur) < 0) v.rejected.push(cur); if (v.rejected.length > 40) v.rejected.shift(); }
-          const u = await carPull(v, lessonUrls);
-          if (u) { c.hist.push(u); c.pos = c.hist.length - 1; return u; }
-          if (c.hist.length) { c.pos = (c.pos + 1) % c.hist.length; return c.hist[c.pos]; }  // hết ứng viên → quay vòng lịch sử
+        async function carNext(v, others){
+          if(!v._car) initCar(v);
+          const s=cstate(v);
+          if(s.pos<s.hist.length-1){ s.pos++; return s.hist[s.pos]; }
+          const cur=s.hist[s.pos];
+          if(cur){ v.rejected=v.rejected||[]; if(v.rejected.indexOf(cur)<0)v.rejected.push(cur); if(v.rejected.length>40)v.rejected.shift(); }
+          const u=await carPull(v, others);
+          if(u){ s.hist.push(u); s.pos=s.hist.length-1; return u; }
+          if(s.hist.length){ s.pos=(s.pos+1)%s.hist.length; return s.hist[s.pos]; }
           return null;
         }
-        function carPrev(v) { const c = v._car; if (!c || c.pos <= 0) return null; c.pos--; return c.hist[c.pos]; }
+        function carPrev(v){ const s=v._car&&cstate(v); if(!s||s.pos<=0)return null; s.pos--; return s.hist[s.pos]; }
+        async function carSetConcept(v, ci, others){ if(!v._car) initCar(v); v._car.ci=ci; return await carNext(v, others); }
 
         /* Tự chọn EMOJI minh hoạ cho từ chưa có ảnh (thay cho tìm ảnh ngoài).
            Ảnh do thầy đặt (source 'teacher') luôn được giữ nguyên. */
