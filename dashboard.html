@@ -8508,6 +8508,72 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               if (after !== before) { try { await sb.from("vocab_lessons").update({ data: d, updated_at: new Date().toISOString() }).eq("id", r.id); lessons++; } catch (e) {} }
             }
             return { items, has, missing, st, lessons, existingChanged: 0 };
+          },
+          /* ô ảnh cho trình sửa vocab (ảnh string): ⏳ khi tải · icon chứa gọn · ảnh phủ đầy */
+          thumbHtml(v){
+            if (v._loading) return '<span style="font-size:1rem;animation:hsspin .9s linear infinite;display:inline-block;">⏳</span>';
+            if (v.image) { const icon = /twemoji|openmoji|iconify\.design/.test(v.image);
+              return '<img src="' + String(v.image).replace(/"/g, "&quot;") + '" style="width:100%;height:100%;object-fit:' + (icon ? "contain" : "cover") + ";" + (icon ? "padding:5px;background:#fff;" : "") + 'border-radius:7px;" onerror="this.style.opacity=.3;">'; }
+            return '<span style="font-size:.72rem;color:var(--muted);text-align:center;line-height:1.2;">＋<br>ảnh</span>';
+          },
+          /* dải nút băng chuyền ← 🔄 💡 ✓ + ô ý tưởng, dùng cho CẢ hai trình sửa vocab.
+             opts: {lang, others:()=>[url], redraw:fn, msg:fn} — ảnh lưu dạng chuỗi vào v.image */
+          controlsEl(v, opts){
+            opts = opts || {}; const lang = opts.lang || "zh";
+            const others = () => (opts.others ? opts.others() : []);
+            const msg = opts.msg || (() => {}); const redraw = opts.redraw || (() => {});
+            const self = this;
+            const stt = !v.image ? "review" : (v.imageStatus === "suggest" ? "suggest" : v.imageStatus === "approved" ? "approved" : "auto");
+            const badge = stt === "review" ? '⚠️ thiếu ảnh|#8a6d00|#ffe9a8|#e6c65c'
+              : stt === "suggest" ? '🔎 đề xuất · ✓ duyệt|#1b4a86|#e7f0ff|#9db8e6'
+              : stt === "approved" ? '✅ đã duyệt|#1a7f4b|#e6f6ec|#8fce9f' : "";
+            const wrap = document.createElement("div");
+            wrap.style.cssText = "display:flex;flex-direction:column;gap:.2rem;align-items:flex-start;";
+            const b = badge ? badge.split("|") : null;
+            wrap.innerHTML =
+              (b ? '<span style="font-size:.68rem;font-weight:700;color:' + b[1] + ";background:" + b[2] + ";border:1px solid " + b[3] + ';border-radius:999px;padding:.02rem .4rem;">' + b[0] + "</span>" : "") +
+              '<div style="display:flex;gap:.12rem;flex-wrap:wrap;">' +
+                '<button class="ghost" data-vi="prev" style="padding:.12rem .35rem;font-size:.72rem;" title="Ảnh trước">←</button>' +
+                '<button class="ghost" data-vi="next" style="padding:.12rem .35rem;font-size:.72rem;" title="Gợi ý ảnh khác (emoji→icon→ảnh)">🔄</button>' +
+                '<button class="ghost" data-vi="idea" style="padding:.12rem .35rem;font-size:.72rem;" title="Đổi ý tưởng hình ảnh">💡</button>' +
+                '<button class="ghost" data-vi="ok" style="padding:.12rem .35rem;font-size:.72rem;" title="Duyệt & lưu ảnh">✓</button>' +
+              "</div>" +
+              '<input data-vi="concept" placeholder="💡 ý tưởng (mô tả cảnh)" value="' + String(v.imageConcept || "").replace(/"/g, "&quot;") + '" style="font-size:.7rem;padding:.15rem .3rem;min-width:170px;max-width:220px;">';
+            const setImg = u => { v.image = u; v.imageStatus = "suggest"; if (v.match !== false) v.match = true; };
+            wrap.querySelector('[data-vi="next"]').onclick = async () => {
+              v._loading = true; redraw();
+              const u = await self.carNext(v, others()); v._loading = false;
+              if (!u) { msg("Hết ứng viên — thử 💡 đổi ý tưởng, hoặc 🔗/📁."); redraw(); return; }
+              setImg(u); redraw();
+            };
+            wrap.querySelector('[data-vi="prev"]').onclick = () => { const u = self.carPrev(v); if (u) { setImg(u); redraw(); } else msg("Không còn ảnh trước."); };
+            wrap.querySelector('[data-vi="ok"]').onclick = () => {
+              if (!v.image) { msg("Chưa có ảnh để duyệt — bấm 🔄."); return; }
+              v.imageStatus = "approved";
+              self.libPut(self.libKey(lang, self.wordOf(v, lang), v.vi), { vietnamese: v.vi || "", concept: v.imageConcept || "", url: v.image, source: "approved", word_type: self.CONCEPT.wordType(v) });
+              msg("✅ Đã duyệt & lưu vào thư viện dùng lại."); redraw();
+            };
+            wrap.querySelector('[data-vi="concept"]').oninput = e => { v.imageConcept = e.target.value; delete v._car; };
+            wrap.querySelector('[data-vi="idea"]').onclick = () => {
+              if (!v._car) self.initCar(v);
+              const cs = (v._car.concepts) || [];
+              const listStr = cs.map((c, ci) => (ci + 1) + ". " + c.label).join("\n");
+              const pick = prompt("💡 Ý tưởng hình ảnh cho “" + (v.hanzi || v.word || "") + " / " + (v.vi || "") + "”:\nNhập SỐ để chọn, hoặc gõ MÔ TẢ riêng (VN/EN).\n\n" + listStr, String((v._car.ci || 0) + 1));
+              if (pick == null) return;
+              const n = parseInt(pick, 10);
+              (async () => {
+                if (!isNaN(n) && n >= 1 && n <= cs.length) {
+                  const c = cs[n - 1]; if (c.terms[0] && !c.emoji) v.imageConcept = c.terms[0];
+                  v._loading = true; redraw();
+                  const u = await self.carSetConcept(v, n - 1, others()); v._loading = false; if (u) setImg(u); redraw();
+                } else if (pick.trim()) {
+                  v.imageConcept = pick.trim(); delete v._car;
+                  v._loading = true; redraw();
+                  const u = await self.carNext(v, others()); v._loading = false; if (u) setImg(u); redraw();
+                }
+              })();
+            };
+            return wrap;
           }
         };
 
@@ -9319,14 +9385,15 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             wrap.style.cssText = "display:grid; grid-template-columns:120px 1fr; gap:.7rem; padding:.6rem; border:1px solid var(--line); border-radius:10px; margin-bottom:.55rem;";
             wrap.innerHTML =
               '<div>' +
-                '<div class="ve-thumb" style="width:120px; height:96px; border-radius:8px; border:1px solid var(--line); background:#0000000a center/cover no-repeat; display:flex; align-items:center; justify-content:center; overflow:hidden;">' +
-                  (hasImg ? '<img src="' + esc(v.image) + '" style="width:100%; height:100%; object-fit:cover;">' : '<span style="font-size:1.6rem;">🖼️</span>') +
+                '<div class="ve-thumb" style="width:120px; height:96px; border-radius:8px; border:1px solid var(--line); background:#0000000a; display:flex; align-items:center; justify-content:center; overflow:hidden;">' +
+                  (window.VIMG ? window.VIMG.thumbHtml(v) : (hasImg ? '<img src="' + esc(v.image) + '" style="width:100%; height:100%; object-fit:cover;">' : '<span style="font-size:1.6rem;">🖼️</span>')) +
                 "</div>" +
-                '<div style="display:flex; gap:.3rem; margin-top:.35rem; flex-wrap:wrap;">' +
-                  '<label class="ghost btn" style="cursor:pointer; font-size:.78rem; padding:.25rem .5rem;">Tải ảnh<input type="file" accept="image/*" data-b="up" hidden></label>' +
-                  (hasImg ? '<button class="ghost" data-b="rm" style="font-size:.78rem; padding:.25rem .5rem; color:var(--danger);">Xoá ảnh</button>' : "") +
+                '<div data-vislot style="margin-top:.3rem;"></div>' +
+                '<div style="display:flex; gap:.3rem; margin-top:.3rem; flex-wrap:wrap;">' +
+                  '<label class="ghost btn" style="cursor:pointer; font-size:.74rem; padding:.2rem .45rem;">📁 Tải<input type="file" accept="image/*" data-b="up" hidden></label>' +
+                  (hasImg ? '<button class="ghost" data-b="rm" style="font-size:.74rem; padding:.2rem .45rem; color:var(--danger);">✕</button>' : "") +
                 "</div>" +
-                '<label style="display:flex; align-items:center; gap:.3rem; font-size:.76rem; margin-top:.35rem;"><input type="checkbox" data-f="match"' + (v.match === false ? "" : " checked") + " style=\"width:auto;\">Dùng cho nối hình</label>" +
+                '<label style="display:flex; align-items:center; gap:.3rem; font-size:.74rem; margin-top:.3rem;"><input type="checkbox" data-f="match"' + (v.match === false ? "" : " checked") + " style=\"width:auto;\">Nối hình</label>" +
               "</div>" +
               '<div class="form-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:.4rem;">' +
                 '<div class="field" style="margin:0;"><label>Chữ Hán</label><input data-f="hanzi" value="' + esc(v.hanzi || "") + '"></div>' +
@@ -9358,6 +9425,10 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             wrap.querySelector('[data-b="del-i"]').onclick = () => { if (confirm("Xoá từ này?")) { D.vocab.splice(i, 1); renderItems(); } };
             wrap.querySelector('[data-b="up-i"]').onclick = () => { if (i > 0) { const t = D.vocab[i - 1]; D.vocab[i - 1] = D.vocab[i]; D.vocab[i] = t; renderItems(); } };
             wrap.querySelector('[data-b="dn-i"]').onclick = () => { if (i < D.vocab.length - 1) { const t = D.vocab[i + 1]; D.vocab[i + 1] = D.vocab[i]; D.vocab[i] = t; renderItems(); } };
+            const slot = wrap.querySelector("[data-vislot]");
+            if (slot && window.VIMG) slot.appendChild(window.VIMG.controlsEl(v, { lang: "zh",
+              others: () => D.vocab.filter(x => x !== v).map(x => x.image).filter(Boolean),
+              redraw: renderItems, msg: t => { const m = box.querySelector("#ve-msg"); m.className = "msg"; m.textContent = t; } }));
             return wrap;
           }
           function renderItems() {
@@ -9372,7 +9443,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           box.querySelector("#ve-close").onclick = () => { openId = null; render(); };
           box.querySelector("#ve-save").onclick = async () => {
             const m = box.querySelector("#ve-msg"); m.className = "msg"; m.textContent = "Đang lưu…";
-            D.vocab.forEach(v => { if (!v.id) v.id = uid(); if (v.image && v.match !== false) v.match = true; });
+            D.vocab.forEach(v => { if (!v.id) v.id = uid(); if (v.image && v.match !== false) v.match = true;
+              delete v._car; delete v._loading; if (v.rejected && v.rejected.length > 40) v.rejected = v.rejected.slice(-40); });
             const data = { vocab: D.vocab, gapfill: D.gapfill, arrange: D.arrange };
             const patch = { title: box.querySelector("#ve-title").value.trim() || r.title,
               hsk_level: Number(box.querySelector("#ve-lvl").value) || r.hsk_level,
@@ -9803,8 +9875,9 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               const w = document.createElement("div");
               w.style.cssText = "display:grid; grid-template-columns:100px 1fr; gap:.6rem; padding:.5rem; border:1px solid var(--line); border-radius:9px; margin-bottom:.5rem;";
               w.innerHTML = '<div><div style="width:100px;height:78px;border:1px solid var(--line);border-radius:7px;background:#0000000a;display:flex;align-items:center;justify-content:center;overflow:hidden;">' +
-                  (v.image ? '<img src="' + esc(v.image) + '" style="width:100%;height:100%;object-fit:cover;">' : '<span style="font-size:1.4rem;">🖼️</span>') + "</div>" +
-                  '<div style="display:flex;gap:.25rem;margin-top:.3rem;flex-wrap:wrap;"><label class="ghost btn" style="cursor:pointer;font-size:.72rem;padding:.2rem .45rem;">Ảnh<input type="file" accept="image/*" data-b="up" hidden></label>' + (v.image ? '<button class="ghost" data-b="rm" style="font-size:.72rem;padding:.2rem .45rem;color:var(--danger);">Xoá</button>' : "") + "</div></div>" +
+                  (window.VIMG ? window.VIMG.thumbHtml(v) : (v.image ? '<img src="' + esc(v.image) + '" style="width:100%;height:100%;object-fit:cover;">' : '<span style="font-size:1.4rem;">🖼️</span>')) + "</div>" +
+                  '<div data-vislot style="margin-top:.3rem;"></div>' +
+                  '<div style="display:flex;gap:.25rem;margin-top:.3rem;flex-wrap:wrap;"><label class="ghost btn" style="cursor:pointer;font-size:.72rem;padding:.2rem .45rem;">📁<input type="file" accept="image/*" data-b="up" hidden></label>' + (v.image ? '<button class="ghost" data-b="rm" style="font-size:.72rem;padding:.2rem .45rem;color:var(--danger);">✕</button>' : "") + "</div></div>" +
                 '<div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;">' +
                   '<div class="field" style="margin:0;"><label>Word</label><input data-f="word" value="' + esc(v.word || "") + '"></div>' +
                   '<div class="field" style="margin:0;"><label>Part of speech</label><input data-f="pos" value="' + esc(v.pos || "") + '"></div>' +
@@ -9819,6 +9892,10 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               w.querySelector('[data-b="up"]').onchange = async e => { const f = e.target.files[0]; e.target.value = ""; if (!f) return; box.querySelector("#ee-msg").textContent = "Đang tải ảnh…"; v.image = await uploadImg(f, r.lesson_id); box.querySelector("#ee-msg").textContent = "Đã tải ảnh ✓"; drawV(); };
               const rm = w.querySelector('[data-b="rm"]'); if (rm) rm.onclick = () => { v.image = ""; drawV(); };
               w.querySelector('[data-b="del"]').onclick = () => { if (confirm("Xoá từ?")) { D.vocab.splice(i, 1); drawV(); } };
+              const slot = w.querySelector("[data-vislot]");
+              if (slot && window.VIMG) slot.appendChild(window.VIMG.controlsEl(v, { lang: "en",
+                others: () => D.vocab.filter(x => x !== v).map(x => x.image).filter(Boolean),
+                redraw: drawV, msg: t => { box.querySelector("#ee-msg").textContent = t; } }));
               vl.appendChild(w);
             });
           }
@@ -9850,7 +9927,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           box.querySelector("#ee-close").onclick = () => { openId = null; renderList(); };
           box.querySelector("#ee-save").onclick = async () => {
             const m = box.querySelector("#ee-msg"); m.className = "msg"; m.textContent = "Đang lưu…";
-            D.vocab.forEach(v => { if (!v.id) v.id = uid(); v.match = !!v.image; });
+            D.vocab.forEach(v => { if (!v.id) v.id = uid(); v.match = !!v.image;
+              delete v._car; delete v._loading; if (v.rejected && v.rejected.length > 40) v.rejected = v.rejected.slice(-40); });
             D.mcq.forEach(q => { if (!q.id) q.id = uid(); q.distractors = (q.distractors || []).filter(x => x && x.trim()); });
             const data = { vocab: D.vocab, mcq: D.mcq };
             const patch = { title: box.querySelector("#ee-title").value.trim() || r.title,
