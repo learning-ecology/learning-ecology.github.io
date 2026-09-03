@@ -158,6 +158,13 @@
   /* HSK Slides: inline lesson editor opens directly under its lesson row */
   .hs-editrow:empty{ display:none; }
   .hs-editrow > .card{ margin:0.35rem 0 1rem; border-left:3px solid var(--accent); }
+  /* Ảnh cần xem lại: nhắc nhẹ ở danh sách + trong trình sửa */
+  .lesson.hs-warn{ background:#fff8e6; border-left:3px solid #e0a800; }
+  .hs-badge{ display:inline-block; margin-left:0.4rem; font-size:0.75rem; font-weight:700; color:#8a6d00;
+             background:#ffe9a8; border:1px solid #e6c65c; border-radius:999px; padding:0.05rem 0.5rem; white-space:nowrap; }
+  .vrow-warn{ background:#fff8e6; border-radius:8px; box-shadow:inset 3px 0 0 #e0a800; }
+  .vrow-badge{ font-size:0.72rem; font-weight:700; color:#8a6d00; background:#ffe9a8; border:1px solid #e6c65c;
+               border-radius:999px; padding:0.05rem 0.45rem; white-space:nowrap; align-self:center; }
   </style>
 </head>
 <body>
@@ -3825,12 +3832,20 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           </div>
           <div class="card">
             <div class="card-head"><h2>Bài giảng <span class="kind" id="hs-count"></span></h2>
-              <div class="field" style="max-width:150px; margin:0;"><label>Cấp HSK</label>
-                <select id="hs-lvl">
-                  <option value="0">Tất cả</option>
-                  <option value="1">HSK 1</option><option value="2">HSK 2</option><option value="3">HSK 3</option>
-                  <option value="4">HSK 4</option><option value="5">HSK 5</option><option value="6">HSK 6</option>
-                </select></div>
+              <div style="display:flex; gap:0.6rem; align-items:flex-end; flex-wrap:wrap;">
+                <div class="field" style="max-width:190px; margin:0;"><label>Trạng thái ảnh</label>
+                  <select id="hs-status">
+                    <option value="all">Tất cả</option>
+                    <option value="review">⚠️ Cần xem lại</option>
+                    <option value="done">✅ Hoàn tất</option>
+                  </select></div>
+                <div class="field" style="max-width:130px; margin:0;"><label>Cấp HSK</label>
+                  <select id="hs-lvl">
+                    <option value="0">Tất cả</option>
+                    <option value="1">HSK 1</option><option value="2">HSK 2</option><option value="3">HSK 3</option>
+                    <option value="4">HSK 4</option><option value="5">HSK 5</option><option value="6">HSK 6</option>
+                  </select></div>
+              </div>
             </div>
             <div id="hs-list"><p class="empty">Đang tải…</p></div>
           </div>
@@ -7631,10 +7646,18 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         const listEl = document.getElementById("hs-list");
         if (!listEl) return;
         let hsLvl = 0;        // HSK-level filter (0 = Tất cả) — uses each lesson's hsk_level
+        let hsStatus = "all"; // lọc theo trạng thái ảnh: all | review | done
         let hsOpenId = null;  // which lesson's inline editor is open (one at a time)
         let hsPasteOff = null; // detaches the current editor's ⌘V paste listener
         const lvlSel = document.getElementById("hs-lvl");
         if (lvlSel) lvlSel.addEventListener("change", () => { hsLvl = Number(lvlSel.value) || 0; closeEditor(); renderHs(); });
+        const stSel = document.getElementById("hs-status");
+        if (stSel) stSel.addEventListener("change", () => { hsStatus = stSel.value || "all"; closeEditor(); renderHs(); });
+        /* số từ CHƯA có ảnh trong một bài = số ảnh cần xem lại */
+        function reviewCountOf(data){ return (data && Array.isArray(data.vocabulary)) ? data.vocabulary.filter(v => !(v.image && v.image.url)).length : 0; }
+        function reviewCount(l){ return reviewCountOf(l && l.data); }
+        function goReviewFilter(){ hsStatus = "review"; if (stSel) stSel.value = "review"; closeEditor(); renderHs();
+          const c = document.querySelector('[data-tab="hsk"] #hs-list'); if (c) c.scrollIntoView({ behavior: "smooth", block: "start" }); }
 
         /* Thư viện phát âm dùng chung với trang bài giảng: thầy nghe thử ở
            đây là bản ghi đã nằm sẵn trong thư viện cho học viên. */
@@ -7662,7 +7685,12 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         const said = (t, err) => { msg.textContent = t; msg.className = "msg" + (err ? " err" : ""); };
 
         /* ---------- danh sách bài ---------- */
-        function hsView() { return hsLvl ? hskRows.filter(l => Number(l.hsk_level) === hsLvl) : hskRows; }
+        function hsView() {
+          let v = hsLvl ? hskRows.filter(l => Number(l.hsk_level) === hsLvl) : hskRows.slice();
+          if (hsStatus === "review") v = v.filter(l => reviewCount(l) > 0).sort((a, b) => reviewCount(b) - reviewCount(a));
+          else if (hsStatus === "done") v = v.filter(l => reviewCount(l) === 0);
+          return v;
+        }
         function renderHs() {
           const view = hsView();
           countEl.textContent = hskRows.length
@@ -7675,10 +7703,10 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             listEl.innerHTML = '<p class="empty">Không có bài giảng nào ở cấp này.</p>';
             return;
           }
-          listEl.innerHTML = view.map(l => `
-            <div class="lesson" data-hsrow="${l.id}" style="flex-wrap:wrap;">
+          listEl.innerHTML = view.map(l => { const rc = reviewCount(l); return `
+            <div class="lesson${rc > 0 ? " hs-warn" : ""}" data-hsrow="${l.id}" style="flex-wrap:wrap;">
               <div class="meta">
-                <div class="title">HSK ${l.hsk_level} · ${esc(l.title)}${l.published ? "" : ' <span class="pill off">nháp</span>'}</div>
+                <div class="title">HSK ${l.hsk_level} · ${esc(l.title)}${l.published ? "" : ' <span class="pill off">nháp</span>'}<span class="hs-badge" data-hsbadge="${l.id}"${rc > 0 ? "" : ' style="display:none;"'}>⚠️ ${rc} ảnh cần xem lại</span></div>
                 <span class="kind hs-sum">${esc(l.subtitle || "")} · ${l.vocab_count || 0} từ · ${l.slide_count || 0} slide</span>
               </div>
               <input type="number" class="hs-ord" data-id="${l.id}" value="${l.sort_order == null ? 0 : l.sort_order}" min="0" title="Thứ tự" style="max-width:70px; flex:none;" />
@@ -7697,7 +7725,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               <button class="ghost" data-hsdup="${l.id}" title="Nhân bản">⧉</button>
               <button class="ghost" data-hsdel="${l.id}" style="color:var(--danger); border-color:var(--danger);">🗑</button>
             </div>
-            <div class="hs-editrow" data-editrow="${l.id}"></div>`).join("");
+            <div class="hs-editrow" data-editrow="${l.id}"></div>`; }).join("");
         }
 
         async function patch(id, fields) {
@@ -7872,9 +7900,11 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
                     <input data-f="notes" data-i="${i}" value="${esc(v.notes || "")}" placeholder="ghi chú / mẹo nhớ chữ" style="flex:1;min-width:260px;" />
                   </div>
                 </div>` : "";
-              return `<div class="lesson" style="flex-wrap:wrap;gap:0.4rem;align-items:flex-start;">
+              const needImg = !(v.image && v.image.url);
+              return `<div class="lesson${needImg ? " vrow-warn" : ""}" style="flex-wrap:wrap;gap:0.4rem;align-items:flex-start;">
                 ${thumb(v, i)}
                 <div style="display:flex;flex-direction:column;gap:0.25rem;align-items:center;">
+                  ${needImg ? '<span class="vrow-badge">⚠️ Cần xem lại ảnh</span>' : ""}
                   <div style="display:flex;gap:0.15rem;">
                     <button class="ghost" data-emo="${i}" title="Chọn lại emoji minh hoạ" style="padding:0.2rem 0.4rem;">🔄</button>
                     <button class="ghost" data-up="${i}" title="Tải ảnh từ máy" style="padding:0.2rem 0.4rem;">📁</button>
@@ -7895,7 +7925,16 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
                 ${detail}
               </div>`;
             }).join("");
+            updateListBadge();
           };
+          /* cập nhật ngay huy hiệu ở dòng danh sách (không cần lưu / tải lại) */
+          function updateListBadge() {
+            const rc = reviewCountOf(L);
+            const row = listEl.querySelector('.lesson[data-hsrow="' + id + '"]');
+            const badge = listEl.querySelector('[data-hsbadge="' + id + '"]');
+            if (row) row.classList.toggle("hs-warn", rc > 0);
+            if (badge) { badge.textContent = "⚠️ " + rc + " ảnh cần xem lại"; badge.style.display = rc > 0 ? "" : "none"; }
+          }
           draw();
           /* keep the editor next to its lesson — never jump to the top of the page */
           box.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -8024,7 +8063,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             }).eq("id", id);
             if (error) { said("Không lưu được: " + error.message, true); return; }
             const r = hskRows.find(x => x.id === id);
-            if (r) { r.vocab_count = (L.vocabulary || []).length; r.slide_count = plan.length; }
+            if (r) { r.vocab_count = (L.vocabulary || []).length; r.slide_count = plan.length; r.data = L; }
+            updateListBadge();   // giữ số "cần xem lại" đúng sau khi lưu
             /* update this lesson's summary IN PLACE — no full re-render, so the
                inline editor stays open, the scroll position and the HSK filter
                are all preserved */
@@ -8174,10 +8214,15 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               if (!error) { lessons++; const li = hskRows.findIndex(x => x.id === row.id); if (li >= 0) hskRows[li].data = data; }
             }
           }
-          said("Xong (" + lessons + " bài): Chuyển " + (agg.emoji + agg.alt + agg.second) +
-               " · Emoji thay thế " + agg.alt + " · Nguồn phụ " + agg.second +
-               " · Cần xem lại " + agg.review + " · URL tự động còn trùng: " + dupRemain + ".");
           closeEditor(); renderHs();
+          const lessonsNeed = hskRows.filter(l => reviewCount(l) > 0).length;
+          msg.className = "msg";
+          msg.innerHTML = "Xong (" + lessons + " bài): Chuyển " + (agg.emoji + agg.alt + agg.second) +
+            " · Emoji thay thế " + agg.alt + " · Nguồn phụ " + agg.second +
+            " · <b>Cần xem lại " + agg.review + "</b> · URL tự động còn trùng: " + dupRemain + "." +
+            (agg.review ? ' <a href="#" id="hs-goreview" style="font-weight:700;">Xem các bài cần xử lý (' + lessonsNeed + ")</a>" : "");
+          const goLink = document.getElementById("hs-goreview");
+          if (goLink) goLink.onclick = (e) => { e.preventDefault(); goReviewFilter(); };
         });
 
         /* ---------- thứ tự nét: chữ nào HanziWriter thật sự có? ----------
