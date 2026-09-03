@@ -3937,9 +3937,12 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           <div class="card">
             <div class="card-head"><h2>Bài luyện tập <span class="kind" id="vk-count"></span></h2>
               <div style="display:flex; gap:0.6rem; align-items:flex-end; flex-wrap:wrap;">
+                <button class="ghost btn" id="vk-findimg" type="button" title="Tìm ảnh cho các từ CÒN THIẾU ảnh (không đụng ảnh đã có)">🔎 Tìm ảnh cho từ còn thiếu</button>
                 <div class="field" style="margin:0;"><label>Tìm kiếm</label>
-                  <input type="text" id="vk-q" placeholder="Tên bài / mã bài…" style="min-width:180px;" /></div>
-                <div class="field" style="max-width:130px; margin:0;"><label>Cấp HSK</label>
+                  <input type="text" id="vk-q" placeholder="Tên bài / mã bài…" style="min-width:160px;" /></div>
+                <div class="field" style="max-width:150px; margin:0;"><label>Trạng thái ảnh</label>
+                  <select id="vk-imgstatus"><option value="all">Tất cả</option><option value="missing">⚠️ Thiếu ảnh</option><option value="done">✅ Đủ ảnh</option></select></div>
+                <div class="field" style="max-width:120px; margin:0;"><label>Cấp HSK</label>
                   <select id="vk-lvl">
                     <option value="0">Tất cả</option>
                     <option value="1">HSK 1</option><option value="2">HSK 2</option><option value="3">HSK 3</option>
@@ -3988,8 +3991,11 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             <div class="card">
               <div class="card-head"><h2>Bài tiếng Anh <span class="kind" id="ven-count"></span></h2>
                 <div style="display:flex; gap:0.6rem; align-items:flex-end; flex-wrap:wrap;">
+                  <button class="ghost btn" id="ven-findimg" type="button" title="Tìm ảnh cho các từ CÒN THIẾU ảnh (không đụng ảnh đã có)">🔎 Tìm ảnh cho từ còn thiếu</button>
                   <div class="field" style="margin:0;"><label>Tìm kiếm</label>
-                    <input type="text" id="ven-q" placeholder="Tên bài / mã bài…" style="min-width:170px;" /></div>
+                    <input type="text" id="ven-q" placeholder="Tên bài / mã bài…" style="min-width:150px;" /></div>
+                  <div class="field" style="max-width:150px; margin:0;"><label>Trạng thái ảnh</label>
+                    <select id="ven-imgstatus"><option value="all">Tất cả</option><option value="missing">⚠️ Thiếu ảnh</option><option value="done">✅ Đủ ảnh</option></select></div>
                   <div class="field" style="margin:0;"><label>Danh mục</label>
                     <select id="ven-fcat"><option value="">Tất cả</option></select></div>
                 </div>
@@ -8211,10 +8217,13 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           candidates(v){
             const out = []; const add = e => (Array.isArray(e) ? e : [e]).forEach(x => { if (x && out.indexOf(x) < 0) out.push(x); });
             const tryM = (m, str) => { const h = this.hit(m, str); if (h) add(h); };
-            const kw = (v.imageKeyword || "").trim();
-            if (kw) { tryM(this.MAP, kw); this.words(kw).forEach(w => tryM(this.MAP, w)); }
-            if (v.en) { tryM(this.MAP, v.en); this.words(v.en).forEach(w => tryM(this.MAP, w)); }
-            const vi = (v.vietnamese || "").trim();
+            /* chấp nhận cả hsk_lessons (chinese/vietnamese/imageKeyword/wordClass)
+               lẫn vocab_lessons (hanzi|word / vi / imgKeyword / pos) */
+            const kw = (v.imageKeyword || v.imgKeyword || "").trim();
+            const en = (v.en || v.def || "").trim();
+            const word = (v.word || "").trim();          // từ tiếng Anh (vocab_lessons EN)
+            const vi = (v.vietnamese || v.vi || "").trim();
+            [kw, en, word].forEach(s => { if (s) { tryM(this.MAP, s); this.words(s).forEach(w => tryM(this.MAP, w)); } });
             if (vi) { tryM(this.VI, vi); tryM(this.VI, this.low(vi).split(/[,;(/]/)[0].trim()); this.words(vi).forEach(w => tryM(this.VI, w)); }
             return out;
           },
@@ -8299,19 +8308,19 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             }
             return [...new Set(out)].filter(u => /\.(png|jpe?g|svg|gif|webp)$/i.test(u.split("?")[0]) && !/\.(pdf|djvu)\./i.test(u));
           },
-          /* từ khoá tiếng Anh (cho Iconify): imageKeyword + vài mở rộng */
+          /* từ khoá tiếng Anh (cho Iconify): imageKeyword/từ tiếng Anh + mở rộng */
           concepts(v) {
-            const kw = (v.imageKeyword || "").toLowerCase().trim();
+            const kw = (v.imageKeyword || v.imgKeyword || v.word || v.en || v.def || "").toLowerCase().trim();
             const out = [];
             if (kw) { out.push(kw); kw.split(/\s+/).forEach(w => { if (w.length > 1) out.push(w); }); }
             return [...new Set(out)];
           },
-          /* từ khoá đa ngôn ngữ (cho Commons): tiếng Anh + tiếng Việt + chữ Hán */
+          /* từ khoá đa ngôn ngữ (cho Commons): Anh + Việt + chữ Hán/từ */
           terms(v) {
             const out = [];
-            if (v.imageKeyword) out.push(String(v.imageKeyword).trim());
-            const vi = String(v.vietnamese || "").split(/[,;(/]/)[0].trim(); if (vi) out.push(vi);
-            if (v.chinese) out.push(String(v.chinese).trim());
+            const kw = (v.imageKeyword || v.imgKeyword || v.word || v.en || v.def || "").trim(); if (kw) out.push(kw);
+            const vi = String(v.vietnamese || v.vi || "").split(/[,;(/]/)[0].trim(); if (vi) out.push(vi);
+            const w = (v.chinese || v.hanzi || v.word || "").trim(); if (w) out.push(w);
             return [...new Set(out.filter(Boolean))];
           }
         };
@@ -8385,16 +8394,16 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             "nervous":["nervous student sweating before an exam","anxious person before a presentation"],"hoi hop":["nervous student before an exam","anxious person before presentation"],
             "tired":["exhausted person slumped at a desk after work","yawning tired person rubbing eyes"],"met":["exhausted person slumped at desk after work","yawning tired person rubbing eyes"]
           },
-          keys(v){ const out=[]; const kw=(v.imageKeyword||"").toLowerCase().trim();
+          keys(v){ const out=[]; const kw=(v.imageKeyword||v.imgKeyword||v.word||v.en||v.def||"").toLowerCase().trim();
             if(kw){ out.push(kw); kw.split(/\s+/).forEach(w=>{if(w.length>1)out.push(w);}); }
-            const vi=String(v.vietnamese||"").toLowerCase(); const nvi=this.norm(vi);
+            const vi=String(v.vietnamese||v.vi||"").toLowerCase(); const nvi=this.norm(vi);
             out.push(nvi); nvi.split(/[,;/()\s]+/).forEach(w=>{if(w.length>1)out.push(w);});
             const first=this.norm(vi.split(/[,;(/]/)[0]); if(first)out.push(first);
             return [...new Set(out.filter(Boolean))]; },
           lookup(v){ const ks=this.keys(v); for(const k of ks){ if(this.MAP[k])return this.MAP[k]; } for(const k of ks){ const s=k.replace(/s$/,""); if(s!==k&&this.MAP[s])return this.MAP[s]; } return null; },
           /* phân loại từ để chọn kiểu minh hoạ + lưu thư viện */
           wordType(v){
-            const nvi=" "+this.norm(v.vietnamese||"")+" ";
+            const nvi=" "+this.norm(v.vietnamese||v.vi||"")+" ";
             const social=["xin loi","cam on","cam on","cam on","xin","moi","chao","tam biet","khong sao","chuc mung","lam on"];
             if(social.some(s=>nvi.indexOf(" "+s+" ")>=0 || nvi.indexOf(" "+s)>=0)) return "social";
             const wc=this.norm(v.wordClass||v.pos||"");
@@ -8410,13 +8419,13 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             const out=[], seen={};
             const add=(label,terms,emoji)=>{ terms=(Array.isArray(terms)?terms:[terms]).map(t=>String(t||"").trim()).filter(Boolean);
               if(!terms.length)return; const key=label.toLowerCase(); if(seen[key])return; seen[key]=1; out.push({label,terms,emoji:!!emoji}); };
+            const VI=(v.vietnamese||v.vi||""), CH=(v.chinese||v.hanzi||v.word||""), KW=(v.imageKeyword||v.imgKeyword||v.word||v.en||v.def||"").trim();
             if(v.imageConcept) add("✏️ "+v.imageConcept, [v.imageConcept, v.imageConcept+" illustration"]);
             const em=(window.__EMO?window.__EMO.candidates(v):[]);
-            if(em.length){ const kw=(v.imageKeyword||"").trim();
-              add("🔣 "+(kw||v.vietnamese||"biểu tượng"), [kw, kw&&kw+" illustration", v.vietnamese, v.chinese], true); }
+            if(em.length){ add("🔣 "+(KW||VI||"biểu tượng"), [KW, KW&&KW+" illustration", VI, CH], true); }
             const cur=this.lookup(v); if(cur) cur.forEach(p=>add("💡 "+p, [p, p+" illustration"]));
-            if(v.imageKeyword) add("🔎 "+v.imageKeyword, [v.imageKeyword, v.imageKeyword+" illustration"]);
-            add("🔎 "+(v.vietnamese||v.chinese||""), [v.vietnamese, v.chinese]);
+            if(KW) add("🔎 "+KW, [KW, KW+" illustration"]);
+            add("🔎 "+(VI||CH||""), [VI, CH]);
             return out;
           }
         };
@@ -8424,10 +8433,11 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
 
         function urlSource(u) { return /twemoji/.test(u) ? "emoji" : /openmoji/.test(u) ? "emoji2" : "suggest"; }
         function cstate(v){ const c=v._car; c.byC[c.ci]=c.byC[c.ci]||{hist:[],pos:-1,pool:[],st:0}; return c.byC[c.ci]; }
+        function imgUrlOf(im){ return (im && im.url) ? im.url : (typeof im === "string" ? im : ""); }
         function initCar(v){ v._car={ concepts:CONCEPT.concepts(v), ci:0, byC:{} };
-          const s=cstate(v); if(v.image&&v.image.url){ s.hist.push(v.image.url); s.pos=0; } }
+          const s=cstate(v); const cu=imgUrlOf(v.image); if(cu){ s.hist.push(cu); s.pos=0; } }
         async function carPull(v, others){
-          const c=v._car, concept=c.concepts[c.ci]||{terms:[v.vietnamese||v.chinese],emoji:false}, s=cstate(v);
+          const c=v._car, concept=c.concepts[c.ci]||{terms:[v.vietnamese||v.vi||v.chinese||v.hanzi||v.word],emoji:false}, s=cstate(v);
           const used=new Set([].concat(others||[], s.hist||[], v.rejected||[]));
           const pick=()=>{ for(const u of s.pool) if(!used.has(u)) return u; return null; };
           if(s.st===0){ s.st=1; if(concept.emoji && window.__EMO){ window.__EMO.candidates(v).forEach(e=>s.pool.push(window.__EMO.url(e))); window.__EMO.candidates(v).forEach(e=>s.pool.push(window.__EMO.urlAlt(e))); } }
@@ -8449,6 +8459,57 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         }
         function carPrev(v){ const s=v._car&&cstate(v); if(!s||s.pos<=0)return null; s.pos--; return s.hist[s.pos]; }
         async function carSetConcept(v, ci, others){ if(!v._car) initCar(v); v._car.ci=ci; return await carNext(v, others); }
+
+        /* API dùng chung cho Luyện từ vựng (Trung + Anh) — cùng engine, khác chỗ lưu ảnh */
+        window.VIMG = {
+          EMO, CONCEPT, urlSource, carNext, carPrev, carSetConcept, initCar, imgUrlOf,
+          emojiUrlFor(item){ const e = EMO.pick(item); return e ? EMO.url(e) : ""; },
+          /* khoá thư viện CÓ Ý NGHĨA: ngôn ngữ | từ | nghĩa (light=ánh sáng ≠ light=nhẹ) */
+          libKey(lang, word, meaning){ return (lang || "zh") + "|" + CONCEPT.norm(word || "") + "|" + CONCEPT.norm(String(meaning || "").split(/[,;(/]/)[0]); },
+          async libGetMany(keys){ const out = {}; const ks = [...new Set((keys || []).filter(Boolean))]; if (!ks.length) return out;
+            try { const { data } = await sb.from("hsk_image_library").select("chinese,url,concept,word_type").in("chinese", ks); (data || []).forEach(r => out[r.chinese] = r); } catch (e) {} return out; },
+          async libPut(key, meta){ try { await sb.from("hsk_image_library").upsert(Object.assign({ chinese: key, updated_at: new Date().toISOString(), created_by: user.id }, meta), { onConflict: "chinese" }); } catch (e) {} },
+          wordOf(v, lang){ return lang === "en" ? (v.word || "") : (v.hanzi || v.chinese || ""); },
+          /* CHỈ điền cho ảnh TRỐNG: thư viện đã duyệt (theo nghĩa) → emoji rõ nghĩa.
+             KHÔNG bao giờ đụng ảnh đã có. Trả về số liệu để báo cáo. */
+          async autofill(items, lang){
+            const st = { lib: 0, emoji: 0, none: 0 };
+            const need = (items || []).filter(v => !v.image);   // ảnh đã có → giữ nguyên tuyệt đối
+            if (!need.length) return st;
+            const keyOf = v => this.libKey(lang, this.wordOf(v, lang), v.vi);
+            const lib = await this.libGetMany(need.map(keyOf));
+            need.forEach(v => {
+              const hit = lib[keyOf(v)];
+              if (hit && hit.url) { v.image = hit.url; v.imageStatus = "approved"; if (hit.concept && !v.imageConcept) v.imageConcept = hit.concept; st.lib++; return; }
+              const e = this.emojiUrlFor(v);
+              if (e) { v.image = e; v.imageStatus = ""; if (v.match !== false) v.match = true; st.emoji++; return; }
+              st.none++;
+            });
+            return st;
+          },
+          /* Bulk "Tìm ảnh cho từ còn thiếu": CHỈ xử lý ảnh trống. preview=true chỉ đếm.
+             ĐẢM BẢO không đổi ảnh đã có (existingChanged luôn = 0). */
+          async bulkFill(opt){
+            opt = opt || {};
+            let q = sb.from("vocab_lessons").select("id,language,hsk_level,category_id,data");
+            if (opt.language) q = q.eq("language", opt.language);
+            let rows = []; try { const r = await q; rows = r.data || []; } catch (e) {}
+            let items = 0, has = 0, missing = 0, lessons = 0; const st = { lib: 0, emoji: 0, none: 0 };
+            for (const r of rows) {
+              if (opt.level && Number(r.hsk_level) !== opt.level) continue;
+              if (opt.categoryId && r.category_id !== opt.categoryId) continue;
+              const d = r.data; if (!d || !Array.isArray(d.vocab)) continue;
+              d.vocab.forEach(v => { items++; if (v.image) has++; else missing++; });
+              if (opt.preview) continue;
+              const before = d.vocab.map(v => v.image || "").join("|");
+              const s = await this.autofill(d.vocab, r.language || "zh");
+              st.lib += s.lib; st.emoji += s.emoji; st.none += s.none;
+              const after = d.vocab.map(v => v.image || "").join("|");
+              if (after !== before) { try { await sb.from("vocab_lessons").update({ data: d, updated_at: new Date().toISOString() }).eq("id", r.id); lessons++; } catch (e) {} }
+            }
+            return { items, has, missing, st, lessons, existingChanged: 0 };
+          }
+        };
 
         /* Tự chọn EMOJI minh hoạ cho từ chưa có ảnh (thay cho tìm ảnh ngoài).
            Ảnh do thầy đặt (source 'teacher') luôn được giữ nguyên. */
@@ -8999,7 +9060,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         if (!listEl) return;
         const $ = id => document.getElementById(id);
         const msg = $("vk-msg"), report = $("vk-report"), countEl = $("vk-count");
-        let ROWS = [], loaded = false, vLvl = 0, vQ = "", openId = null;
+        let ROWS = [], loaded = false, vLvl = 0, vQ = "", vImg = "all", openId = null;
         const vsay = (m, err) => { msg.textContent = m || ""; msg.className = "msg" + (err ? " err" : ""); };
         const uid = () => Math.random().toString(36).slice(2, 9);
         const slug = s => (s || "").toString().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
@@ -9125,9 +9186,12 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           render();
         }
 
+        function missImg(r) { const d = r.data || {}; return (d.vocab || []).filter(x => !x.image).length; }
         function view() {
           let v = vLvl ? ROWS.filter(r => Number(r.hsk_level) === vLvl) : ROWS.slice();
           if (vQ) { const q = vQ.toLowerCase(); v = v.filter(r => (r.title || "").toLowerCase().includes(q) || (r.lesson_id || "").toLowerCase().includes(q)); }
+          if (vImg === "missing") v = v.filter(r => missImg(r) > 0).sort((a, b) => missImg(b) - missImg(a));
+          else if (vImg === "done") v = v.filter(r => missImg(r) === 0);
           return v;
         }
         function counts(r) { const d = r.data || {}; return { v: (d.vocab || []).length, g: (d.gapfill || []).length, a: (d.arrange || []).length }; }
@@ -9347,6 +9411,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             catch (err) { showReport(f.name, ["Không đọc được tệp: " + err.message], []); continue; }
             if (val.errs.length) { showReport(f.name, val.errs, val.warns); vsay("Chưa nhập được — xem lỗi bên dưới.", true); continue; }
             const data = VX.toData(p);
+            /* ảnh TRỐNG → thư viện đã duyệt / emoji rõ nghĩa; ảnh có sẵn giữ nguyên */
+            const af = window.VIMG ? await window.VIMG.autofill(data.vocab, "zh") : { emoji: 0, lib: 0 };
             const level = Math.min(6, Math.max(1, parseInt(p.info.Level, 10) || fallLvl));
             const title = VX.norm(p.info.LessonTitle) || ("HSK " + level + " · Bài mới");
             const row = { lesson_id: (slug(title) || "vocab") + "-" + level + "-" + uid(), title, hsk_level: level,
@@ -9367,6 +9433,19 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         });
         $("vk-lvl").addEventListener("change", () => { vLvl = Number($("vk-lvl").value) || 0; render(); });
         $("vk-q").addEventListener("input", () => { vQ = $("vk-q").value.trim(); render(); });
+        $("vk-imgstatus").addEventListener("change", () => { vImg = $("vk-imgstatus").value || "all"; render(); });
+        $("vk-findimg").addEventListener("click", async () => {
+          if (!window.VIMG) { vsay("Chưa sẵn sàng — tải lại trang.", true); return; }
+          const lvl = vLvl || null;
+          vsay("Đang kiểm tra…");
+          const pv = await window.VIMG.bulkFill({ language: "zh", level: lvl, preview: true });
+          if (!pv.missing) { vsay("Không có từ nào thiếu ảnh" + (lvl ? " ở HSK " + lvl : "") + " ✓"); return; }
+          if (!confirm(pv.items + " từ" + (lvl ? " (HSK " + lvl + ")" : "") + ": " + pv.has + " đã có ảnh (giữ nguyên), " + pv.missing + " thiếu ảnh sẽ được xử lý.\n\nTiếp tục?")) { vsay(""); return; }
+          vsay("Đang tìm ảnh cho " + pv.missing + " từ…");
+          const rs = await window.VIMG.bulkFill({ language: "zh", level: lvl });
+          ROWS = []; loaded = false; await load();
+          vsay("Xong: emoji " + rs.st.emoji + " · thư viện " + rs.st.lib + " · cần xem lại " + rs.st.none + " · ảnh có sẵn bị đổi: " + rs.existingChanged + ".");
+        });
 
         load();
       })();
@@ -9381,7 +9460,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         const slug = s => (s || "").toString().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
           .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32);
         const now = () => new Date().toISOString();
-        let TREE = [], ROWS = [], enLoaded = false, vQ = "", vFcat = "", openId = null;
+        let TREE = [], ROWS = [], enLoaded = false, vQ = "", vFcat = "", vImg = "all", openId = null;
 
         async function uploadImg(file, key) {
           const ext = ((file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "")) || "jpg";
@@ -9534,6 +9613,19 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         }
         $("ven-in-cat").addEventListener("change", syncSubDropdown);
         $("ven-fcat").addEventListener("change", () => { vFcat = $("ven-fcat").value; renderList(); });
+        $("ven-imgstatus").addEventListener("change", () => { vImg = $("ven-imgstatus").value || "all"; renderList(); });
+        $("ven-findimg").addEventListener("click", async () => {
+          if (!window.VIMG) { emsg("Chưa sẵn sàng — tải lại trang.", true); return; }
+          const cat = vFcat || null;
+          emsg("Đang kiểm tra…");
+          const pv = await window.VIMG.bulkFill({ language: "en", categoryId: cat, preview: true });
+          if (!pv.missing) { emsg("Không có từ nào thiếu ảnh ✓"); return; }
+          if (!confirm(pv.items + " từ tiếng Anh: " + pv.has + " đã có ảnh (giữ nguyên), " + pv.missing + " thiếu ảnh sẽ được xử lý.\n\nTiếp tục?")) { emsg(""); return; }
+          emsg("Đang tìm ảnh cho " + pv.missing + " từ…");
+          const rs = await window.VIMG.bulkFill({ language: "en", categoryId: cat });
+          await loadRows();
+          emsg("Xong: emoji " + rs.st.emoji + " · thư viện " + rs.st.lib + " · cần xem lại " + rs.st.none + " · ảnh có sẵn bị đổi: " + rs.existingChanged + ".");
+        });
         $("ven-q").addEventListener("input", () => { vQ = $("ven-q").value.trim().toLowerCase(); renderList(); });
 
         // ---- English Excel (Info / Vocabulary / MCQ) ----
@@ -9631,6 +9723,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             catch (err) { showReport(f.name, ["Không đọc được tệp: " + err.message], []); continue; }
             if (val.errs.length) { showReport(f.name, val.errs, val.warns); emsg("Chưa nhập được — xem lỗi.", true); continue; }
             const data = EX.toData(p);
+            /* ảnh TRỐNG → thư viện đã duyệt / emoji; ảnh có sẵn giữ nguyên */
+            if (window.VIMG) await window.VIMG.autofill(data.vocab, "en");
             const title = EX.norm(p.info.LessonTitle) || "English lesson";
             const row = { lesson_id: "en-" + (slug(title) || "vocab") + "-" + uid(), title, language: "en", hsk_level: 1,
               category_id: catId, subcategory_id: subId || null, lesson_no: EX.norm(p.info.Order) || "",
@@ -9646,9 +9740,12 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
 
         // ---- English lesson list + editor ----
         function counts(r) { const d = r.data || {}; return { v: (d.vocab || []).length, m: (d.mcq || []).length }; }
+        function missImg(r) { const d = r.data || {}; return (d.vocab || []).filter(x => !x.image).length; }
         function view() {
           let v = vFcat ? ROWS.filter(r => r.category_id === vFcat) : ROWS.slice();
           if (vQ) v = v.filter(r => (r.title || "").toLowerCase().includes(vQ) || (r.lesson_id || "").toLowerCase().includes(vQ));
+          if (vImg === "missing") v = v.filter(r => missImg(r) > 0).sort((a, b) => missImg(b) - missImg(a));
+          else if (vImg === "done") v = v.filter(r => missImg(r) === 0);
           return v;
         }
         function renderList() {

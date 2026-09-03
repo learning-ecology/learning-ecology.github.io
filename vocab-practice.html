@@ -117,6 +117,8 @@ h1.page-title{font-size:26px;margin:0 0 4px}
 .sel-toolbar .chip:hover{filter:brightness(.97)}
 .vcard .imgwrap{position:relative;aspect-ratio:4/3;background:#eef1f7;display:grid;place-items:center;overflow:hidden}
 .vcard .imgwrap img{width:100%;height:100%;object-fit:cover;display:block}
+.imgwrap.emoji-img{background:#fff}
+.imgwrap.emoji-img img{object-fit:contain;padding:8%}
 .vcard .imgfallback{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--muted)}
 .vcard .imgfallback .fz{font-size:44px;font-weight:800;color:var(--ink)}
 .vcard .body{padding:13px 14px 15px;display:flex;flex-direction:column;gap:2px}
@@ -1083,7 +1085,8 @@ function imageBox(v,opts){
     ? `<div class="imgfallback"><div style="font-size:26px">🖼️</div><div class="vi" style="font-size:15px;text-align:center;padding:0 8px">${esc(v.vi||v.en||'')}</div></div>`
     : `<div class="imgfallback"><div class="fz ${v.hanzi?'hz':''}" style="${v.hanzi?'':'font-size:22px;font-weight:800'}">${esc(v.hanzi||v.word||'')}</div><small class="pinyin" data-py style="${v.hanzi?'':'text-transform:none'}">${esc(v.pinyin||v.pos||'')}</small></div>`;
   if(v.image){
-    return `<div class="imgwrap ${opts.extraClass||''}"><img src="${esc(v.image)}" alt="${esc(v.vi)}" loading="lazy"
+    const isIcon = /twemoji|openmoji|iconify\.design/.test(v.image);   // icon SVG → chứa gọn, không cắt
+    return `<div class="imgwrap ${isIcon?'emoji-img ':''}${opts.extraClass||''}"><img src="${esc(v.image)}" alt="${esc(v.vi)}" loading="lazy"
       onerror="this.style.display='none';this.insertAdjacentHTML('afterend',this.dataset.fb);this.dataset.fb='';" data-fb='${fb.replace(/'/g,"&#39;")}'></div>`;
   }
   return `<div class="imgwrap ${opts.extraClass||''}">${fb}</div>`;
