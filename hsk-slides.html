@@ -609,7 +609,7 @@ body.hz-nopy .rd-py, body.hz-nopy .rad-py, body.hz-nopy .wf-py { display:none !i
     opts = opts || {};
     /* emoji Twemoji: SVG icon vuông, nền trong suốt — cho khung nền trắng và
        chừa lề để nhìn rõ, KHÔNG cắt/kéo giãn (object-fit:contain sẵn có). */
-    var isEmoji = /\/twemoji\//.test(url || '');
+    var isEmoji = /twemoji|openmoji/.test(url || '');
     return '<figure class="pic' + (opts.cls ? ' ' + opts.cls : '') + (isEmoji ? ' pic-emoji' : '') + '">' +
       /* KHÔNG dùng loading="lazy": mỗi lúc chỉ hiện một slide, ảnh chính là
          nội dung của slide đó — hoãn tải chỉ tổ chớp một cái rồi mới hiện */
