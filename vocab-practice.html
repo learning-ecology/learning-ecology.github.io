@@ -166,6 +166,12 @@ h1.page-title{font-size:26px;margin:0 0 4px}
 .pic-cell.matched{border-color:var(--good);cursor:default}
 .pic-cell.shake{animation:shake .4s}
 .pic-cell .tick{position:absolute;top:6px;right:6px;background:var(--good);color:#fff;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:14px;font-weight:800}
+/* stage-1 confirmed (word↔picture correct, awaiting the Vietnamese meaning) */
+.word-chip.picok{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+.pic-cell.picok{border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+.pic-cell .tick.pend{background:var(--accent)}
+.stage-actions .set-nav{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.stage-actions .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
 @keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
 
 /* Gap-fill */
@@ -499,6 +505,9 @@ en:{
   matchTitle:'Match each word with its picture', matchSub:'Tap a word, then tap the matching picture.',
   words:'Words', picturesTap:'Pictures — tap to match', matched:'Matched {n}/{total}', continue:'Continue →',
   pickWordFirst:'Pick a word first', correct:'Correct!', notMatch:'Not a match — try again.', allMatched:'All matched! Continue.',
+  setOf:'Set {n}/{total}', nextSet:'Next set →', prevSet:'← Previous set', skipMatch:'Skip matching',
+  picMatched:'Picture matched! Now pick the Vietnamese meaning.', pickPicNow:'Now tap the matching picture.',
+  pickWordPicFirst:'Match the word to a picture first', itemDone:'Complete! ✓',
   gapTitle:'Choose the correct word', gapSub:'Pick the word that completes the sentence.',
   gapfillWord:'Gap-fill', next:'Next →', correctNice:'Correct! Nice.', correctRetry:'Correct! (after retry)', notQuite:'Not quite — try another.',
   arrTitle:'Put the words in the correct order', arrSub:'Tap words to build the sentence, then Check.',
@@ -580,6 +589,9 @@ vi:{
   matchTitle:'Nối mỗi từ với hình đúng', matchSub:'Nhấn vào một từ, rồi nhấn vào hình tương ứng.',
   words:'Từ vựng', picturesTap:'Hình ảnh — nhấn để nối', matched:'Đã nối {n}/{total}', continue:'Tiếp tục →',
   pickWordFirst:'Hãy chọn một từ trước', correct:'Chính xác!', notMatch:'Chưa đúng — thử lại nhé.', allMatched:'Đã nối hết! Tiếp tục.',
+  setOf:'Nhóm {n}/{total}', nextSet:'Nhóm sau →', prevSet:'← Nhóm trước', skipMatch:'Bỏ qua phần nối',
+  picMatched:'Đúng hình! Giờ chọn nghĩa tiếng Việt.', pickPicNow:'Giờ nhấn vào hình tương ứng.',
+  pickWordPicFirst:'Hãy nối từ với hình trước', itemDone:'Hoàn thành! ✓',
   gapTitle:'Chọn từ đúng', gapSub:'Chọn từ để hoàn thành câu.',
   gapfillWord:'Điền từ', next:'Tiếp →', correctNice:'Chính xác! Giỏi lắm.', correctRetry:'Chính xác! (sau khi thử lại)', notQuite:'Chưa đúng — thử đáp án khác.',
   arrTitle:'Sắp xếp các từ theo đúng thứ tự', arrSub:'Nhấn các từ để tạo câu, rồi nhấn Kiểm tra.',
@@ -1166,16 +1178,61 @@ const Practice={
     l.arrange.filter(a=>!selWords||[...selWords].some(w=>String(a.target||'').indexOf(w)>=0)).forEach(a=>units.push({kind:'arrange',data:a}));
     return units;
   },
+  /* Split a matching exercise into sets of AT MOST `max` words, spread as
+     evenly as possible (e.g. 10 → 5+5, 17 → 6+6+5) so no set is lopsided. */
+  chunkEven(arr,max){
+    const n=arr.length; if(n<=max) return n?[arr.slice()]:[];
+    const sets=Math.ceil(n/max), base=Math.floor(n/sets), rem=n%sets;
+    const out=[]; let i=0;
+    for(let s=0;s<sets;s++){const size=base+(s<rem?1:0);out.push(arr.slice(i,i+size));i+=size;}
+    return out;
+  },
   buildQueue(units){
     const q=[];
-    const m3=units.filter(u=>u.kind==='match3');
-    if(m3.length)q.push({type:'match3',vocab:shuffle(m3.map(u=>u.data))});
-    const matches=units.filter(u=>u.kind==='match');
-    if(matches.length)q.push({type:'match',vocab:shuffle(matches.map(u=>u.data))});
+    // Matching exercises are chunked into ≤8-word sets and kept contiguous so
+    // the Next/Previous-set and Skip-matching controls can navigate them.
+    const push3=(kind,type)=>{
+      const data=shuffle(units.filter(u=>u.kind===kind).map(u=>u.data));
+      const groups=this.chunkEven(data,8);
+      groups.forEach((g,i)=>q.push({type,vocab:g,set:i,sets:groups.length}));
+    };
+    push3('match3','match3');
+    push3('match','match');
     shuffle(units.filter(u=>u.kind==='gap')).forEach(u=>q.push({type:'gap',data:u.data}));
     shuffle(units.filter(u=>u.kind==='mcq')).forEach(u=>q.push({type:'mcq',data:u.data}));
     shuffle(units.filter(u=>u.kind==='arrange')).forEach(u=>q.push({type:'arrange',data:u.data}));
     return q;
+  },
+  /* Jump past EVERY remaining set of the matching exercise the student is on
+     (sets of one matching type are contiguous), then continue or finish. */
+  skipGroup(type){
+    while(this.qi<this.queue.length && this.queue[this.qi].type===type) this.qi++;
+    if(this.qi>=this.queue.length)this.results(); else this.step();
+    window.scrollTo(0,0);
+  },
+  prevSet(){
+    if(this.qi>0 && this.queue[this.qi-1].type===this.queue[this.qi].type){
+      this.qi--; this.step(); window.scrollTo(0,0);
+    }
+  },
+  /* Bottom bar shared by the two matching exercises: live counter, a
+     "Set n/N" chip + Previous-set button when the exercise was chunked, an
+     always-available Skip-matching button, and the Continue/Next-set CTA. */
+  matchActionsHtml(s,counter,nextId){
+    const multi=s.sets>1, notLast=multi && s.set<s.sets-1;
+    return `<div class="stage-actions">
+      <div class="set-nav">
+        <span class="qcount">${counter}</span>
+        ${multi?`<span class="qcount">· ${esc(t('setOf',{n:s.set+1,total:s.sets}))}</span>`:''}
+        ${multi&&s.set>0?`<button class="btn ghost sm" data-prevset>${esc(t('prevSet'))}</button>`:''}
+        <button class="btn ghost sm" data-skipmatch>${esc(t('skipMatch'))}</button>
+      </div>
+      <button class="btn primary" id="${nextId}" disabled>${esc(notLast?t('nextSet'):t('continue'))}</button>
+    </div>`;
+  },
+  wireSetNav(inner,s){
+    const p=inner.querySelector('[data-prevset]'); if(p)p.onclick=()=>this.prevSet();
+    const sk=inner.querySelector('[data-skipmatch]'); if(sk)sk.onclick=()=>this.skipGroup(s.type);
   },
 
   render(mount,cid,lid){
@@ -1235,7 +1292,7 @@ const Practice={
         <div class="match-col"><h4>${esc(t('picturesTap'))}</h4><div class="pic-grid"></div></div>
       </div>
       <div class="feedback" id="mfb"></div>
-      <div class="stage-actions"><span class="qcount">${t('matched',{n:'<b id="mcount">0</b>',total:vocab.length})}</span><button class="btn primary" id="mnext" disabled>${esc(t('continue'))}</button></div>
+      ${this.matchActionsHtml(s,t('matched',{n:'<b id="mcount">0</b>',total:vocab.length}),'mnext')}
     </div>`);
     const wcol=inner.querySelector('.words'),pcol=inner.querySelector('.pic-grid');
     const fb=inner.querySelector('#mfb'),cnt=inner.querySelector('#mcount'),nextBtn=inner.querySelector('#mnext');
@@ -1269,6 +1326,7 @@ const Practice={
       pcol.appendChild(cell);
     });
     nextBtn.onclick=()=>this.next();
+    this.wireSetNav(inner,s);
     this.frame(t('exA'),t('matchTitle'),t('matchSub'),inner);
   },
 
@@ -1358,11 +1416,17 @@ const Practice={
     this.frame(t('exC'),t('arrTitle'),t('arrSub'),inner);
   },
 
-  /* ---------- English Exercise 1: Word ↔ Picture ↔ Vietnamese (3-way) ---------- */
+  /* ---------- English Exercise 1: Word ↔ Picture ↔ Vietnamese (3-way) ----------
+     Two-stage, immediate feedback per word:
+       stage 1  word → picture   (green tick the moment the picture is right;
+                                   a wrong picture shakes and lets you retry)
+       stage 2  word → Vietnamese meaning (its own immediate feedback)
+     A word is marked COMPLETE only after BOTH stages are correct; the picture
+     match stays visibly confirmed while the student picks the meaning. */
   renderMatch3(s){
     const vocab=s.vocab;
     const words=shuffle(vocab.slice()),pics=shuffle(vocab.slice()),means=shuffle(vocab.slice());
-    let selWord=null,selPic=null,matched=0;const wrong={};
+    let selWord=null,matched=0;const wrong={},picok=new Set();
     const inner=el(`<div>
       <div class="match-wrap" style="grid-template-columns:1fr 1.1fr 1fr">
         <div class="match-col"><h4>${esc(t('words'))}</h4><div class="words"></div></div>
@@ -1370,40 +1434,62 @@ const Practice={
         <div class="match-col"><h4>Nghĩa tiếng Việt</h4><div class="means"></div></div>
       </div>
       <div class="feedback" id="m3fb"></div>
-      <div class="stage-actions"><span class="qcount">${t('matched',{n:'<b id="m3c">0</b>',total:vocab.length})}</span><button class="btn primary" id="m3next" disabled>${esc(t('continue'))}</button></div>
+      ${this.matchActionsHtml(s,t('matched',{n:'<b id="m3c">0</b>',total:vocab.length}),'m3next')}
     </div>`);
     const wcol=inner.querySelector('.words'),pcol=inner.querySelector('.pic-grid'),mcol=inner.querySelector('.means');
     const fb=inner.querySelector('#m3fb'),cnt=inner.querySelector('#m3c'),nextBtn=inner.querySelector('#m3next');
-    const clearSel=()=>{selWord=null;selPic=null;wcol.querySelectorAll('.word-chip').forEach(c=>c.classList.remove('selected'));pcol.querySelectorAll('.pic-cell').forEach(c=>c.classList.remove('selected'));};
-    const bad=id=>{wrong[id]=true;this.credit({kind:'match3',data:vocab.find(x=>x.id===id)},false);fb.className='feedback show no';fb.innerHTML='<span class="fx">✗</span> '+esc(t('notMatch'));clearSel();};
+    const chipOf=id=>wcol.querySelector(`.word-chip[data-id="${id}"]`);
+    const cellOf=id=>pcol.querySelector(`.pic-cell[data-id="${id}"]`);
+    const meanOf=id=>mcol.querySelector(`.means .word-chip[data-id="${id}"]`);
+    const ok =m=>{fb.className='feedback show ok';fb.innerHTML='<span class="fx">✓</span> '+esc(m);};
+    const no =m=>{fb.className='feedback show no';fb.innerHTML='<span class="fx">✗</span> '+esc(m);};
+    const highlightWord=id=>{wcol.querySelectorAll('.word-chip').forEach(c=>c.classList.remove('selected'));const c=chipOf(id);if(c&&!c.classList.contains('matched'))c.classList.add('selected');selWord=id;};
+    const miss=id=>{wrong[id]=true;this.credit({kind:'match3',data:vocab.find(x=>x.id===id)},false);};
     words.forEach(v=>{
       const chip=el(`<div class="word-chip" data-id="${v.id}"><span class="hanzi" style="font-weight:800">${esc(v.word)}</span><button class="speak sm" style="width:28px;height:28px">🔊</button></div>`);
       chip.querySelector('.speak').onclick=(e)=>{e.stopPropagation();TTS.speak({text:v.word,audio:v.audio},chip.querySelector('.speak'),'en');};
-      chip.onclick=()=>{if(chip.classList.contains('matched'))return;wcol.querySelectorAll('.word-chip').forEach(c=>c.classList.remove('selected'));chip.classList.add('selected');selWord=v.id;selPic=null;pcol.querySelectorAll('.pic-cell').forEach(c=>c.classList.remove('selected'));};
+      chip.onclick=()=>{if(chip.classList.contains('matched'))return;
+        highlightWord(v.id);
+        // already through stage 1 → nudge toward the meaning; otherwise the picture
+        ok(picok.has(v.id)?t('picMatched'):t('pickPicNow'));};
       wcol.appendChild(chip);
     });
     pics.forEach(v=>{
       const cell=el(`<div class="pic-cell" data-id="${v.id}">${imageBox(v,{hideHanzi:true,blank:true})}</div>`);
-      cell.onclick=()=>{if(cell.classList.contains('matched'))return;
+      cell.onclick=()=>{if(cell.classList.contains('matched')||cell.classList.contains('picok'))return;
         if(!selWord){toast(t('pickWordFirst'));return;}
-        if(v.id===selWord){selPic=v.id;pcol.querySelectorAll('.pic-cell').forEach(c=>c.classList.remove('selected'));cell.classList.add('selected');fb.className='feedback';}
-        else bad(selWord);};
+        if(picok.has(selWord)){toast(t('picMatched'));return;}   // stage 1 already done
+        if(v.id===selWord){
+          // stage 1 correct — confirm immediately, keep it visible, wait for meaning
+          picok.add(v.id);
+          cell.classList.add('picok');cell.appendChild(el('<div class="tick pend">✓</div>'));
+          const c=chipOf(v.id);if(c){c.classList.remove('selected');c.classList.add('picok');}
+          ok(t('picMatched'));
+        }else{
+          miss(selWord);
+          cell.classList.add('shake');setTimeout(()=>cell.classList.remove('shake'),400);
+          no(t('notMatch'));
+        }};
       pcol.appendChild(cell);
     });
     means.forEach(v=>{
       const chip=el(`<div class="word-chip" data-id="${v.id}" style="justify-content:center"><span>${esc(v.vi||v.en||'')}</span></div>`);
       chip.onclick=()=>{if(chip.classList.contains('matched'))return;
-        if(!selWord||!selPic){toast('Chọn từ rồi ảnh trước');return;}
-        if(v.id===selWord){
-          this.credit({kind:'match3',data:vocab.find(x=>x.id===v.id)},!wrong[v.id]);
-          [wcol.querySelector(`.word-chip[data-id="${v.id}"]`),pcol.querySelector(`.pic-cell[data-id="${v.id}"]`),chip].forEach(e2=>{if(e2){e2.classList.add('matched');e2.classList.remove('selected');}});
-          matched++;cnt.textContent=matched;clearSel();
-          fb.className='feedback show ok';fb.innerHTML='<span class="fx">✓</span> '+esc(t('correct'));
-          if(matched===vocab.length){nextBtn.disabled=false;fb.innerHTML='<span class="fx">🎉</span> '+esc(t('allMatched'));}
-        } else bad(selWord);};
+        if(!selWord||!picok.has(selWord)){toast(t('pickWordPicFirst'));return;}
+        const id=selWord;
+        if(v.id===id){
+          // stage 2 correct — the whole item is now complete
+          this.credit({kind:'match3',data:vocab.find(x=>x.id===id)},!wrong[id]);
+          [chipOf(id),cellOf(id),chip].forEach(e2=>{if(e2){e2.classList.remove('selected','picok');e2.classList.add('matched');}});
+          const pt=cellOf(id)&&cellOf(id).querySelector('.tick');if(pt)pt.classList.remove('pend');
+          picok.delete(id);selWord=null;matched++;cnt.textContent=matched;
+          ok(t('itemDone'));
+          if(matched===vocab.length){nextBtn.disabled=false;ok(t('allMatched'));}
+        }else{ miss(id); no(t('notMatch')); }};
       mcol.appendChild(chip);
     });
     nextBtn.onclick=()=>this.next();
+    this.wireSetNav(inner,s);
     this.frame(t('exA'),'Nối: Từ · Hình · Nghĩa','Chọn một TỪ, rồi HÌNH tương ứng, rồi NGHĨA tiếng Việt.',inner);
   },
 
