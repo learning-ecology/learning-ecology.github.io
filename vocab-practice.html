@@ -793,8 +793,10 @@ const App={
   reflectUrl(){
     try{
       const r=this.route;
+      /* giữ ?hw= khi đang ở trong một bài được giao → tải lại vẫn ghi được tiến độ */
+      const hw=(VP.HW&&r&&(r.name==='lesson'||r.name==='practice'))?('&hw='+encodeURIComponent(VP.HW)):'';
       const u=(r&&(r.name==='lesson'||r.name==='practice')&&r.lid)
-        ? 'vocab-practice.html?lesson='+encodeURIComponent(r.lid)
+        ? 'vocab-practice.html?lesson='+encodeURIComponent(r.lid)+hw
         : 'vocab-practice.html';
       history.replaceState(null,'',u);
     }catch(e){}
@@ -2111,11 +2113,15 @@ async function boot(){
   Store.buildEn(enTree, enList);
   /* ngôn ngữ nội dung đã chọn lần trước */
   try{ const cl=localStorage.getItem('vp_content_lang'); if(cl==='en'||cl==='zh')Store.lang=cl; }catch(e){}
+  /* Đọc ?lesson=<mã bài> NGAY, TRƯỚC khi App.init() render (render gọi
+     reflectUrl() ghi đè URL, xoá mất ?lesson=/?hw= — đúng lỗi khiến bài tập
+     được giao mở ra trang chọn khoá thay vì đúng bài). */
+  const want=new URLSearchParams(location.search).get('lesson')||'';
   App.init();
   syncAuthUI();
   App.syncContentLang();
-  /* liên kết trực tiếp ?lesson=<mã bài> (tự chuyển ngôn ngữ nếu cần) */
-  const want=new URLSearchParams(location.search).get('lesson')||'';
+  /* liên kết trực tiếp ?lesson=<mã bài> (tự chuyển ngôn ngữ nếu cần) → mở đúng
+     bài đã giao, bỏ qua trang chọn khoá. Dùng cho mọi cấp HSK và mọi bài. */
   if(want){ const f=Store.findLesson(want); if(f){ if(f.lang!==Store.lang){Store.lang=f.lang;App.syncContentLang();} App.go({name:'lesson',cid:f.cid,lid:f.l.id}); } }
 }
 
