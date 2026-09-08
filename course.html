@@ -146,8 +146,14 @@
     .pv-cat-menu .ci:hover { background: var(--pv-soft); }
     .pv-cat-menu .ci.on { background: var(--info-bg); border-color: var(--accent); color: var(--accent-ink); }
     :root[data-theme="dark"] .pv-cat-menu .ci.on { color: #cfe0f6; }
-    .ci-thumb { width: 34px; height: 34px; flex: none; border-radius: 9px;
-      background-size: cover; background-position: center; display: grid; place-items: center;
+    /* Biểu tượng khóa học trong menu: hiện TRỌN ẢNH (contain) + đệm trong,
+       canh giữa, không méo, không cắt. Ô có nền nhạt + bo góc đồng nhất; ảnh
+       tự co giãn giữ đúng tỉ lệ. Ô không có ảnh (gradient + emoji) vẫn lấp đầy
+       nhờ gradient không có kích thước nội tại. (Phase 102) */
+    .ci-thumb { width: 34px; height: 34px; flex: none; border-radius: 9px; box-sizing: border-box;
+      background-size: contain; background-repeat: no-repeat; background-position: center;
+      background-origin: content-box; padding: 3px; background-color: var(--pv-soft, #eef2f7);
+      display: grid; place-items: center; overflow: hidden;
       color: #fff; font-size: 1rem; text-shadow: 0 1px 4px rgba(0,0,0,.45); }
     .ci-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -156,6 +162,14 @@
       padding: clamp(1.2rem,4vw,2rem) clamp(1rem,4vw,2rem) 3rem; }
     .cp-mobilesel { display: none !important; }
     .cp-content .course-banner, .pv-main .course-banner { margin: 0 0 1.1rem; border-radius: 18px; }
+    /* Ảnh khóa học (banner): LẤP ĐẦY khung gọn gàng (cover) + canh giữa, không
+       méo. Dùng tỉ lệ khung vừa phải (5:2) thay cho khung quá dẹt → cắt ít đi
+       nhiều mà vẫn đầy khung; tự co theo bề rộng nên đáp ứng mọi màn hình, mọi
+       khung cùng một tỉ lệ + bo góc. (Phase 102) */
+    body.pv .course-banner { height: auto; aspect-ratio: 5 / 2; }
+    body.pv .course-banner .cb-bg { background-size: cover; background-position: center;
+      background-repeat: no-repeat; }
+    @media (max-width: 640px) { body.pv .course-banner { height: auto; aspect-ratio: 2 / 1; } }
     .cp-desc { color: var(--muted); margin: 0 0 1.2rem; max-width: 72ch; }
     .cp-note { color: var(--muted); font-size: .95rem; margin: 0 0 1.1rem; }
     .cp-lead { font-size: 1.05rem; color: var(--muted); margin: .9rem 0 .2rem; }
