@@ -2387,6 +2387,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         </div>
         <div class="tabpane" data-tab="asgn">
           <div id="hsk-hw"></div>
+          <div id="vocab-hw"></div>
           ${asgnCard || (`<div class="card" id="asgn-empty"><p class="empty">${T2p("no_asgn_student")}</p></div>`)}
         </div>
         <div class="tabpane" data-tab="community">
@@ -2437,21 +2438,25 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           </div>`;
       })();
 
-      /* ---- Bài tập tiếng Trung (HSK Slides giao cho lớp) — Phase 80 ----
+      /* ---- Bài tập giao cho lớp (HSK Slides + Luyện từ vựng) — Phase 80/101 ----
          RLS chỉ trả về bài được giao cho tôi. Điểm/tiến độ lấy từ hsk_attempts.
-         Bấm Bắt đầu/Tiếp tục → mở hsk-slides.html?hw=<id>&lesson=<mã bài>. */
-      (async function hskHomework() {
-        const box = document.getElementById("hsk-hw");
+         MỘT hàm dùng chung: `kind` lọc slides/vocab, `lessonTable` là bảng bài,
+         `playerUrl` là trang học. Bấm Bắt đầu/Tiếp tục → mở
+         <playerUrl>?hw=<id>&lesson=<mã bài>. Không lọc `kind` ở tầng CSDL để vẫn
+         chạy khi chưa chạy migration71 (cột kind mặc định 'slides'). */
+      async function mountStudentHomework(boxId, kind, lessonTable, playerUrl, cardTitle) {
+        const box = document.getElementById(boxId);
         if (!box) return;
         let hwRes;
         try { hwRes = await sb.from("hsk_homework").select("*").order("due_at", { ascending: true, nullsFirst: false }); }
         catch (e) { return; }                          // migration66 chưa chạy
-        if (hwRes.error || !(hwRes.data || []).length) return;
-        const hws = hwRes.data;
+        if (hwRes.error) return;
+        const hws = (hwRes.data || []).filter(h => (h.kind || "slides") === kind);
+        if (!hws.length) return;
         const lids = [...new Set(hws.map(h => h.lesson_id))];
         const clids = [...new Set(hws.map(h => h.class_id).filter(Boolean))];
         const [lRes, atRes, cRes] = await Promise.all([
-          sb.from("hsk_lessons").select("lesson_id, title, hsk_level").in("lesson_id", lids),
+          sb.from(lessonTable).select("lesson_id, title, hsk_level").in("lesson_id", lids),
           sb.from("hsk_attempts").select("homework_id, status, score, attempt_no").eq("user_id", user.id).not("homework_id", "is", null),
           clids.length ? sb.from("classes").select("id, name").in("id", clids) : Promise.resolve({ data: [] })
         ]);
@@ -2485,7 +2490,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
 
           const canGo = !notStarted && !(outOfTries && !passed);
           const label = open ? "Tiếp tục ▸" : (doneAtt ? "Làm lại ▸" : "Bắt đầu ▸");
-          const href = "hsk-slides.html?hw=" + encodeURIComponent(h.id) + "&lesson=" + encodeURIComponent(h.lesson_id);
+          const href = playerUrl + "?hw=" + encodeURIComponent(h.id) + "&lesson=" + encodeURIComponent(h.lesson_id);
           const meta = [
             cMap[h.class_id] ? "Lớp " + esc(cMap[h.class_id]) : "",
             les.hsk_level ? "HSK " + les.hsk_level : "",
@@ -2515,10 +2520,13 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         if (emptyMsg) emptyMsg.remove();
         box.innerHTML = `
           <div class="card" style="border-top:4px solid var(--tone-red,#c0392b);">
-            <h2>🀄 Bài tập tiếng Trung</h2>
+            <h2>${cardTitle}</h2>
             ${rows}
           </div>`;
-      })();
+      }
+      // Bài tập HSK Slides + Bài tập Luyện từ vựng (cùng khu vực "Bài tập")
+      mountStudentHomework("hsk-hw", "slides", "hsk_lessons", "hsk-slides.html", "🀄 Bài tập tiếng Trung");
+      mountStudentHomework("vocab-hw", "vocab", "vocab_lessons", "vocab-practice.html", "🀄 Bài tập Luyện từ vựng");
 
       document.getElementById("p-save").addEventListener("click", async () => {
         const m = document.getElementById("p-msg");
@@ -3911,6 +3919,58 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               <button class="vkl-btn" id="vkl-en" type="button" data-vl="en" style="padding:0.4rem 0.9rem; border-radius:999px; border:1px solid var(--line); background:#fff;">🇬🇧 Tiếng Anh</button>
             </div>
           </div>
+
+          <!-- ===== Giao bài Luyện từ vựng (dùng chung hệ thống HSK Slides) ===== -->
+          <div class="card" id="vhw-card" style="border-top:4px solid var(--tone-red,#c0392b);">
+            <div class="card-head"><h2>📌 Giao bài Luyện từ vựng</h2></div>
+            <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
+              Giao một bài <b>Luyện từ vựng</b> (🇨🇳 hoặc 🇬🇧) cho cả lớp hoặc chọn từng học viên — cùng quy trình
+              với HSK Slides. Học viên thấy bài trong <b>Bảng điều khiển → Bài tập</b>; điểm và số lượt làm được lưu tự động.</p>
+            <div class="form-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:0.7rem;">
+              <div class="field" style="grid-column:1/-1;"><label>Bài luyện từ vựng</label>
+                <select id="vhw-lesson"><option value="">— Chọn bài —</option></select></div>
+              <div class="field"><label>Lớp</label>
+                <select id="vhw-class"><option value="">— Chọn lớp —</option></select></div>
+              <div class="field"><label>Giao cho</label>
+                <select id="vhw-who"><option value="all">Cả lớp</option><option value="some">Chọn học viên…</option></select></div>
+              <div class="field" id="vhw-stu-wrap" style="grid-column:1/-1; display:none;">
+                <label>Học viên (giữ Ctrl/⌘ để chọn nhiều)</label>
+                <select id="vhw-students" multiple size="5" style="height:auto;"></select></div>
+              <div class="field"><label>Mở lúc (tuỳ chọn)</label>
+                <input type="datetime-local" id="vhw-start" /></div>
+              <div class="field"><label>Hạn nộp (tuỳ chọn)</label>
+                <input type="datetime-local" id="vhw-due" /></div>
+              <div class="field"><label>Điểm cần đạt (%) · 0 = không bắt buộc</label>
+                <input type="number" id="vhw-score" min="0" max="100" value="0" /></div>
+              <div class="field"><label>Số lượt tối đa · 0 = không giới hạn</label>
+                <input type="number" id="vhw-tries" min="0" value="0" /></div>
+              <div class="field" style="grid-column:1/-1;"><label>Ghi chú / tiêu đề (tuỳ chọn)</label>
+                <input type="text" id="vhw-title" placeholder="Để trống sẽ dùng tên bài" /></div>
+            </div>
+            <div style="display:flex; gap:0.6rem; align-items:center; margin-top:0.6rem; flex-wrap:wrap;">
+              <button id="vhw-save">Giao bài</button>
+              <span id="vhw-msg" class="msg"></span>
+            </div>
+            <div id="vhw-list" style="margin-top:0.9rem;"></div>
+          </div>
+
+          <div class="card" id="vhp-card" style="border-top:4px solid var(--tone-teal,#0d9488);">
+            <div class="card-head"><h2>📊 Theo dõi tiến độ (Luyện từ vựng)</h2>
+              <button class="ghost" id="vhp-refresh" style="width:auto; padding:.35rem .7rem; font-size:.85rem;">↻ Làm mới</button>
+            </div>
+            <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
+              Xem ai đã làm, điểm cao nhất, số lượt và lần hoạt động gần nhất cho từng bài từ vựng đã giao.</p>
+            <div class="form-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:0.7rem;">
+              <div class="field"><label>Lớp</label>
+                <select id="vhp-class"><option value="">— Chọn lớp —</option></select></div>
+              <div class="field"><label>Bài đã giao</label>
+                <select id="vhp-hw"><option value="">— Tất cả bài của lớp —</option></select></div>
+            </div>
+            <div id="vhp-summary" style="margin-top:0.6rem;"></div>
+            <div id="vhp-chips" style="display:flex; gap:0.4rem; flex-wrap:wrap; margin:0.6rem 0;"></div>
+            <div id="vhp-body"><p class="empty" style="margin:0;">Chọn lớp để xem tiến độ.</p></div>
+          </div>
+
           <div id="vk-zh">
           <div class="card">
             <h2>🀄 Tạo bài Luyện từ vựng HSK từ Excel</h2>
@@ -8778,44 +8838,54 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         renderHs();
       })();
 
-      // ================= GIAO BÀI TẬP HSK (Homework) — Phase 80 =================
-      // Chủ/giáo viên giao một bài giảng HSK cho lớp (hoặc chọn học viên).
-      // Lưu vào hsk_homework; học viên thấy ở Bảng điều khiển → Bài tập, điểm
-      // và tiến độ lưu trong hsk_attempts (migration65/66).
-      (function () {
-        const card = document.getElementById("hw-card");
+      // ================= GIAO BÀI TẬP (Homework) — Phase 80 / Phase 101 =========
+      // Chủ/giáo viên giao một bài cho lớp (hoặc chọn học viên). MỘT hàm dùng
+      // chung cho cả HSK Slides (kind='slides') và Luyện từ vựng (kind='vocab')
+      // — cùng bảng hsk_homework, cùng quy trình, chỉ khác cột `kind`, danh sách
+      // bài (getLessons) và tiền tố id trên giao diện (prefix). Học viên thấy ở
+      // Bảng điều khiển → Bài tập; điểm/tiến độ lưu trong hsk_attempts.
+      function mountAssignCard(prefix, kind, getLessons, migHint) {
+        const card = document.getElementById(prefix + "-card");
         if (!card) return;
         const $ = id => document.getElementById(id);
-        const selLesson = $("hw-lesson"), selClass = $("hw-class"), selWho = $("hw-who"),
-              stuWrap = $("hw-stu-wrap"), selStu = $("hw-students"),
-              inStart = $("hw-start"), inDue = $("hw-due"), inScore = $("hw-score"),
-              inTries = $("hw-tries"), inTitle = $("hw-title"),
-              btnSave = $("hw-save"), msg = $("hw-msg"), listBox = $("hw-list");
-        let classes = [], members = {}, hwRows = [], loaded = false;
+        const selLesson = $(prefix + "-lesson"), selClass = $(prefix + "-class"), selWho = $(prefix + "-who"),
+              stuWrap = $(prefix + "-stu-wrap"), selStu = $(prefix + "-students"),
+              inStart = $(prefix + "-start"), inDue = $(prefix + "-due"), inScore = $(prefix + "-score"),
+              inTries = $(prefix + "-tries"), inTitle = $(prefix + "-title"),
+              btnSave = $(prefix + "-save"), msg = $(prefix + "-msg"), listBox = $(prefix + "-list");
+        let classes = [], members = {}, hwRows = [], lessonRows = [], loaded = false;
 
         const say = (t, err) => { msg.textContent = t || ""; msg.className = "msg" + (err ? " err" : ""); };
         const fmt = ts => { if (!ts) return ""; const d = new Date(ts);
           return d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
-        const toLocalInput = () => "";  // để trống mặc định
+        // nhãn bài: bài tiếng Anh (vocab) hiện cờ 🇬🇧, còn lại "HSK n · "
+        const lessonLabel = l => (kind === "vocab" && l.language === "en"
+          ? "🇬🇧 " : (l.hsk_level ? "HSK " + l.hsk_level + " · " : "")) + esc(l.title || l.lesson_id);
 
         function fillLessons() {
-          selLesson.innerHTML = `<option value="">— Chọn bài giảng —</option>` +
-            hskRows.slice().sort((a, b) => (a.hsk_level - b.hsk_level) || String(a.title).localeCompare(String(b.title)))
-              .map(l => `<option value="${esc(l.lesson_id)}">${l.hsk_level ? "HSK " + l.hsk_level + " · " : ""}${esc(l.title || l.lesson_id)}</option>`).join("");
+          selLesson.innerHTML = `<option value="">— Chọn bài —</option>` +
+            lessonRows.slice().sort((a, b) =>
+                String(a.language || "zh").localeCompare(String(b.language || "zh"))
+                || ((a.hsk_level || 0) - (b.hsk_level || 0))
+                || String(a.title || "").localeCompare(String(b.title || "")))
+              .map(l => `<option value="${esc(l.lesson_id)}">${lessonLabel(l)}</option>`).join("");
         }
 
         async function load() {
           if (loaded) return;
           loaded = true;
-          // lớp + danh sách hsk_homework hiện có
-          const [cRes, hwRes] = await Promise.all([
+          // lớp + danh sách bài đã giao (theo kind) + danh sách bài
+          const [cRes, hwRes, lrows] = await Promise.all([
             sb.from("classes").select("id, name, course_id, org_id").order("starts_on", { ascending: true }),
-            sb.from("hsk_homework").select("*").order("created_at", { ascending: false })
+            sb.from("hsk_homework").select("*").order("created_at", { ascending: false }),
+            getLessons()
           ]);
           classes = (cRes.data || []);
           selClass.innerHTML = `<option value="">— Chọn lớp —</option>` +
             classes.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
-          hwRows = (hwRes.error ? [] : (hwRes.data || []));
+          // lọc theo kind trong JS (mặc định 'slides') → vẫn chạy khi chưa có cột kind
+          hwRows = (hwRes.error ? [] : (hwRes.data || []).filter(h => (h.kind || "slides") === kind));
+          lessonRows = lrows || [];
           fillLessons();
           renderList();
         }
@@ -8841,7 +8911,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         }
 
         function lessonTitle(lid) {
-          const l = hskRows.find(r => r.lesson_id === lid);
+          const l = lessonRows.find(r => r.lesson_id === lid);
           return l ? (l.title || lid) : lid;
         }
         function className(cid) {
@@ -8884,7 +8954,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         btnSave.addEventListener("click", async () => {
           const lesson_id = selLesson.value;
           const class_id = selClass.value;
-          if (!lesson_id) { say("Hãy chọn bài giảng.", true); return; }
+          if (!lesson_id) { say("Hãy chọn bài.", true); return; }
           if (!class_id) { say("Hãy chọn lớp.", true); return; }
           let student_ids = [];
           if (selWho.value === "some") {
@@ -8894,7 +8964,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           const cls = classes.find(c => c.id === class_id);
           const row = {
             org_id: (cls && cls.org_id) || null,
-            class_id, lesson_id,
+            class_id, lesson_id, kind,
             title: inTitle.value.trim(),
             student_ids,
             start_at: inStart.value ? new Date(inStart.value).toISOString() : null,
@@ -8904,9 +8974,16 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             created_by: user.id
           };
           say("Đang lưu…");
-          const { data, error } = await sb.from("hsk_homework").insert(row).select().single();
+          let { data, error } = await sb.from("hsk_homework").insert(row).select().single();
+          // Nếu chưa chạy migration71 (chưa có cột kind) mà đang giao bài SLIDES,
+          // thử lại không kèm kind để không làm hỏng luồng cũ.
+          if (error && /column .*kind.* does not exist/i.test(error.message) && kind === "slides") {
+            const { kind: _drop, ...row2 } = row;
+            ({ data, error } = await sb.from("hsk_homework").insert(row2).select().single());
+          }
           if (error) {
-            say(error.message + (/relation .* does not exist/i.test(error.message) ? " — hình như chưa chạy migration66_hsk_homework.sql." : ""), true);
+            const needMig = /relation .* does not exist/i.test(error.message) || /column .*kind.* does not exist/i.test(error.message);
+            say(error.message + (needMig ? " — hình như chưa chạy " + migHint + "." : ""), true);
             return;
           }
           hwRows.unshift(data);
@@ -8927,22 +9004,24 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           renderList();
         });
 
-        // nạp dữ liệu lần đầu khi mở tab HSK (hoặc ngay nếu tab đang mở)
+        // nạp dữ liệu lần đầu khi mở tab (hoặc ngay nếu tab đang mở)
         load();
-      })();
+      }
 
-      // ================= THEO DÕI TIẾN ĐỘ HSK (Progress) — Phase 81 =================
+      // ================= THEO DÕI TIẾN ĐỘ (Progress) — Phase 81 / Phase 101 =====
       // Owner/giáo viên xem tiến độ từng bài đã giao: ai làm chưa, điểm cao
-      // nhất, số lượt, hoạt động gần nhất. Đọc hsk_homework + hsk_attempts
-      // (RLS cho phép staff đọc hết) + danh sách lớp để biết cả những học
-      // viên CHƯA làm (không có lượt nào).
-      (function () {
-        const card = document.getElementById("hp-card");
+      // nhất, số lượt, hoạt động gần nhất. MỘT hàm dùng chung cho HSK Slides
+      // (kind='slides') và Luyện từ vựng (kind='vocab') — cùng hsk_homework +
+      // hsk_attempts, chỉ lọc theo `kind`, đổi danh sách bài (getLessons) và
+      // tiền tố id (prefix). RLS cho staff đọc hết.
+      function mountProgressCard(prefix, kind, getLessons) {
+        const card = document.getElementById(prefix + "-card");
         if (!card) return;
         const $ = id => document.getElementById(id);
-        const selClass = $("hp-class"), selHw = $("hp-hw"),
-              sumBox = $("hp-summary"), chipBox = $("hp-chips"), body = $("hp-body");
+        const selClass = $(prefix + "-class"), selHw = $(prefix + "-hw"),
+              sumBox = $(prefix + "-summary"), chipBox = $(prefix + "-chips"), body = $(prefix + "-body");
         let classesReady = false;
+        let lessonRows = [];     // danh sách bài (để lấy tiêu đề)
         let assigns = [];        // hsk_homework của lớp đang chọn
         let attempts = [];       // hsk_attempts theo homework_id của lớp
         let roster = [];         // [{id, name}] học viên trong lớp
@@ -8954,12 +9033,16 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
                        : d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
         const mmss = s => { s = Math.max(0, Math.round(s || 0)); const m = Math.floor(s / 60);
           return m ? m + "′" + String(s % 60).padStart(2, "0") + "″" : s + "″"; };
-        const lessonTitle = lid => { const l = hskRows.find(r => r.lesson_id === lid); return l ? (l.title || lid) : lid; };
+        const lessonTitle = lid => { const l = lessonRows.find(r => r.lesson_id === lid); return l ? (l.title || lid) : lid; };
 
         async function loadClasses() {
           if (classesReady) return;
           classesReady = true;
-          const cRes = await sb.from("classes").select("id, name").order("starts_on", { ascending: true });
+          const [cRes, lrows] = await Promise.all([
+            sb.from("classes").select("id, name").order("starts_on", { ascending: true }),
+            getLessons()
+          ]);
+          lessonRows = lrows || [];
           selClass.innerHTML = `<option value="">— Chọn lớp —</option>` +
             (cRes.data || []).map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
         }
@@ -8972,7 +9055,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             sb.from("hsk_homework").select("*").eq("class_id", classId).order("created_at", { ascending: false }),
             sb.from("class_students").select("student_id").eq("class_id", classId)
           ]);
-          assigns = (aRes.data || []);
+          // lọc theo kind trong JS (mặc định 'slides') → không phụ thuộc cột kind
+          assigns = (aRes.data || []).filter(h => (h.kind || "slides") === kind);
           const sids = (rRes.data || []).map(r => r.student_id);
           let profs = [];
           if (sids.length) {
@@ -9115,7 +9199,29 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         });
 
         loadClasses();
-      })();
+      }
+
+      // ---- Danh sách bài để giao / theo dõi -----------------------------------
+      // Slides: dùng hskRows đã nạp sẵn. Vocab: nạp nhẹ (không kèm `data`) danh
+      // sách bài Luyện từ vựng (cả 🇨🇳 và 🇬🇧) để đổ vào ô chọn + tra tiêu đề.
+      const getSlidesLessons = async () => hskRows;
+      let __vocabLessonRows = null;
+      const getVocabLessons = async () => {
+        if (__vocabLessonRows) return __vocabLessonRows;
+        try {
+          const r = await sb.from("vocab_lessons")
+            .select("lesson_id, title, hsk_level, language, published")
+            .order("language").order("hsk_level").order("sort_order").order("created_at");
+          __vocabLessonRows = r.error ? [] : (r.data || []);
+        } catch (e) { __vocabLessonRows = []; }
+        return __vocabLessonRows;
+      };
+
+      // Mount cả hai bộ thẻ: HSK Slides (tab HSK) và Luyện từ vựng (tab Vocab).
+      mountAssignCard("hw", "slides", getSlidesLessons, "migration66_hsk_homework.sql");
+      mountProgressCard("hp", "slides", getSlidesLessons);
+      mountAssignCard("vhw", "vocab", getVocabLessons, "migration71_vocab_homework.sql");
+      mountProgressCard("vhp", "vocab", getVocabLessons);
 
       // ================= HSK VOCAB PRACTICE (Phase 85) =================
       // Quản lý bài Luyện từ vựng HSK y như HSK Slides: nhập Excel (Info/

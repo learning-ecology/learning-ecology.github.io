@@ -756,7 +756,9 @@ const Store={courses:[], lang:'zh', en:{tree:[],lessons:[]},
 /* Truy cập: khách (GUEST) xem danh mục + mở bài FREE; đăng nhập thì máy chủ
    (RLS + RPC public_vocab_lesson) tự quyết bài Premium/khoá học. */
 const DB = (typeof sb !== 'undefined' && sb) ? sb : (window.sb || null);
-const VP = { GUEST:true, STAFF:false, PREMIUM:false, USER:null };
+const VP = { GUEST:true, STAFF:false, PREMIUM:false, USER:null,
+  /* Bài tập được giao: ?hw=<id> gắn kết quả vào hsk_homework/hsk_attempts */
+  HW:(new URLSearchParams(location.search).get('hw')||'') };
 const App={
   view:'student',            // 'student' | 'admin'
   route:{name:'home'},       // student route
@@ -1242,6 +1244,7 @@ const Practice={
     if(!units.length){ toast(t('noUnitsForSel')); App.go({name:'lesson',cid,lid}); return; }
     this.total=units.length;
     this.correctIds=new Set();this.wrongSet=new Set();
+    this._startedAt=Date.now();       // để tính thời gian làm bài (bài tập được giao)
     this.startRun(units);
   },
   startRun(units){
@@ -1537,6 +1540,7 @@ const Practice={
     const correct=this.correctIds.size,total=this.total;
     const pct=total?Math.round(correct/total*100):0;
     Progress.set(this.lid,{correct,total,pct});
+    this.recordAttempt(correct,total,pct);
     const emoji=pct>=90?'🏆':pct>=70?'🎉':pct>=50?'👍':'💪';
     const isEn=this.lesson.language==='en';
     const pubs=isEn?Store.enLessonsBySub(this.cid)
@@ -1580,6 +1584,28 @@ const Practice={
     }
     this.mount.appendChild(inner);
     window.scrollTo(0,0);
+  },
+  /* Ghi một lượt làm bài vào hsk_attempts KHI bài này được mở từ một bài tập
+     được giao (?hw=<id>). Dùng CHUNG bảng với HSK Slides (kind='vocab') nên
+     bảng theo dõi tiến độ của giáo viên hiển thị được. Chỉ chạy cho học viên
+     đã đăng nhập; lỗi ghi không làm hỏng màn hình kết quả. */
+  async recordAttempt(correct,total,pct){
+    try{
+      if(!DB || VP.GUEST || !VP.HW || !VP.USER) return;
+      const secs=Math.max(0, Math.round((Date.now()-(this._startedAt||Date.now()))/1000));
+      let attempt_no=1;
+      try{
+        const c=await DB.from('hsk_attempts').select('id',{count:'exact',head:true})
+          .eq('user_id',VP.USER.id).eq('homework_id',VP.HW);
+        if(typeof c.count==='number') attempt_no=c.count+1;
+      }catch(e){}
+      await DB.from('hsk_attempts').insert({
+        user_id:VP.USER.id, lesson_id:this.lid, homework_id:VP.HW, kind:'vocab',
+        attempt_no, status:'completed', current_slide:0, answers:{},
+        vocab_correct:correct, vocab_total:total, grammar_correct:0, grammar_total:0,
+        score:pct, time_spent_sec:secs, completed_at:new Date().toISOString()
+      });
+    }catch(e){ /* bỏ qua nếu chưa chạy migration71 hoặc mạng lỗi */ }
   },
   unitFromKey(k){
     const [kind,id]=[k.slice(0,k.indexOf(':')),k.slice(k.indexOf(':')+1)];
