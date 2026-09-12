@@ -74,18 +74,6 @@
     }
     .lp-header .btn:not(.ghost):hover { background: var(--lp-btn-hover, var(--accent-ink)); }
 
-    /* ---- hero: dải kem ấm, một câu giá trị ---- */
-    .pv-hero { background:
-        radial-gradient(120% 140% at 12% -20%, rgba(183,130,63,.14), transparent 60%),
-        radial-gradient(120% 150% at 96% 0%, rgba(30,79,143,.12), transparent 55%),
-        var(--pv-soft);
-      border-bottom: 1px solid color-mix(in srgb, var(--gold) 22%, transparent); }
-    .pv-hero-in { max-width: 1120px; margin: 0 auto; padding: clamp(1.6rem,5vw,3rem) clamp(1rem,4vw,2rem) clamp(1.4rem,4vw,2.2rem); }
-    .pv-kicker { display: inline-block; font-size: .78rem; font-weight: 800; letter-spacing: .02em;
-      color: var(--gold); background: rgba(183,130,63,.14); padding: .3rem .8rem; border-radius: var(--pv-pill); }
-    .pv-hero h1 { font-family: var(--serif); font-size: clamp(1.7rem, 4.4vw, 2.7rem); line-height: 1.12;
-      margin: .7rem 0 .5rem; color: var(--pv-ink); }
-    .pv-hero p { color: var(--muted); font-size: clamp(1rem,2.3vw,1.12rem); max-width: 60ch; margin: 0; }
 
     /* ---- thanh danh mục (mega-menu) dính đầu trang (Phase 62) ----
        Gom khóa học & công cụ vào ít danh mục; chi tiết chỉ hiện khi rê chuột
@@ -250,9 +238,6 @@
     .cp-foot { text-align: center; color: var(--muted); font-size: .88rem; padding: 1.6rem 1rem 2.6rem; }
     .cp-foot a { color: var(--accent-ink); }
 
-    @media (max-width: 560px) {
-      .pv-hero h1 { font-size: 1.6rem; }
-    }
     @media (max-width: 430px) {
       /* nút header hơi rộng hơn 375px một chút → ẩn tên chữ (giữ logo) và
          thu nhỏ lề để không sinh cuộn ngang */
@@ -270,14 +255,6 @@
     <button id="cp-theme" class="ghost theme-btn" aria-label="Sáng / tối" style="margin-right:.4rem;">🌙</button>
     <a id="cp-login" class="btn" href="login.html">Vào học ngay →</a>
   </header>
-
-  <section class="pv-hero">
-    <div class="pv-hero-in">
-      <span class="pv-kicker">Học thử miễn phí · Không cần đăng nhập</span>
-      <h1>Khám phá khóa học &amp; công cụ học</h1>
-      <p>Chọn một mục bên dưới để xem trước và học thử ngay. Nội dung <b>miễn phí</b> mở tự do; phần <b>Premium</b> mở khóa khi bạn sẵn sàng.</p>
-    </div>
-  </section>
 
   <nav class="pv-nav" aria-label="Danh sách khóa học &amp; công cụ">
     <div class="pv-nav-in"><div id="cpSideList" class="pv-cats"></div></div>
