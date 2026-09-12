@@ -307,6 +307,7 @@
   <script src="config.js"></script>
   <script src="ticker.js"></script>
   <script src="premium.js"></script>
+  <script src="site-nav.js" defer></script>
   <script>
     const $ = id => document.getElementById(id);
     function esc(s){ return String(s==null?"":s)
@@ -475,6 +476,37 @@
                  || cats.find(c => c.key === "other") || cats[0];
       return { catId: byKey ? byKey.id : null, subId: null };
     }
+
+    /* ---- Điều hướng chung (site-nav.js) ------------------------------------
+       Ánh xạ neo URL của thanh điều hướng chính (#tieng-trung / #tieng-anh /
+       #cong-cu-hoc-tap) sang danh mục tương ứng, mở khoá/mục ĐẦU TIÊN của danh
+       mục đó. Đồng thời báo cho site-nav biết đang ở danh mục nào để tô sáng. */
+    const SEC_TO_KEY = { "tieng-trung": "zh", "tieng-anh": "en", "cong-cu-hoc-tap": "learn" };
+    const KEY_TO_NAV = { zh: "zh", en: "en", learn: "tools" };
+    function _resolvedItems(){ const cats = navCategories();
+      return { cats, items: navItems().map(it => Object.assign({}, it, resolveItem(it, cats))) }; }
+    function firstCidInCatKey(catKey){
+      const { cats, items } = _resolvedItems();
+      const cat = cats.find(c => (c.key || "") === catKey); if (!cat) return null;
+      const it = items.find(x => x.catId === cat.id); return it ? it.cid : null;
+    }
+    function catKeyOfCid(cid){
+      const { cats, items } = _resolvedItems();
+      const it = items.find(x => x.cid === cid); if (!it) return null;
+      const cat = cats.find(c => c.id === it.catId); return cat ? (cat.key || "") : null;
+    }
+    function syncNavActive(cid){
+      if (!window.SiteNav) return;
+      window.SiteNav.setActiveSection(KEY_TO_NAV[catKeyOfCid(cid)] || null);
+    }
+    /* site-nav gọi khi bấm Tiếng Trung / Tiếng Anh / Công cụ học tập */
+    window.SiteNavHooks = { gotoSection(sec){
+      const catKey = SEC_TO_KEY[sec]; if (!catKey) return false;
+      const cid = firstCidInCatKey(catKey); if (!cid) return false;
+      switchCourse(cid, true);
+      try { if (window.SiteNav) window.SiteNav.goto(""); else window.scrollTo(0, 0); } catch(e){}
+      return true;
+    }};
 
     function renderSidebar(){
       const cats = navCategories();
@@ -860,6 +892,7 @@
       if (!id) return;
       currentId = id;
       markCurrent(id);
+      syncNavActive(id);
       if (push){ try { history.pushState({ id }, "", "course.html?id=" + encodeURIComponent(id)); } catch(e){} }
       $("cpMain").innerHTML = `<p class="cp-note">Đang tải…</p>`;
       if (String(id).startsWith("sec:")) { renderSection(id.slice(4)); return; }
@@ -898,13 +931,18 @@
         return;
       }
       renderSidebar();
-      // pick the course: the requested id if public, else the first public course
+      // thanh điều hướng chung + ô "Về trang chủ" (có thể chủ trung tâm chỉnh
+      // trong landing_settings.config.home_promo: {show,title,desc,btnLabel,href,badge})
+      if (window.SiteNav) window.SiteNav.renderPromo((cfg && cfg.home_promo) || {});
+      // pick the course: a section anchor (#tieng-trung…) wins when no explicit
+      // ?id= is given, so a shared "course.html#tieng-anh" link lands correctly.
       const isSec = v => String(v || "").startsWith("sec:") &&
                           SECTIONS.some(x => "sec:" + x.section === v);
-      const start = (id && (COURSES.some(c => c.id === id) || isSec(id)))
+      const hashSec = (location.hash || "").slice(1);
+      const hashCid = (!id && SEC_TO_KEY[hashSec]) ? firstCidInCatKey(SEC_TO_KEY[hashSec]) : null;
+      const start = hashCid || ((id && (COURSES.some(c => c.id === id) || isSec(id)))
         ? id
-        : (id || (COURSES[0] && COURSES[0].id) || (SECTIONS[0] && "sec:" + SECTIONS[0].section));
-      if (id && id === start && !new URLSearchParams(location.search).get("id")) { /* noop */ }
+        : (id || (COURSES[0] && COURSES[0].id) || (SECTIONS[0] && "sec:" + SECTIONS[0].section)));
       switchCourse(start, false);
       // normalise the URL so it always names the shown course
       if (start && start !== id) { try { history.replaceState({ id: start }, "", "course.html?id=" + encodeURIComponent(start)); } catch(e){} }

@@ -148,8 +148,9 @@
       .lp-nav-list a { padding: .6rem .7rem; font-size: .95rem; }
     }
     @media (prefers-reduced-motion: reduce) { .lp-nav-list a { transition: none; } }
-    /* direct #hash links must not land under the sticky header */
-    #lp-main > section { scroll-margin-top: 72px; }
+    /* direct #hash links must not land under the sticky header + shared nav
+       (site-nav.js keeps --se-stick = header height + nav height up to date) */
+    #lp-main > section { scroll-margin-top: var(--se-stick, 118px); }
     .lp-hero {
       /* translucent so the background artwork shows through, but kept dense
          enough that white/pale-blue hero text stays above 4.5:1 contrast
@@ -918,6 +919,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
   <script src="ticker.js"></script>
+  <script src="site-nav.js" defer></script>
   <script>
     // Anonymous visit counter — one row per visit into YOUR Supabase
     // (owner-only stats). No cookies, no third parties. Uses event
@@ -1090,7 +1092,9 @@
       renderClasses(d.cfg, d.classes);
       renderTeachers(d.cfg, d.teachers);
       renderAchievements(d.cfg, d.achievements, d.feedback, d.gallery);
-      initNav();          // built last, from whatever ended up visible
+      /* điều hướng đầu trang nay do site-nav.js (dùng chung với course.html) đảm nhiệm;
+         menu mục cũ (#lpNav) được ẩn — giữ lại initNav() cho tương thích nhưng không gọi */
+      // initNav();
       /* 3. để dành cho lần sau — chỉ phần cấu hình, đủ để vẽ đầu trang */
       if (!PREVIEW) { try { localStorage.setItem(LP_CACHE, JSON.stringify({ cfg: d.cfg })); } catch (e) {} }
     }
