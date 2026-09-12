@@ -15,6 +15,16 @@ const I18N = {
     // --- sign in ---
     signin_title: "Sign in",
     signin_sub: "Use the email and password your teacher gave you.",
+    // --- Google sign-in ---
+    g_instruct: "You can sign up or sign in by choosing <b>Sign in with Google</b>.",
+    g_btn: "Sign in with Google",
+    g_or_login: "Or sign in with email",
+    g_or_signup: "Or sign up with email",
+    g_redirecting: "Redirecting to Google…",
+    g_signing_in: "Signing you in…",
+    g_err_open: "Couldn't open Google sign-in. Check your connection and try again.",
+    g_err_cancel: "Google sign-in was cancelled. You can try again or use email.",
+    g_err_generic: "Google sign-in didn't work. Please try again or use email.",
     email: "Email",
     password: "Password",
     signin_btn: "Sign in",
@@ -187,6 +197,16 @@ const I18N = {
     // --- đăng nhập ---
     signin_title: "Đăng nhập",
     signin_sub: "Hãy dùng email và mật khẩu giáo viên đã cấp cho bạn.",
+    // --- Đăng nhập với Google ---
+    g_instruct: "Bạn có thể đăng ký hoặc đăng nhập bằng cách chọn <b>Đăng nhập với Google</b>.",
+    g_btn: "Đăng nhập với Google",
+    g_or_login: "Hoặc đăng nhập bằng email",
+    g_or_signup: "Hoặc đăng ký bằng email",
+    g_redirecting: "Đang chuyển tới Google…",
+    g_signing_in: "Đang đăng nhập…",
+    g_err_open: "Không mở được đăng nhập Google. Kiểm tra kết nối rồi thử lại.",
+    g_err_cancel: "Bạn đã hủy đăng nhập Google. Có thể thử lại hoặc dùng email.",
+    g_err_generic: "Đăng nhập Google chưa thành công. Vui lòng thử lại hoặc dùng email.",
     email: "Email",
     password: "Mật khẩu",
     signin_btn: "Đăng nhập",

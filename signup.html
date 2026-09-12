@@ -33,6 +33,15 @@
         <!-- form -->
         <div id="su-form">
           <h1 data-i18n="signup_title">Create your account</h1>
+
+          <!-- Đăng ký / Đăng nhập với Google (Supabase OAuth) -->
+          <p class="g-instruct" id="g-instruct">Bạn có thể đăng ký hoặc đăng nhập bằng cách chọn <b>Đăng nhập với Google</b>.</p>
+          <button id="google-btn" type="button" class="g-btn">
+            <span class="g-ic" aria-hidden="true"><svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg></span>
+            <span data-i18n="g_btn">Đăng nhập với Google</span>
+          </button>
+          <div class="g-or"><span data-i18n="g_or_signup">Hoặc đăng ký bằng email</span></div>
+
           <p data-i18n="signup_sub" style="color:var(--muted); margin:0 0 1.4rem; font-size:0.9rem;">
             Sign up with your email. One email = one account.
           </p>
@@ -86,6 +95,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="lang.js"></script>
   <script src="config.js"></script>
+  <script src="google-auth.js"></script>
   <script>
     applyI18n();
     const langLink = document.getElementById("lang-toggle");
@@ -94,6 +104,7 @@
 
     const $ = id => document.getElementById(id);
     const msg = $("msg");
+    (function(){ const gi = $("g-instruct"); if (gi) gi.innerHTML = t("g_instruct"); })();
 
     /* Giữ điểm đến (?next= hoặc trang trước) để sau khi đăng nhập quay lại
        đúng chỗ. Chỉ nhận đường dẫn nội bộ, không phải login/signup/reset. */
@@ -110,8 +121,18 @@
     const loginHref = (email) => "login.html?email=" + encodeURIComponent(email) + (NEXT ? "&next=" + encodeURIComponent(NEXT) : "");
     const say = (key, err) => { msg.textContent = t(key); msg.className = "msg" + (err ? " err" : ""); };
 
-    // Already signed in? Go straight to the dashboard.
-    sb.auth.getSession().then(({ data }) => { if (data.session) location.href = NEXT || "dashboard.html"; });
+    const goNext = () => { location.href = NEXT || "dashboard.html"; };
+
+    // Wire "Đăng nhập với Google" (Supabase OAuth) — dùng cho cả đăng ký & đăng nhập.
+    GoogleAuth.wireButton($("google-btn"), msg, NEXT);
+
+    // Returned from Google? finish (create/link happens server-side, fill profile,
+    // one-device rule) then go to the destination. Otherwise: already signed in → go.
+    if (GoogleAuth.pendingReturn()) {
+      GoogleAuth.completeReturn(msg).then((session) => { if (session) goNext(); });
+    } else {
+      sb.auth.getSession().then(({ data }) => { if (data.session) goNext(); });
+    }
 
     const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
