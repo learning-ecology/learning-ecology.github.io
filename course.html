@@ -304,12 +304,13 @@
       dict:    { icon: "🎧", name: "Chép chính tả", unit: "video" },
       vsat:    { icon: "📝", name: "Luyện thi V-SAT", unit: "đề thi" },
       vstep:   { icon: "📖", name: "Luyện thi VSTEP", unit: "đề thi" },
-      hsk:     { icon: "🀄", name: "Bài giảng HSK tương tác", unit: "bài giảng" }
+      hsk:     { icon: "🀄", name: "Bài giảng HSK tương tác", unit: "bài giảng" },
+      vocab:   { icon: "🧰", name: "Luyện từ vựng Tiếng Anh & Trung", unit: "từ" }
     };
     /* which page opens each tool at full size */
     const SEC_PAGE = { reading: "reading.html", shadow: "shadow.html",
                        dict: "dictation.html", vsat: "vsat.html", vstep: "vstep.html",
-                       hsk: "hsk-slides.html" };
+                       hsk: "hsk-slides.html", vocab: "vocab-practice.html" };
     /* tham số mở một mục: đề thi ?exam=, bài giảng HSK ?lesson=, còn lại ?open= */
     const SEC_PARAM = k => IS_EXAM(k) ? "?exam=" : k === "hsk" ? "?lesson=" : "?open=";
     /* Tên, biểu tượng, đơn vị: lấy từ cấu hình thầy đặt ở Bảng điều khiển →
@@ -667,10 +668,51 @@
     /* ============ Công cụ học: xem trước công khai ============
        Danh sách lấy từ RPC public_* — nội dung bài Premium KHÔNG BAO
        GIỜ được gửi về trình duyệt, nên không thể xem qua mã nguồn. */
+    /* Luyện từ vựng: MỞ TỰ DO. Thẻ chỉ là cửa vào — bấm là sang thẳng
+       vocab-practice.html (không đăng nhập / không thanh toán). Nền tảng đó
+       tự cho khách xem ngôn ngữ · cấp độ · bài, luyện bài miễn phí, và mời
+       đăng nhập/nâng cấp khi chọn bài Premium. Số liệu lấy THẬT từ RPC công khai. */
+    async function renderVocabIntro(m, cfg){
+      document.title = (m.name || "Luyện từ vựng") + " — Learning Ecology";
+      $("cpMain").innerHTML = `<p class="cp-note">Đang tải…</p>`;
+      const [zr, er] = await Promise.all([
+        sb.rpc("public_vocab_lessons", { p_level: null, p_language: "zh" }).then(r => r, () => ({ data: null })),
+        sb.rpc("public_vocab_lessons", { p_level: null, p_language: "en" }).then(r => r, () => ({ data: null }))
+      ]);
+      const rows = [].concat(Array.isArray(zr && zr.data) ? zr.data : [],
+                             Array.isArray(er && er.data) ? er.data : []);
+      const words = rows.reduce((a, l) => a + (Number(l.vocab_count) || 0), 0);
+      const freeN = rows.filter(l => (l.tier || "free") !== "premium").length;
+      const premN = rows.length - freeN;
+      const href = SEC_PAGE.vocab;   // vocab-practice.html
+      const title = (cfg.title || "").replace(/^Mở khóa\s*/i, "") || m.name || "Luyện từ vựng";
+      $("cpMain").innerHTML = `
+        <div class="course-banner">
+          <div class="cb-bg" style="${thumbStyle(cfg.cover, "#0e7c66")}">${cfg.cover ? "" : (m.icon || "🧰")}</div>
+          <div class="cb-shade"></div>
+          <span class="cb-tag">${esc(cfg.badge || "Công cụ học")}</span>
+          <div class="cb-info">
+            <div class="cb-title">${esc(m.icon || "")} ${esc(title)}</div>
+            <div class="cb-stats">
+              <span>📚 ${words} từ vựng</span>
+              <span>🔓 ${freeN} bài miễn phí</span>
+              ${premN ? `<span>👑 ${premN} Premium</span>` : ""}
+            </div>
+          </div>
+        </div>
+        ${cfg.tagline ? `<p class="cp-lead">${esc(cfg.tagline)}</p>`
+          : `<p class="cp-lead">Luyện từ vựng tương tác cho tiếng Trung (HSK 1–6) và tiếng Anh (A1–C2, IELTS) — mở tự do, học thử miễn phí, không cần đăng nhập.</p>`}
+        <div class="cp-cta">
+          <a class="btn" href="${esc(href)}" style="text-decoration:none;">🚀 ${esc(cfg.cta || "Bắt đầu luyện tập")}</a>
+        </div>
+        <p class="cp-note">Mở tự do để xem <b>ngôn ngữ · cấp độ · bài học</b>. Bài <b>miễn phí</b> luyện được ngay — không cần đăng nhập; khi chọn bài <b>Premium</b> sẽ có lời mời đăng nhập / nâng cấp, không chặn cả nền tảng.</p>`;
+    }
+
     async function renderSection(sec){
       const m = secMeta(sec), cfg = secCfg(sec);
       const info = SECTIONS.find(x => x.section === sec);
       if (!info){ $("cpMain").innerHTML = notFoundHtml(); return; }
+      if (sec === "vocab") { return renderVocabIntro(m, cfg); }
       document.title = (m.name || "Công cụ") + " — Learning Ecology";
       $("cpMain").innerHTML = `<p class="cp-note">Đang tải…</p>`;
 

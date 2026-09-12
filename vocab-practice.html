@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://lqeetnlfqmarlqmbxusn.supabase.co" crossorigin>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
+<script src="premium.js"></script>
 <script src="ticker.js"></script>
 <style>
 :root{
@@ -816,10 +817,9 @@ const App={
     let d=null;
     try{ const r=await DB.rpc('public_vocab_lesson',{p_lesson_id:l.id}); d=r&&r.data; }catch(e){}
     if(!d||!d.data){
-      /* null = chưa đăng nhập với bài Premium, hoặc chưa có quyền */
-      alert(VP.GUEST
-        ? 'Bài luyện tập này cần đăng nhập hoặc mở khoá Premium.'
-        : 'Bài luyện tập này thuộc gói Premium — vui lòng nâng cấp để mở khoá.');
+      /* Bài Premium / chưa có quyền → LỜI MỜI thân thiện (đăng nhập · tạo tài
+         khoản · nâng cấp), KHÔNG chặn nền tảng: khách vẫn xem & luyện bài free. */
+      showPremiumNotice(l);
       return;
     }
     l.vocab=d.data.vocab||[]; l.gapfill=d.data.gapfill||[]; l.arrange=d.data.arrange||[]; l.mcq=d.data.mcq||[]; l._loaded=true;
@@ -2137,6 +2137,65 @@ function syncAuthUI(){
   if(VP.GUEST){ if(auth)auth.style.display=''; if(who)who.style.display='none'; }
   else { if(auth)auth.style.display='none'; if(who){ who.style.display=''; who.textContent=(VP.NAME||(VP.USER&&VP.USER.email)||''); } }
 }
+/* ---- Lời mời Premium (không chặn nền tảng) ----
+   Hiện khi khách/HV free chọn một bài Premium. Cho 3 lựa chọn: Đăng nhập,
+   Tạo tài khoản (cả hai mang ?next= về ĐÚNG bài để quay lại sau khi đăng nhập),
+   và Mở khoá Premium (dùng popup dùng chung premium.js). Đóng lại thì vẫn ở
+   trong nền tảng, xem/luyện bài miễn phí bình thường. */
+function showPremiumNotice(l){
+  if(!document.getElementById('vpPrem-css')){
+    const st=document.createElement('style'); st.id='vpPrem-css';
+    st.textContent=`#vpPrem{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;z-index:9999;padding:16px}
+#vpPrem.show{display:flex}
+.vpPrem-card{background:var(--panel,#fff);color:var(--ink,#1f2530);border-radius:16px;max-width:420px;width:100%;padding:24px 20px 16px;position:relative;box-shadow:0 30px 70px -20px rgba(0,0,0,.5);text-align:center}
+.vpPrem-x{position:absolute;top:10px;right:12px;background:transparent;border:none;font-size:20px;line-height:1;cursor:pointer;color:var(--muted,#6b7482);width:34px;height:34px;border-radius:8px}
+.vpPrem-x:hover{background:var(--bg,#f4f6fb)}
+.vpPrem-ic{font-size:42px;line-height:1}
+.vpPrem-card h3{margin:.35em 0 .3em;font-size:1.25rem}
+.vpPrem-card p{color:var(--muted,#6b7482);font-size:.95rem;line-height:1.5;margin:0 0 1.1rem}
+.vpPrem-btns{display:flex;flex-direction:column;gap:.5rem;margin-bottom:.7rem}
+.vpPrem-b{display:block;text-decoration:none;text-align:center;padding:.72rem 1rem;border-radius:999px;font-weight:800;font-size:.98rem;border:1.5px solid var(--line,#e6e9f0);background:var(--panel,#fff);color:var(--ink,#1f2530);cursor:pointer}
+.vpPrem-b:hover{border-color:var(--accent,#2563eb)}
+.vpPrem-b.prim{background:var(--accent,#2563eb);border-color:var(--accent,#2563eb);color:#fff}
+.vpPrem-b.gold{background:linear-gradient(135deg,#f4d68a,#d9a53c);border-color:#d9a53c;color:#5a3d0e}
+.vpPrem-close2{background:transparent;border:none;color:var(--muted,#6b7482);font-size:.9rem;cursor:pointer;padding:.35rem}
+.vpPrem-close2:hover{text-decoration:underline}`;
+    document.head.appendChild(st);
+  }
+  let ov=document.getElementById('vpPrem');
+  if(!ov){
+    ov=document.createElement('div'); ov.id='vpPrem';
+    ov.innerHTML=`<div class="vpPrem-card" role="dialog" aria-modal="true" aria-labelledby="vpPremT">
+      <button class="vpPrem-x" aria-label="Đóng">✕</button>
+      <div class="vpPrem-ic" aria-hidden="true">👑</div>
+      <h3 id="vpPremT">Bài học Premium</h3>
+      <p>Bài này thuộc gói <b>Premium</b>. Bạn vẫn xem và luyện thoải mái các bài <b>miễn phí</b> khác — chỉ bài Premium cần mở khoá.</p>
+      <div class="vpPrem-btns">
+        <a class="vpPrem-b prim" data-login>Đăng nhập</a>
+        <a class="vpPrem-b" data-signup>Tạo tài khoản</a>
+        <button class="vpPrem-b gold" data-upgrade type="button">👑 Mở khoá Premium</button>
+      </div>
+      <button class="vpPrem-close2" type="button">Để sau, xem bài khác</button>
+    </div>`;
+    document.body.appendChild(ov);
+    const close=()=>ov.classList.remove('show');
+    ov.querySelector('.vpPrem-x').onclick=close;
+    ov.querySelector('.vpPrem-close2').onclick=close;
+    ov.addEventListener('click',e=>{ if(e.target===ov) close(); });
+    document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&ov.classList.contains('show')) close(); });
+    ov.querySelector('[data-upgrade]').onclick=()=>{ close();
+      try{ if(window.Premium&&Premium.open) Premium.open({courseTitle:'Luyện từ vựng Tiếng Anh & Trung'}); else location.href='index.html#lien-he'; }
+      catch(e){ location.href='index.html#lien-he'; } };
+    ov._login=ov.querySelector('[data-login]');
+    ov._signup=ov.querySelector('[data-signup]');
+  }
+  /* ?next= trỏ về ĐÚNG bài này để sau khi đăng nhập quay lại mở tiếp */
+  const next=encodeURIComponent('vocab-practice.html?lesson='+encodeURIComponent((l&&l.id)||''));
+  ov._login.href='login.html?next='+next;
+  ov._signup.href='signup.html?next='+next;
+  ov.classList.add('show');
+}
+
 window.__vpSyncAuth=syncAuthUI;
 window.addEventListener('DOMContentLoaded',boot);
 </script>
