@@ -189,6 +189,42 @@
     .cp-badge.free { background: var(--success-bg); color: var(--success); }
     .cp-badge.prem { background: rgba(183,130,63,0.18); color: var(--gold); }
 
+    /* ---- Breadcrumb (Khóa học & Tài liệu › Danh mục › Khóa) ---- */
+    .cp-crumbs { display: flex; flex-wrap: wrap; align-items: center; margin: 0 0 1.1rem; font-size: .9rem; line-height: 1.5; }
+    .cp-crumbs a { color: var(--accent-ink); text-decoration: none; border-radius: 6px;
+      max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cp-crumbs a:hover { text-decoration: underline; }
+    .cp-crumbs a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .cp-crumbs .sep { color: var(--muted); margin: 0 .4rem; flex: none; }
+    .cp-crumbs .cur { color: var(--muted); font-weight: 700;
+      max-width: 52vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    @media (max-width: 560px) { .cp-crumbs { font-size: .84rem; }
+      .cp-crumbs a, .cp-crumbs .cur { max-width: 34vw; } .cp-crumbs .sep { margin: 0 .28rem; } }
+
+    /* ---- Compact course thumbnails grid (mọi danh mục) ---- */
+    .cg-h { font-family: var(--serif); font-size: 1.3rem; margin: .1rem 0 1rem; color: var(--pv-ink); }
+    .cgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 1rem; margin: 0 0 1.4rem; }
+    @media (max-width: 600px) { .cgrid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .7rem; } }
+    .ccard { display: flex; flex-direction: column; text-decoration: none; color: inherit;
+      background: var(--pv-card); border: 1.5px solid var(--line); border-radius: 16px; overflow: hidden;
+      box-shadow: 0 10px 26px -20px rgba(23,38,62,.4);
+      transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+    .ccard:hover { transform: translateY(-3px); box-shadow: 0 20px 40px -22px rgba(23,38,62,.5); border-color: var(--pv-ring); }
+    .ccard:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .ccard.prem { border-color: #e2c074; }
+    .cc-thumb { position: relative; aspect-ratio: 16 / 9; background-size: cover; background-position: center;
+      background-repeat: no-repeat; display: grid; place-items: center; font-size: 2rem;
+      color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.35); }
+    .cc-badge { position: absolute; top: .5rem; left: .5rem; font-size: .68rem; font-weight: 800;
+      padding: .16rem .55rem; border-radius: 999px; }
+    .cc-badge.free { background: rgba(22,124,84,.94); color: #fff; }
+    .cc-badge.prem { background: linear-gradient(135deg,#f4d68a,#d9a53c); color: #5a3d0e; }
+    .cc-body { padding: .6rem .75rem .75rem; display: flex; flex-direction: column; gap: .35rem; flex: 1; }
+    .cc-title { font-weight: 800; font-size: .95rem; line-height: 1.25; color: var(--pv-ink);
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .cc-stats { color: var(--muted); font-size: .78rem; margin-top: auto; display: flex; flex-wrap: wrap; gap: .05rem .5rem; }
+    @media (max-width: 600px) { .cc-title { font-size: .88rem; } .cc-stats { font-size: .72rem; } .cc-thumb { font-size: 1.6rem; } }
+
     /* ---- so sánh Miễn phí ↔ Premium (mượn ý youpass) ---- */
     .pv-cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1.6rem 0 .4rem; }
     @media (max-width: 640px) { .pv-cmp { grid-template-columns: 1fr; } }
@@ -298,6 +334,9 @@
     let CONTACT = CONTACT_FALLBACK;
     let COURSES = [], currentId = null;
     let SECTIONS = [];                 // các công cụ đang mở xem trước công khai
+    // Tự quản lý vị trí cuộn (SPA) để back/forward/tải lại/quay về từ bài học
+    // khôi phục đúng chỗ, không để trình duyệt nhảy lung tung.
+    try { if ("scrollRestoration" in history) history.scrollRestoration = "manual"; } catch (e) {}
     const SEC_META = {
       reading: { icon: "📖", name: "Thư viện Đọc hiểu", unit: "bài đọc" },
       shadow:  { icon: "🎤", name: "Luyện nói Shadowing", unit: "video" },
@@ -477,12 +516,12 @@
       if (!window.SiteNav) return;
       window.SiteNav.setActiveSection(KEY_TO_NAV[catKeyOfCid(cid)] || null);
     }
-    /* site-nav gọi khi bấm Tiếng Trung / Tiếng Anh / Công cụ học tập */
+    /* site-nav gọi khi bấm Tiếng Trung / Tiếng Anh / Công cụ học tập → mở LƯỚI
+       thẻ khóa gọn của danh mục tương ứng (không nhảy vào một khóa cụ thể). */
     window.SiteNavHooks = { gotoSection(sec){
       const catKey = SEC_TO_KEY[sec]; if (!catKey) return false;
-      const cid = firstCidInCatKey(catKey); if (!cid) return false;
-      switchCourse(cid, true);
-      try { if (window.SiteNav) window.SiteNav.goto(""); else window.scrollTo(0, 0); } catch(e){}
+      const catId = catIdByKey(catKey); if (!catId) return false;
+      showCategory(catId, true);
       return true;
     }};
 
@@ -554,10 +593,21 @@
       if (leaf){ closeCats(); switchCourse(leaf.getAttribute("data-cid"), true); return; }
       const btn = e.target.closest(".pv-cat-btn");
       if (btn){
-        const cat = btn.closest(".pv-cat"), wasOpen = cat.classList.contains("open");
+        // Bấm vào TÊN danh mục → mở LƯỚI thẻ khóa gọn của danh mục đó (thay vì
+        // chỉ bung menu). Trên máy tính vẫn có thể rê chuột để xem menu nhanh.
         closeCats();
-        if (!wasOpen) openCat(cat);
+        showCategory(btn.closest(".pv-cat").getAttribute("data-cat"), true);
       }
+    });
+    // Breadcrumb: về tổng quan (root), về lưới danh mục, hoặc về khóa (link thật
+    // nhưng chặn để chạy SPA — không tải lại trang, không mất trạng thái).
+    $("cpMain").addEventListener("click", e => {
+      const a = e.target.closest(".cp-crumbs a"); if (!a) return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
+      e.preventDefault();
+      const kind = a.getAttribute("data-crumb");
+      if (kind === "root") { const d = defaultCatId(); if (d) showCategory(d, true); }
+      else if (kind === "cat") { showCategory(a.getAttribute("data-cat"), true); }
     });
     /* máy tính: rê chuột mở (CSS lo hiển thị, JS chỉ kẹp vị trí cho gọn) */
     if (window.matchMedia && window.matchMedia("(hover: hover)").matches){
@@ -567,11 +617,9 @@
     }
     document.addEventListener("click", e => { if (!e.target.closest(".pv-cat")) closeCats(); });
     document.addEventListener("keydown", e => { if (e.key === "Escape") closeCats(); });
-    $("cpMobileSel").addEventListener("change", e => switchCourse(e.target.value, true));
-    window.addEventListener("popstate", () => {
-      const id = new URLSearchParams(location.search).get("id");
-      if (id && id !== currentId) switchCourse(id, false);
-    });
+    $("cpMobileSel").addEventListener("change", e => { if (e.target.value) switchCourse(e.target.value, true); });
+    // Back / Forward: đọc lại URL và vẽ đúng chế độ xem trước đó (+ khôi phục cuộn).
+    window.addEventListener("popstate", () => { routeFromUrl(true); });
 
     /* ---- render one course (banner + visual lesson grid) ---- */
     function banner(c, lessons){
@@ -652,7 +700,8 @@
       const free = lessons.filter(l => !l.premium).length, prem = lessons.length - free;
       document.title = c.title + " — Learning Ecology";
       $("cpMain").innerHTML =
-        banner(c, lessons)
+        courseCrumb(c.title)
+        + banner(c, lessons)
         + `<p class="cp-note">Bấm một bài <b>miễn phí</b> để học thử ngay — không cần đăng nhập. Bài <b>Premium</b> cần liên hệ để mở khóa.</p>`
         + (lessons.length
             ? `<div class="lesson-grid">${lessons.map((l, i) => lessonCard(l, i + 1)).join("")}</div>`
@@ -686,7 +735,8 @@
       const premN = rows.length - freeN;
       const href = SEC_PAGE.vocab;   // vocab-practice.html
       const title = (cfg.title || "").replace(/^Mở khóa\s*/i, "") || m.name || "Luyện từ vựng";
-      $("cpMain").innerHTML = `
+      $("cpMain").innerHTML =
+        courseCrumb(title) + `
         <div class="course-banner">
           <div class="cb-bg" style="${thumbStyle(cfg.cover, "#0e7c66")}">${cfg.cover ? "" : (m.icon || "🧰")}</div>
           <div class="cb-shade"></div>
@@ -752,7 +802,8 @@
         ? `<span class="cb-price">${cfg.on_sale && cfg.sale_price ? money(cfg.sale_price) : money(cfg.price)}${periodTxt(cfg.period)}</span>`
         : "";
 
-      $("cpMain").innerHTML = `
+      $("cpMain").innerHTML =
+        courseCrumb((cfg.title || "").replace(/^Mở khóa\s*/i, "") || m.name || sec) + `
         <div class="course-banner">
           <div class="cb-bg" style="${thumbStyle(cfg.cover, "#0e7c66")}">${cfg.cover ? "" : (m.icon || "🧰")}</div>
           <div class="cb-shade"></div>
@@ -907,18 +958,200 @@
                <div><a class="btn" href="index.html">← Về trang chủ</a></div></div>`}`;
     }
 
-    async function switchCourse(id, push){
+    /* ================= ĐIỀU HƯỚNG THEO CẤP + TRẠNG THÁI TRÊN URL =================
+       Hai chế độ xem, đều lưu vào URL để bookmark/chia sẻ/back-forward:
+         • Lưới danh mục   → course.html?cat=<catId>   (thẻ khóa gọn)
+         • Xem một khóa    → course.html?id=<courseId>  (banner + danh sách bài)
+       Không tạo mục lịch sử thừa: chỉ đẩy (pushState) khi NGƯỜI DÙNG bấm; khi
+       tải lần đầu / back-forward thì chỉ đọc URL và vẽ lại (không đẩy). */
+
+    /* -- tiện ích danh mục -- */
+    function categoryById(catId){ return navCategories().find(c => c.id === catId) || null; }
+    function catIdByKey(key){ const c = navCategories().find(c => (c.key || "") === key); return c ? c.id : null; }
+    function catIdOfCid(cid){ const { cats, items } = _resolvedItems();
+      const it = items.find(x => x.cid === cid); if (!it) return null; return it.catId; }
+    function itemsInCat(catId){ const { items } = _resolvedItems(); return items.filter(x => x.catId === catId); }
+    function defaultCatId(){ const cats = navCategories();
+      for (const c of cats) if (itemsInCat(c.id).length) return c.id; return cats[0] && cats[0].id; }
+
+    function markCategoryTab(catId){
+      $("cpSideList").querySelectorAll(".ci").forEach(b => b.classList.remove("on"));
+      $("cpSideList").querySelectorAll(".pv-cat").forEach(cat =>
+        cat.classList.toggle("has-active", cat.getAttribute("data-cat") === catId));
+      const sel = $("cpMobileSel"); if (sel) sel.value = "";
+    }
+    function syncNavActiveByCat(catId){
+      if (!window.SiteNav) return;
+      const c = categoryById(catId);
+      window.SiteNav.setActiveSection(KEY_TO_NAV[c && c.key] || null);
+    }
+
+    /* -- breadcrumb -- */
+    function crumbs(levels){
+      const parts = levels.map((lv, i) => {
+        if (lv.cur || i === levels.length - 1) return `<span class="cur">${esc(lv.label)}</span>`;
+        const attr = lv.root ? ' data-crumb="root"' : (lv.cat ? ` data-crumb="cat" data-cat="${esc(lv.cat)}"` : "");
+        const href = lv.root ? "course.html" : (lv.cat ? "course.html?cat=" + encodeURIComponent(lv.cat) : "course.html");
+        return `<a href="${href}"${attr}>${esc(lv.label)}</a>`;
+      });
+      return `<nav class="cp-crumbs" aria-label="Breadcrumb">` +
+        parts.join('<span class="sep" aria-hidden="true">›</span>') + `</nav>`;
+    }
+    function courseCrumb(title){
+      const catId = catIdOfCid(currentId), cat = catId ? categoryById(catId) : null;
+      const levels = [{ label: "Khóa học & Tài liệu", root: true }];
+      if (cat) levels.push({ label: cat.label, cat: cat.id });
+      levels.push({ label: title, cur: true });
+      return crumbs(levels);
+    }
+
+    /* -- đếm số bài (miễn phí / Premium) cho từng thẻ, có bộ nhớ đệm -- */
+    const COUNTS = {};
+    async function sectionItems(sec){
+      if (sec === "vocab"){
+        const [zr, er] = await Promise.all([
+          sb.rpc("public_vocab_lessons", { p_level: null, p_language: "zh" }).then(r => r, () => ({ data: null })),
+          sb.rpc("public_vocab_lessons", { p_level: null, p_language: "en" }).then(r => r, () => ({ data: null }))
+        ]);
+        const rows = [].concat(Array.isArray(zr && zr.data) ? zr.data : [], Array.isArray(er && er.data) ? er.data : []);
+        return rows.map(l => ({ id: l.lesson_id, title: l.title, premium: (l.tier || "free") === "premium" }));
+      }
+      const res = sec === "reading" ? await sb.rpc("public_reading_list").then(r => r, () => ({ data: null }))
+        : sec === "hsk" ? await sb.rpc("public_hsk_lessons", { p_level: null }).then(r => r, () => ({ data: null }))
+        : sec === "vstep" ? await Promise.all([
+            sb.rpc("public_vsat_list", { p_kind: "vstep-reading" }).then(r => r, () => ({ data: null })),
+            sb.rpc("public_vsat_list", { p_kind: "vstep-listening" }).then(r => r, () => ({ data: null }))
+          ]).then(rs => ({ data: rs.reduce((a, r) => a.concat(Array.isArray(r && r.data) ? r.data : []), []) }))
+        : IS_EXAM(sec) ? await sb.rpc("public_vsat_list", { p_kind: "vsat" }).then(r => r, () => ({ data: null }))
+        : await sb.rpc("public_video_list", { p_kind: sec }).then(r => r, () => ({ data: null }));
+      let items = Array.isArray(res && res.data) ? res.data : [];
+      if (sec === "hsk") items = items.map(l => ({ id: l.lesson_id, title: l.title, title_vi: l.subtitle || "",
+        premium: !!l.premium, cover_url: "", level: l.hsk_level, vocab: l.vocab_count, slides: l.slide_count }));
+      else if (IS_EXAM(sec)) items = items.map(e => ({ id: e.exam_id, title: e.title, title_vi: e.subtitle || "",
+        premium: !!e.premium, cover_url: "", questions: e.questions, duration_min: e.duration_min, max_raw: e.max_raw,
+        page: e.kind === "vstep-listening" ? "vstep-listening.html" : e.kind === "vstep-reading" ? "vstep.html" : "vsat.html" }));
+      return items;
+    }
+    async function getCounts(cid){
+      if (COUNTS[cid]) return COUNTS[cid];
+      let total = 0, free = 0, prem = 0;
+      try {
+        if (String(cid).startsWith("sec:")){
+          const items = await sectionItems(cid.slice(4));
+          total = items.length; prem = items.filter(i => i.premium).length; free = total - prem;
+        } else {
+          const r = await sb.rpc("public_course", { p_course: cid }).then(x => x, () => ({ data: null }));
+          const lessons = (r && r.data && r.data.lessons) || [];
+          total = lessons.length; prem = lessons.filter(l => l.premium).length; free = total - prem;
+        }
+      } catch (e) {}
+      COUNTS[cid] = { total, free, prem };
+      return COUNTS[cid];
+    }
+
+    /* -- thẻ khóa gọn (compact) -- */
+    function courseCard(item){
+      const href = "course.html?id=" + encodeURIComponent(item.cid);
+      return `
+        <a class="ccard" href="${href}" data-cid="${esc(item.cid)}">
+          <div class="cc-thumb" style="${item.thumb}">${item.emptyIcon ? esc(item.emptyIcon) : ""}
+            <span class="cc-badge" data-badge hidden></span>
+          </div>
+          <div class="cc-body">
+            <div class="cc-title">${esc(item.title)}</div>
+            <div class="cc-stats" data-stats>…</div>
+          </div>
+        </a>`;
+    }
+    function fillCard(card, c){
+      const stats = card.querySelector("[data-stats]");
+      if (stats) stats.innerHTML = `📚 ${c.total} bài · 🔓 ${c.free} miễn phí` + (c.prem ? ` · 👑 ${c.prem} Premium` : "");
+      const badge = card.querySelector("[data-badge]");
+      if (badge){ badge.hidden = false;
+        if (c.free > 0){ badge.className = "cc-badge free"; badge.textContent = "Miễn phí"; }
+        else { badge.className = "cc-badge prem"; badge.textContent = "👑 Premium"; }
+      }
+      if (c.total > 0 && c.free === 0) card.classList.add("prem");
+    }
+    function renderCategoryGrid(catId){
+      const cat = categoryById(catId);
+      const its = itemsInCat(catId);
+      document.title = (cat ? cat.label : "Khóa học") + " — Learning Ecology";
+      $("cpMain").innerHTML =
+        crumbs([{ label: "Khóa học & Tài liệu", root: true }, { label: cat ? cat.label : catId, cur: true }])
+        + `<h2 class="cg-h">${cat ? esc((cat.icon || "") + " " + cat.label) : ""}</h2>`
+        + (its.length
+            ? `<div class="cgrid">${its.map(courseCard).join("")}</div>`
+            : `<p class="cp-note">Danh mục này chưa có khóa học nào.</p>`);
+      // thẻ mở khóa nào bấm cũng vào xem khóa đó (SPA, không tải lại trang)
+      const cards = {};
+      $("cpMain").querySelectorAll(".ccard").forEach(a => {
+        cards[a.getAttribute("data-cid")] = a;
+        a.addEventListener("click", e => {
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;   // cho mở tab mới
+          e.preventDefault(); switchCourse(a.getAttribute("data-cid"), true);
+        });
+      });
+      // đếm số bài (nền, có đệm) rồi điền vào từng thẻ
+      its.forEach(item => getCounts(item.cid).then(c => { const card = cards[item.cid]; if (card) fillCard(card, c); }));
+    }
+
+    function showCategory(catId, push, restore){
+      if (!catId) return;
+      currentId = "cat:" + catId;
+      markCategoryTab(catId);
+      syncNavActiveByCat(catId);
+      if (push === "replace") { try { history.replaceState(null, "", "course.html?cat=" + encodeURIComponent(catId)); } catch(e){} }
+      else if (push) { try { history.pushState(null, "", "course.html?cat=" + encodeURIComponent(catId)); } catch(e){} }
+      renderCategoryGrid(catId);
+      afterRender(restore);
+    }
+
+    /* -- lưu / khôi phục vị trí cuộn theo URL (đọc lại khi back-forward, tải lại,
+          hay quay về từ một bài học) -- */
+    const _saveScroll = () => { try { sessionStorage.setItem("cp_scroll_" + location.search, String(Math.round(scrollY))); } catch(e){} };
+    let _scrollT = null;
+    addEventListener("scroll", () => { if (_scrollT) return;
+      _scrollT = setTimeout(() => { _scrollT = null; _saveScroll(); }, 150);
+    }, { passive: true });
+    // Rời trang (mở một bài học ở trang khác) → lưu vị trí để lúc BACK quay về đúng chỗ.
+    addEventListener("pagehide", _saveScroll);
+    function afterRender(restore){
+      if (restore){
+        let y = 0; try { y = parseInt(sessionStorage.getItem("cp_scroll_" + location.search) || "0", 10) || 0; } catch(e){}
+        window.scrollTo(0, y);
+        if (y) setTimeout(() => window.scrollTo(0, y), 250);   // giữ đúng chỗ sau khi ảnh/số liệu tải xong
+      } else { window.scrollTo(0, 0); }
+    }
+
+    /* -- chọn đúng chế độ xem từ URL (dùng cho tải lần đầu + back/forward) -- */
+    function routeFromUrl(restore){
+      const p = new URLSearchParams(location.search);
+      const id = p.get("id"), cat = p.get("cat");
+      const isSec = v => String(v || "").startsWith("sec:") && SECTIONS.some(x => "sec:" + x.section === v);
+      if (id && (COURSES.some(c => c.id === id) || isSec(id))) return switchCourse(id, false, restore);
+      if (cat && categoryById(cat)) return showCategory(cat, false, restore);
+      const hashSec = (location.hash || "").slice(1);
+      if (SEC_TO_KEY[hashSec]) { const cid = catIdByKey(SEC_TO_KEY[hashSec]); if (cid) return showCategory(cid, "replace", restore); }
+      if (id) return switchCourse(id, false, restore);        // id lạ → vẫn thử (hiện "không tìm thấy")
+      const first = defaultCatId();
+      if (first) return showCategory(first, "replace", restore);   // mặc định: lưới danh mục đầu tiên
+      $("cpMain").innerHTML = notFoundHtml();
+    }
+
+    async function switchCourse(id, push, restore){
       if (!id) return;
       currentId = id;
       markCurrent(id);
       syncNavActive(id);
       if (push){ try { history.pushState({ id }, "", "course.html?id=" + encodeURIComponent(id)); } catch(e){} }
       $("cpMain").innerHTML = `<p class="cp-note">Đang tải…</p>`;
-      if (String(id).startsWith("sec:")) { renderSection(id.slice(4)); return; }
+      if (String(id).startsWith("sec:")) { renderSection(id.slice(4)); afterRender(restore); return; }
       const res = await sb.rpc("public_course", { p_course: id }).then(r => r, () => ({ data: null }));
       const data = res && res.data;
-      if (!data || !data.course){ document.title = "Khóa học — Learning Ecology"; $("cpMain").innerHTML = notFoundHtml(); return; }
+      if (!data || !data.course){ document.title = "Khóa học — Learning Ecology"; $("cpMain").innerHTML = notFoundHtml(); afterRender(restore); return; }
       renderCourse(data);
+      afterRender(restore);
     }
 
     async function boot(){
@@ -953,18 +1186,10 @@
       // thanh điều hướng chung + ô "Về trang chủ" (có thể chủ trung tâm chỉnh
       // trong landing_settings.config.home_promo: {show,title,desc,btnLabel,href,badge})
       if (window.SiteNav) window.SiteNav.renderPromo((cfg && cfg.home_promo) || {});
-      // pick the course: a section anchor (#tieng-trung…) wins when no explicit
-      // ?id= is given, so a shared "course.html#tieng-anh" link lands correctly.
-      const isSec = v => String(v || "").startsWith("sec:") &&
-                          SECTIONS.some(x => "sec:" + x.section === v);
-      const hashSec = (location.hash || "").slice(1);
-      const hashCid = (!id && SEC_TO_KEY[hashSec]) ? firstCidInCatKey(SEC_TO_KEY[hashSec]) : null;
-      const start = hashCid || ((id && (COURSES.some(c => c.id === id) || isSec(id)))
-        ? id
-        : (id || (COURSES[0] && COURSES[0].id) || (SECTIONS[0] && "sec:" + SECTIONS[0].section)));
-      switchCourse(start, false);
-      // normalise the URL so it always names the shown course
-      if (start && start !== id) { try { history.replaceState({ id: start }, "", "course.html?id=" + encodeURIComponent(start)); } catch(e){} }
+      // Vẽ đúng chế độ xem theo URL: ?id=<khóa> · ?cat=<danh mục> · #tieng-anh…
+      // (mặc định = lưới danh mục đầu tiên). Khôi phục vị trí cuộn nếu có
+      // (tải lại / quay về từ một bài học).
+      routeFromUrl(true);
     }
     boot();
   </script>
