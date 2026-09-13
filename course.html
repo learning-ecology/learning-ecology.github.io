@@ -94,56 +94,17 @@
       font-weight: 800; font-size: .93rem; transition: border-color .15s, background .15s, transform .12s; }
     .pv-cat-btn:hover { border-color: var(--pv-ring); transform: translateY(-1px); }
     .pv-cat-ic { font-size: 1.05rem; line-height: 1; }
-    .pv-cat-caret { font-size: .7rem; color: var(--muted); transition: transform .18s; }
     .pv-cat-n { font-size: .72rem; font-weight: 800; color: var(--muted);
       background: var(--pv-soft); border-radius: 999px; padding: .04rem .42rem; }
     /* danh mục chứa mục đang xem: nổi bật navy */
     .pv-cat.has-active > .pv-cat-btn { border-color: var(--accent); background: var(--info-bg); color: var(--accent-ink); }
     :root[data-theme="dark"] .pv-cat.has-active > .pv-cat-btn { color: #cfe0f6; }
     .pv-cat.has-active > .pv-cat-btn .pv-cat-n { background: color-mix(in srgb, var(--accent) 18%, transparent); color: inherit; }
-    .pv-cat.open > .pv-cat-btn .pv-cat-caret,
-    .pv-cat:hover > .pv-cat-btn .pv-cat-caret { transform: rotate(180deg); }
 
-    /* menu con: ẩn mềm, mở mượt; absolute nên không đẩy layout */
-    /* Menu con ĐÓNG = display:none nên không chiếm chỗ → không gây cuộn ngang
-       trên điện thoại (visibility:hidden vẫn chiếm layout, đó là lỗi cũ).
-       MỞ = display:flex + animation mờ/trượt (mượt, không lệ thuộc transition,
-       không bị "kẹt" khi tab bị trình duyệt tạm dừng). Vị trí ngang được kẹp
-       vào trong màn hình bằng JS lúc mở (xem clampMenu). */
-    .pv-cat-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30;
-      min-width: 240px; max-width: min(340px, calc(100vw - 1.5rem));
-      background: var(--pv-card); border: 1.5px solid var(--line); border-radius: 16px;
-      box-shadow: 0 22px 50px -22px rgba(23,38,62,.5); padding: .45rem;
-      flex-direction: column; gap: .1rem; display: none; }
-    /* dải trong suốt nối nút với menu để rê chuột không bị hụt */
-    .pv-cat-menu::before { content: ""; position: absolute; left: 0; right: 0; top: -10px; height: 10px; }
-    @keyframes pvMenuIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-    @media (hover: hover) {
-      .pv-cat:hover .pv-cat-menu, .pv-cat:focus-within .pv-cat-menu {
-        display: flex; animation: pvMenuIn .16s ease both; }
-    }
-    .pv-cat.open .pv-cat-menu { display: flex; animation: pvMenuIn .16s ease both; }
-
-    /* mục con trong menu: hàng dọc, dùng lại .ci nhưng full-width */
-    .pv-cat-menu .pv-sub-h { font-size: .66rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
-      color: var(--muted); padding: .5rem .55rem .15rem; }
-    .pv-cat-menu .pv-sub-h:first-child { padding-top: .2rem; }
-    .pv-cat-menu .ci { display: flex; align-items: center; gap: .6rem; width: 100%; text-align: left;
-      background: none; border: 1.5px solid transparent; border-radius: 11px; padding: .48rem .55rem;
-      cursor: pointer; color: var(--ink); font: inherit; font-weight: 700; font-size: .92rem; }
-    .pv-cat-menu .ci:hover { background: var(--pv-soft); }
-    .pv-cat-menu .ci.on { background: var(--info-bg); border-color: var(--accent); color: var(--accent-ink); }
-    :root[data-theme="dark"] .pv-cat-menu .ci.on { color: #cfe0f6; }
-    /* Biểu tượng khóa học trong menu: hiện TRỌN ẢNH (contain) + đệm trong,
-       canh giữa, không méo, không cắt. Ô có nền nhạt + bo góc đồng nhất; ảnh
-       tự co giãn giữ đúng tỉ lệ. Ô không có ảnh (gradient + emoji) vẫn lấp đầy
-       nhờ gradient không có kích thước nội tại. (Phase 102) */
-    .ci-thumb { width: 34px; height: 34px; flex: none; border-radius: 9px; box-sizing: border-box;
-      background-size: contain; background-repeat: no-repeat; background-position: center;
-      background-origin: content-box; padding: 3px; background-color: var(--pv-soft, #eef2f7);
-      display: grid; place-items: center; overflow: hidden;
-      color: #fff; font-size: 1rem; text-shadow: 0 1px 4px rgba(0,0,0,.45); }
-    .ci-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* Tiêu đề nhóm con (VSTEP · IELTS · V-SAT…) trong lưới thẻ khóa. */
+    .cg-sub { font-size: .72rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+      color: var(--muted); margin: 1.3rem 0 .6rem; }
+    .cg-sub:first-of-type { margin-top: .2rem; }
 
     /* ---- vùng nội dung ---- */
     .pv-main { max-width: 1120px; margin: 0 auto; min-width: 0;
@@ -525,31 +486,20 @@
       return true;
     }};
 
+    /* Thanh danh mục: chỉ còn NÚT tab (không còn menu thả xuống khi rê chuột).
+       Bấm một tab → hiện lưới thẻ khóa của danh mục đó ở vùng nội dung. */
     function renderSidebar(){
       const cats = navCategories();
       const items = navItems().map(it => Object.assign(it, resolveItem(it, cats)));
-      const leaf = x => `
-        <button class="ci" data-cid="${esc(x.cid)}" title="${esc(x.title)}" role="menuitem">
-          <span class="ci-thumb" style="${x.thumb}">${esc(x.emptyIcon)}</span>
-          <span class="ci-title">${esc(x.title)}</span>
-        </button>`;
       $("cpSideList").innerHTML = cats.map(cat => {
         const mine = items.filter(x => x.catId === cat.id);
         if (!mine.length) return "";
-        let menu = "";
-        (cat.subs || []).forEach(sub => {
-          const si = mine.filter(x => x.subId === sub.id);
-          if (si.length) menu += `<div class="pv-sub-h">${esc(sub.name)}</div>` + si.map(leaf).join("");
-        });
-        menu += mine.filter(x => !x.subId).map(leaf).join("");   // không thuộc nhóm con nào
         return `
           <div class="pv-cat" data-cat="${esc(cat.id)}">
-            <button class="pv-cat-btn" type="button" aria-haspopup="true" aria-expanded="false">
+            <button class="pv-cat-btn" type="button">
               <span class="pv-cat-ic">${cat.icon}</span><span>${esc(cat.label)}</span>
               <span class="pv-cat-n">${mine.length}</span>
-              <span class="pv-cat-caret" aria-hidden="true">▾</span>
             </button>
-            <div class="pv-cat-menu" role="menu">${menu}</div>
           </div>`;
       }).join("");
       $("cpMobileSel").innerHTML = cats.map(cat => {
@@ -559,48 +509,18 @@
       }).join("");
     }
 
-    function markCurrent(id){
-      $("cpSideList").querySelectorAll(".ci").forEach(b =>
-        b.classList.toggle("on", b.getAttribute("data-cid") === id));
-      $("cpSideList").querySelectorAll(".pv-cat").forEach(cat =>
-        cat.classList.toggle("has-active", [...cat.querySelectorAll(".ci")].some(b => b.getAttribute("data-cid") === id)));
-      const sel = $("cpMobileSel"); if (sel && sel.value !== id) sel.value = id;
-    }
-    /* mở/đóng danh mục: rê chuột (CSS, máy tính) + chạm/bấm (JS, cảm ứng) */
-    function closeCats(){
-      $("cpSideList").querySelectorAll(".pv-cat.open").forEach(c => {
-        c.classList.remove("open");
-        const b = c.querySelector(".pv-cat-btn"); if (b) b.setAttribute("aria-expanded", "false");
-      });
-    }
-    /* kẹp menu nằm gọn trong màn hình: cần cho điện thoại (nút sát mép phải
-       thì menu mặc định left:0 sẽ tràn ra ngoài) */
-    function clampMenu(cat){
-      const m = cat.querySelector(".pv-cat-menu"); if (!m) return;
-      m.style.left = "0px"; m.style.right = "auto";
-      const pad = 8, vw = document.documentElement.clientWidth;
-      let r = m.getBoundingClientRect();
-      if (r.right > vw - pad) m.style.left = Math.round(-(r.right - (vw - pad))) + "px";
-      r = m.getBoundingClientRect();
-      if (r.left < pad) m.style.left = Math.round((parseFloat(m.style.left) || 0) + (pad - r.left)) + "px";
-    }
-    function openCat(cat){
-      const b = cat.querySelector(".pv-cat-btn");
-      cat.classList.add("open"); if (b) b.setAttribute("aria-expanded", "true"); clampMenu(cat);
-    }
+    /* Đang xem một khóa → tô sáng đúng TAB danh mục chứa khóa đó (không còn
+       menu con nên chỉ cần đánh dấu tab). */
+    function markCurrent(id){ markCategoryTab(catIdOfCid(id)); }
+
+    /* Bấm một tab danh mục → hiện lưới thẻ khóa của danh mục đó (KHÔNG còn
+       menu thả xuống; không còn sự kiện rê chuột/mở-đóng). */
     $("cpSideList").addEventListener("click", e => {
-      const leaf = e.target.closest(".ci");
-      if (leaf){ closeCats(); switchCourse(leaf.getAttribute("data-cid"), true); return; }
-      const btn = e.target.closest(".pv-cat-btn");
-      if (btn){
-        // Bấm vào TÊN danh mục → mở LƯỚI thẻ khóa gọn của danh mục đó (thay vì
-        // chỉ bung menu). Trên máy tính vẫn có thể rê chuột để xem menu nhanh.
-        closeCats();
-        showCategory(btn.closest(".pv-cat").getAttribute("data-cat"), true);
-      }
+      const btn = e.target.closest(".pv-cat-btn"); if (!btn) return;
+      showCategory(btn.closest(".pv-cat").getAttribute("data-cat"), true);
     });
-    // Breadcrumb: về tổng quan (root), về lưới danh mục, hoặc về khóa (link thật
-    // nhưng chặn để chạy SPA — không tải lại trang, không mất trạng thái).
+    // Breadcrumb: về tổng quan (root) hoặc về lưới danh mục — link thật nhưng
+    // chặn để chạy SPA (không tải lại trang, không mất trạng thái).
     $("cpMain").addEventListener("click", e => {
       const a = e.target.closest(".cp-crumbs a"); if (!a) return;
       if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
@@ -609,14 +529,6 @@
       if (kind === "root") { const d = defaultCatId(); if (d) showCategory(d, true); }
       else if (kind === "cat") { showCategory(a.getAttribute("data-cat"), true); }
     });
-    /* máy tính: rê chuột mở (CSS lo hiển thị, JS chỉ kẹp vị trí cho gọn) */
-    if (window.matchMedia && window.matchMedia("(hover: hover)").matches){
-      $("cpSideList").addEventListener("pointerenter", e => {
-        const cat = e.target.closest && e.target.closest(".pv-cat"); if (cat) clampMenu(cat);
-      }, true);
-    }
-    document.addEventListener("click", e => { if (!e.target.closest(".pv-cat")) closeCats(); });
-    document.addEventListener("keydown", e => { if (e.key === "Escape") closeCats(); });
     $("cpMobileSel").addEventListener("change", e => { if (e.target.value) switchCourse(e.target.value, true); });
     // Back / Forward: đọc lại URL và vẽ đúng chế độ xem trước đó (+ khôi phục cuộn).
     window.addEventListener("popstate", () => { routeFromUrl(true); });
@@ -1077,12 +989,26 @@
       const cat = categoryById(catId);
       const its = itemsInCat(catId);
       document.title = (cat ? cat.label : "Khóa học") + " — Learning Ecology";
+      /* Sắp thẻ theo NHÓM CON có sẵn (VSTEP · IELTS · V-SAT…). Chỉ hiện tiêu đề
+         nhóm nào CÓ khóa; giữ nguyên gán khóa→nhóm (không tạo/đổi/xóa nhóm).
+         Khóa không thuộc nhóm con nào thì xếp cuối, không tiêu đề. */
+      let body = "";
+      if (its.length){
+        const subs = (cat && cat.subs) || [];
+        subs.forEach(sub => {
+          const inSub = its.filter(x => x.subId === sub.id);
+          if (!inSub.length) return;   // ẩn tiêu đề nhóm rỗng
+          body += `<h3 class="cg-sub">${esc(sub.name)}</h3><div class="cgrid">${inSub.map(courseCard).join("")}</div>`;
+        });
+        const noSub = its.filter(x => !x.subId);
+        if (noSub.length) body += `<div class="cgrid">${noSub.map(courseCard).join("")}</div>`;
+      } else {
+        body = `<p class="cp-note">Danh mục này chưa có khóa học nào.</p>`;
+      }
       $("cpMain").innerHTML =
         crumbs([{ label: "Khóa học & Tài liệu", root: true }, { label: cat ? cat.label : catId, cur: true }])
         + `<h2 class="cg-h">${cat ? esc((cat.icon || "") + " " + cat.label) : ""}</h2>`
-        + (its.length
-            ? `<div class="cgrid">${its.map(courseCard).join("")}</div>`
-            : `<p class="cp-note">Danh mục này chưa có khóa học nào.</p>`);
+        + body;
       // thẻ mở khóa nào bấm cũng vào xem khóa đó (SPA, không tải lại trang)
       const cards = {};
       $("cpMain").querySelectorAll(".ccard").forEach(a => {

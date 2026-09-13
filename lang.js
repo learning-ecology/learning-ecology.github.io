@@ -4,7 +4,10 @@
 //  the default for new visitors, change DEFAULT_LANG to "vi".
 // ------------------------------------------------------------
 
-const DEFAULT_LANG = "en";
+// Tiếng Việt là mặc định cho khách lần đầu / chưa đăng nhập. Nếu ai đó tự đổi
+// ngôn ngữ, lựa chọn được nhớ trong localStorage (hub_lang) nên KHÔNG bị đặt lại
+// về tiếng Việt ở các lần sau (xem cách đọc LANG bên dưới).
+const DEFAULT_LANG = "vi";
 
 const I18N = {
   en: {
