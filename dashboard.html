@@ -2388,6 +2388,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         <div class="tabpane" data-tab="asgn">
           <div id="hsk-hw"></div>
           <div id="vocab-hw"></div>
+          <div id="flash-hw"></div>
           ${asgnCard || (`<div class="card" id="asgn-empty"><p class="empty">${T2p("no_asgn_student")}</p></div>`)}
         </div>
         <div class="tabpane" data-tab="community">
@@ -2527,6 +2528,89 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       // Bài tập HSK Slides + Bài tập Luyện từ vựng (cùng khu vực "Bài tập")
       mountStudentHomework("hsk-hw", "slides", "hsk_lessons", "hsk-slides.html", "🀄 Bài tập tiếng Trung");
       mountStudentHomework("vocab-hw", "vocab", "vocab_lessons", "vocab-practice.html", "🀄 Bài tập Luyện từ vựng");
+
+      /* ---- Bài tập Flashcards (Phase 111) — cùng bảng hsk_homework
+         (kind='flashcards'); RLS chỉ trả bộ thẻ được giao cho tôi. Bấm Bắt đầu
+         mở phiên ôn thẻ (spaced repetition) NGAY trên đúng bộ thẻ đã giao, không
+         về trang Flashcards chung. Tiến độ đọc từ flashcard_reviews. */
+      async function mountStudentFlashcardHomework() {
+        const box = document.getElementById("flash-hw");
+        if (!box) return;
+        let hwRes;
+        try { hwRes = await sb.from("hsk_homework").select("*").order("due_at", { ascending: true, nullsFirst: false }); }
+        catch (e) { return; }
+        if (hwRes.error) return;
+        const hws = (hwRes.data || []).filter(h => h.kind === "flashcards");
+        if (!hws.length) return;
+        const clids = [...new Set(hws.map(h => h.class_id).filter(Boolean))];
+        const cRes = clids.length ? await sb.from("classes").select("id, name").in("id", clids) : { data: [] };
+        const cMap = {}; (cRes.data || []).forEach(c => cMap[c.id] = c.name);
+        const now = Date.now();
+        const MASTER = 21;
+        const fmt = ts => { if (!ts) return ""; const d = new Date(ts);
+          return d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
+        // bộ thẻ của một assignment, lấy từ myCards (RLS đã mở đúng thẻ được giao)
+        const cardsOf = h => {
+          if (h.card_ids && h.card_ids.length) { const set = new Set(h.card_ids); return myCards.filter(k => set.has(k.id)); }
+          const lv = h.lesson_id;
+          return myCards.filter(k => k.course_id === h.course_id &&
+            (lv === "__nolesson__" ? !k.lesson_id : String(k.lesson_id) === String(lv)));
+        };
+        const rows = hws.map(h => {
+          const set = cardsOf(h);
+          const total = set.length;
+          let done = 0, mastered = 0;
+          set.forEach(k => { const r = revBy[k.id]; if (r) { done++; if (Number(r.interval_days) >= MASTER) mastered++; } });
+          const pct = total ? Math.round(done / total * 100) : 0;
+          const notStarted = h.start_at && new Date(h.start_at).getTime() > now;
+          const overdue = h.due_at && new Date(h.due_at).getTime() < now && done < total;
+          const completed = total > 0 && done >= total;
+          let pill;
+          if (completed) pill = `<span class="pill done">Hoàn thành · ${done}/${total}</span>`;
+          else if (done > 0) pill = `<span class="pill todo">Đang làm · ${done}/${total}</span>`;
+          else if (overdue) pill = `<span class="pill bad">Quá hạn</span>`;
+          else pill = `<span class="pill todo">Chưa làm</span>`;
+          const canGo = !notStarted && total > 0;
+          const label = done > 0 ? (completed ? "Ôn lại ▸" : "Tiếp tục ▸") : "Bắt đầu ▸";
+          const meta = [
+            cMap[h.class_id] ? "Lớp " + esc(cMap[h.class_id]) : "",
+            total + " thẻ",
+            mastered ? "Thành thạo " + mastered : "",
+            h.due_at ? "Hạn: " + esc(fmt(h.due_at)) : ""
+          ].filter(Boolean).join(" · ");
+          return `
+            <div class="lesson" style="flex-wrap:wrap;">
+              <div class="meta">
+                <div class="title">${esc(h.title || ("Bộ thẻ · " + total + " thẻ"))}</div>
+                <span class="kind">${meta}${total ? " · " + pct + "%" : ""}</span>
+                ${notStarted ? `<div style="font-size:.85rem;color:var(--muted);margin-top:.2rem;">Mở lúc ${esc(fmt(h.start_at))}</div>` : ""}
+                ${total === 0 ? `<div style="font-size:.85rem;color:var(--muted);margin-top:.2rem;">Chưa có thẻ nào để ôn</div>` : ""}
+              </div>
+              ${pill}
+              <div style="flex-basis:100%;margin-top:.4rem;">
+                ${canGo
+                  ? `<button class="ghost fc-astart" data-id="${h.id}">${label}</button>`
+                  : `<button class="ghost" disabled>${notStarted ? "Chưa mở" : "—"}</button>`}
+              </div>
+            </div>`;
+        }).join("");
+        if (!rows) return;
+        const emptyMsg = document.getElementById("asgn-empty");
+        if (emptyMsg) emptyMsg.remove();
+        box.innerHTML = `
+          <div class="card" style="border-top:4px solid var(--tone-purple,#7c3aed);">
+            <h2>🃏 Bài tập Flashcards</h2>
+            ${rows}
+          </div>`;
+        box.querySelectorAll(".fc-astart").forEach(b => b.addEventListener("click", () => {
+          const h = hws.find(x => x.id === b.getAttribute("data-id"));
+          if (!h) return;
+          const set = cardsOf(h);
+          if (!set.length) return;
+          startReviewCards(set);
+        }));
+      }
+      mountStudentFlashcardHomework();
 
       document.getElementById("p-save").addEventListener("click", async () => {
         const m = document.getElementById("p-msg");
@@ -2670,11 +2754,23 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       });
 
       // --- flashcard review session (SM-2 spaced repetition) ---
+      // Free-study of a whole deck: due cards + a few fresh ones.
       function startReview(courseId) {
         const cs = myCards.filter(k => k.course_id === courseId);
         const due = cs.filter(k => revBy[k.id] && revBy[k.id].due_on <= fcToday);
         const fresh = cs.filter(k => !revBy[k.id]).slice(0, NEW_PER_DAY);
-        const queue = [...due, ...fresh].sort(() => Math.random() - 0.5);
+        runReview([...due, ...fresh].sort(() => Math.random() - 0.5));
+      }
+      // Assigned set: study the WHOLE set (due/new first, then the rest) so
+      // the student can reach 100% of the bộ thẻ đã giao.
+      function startReviewCards(cardList) {
+        const due = cardList.filter(k => revBy[k.id] && revBy[k.id].due_on <= fcToday);
+        const fresh = cardList.filter(k => !revBy[k.id]);
+        const rest = cardList.filter(k => revBy[k.id] && revBy[k.id].due_on > fcToday);
+        runReview([...due, ...fresh, ...rest]);
+      }
+      function runReview(queueIn) {
+        const queue = (queueIn || []).slice();
         if (!queue.length) return;
         let doneN = 0;
         const ov = document.createElement("div");
@@ -3476,10 +3572,12 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         <div class="tabpane" data-tab="flash">
         <div class="card">
           <h2>🃏 Flashcards <span class="kind" id="fc-count"></span></h2>
-          <p class="kind" style="margin:0 0 0.7rem;">Students review these with spaced repetition (hard cards return sooner, easy ones wait longer). A deck belongs to a course — only its enrolled students see it.</p>
+          <p class="kind" style="margin:0 0 0.7rem;">Students review these with spaced repetition (hard cards return sooner, easy ones wait longer). Organized <b>Course → Lesson → Flashcards</b>. Pick a course and a lesson; cards without a lesson stay under <b>— Chưa phân loại —</b> until you move them.</p>
           <div class="form-row" style="margin-bottom:0.7rem;">
             <div class="field" style="max-width:260px;"><label>Course (deck)</label>
               <select id="fc-course">${courseOptions || `<option value="">— create a course first —</option>`}</select></div>
+            <div class="field" style="max-width:260px;"><label>Lesson (bài)</label>
+              <select id="fc-lesson"></select></div>
           </div>
           <div class="form-row">
             <div class="field" style="max-width:170px;"><label>Front (word)</label><input id="fc-front" placeholder="你好" /></div>
@@ -3491,12 +3589,67 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           <p id="fc-msg" class="msg"></p>
           <details style="margin-top:0.5rem;">
             <summary style="cursor:pointer; font-size:0.88rem; color:var(--accent-ink); font-weight:600;">⬆ Bulk import — paste a whole list at once</summary>
-            <p class="kind" style="margin:0.5rem 0;">One card per line, parts separated by <b>|</b> : &nbsp;front | back | reading | example &nbsp;(reading and example are optional)</p>
+            <p class="kind" style="margin:0.5rem 0;">Imports into the <b>lesson selected above</b>. One card per line, parts separated by <b>|</b> : &nbsp;front | back | reading | example &nbsp;(reading and example are optional)</p>
             <textarea id="fc-bulk" style="min-height:120px; font-family:var(--mono); font-size:0.85rem;"
               placeholder="你好 | xin chào | nǐ hǎo | 你好，我是Thông。&#10;谢谢 | cảm ơn | xièxie"></textarea>
             <button id="fc-import" style="margin-top:0.5rem;">Import cards</button>
           </details>
           <div id="fc-list" style="margin-top:0.8rem;"></div>
+        </div>
+
+        <!-- ===== Giao bài Flashcards (dùng chung hệ thống HSK Slides) ===== -->
+        <div class="card" id="fhw-card" style="border-top:4px solid var(--tone-red,#c0392b);">
+          <div class="card-head"><h2>📌 Giao bài Flashcards</h2></div>
+          <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
+            Giao một <b>bộ thẻ</b> (theo Khóa → Bài) cho cả lớp hoặc chọn từng học viên — cùng quy trình
+            với HSK Slides &amp; Luyện từ vựng. Học viên thấy bài trong <b>Bảng điều khiển → Bài tập</b>;
+            tiến độ ôn thẻ (spaced repetition) được lưu tự động.</p>
+          <div class="form-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:0.7rem;">
+            <div class="field"><label>Khóa (deck)</label>
+              <select id="fhw-course"><option value="">— Chọn khóa —</option></select></div>
+            <div class="field"><label>Bài</label>
+              <select id="fhw-lesson"><option value="">— Chọn khóa trước —</option></select></div>
+            <div class="field" style="grid-column:1/-1;">
+              <label>Thẻ trong bộ <span class="kind" id="fhw-cards-count" style="text-transform:none; letter-spacing:0;"></span></label>
+              <select id="fhw-cards" multiple size="6" style="height:auto;"></select>
+              <span class="kind" style="text-transform:none; letter-spacing:0;">Mặc định chọn tất cả — bỏ chọn để giao một phần. Giữ Ctrl/⌘ để chọn nhiều.</span></div>
+            <div class="field"><label>Lớp</label>
+              <select id="fhw-class"><option value="">— Chọn lớp —</option></select></div>
+            <div class="field"><label>Giao cho</label>
+              <select id="fhw-who"><option value="all">Cả lớp</option><option value="some">Chọn học viên…</option></select></div>
+            <div class="field" id="fhw-stu-wrap" style="grid-column:1/-1; display:none;">
+              <label>Học viên (giữ Ctrl/⌘ để chọn nhiều)</label>
+              <select id="fhw-students" multiple size="5" style="height:auto;"></select></div>
+            <div class="field"><label>Mở lúc (tuỳ chọn)</label>
+              <input type="datetime-local" id="fhw-start" /></div>
+            <div class="field"><label>Hạn nộp (tuỳ chọn)</label>
+              <input type="datetime-local" id="fhw-due" /></div>
+            <div class="field" style="grid-column:1/-1;"><label>Ghi chú / tiêu đề (tuỳ chọn)</label>
+              <input type="text" id="fhw-title" placeholder="Để trống sẽ dùng tên bài" /></div>
+          </div>
+          <div style="display:flex; gap:0.6rem; align-items:center; margin-top:0.6rem; flex-wrap:wrap;">
+            <button id="fhw-save">Giao bài</button>
+            <span id="fhw-msg" class="msg"></span>
+          </div>
+          <div id="fhw-list" style="margin-top:0.9rem;"></div>
+        </div>
+
+        <div class="card" id="fhp-card" style="border-top:4px solid var(--tone-teal,#0d9488);">
+          <div class="card-head"><h2>📊 Theo dõi tiến độ (Flashcards)</h2>
+            <button class="ghost" id="fhp-refresh" style="width:auto; padding:.35rem .7rem; font-size:.85rem;">↻ Làm mới</button>
+          </div>
+          <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
+            Xem mỗi học viên đã ôn bao nhiêu thẻ, số thẻ đã thành thạo / đang học và lần hoạt động gần nhất
+            cho từng bộ thẻ đã giao.</p>
+          <div class="form-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:0.7rem;">
+            <div class="field"><label>Lớp</label>
+              <select id="fhp-class"><option value="">— Chọn lớp —</option></select></div>
+            <div class="field"><label>Bài đã giao</label>
+              <select id="fhp-hw"><option value="">— Tất cả bài của lớp —</option></select></div>
+          </div>
+          <div id="fhp-summary" style="margin-top:0.6rem;"></div>
+          <div id="fhp-chips" style="display:flex; gap:0.4rem; flex-wrap:wrap; margin:0.6rem 0;"></div>
+          <div id="fhp-body"><p class="empty" style="margin:0;">Chọn lớp để xem tiến độ.</p></div>
         </div>
         </div>
 
@@ -11871,38 +12024,70 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         }
       });
 
-      // ---- flashcard deck management ----
+      // ---- flashcard deck management (Course → Lesson → Flashcards) ----
+      const FC_NOLESSON = "__nolesson__";   // UI sentinel for "Chưa phân loại" (stored as lesson_id = null)
       (function () {
         const sel = document.getElementById("fc-course");
         if (!sel) return;
+        const lsel = document.getElementById("fc-lesson");
         const list = document.getElementById("fc-list");
         const msgEl = document.getElementById("fc-msg");
         const say = (txt, err) => { msgEl.textContent = txt; msgEl.className = "msg" + (err ? " err" : ""); };
+        const lessonsOf = cid => (lessons || []).filter(l => l.course_id === cid);
+        // options for the per-row "move to lesson" select (Uncategorized + real lessons)
+        const moveOpts = (cid, current) => {
+          const cur = current || FC_NOLESSON;
+          return [`<option value="${FC_NOLESSON}"${cur === FC_NOLESSON ? " selected" : ""}>— Chưa phân loại —</option>`]
+            .concat(lessonsOf(cid).map(l =>
+              `<option value="${l.id}"${cur === l.id ? " selected" : ""}>${esc(l.title || "(bài không tên)")}</option>`)).join("");
+        };
         try {
           const saved = localStorage.getItem("hub_fc_course");
           if (saved && [...sel.options].some(o => o.value === saved)) sel.value = saved;
         } catch (e) {}
 
+        function fillLessons() {
+          const cid = sel.value;
+          const opts = [`<option value="all">— Tất cả bài —</option>`]
+            .concat(lessonsOf(cid).map(l => `<option value="${l.id}">${esc(l.title || "(bài không tên)")}</option>`))
+            .concat([`<option value="${FC_NOLESSON}">— Chưa phân loại —</option>`]);
+          lsel.innerHTML = opts.join("");
+          let saved = "all";
+          try { saved = localStorage.getItem("hub_fc_lesson_" + cid) || "all"; } catch (e) {}
+          if ([...lsel.options].some(o => o.value === saved)) lsel.value = saved;
+        }
+
+        // where a NEW card/import goes, based on the lesson filter (all → Uncategorized)
+        const targetLesson = () => (lsel.value && lsel.value !== "all" && lsel.value !== FC_NOLESSON) ? lsel.value : null;
+
         function fcRows() {
           const cid = sel.value;
-          const mine = cards.filter(c => c.course_id === cid);
+          const lv = lsel.value;
+          const inCourse = cards.filter(c => c.course_id === cid);
+          const mine = lv === "all" ? inCourse
+            : lv === FC_NOLESSON ? inCourse.filter(c => !c.lesson_id)
+            : inCourse.filter(c => c.lesson_id === lv);
           document.getElementById("fc-count").textContent =
-            "(" + mine.length + " in this course · " + cards.length + " total)";
+            "(" + mine.length + " in this lesson · " + inCourse.length + " in course · " + cards.length + " total)";
           list.innerHTML = mine.map(c => `
             <div class="lesson" style="flex-wrap:wrap;">
               <input class="fce" data-id="${c.id}" data-f="front" value="${esc(c.front)}" style="max-width:150px;" title="Front" />
               <input class="fce" data-id="${c.id}" data-f="reading" value="${esc(c.reading || "")}" placeholder="reading" style="max-width:130px;" title="Reading" />
               <input class="fce" data-id="${c.id}" data-f="back" value="${esc(c.back)}" style="flex:1; min-width:130px;" title="Back" />
               <input class="fce" data-id="${c.id}" data-f="example" value="${esc(c.example || "")}" placeholder="example" style="flex:1; min-width:150px;" title="Example" />
+              <select class="fce fc-move" data-id="${c.id}" data-f="lesson_id" title="Bài" style="max-width:160px;">${moveOpts(cid, c.lesson_id)}</select>
               <button class="ghost fc-save" data-id="${c.id}">Save</button>
               <button class="ghost fc-del" data-id="${c.id}" style="color:var(--danger); border-color:var(--danger);">Delete</button>
-            </div>`).join("") || `<p class="empty">No cards in this course yet — add one above, or use bulk import.</p>`;
+            </div>`).join("") || `<p class="empty">No cards here yet — add one above, or use bulk import.</p>`;
 
           list.querySelectorAll(".fc-save").forEach(b => b.addEventListener("click", async () => {
             const id = b.getAttribute("data-id");
             const patch = {};
-            list.querySelectorAll(`.fce[data-id="${id}"]`).forEach(i =>
-              patch[i.getAttribute("data-f")] = i.value.trim() || null);
+            list.querySelectorAll(`.fce[data-id="${id}"]`).forEach(i => {
+              const f = i.getAttribute("data-f");
+              if (f === "lesson_id") patch.lesson_id = (i.value === FC_NOLESSON ? null : i.value);
+              else patch[f] = i.value.trim() || null;
+            });
             if (!patch.front || !patch.back) { say("Front and back can't be empty.", true); return; }
             b.disabled = true;
             const { error } = await sb.from("flashcards").update(patch).eq("id", id);
@@ -11910,6 +12095,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             if (error) { say("Could not save: " + error.message, true); return; }
             Object.assign(cards.find(x => x.id === id) || {}, patch);
             b.textContent = "Saved ✓"; setTimeout(() => (b.textContent = "Save"), 1200);
+            fcRows();   // a moved card may leave the current lesson filter
           }));
           list.querySelectorAll(".fc-del").forEach(b => b.addEventListener("click", async () => {
             if (!confirm("Delete this card? Students' review history for it is removed too.")) return;
@@ -11923,6 +12109,11 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
 
         sel.addEventListener("change", () => {
           try { localStorage.setItem("hub_fc_course", sel.value); } catch (e) {}
+          fillLessons();
+          fcRows();
+        });
+        lsel.addEventListener("change", () => {
+          try { localStorage.setItem("hub_fc_lesson_" + sel.value, lsel.value); } catch (e) {}
           fcRows();
         });
 
@@ -11933,14 +12124,15 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           const example = document.getElementById("fc-ex").value.trim() || null;
           if (!sel.value) { say("Create a course first.", true); return; }
           if (!front || !back) { say("Front and back are required.", true); return; }
+          const lesson_id = targetLesson();
           const { data: row, error } = await sb.from("flashcards")
-            .insert({ course_id: sel.value, front, back, reading, example,
+            .insert({ course_id: sel.value, lesson_id, front, back, reading, example,
                       sort_order: cards.filter(c => c.course_id === sel.value).length + 1,
                       created_by: user.id }).select().single();
           if (error) { say("Could not add: " + error.message + (error.message.includes("does not exist") ? " — run migration23 first." : ""), true); return; }
           cards.push(row);
           ["fc-front", "fc-back", "fc-read", "fc-ex"].forEach(x => (document.getElementById(x).value = ""));
-          say("Card added ✓");
+          say("Card added ✓" + (lesson_id ? "" : " (Chưa phân loại)"));
           document.getElementById("fc-front").focus();
           fcRows();
         });
@@ -11949,12 +12141,13 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           const lines = document.getElementById("fc-bulk").value.split("\n").map(l => l.trim()).filter(Boolean);
           if (!sel.value) { say("Create a course first.", true); return; }
           if (!lines.length) { say("Paste at least one line first.", true); return; }
+          const lesson_id = targetLesson();
           const base = cards.filter(c => c.course_id === sel.value).length;
           const rowsIn = [];
           for (let i = 0; i < lines.length; i++) {
             const p = lines[i].split("|").map(x => x.trim());
             if (!p[0] || !p[1]) { say('Line ' + (i + 1) + ' needs at least "front | back".', true); return; }
-            rowsIn.push({ course_id: sel.value, front: p[0], back: p[1],
+            rowsIn.push({ course_id: sel.value, lesson_id, front: p[0], back: p[1],
                           reading: p[2] || null, example: p[3] || null,
                           sort_order: base + i + 1, created_by: user.id });
           }
@@ -11963,12 +12156,368 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           if (error) { say("Import failed: " + error.message, true); return; }
           cards.push(...(ins || []));
           document.getElementById("fc-bulk").value = "";
-          say("Imported " + (ins || []).length + " cards ✓");
+          say("Imported " + (ins || []).length + " cards ✓" + (lesson_id ? "" : " (Chưa phân loại)"));
           fcRows();
         });
 
+        fillLessons();
         fcRows();
       })();
+
+      // ================= GIAO BÀI FLASHCARDS (Phase 111) =================
+      // Cùng bảng hsk_homework (kind='flashcards'), cùng lớp/học viên như HSK
+      // Slides & Luyện từ vựng. Một assignment = một BỘ THẺ: course_id + bài
+      // (lesson_id, hoặc sentinel '__nolesson__') + card_ids (rỗng = cả bài).
+      // Tiến độ đọc thẳng từ flashcard_reviews (spaced repetition, migration23).
+      const FC_MASTER_DAYS = 21;   // interval ≥ 21 ngày → coi là "thành thạo"
+      // các thẻ hiện có trong một assignment (rỗng card_ids = cả bài/khóa)
+      function fcCardIdsOf(a) {
+        if (a.card_ids && a.card_ids.length) {
+          const set = new Set(a.card_ids);
+          return cards.filter(k => set.has(k.id)).map(k => k.id);
+        }
+        const lv = a.lesson_id;
+        return cards.filter(k => k.course_id === a.course_id &&
+          (lv === FC_NOLESSON ? !k.lesson_id : String(k.lesson_id) === String(lv))).map(k => k.id);
+      }
+
+      function mountFcAssign() {
+        const card = document.getElementById("fhw-card");
+        if (!card) return;
+        const $ = id => document.getElementById(id);
+        const selCourse = $("fhw-course"), selLesson = $("fhw-lesson"), selCards = $("fhw-cards"),
+              cardsCount = $("fhw-cards-count"), selClass = $("fhw-class"), selWho = $("fhw-who"),
+              stuWrap = $("fhw-stu-wrap"), selStu = $("fhw-students"), inStart = $("fhw-start"),
+              inDue = $("fhw-due"), inTitle = $("fhw-title"), btnSave = $("fhw-save"),
+              msg = $("fhw-msg"), listBox = $("fhw-list");
+        let classes = [], members = {}, hwRows = [];
+        const migHint = "migration72_flashcard_homework.sql";
+        const say = (t, err) => { msg.textContent = t || ""; msg.className = "msg" + (err ? " err" : ""); };
+        const fmt = ts => { if (!ts) return ""; const d = new Date(ts);
+          return d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
+        const lessonName = lid => lid === FC_NOLESSON ? "Chưa phân loại"
+          : ((lessons || []).find(l => l.id === lid)?.title || "(bài)");
+        const courseTitle = cid => (courses || []).find(c => c.id === cid)?.title || "(khóa)";
+
+        function bucketsOf(cid) {
+          const inCourse = cards.filter(k => k.course_id === cid);
+          const out = [];
+          (lessons || []).filter(l => l.course_id === cid).forEach(l => {
+            const n = inCourse.filter(k => k.lesson_id === l.id).length;
+            if (n) out.push({ id: l.id, title: l.title || "(bài không tên)", n });
+          });
+          const nun = inCourse.filter(k => !k.lesson_id).length;
+          if (nun) out.push({ id: FC_NOLESSON, title: "— Chưa phân loại —", n: nun });
+          return out;
+        }
+        function cardsInBucket(cid, lv) {
+          return cards.filter(k => k.course_id === cid &&
+              (lv === FC_NOLESSON ? !k.lesson_id : k.lesson_id === lv))
+            .slice().sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+        }
+        function fillCourses() {
+          const withCards = (courses || []).filter(c => cards.some(k => k.course_id === c.id));
+          selCourse.innerHTML = `<option value="">— Chọn khóa —</option>` +
+            withCards.map(c => `<option value="${c.id}">${esc(c.title)}</option>`).join("");
+        }
+        function fillLessons() {
+          const cid = selCourse.value;
+          if (!cid) { selLesson.innerHTML = `<option value="">— Chọn khóa trước —</option>`; fillCards(); return; }
+          const b = bucketsOf(cid);
+          selLesson.innerHTML = b.length
+            ? b.map(x => `<option value="${x.id}">${esc(x.title)} (${x.n})</option>`).join("")
+            : `<option value="">— khóa này chưa có thẻ —</option>`;
+          fillCards();
+        }
+        function fillCards() {
+          const cid = selCourse.value, lv = selLesson.value;
+          const set = (cid && lv) ? cardsInBucket(cid, lv) : [];
+          selCards.innerHTML = set.map(k =>
+            `<option value="${k.id}" selected>${esc(k.front)} → ${esc(k.back)}</option>`).join("");
+          cardsCount.textContent = set.length ? "· " + set.length + " thẻ (mặc định chọn tất cả)" : "";
+        }
+
+        async function load() {
+          const [cRes, hwRes] = await Promise.all([
+            sb.from("classes").select("id, name, course_id, org_id").order("starts_on", { ascending: true }),
+            sb.from("hsk_homework").select("*").order("created_at", { ascending: false })
+          ]);
+          classes = (cRes.data || []);
+          selClass.innerHTML = `<option value="">— Chọn lớp —</option>` +
+            classes.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
+          hwRows = (hwRes.error ? [] : (hwRes.data || []).filter(h => h.kind === "flashcards"));
+          fillCourses();
+          fillLessons();
+          renderList();
+        }
+        async function loadMembers(classId) {
+          if (!classId) { selStu.innerHTML = ""; return; }
+          if (members[classId]) { paintStudents(classId); return; }
+          const cs = await sb.from("class_students").select("student_id").eq("class_id", classId);
+          const ids = (cs.data || []).map(r => r.student_id);
+          let profs = [];
+          if (ids.length) { const pr = await sb.from("profiles").select("id, full_name, email").in("id", ids); profs = pr.data || []; }
+          members[classId] = profs;
+          paintStudents(classId);
+        }
+        function paintStudents(classId) {
+          const profs = members[classId] || [];
+          selStu.innerHTML = profs.length
+            ? profs.map(p => `<option value="${p.id}">${esc(p.full_name || p.email)}</option>`).join("")
+            : `<option disabled>(lớp chưa có học viên)</option>`;
+        }
+        function className(cid) { return (classes.find(x => x.id === cid) || {}).name || ""; }
+
+        function renderList() {
+          if (!hwRows.length) { listBox.innerHTML = `<p class="empty" style="margin:0;">Chưa giao bộ thẻ nào.</p>`; return; }
+          listBox.innerHTML = `<h3 style="margin:0 0 .5rem; font-size:1rem;">Đã giao (${hwRows.length})</h3>` +
+            hwRows.map(h => {
+              const nCards = fcCardIdsOf(h).length;
+              const who = (h.student_ids && h.student_ids.length) ? h.student_ids.length + " học viên" : "cả lớp";
+              const meta = [
+                className(h.class_id) ? "Lớp " + esc(className(h.class_id)) : "",
+                who,
+                nCards + " thẻ",
+                h.due_at ? "Hạn " + esc(fmt(h.due_at)) : ""
+              ].filter(Boolean).join(" · ");
+              const setName = esc(courseTitle(h.course_id)) + " · " + esc(lessonName(h.lesson_id));
+              return `
+                <div class="lesson" style="flex-wrap:wrap;">
+                  <div class="meta">
+                    <div class="title">${esc(h.title || lessonName(h.lesson_id))}</div>
+                    <span class="kind">${setName} · ${meta}</span>
+                  </div>
+                  <button class="ghost fhw-del" data-id="${h.id}">Xoá</button>
+                </div>`;
+            }).join("");
+        }
+
+        selCourse.addEventListener("change", fillLessons);
+        selLesson.addEventListener("change", fillCards);
+        selWho.addEventListener("change", () => {
+          stuWrap.style.display = selWho.value === "some" ? "" : "none";
+          if (selWho.value === "some") loadMembers(selClass.value);
+        });
+        selClass.addEventListener("change", () => { if (selWho.value === "some") loadMembers(selClass.value); });
+
+        btnSave.addEventListener("click", async () => {
+          const cid = selCourse.value, lv = selLesson.value, class_id = selClass.value;
+          if (!cid) { say("Hãy chọn khóa.", true); return; }
+          if (!lv) { say("Hãy chọn bài.", true); return; }
+          if (!class_id) { say("Hãy chọn lớp.", true); return; }
+          const all = [...selCards.options].map(o => o.value);
+          const picked = [...selCards.selectedOptions].map(o => o.value);
+          if (!all.length) { say("Bài này chưa có thẻ nào.", true); return; }
+          if (!picked.length) { say("Hãy chọn ít nhất một thẻ.", true); return; }
+          // chọn hết → lưu rỗng ([] = cả bài); chọn một phần → lưu đúng danh sách
+          const card_ids = picked.length === all.length ? [] : picked;
+          let student_ids = [];
+          if (selWho.value === "some") {
+            student_ids = [...selStu.selectedOptions].map(o => o.value).filter(Boolean);
+            if (!student_ids.length) { say("Hãy chọn ít nhất một học viên, hoặc chuyển sang 'Cả lớp'.", true); return; }
+          }
+          const cls = classes.find(c => c.id === class_id);
+          const row = {
+            org_id: (cls && cls.org_id) || null,
+            class_id, kind: "flashcards", course_id: cid, lesson_id: lv, card_ids,
+            title: inTitle.value.trim(), student_ids,
+            start_at: inStart.value ? new Date(inStart.value).toISOString() : null,
+            due_at: inDue.value ? new Date(inDue.value).toISOString() : null,
+            created_by: user.id
+          };
+          say("Đang lưu…");
+          const { data, error } = await sb.from("hsk_homework").insert(row).select().single();
+          if (error) {
+            const needMig = /does not exist/i.test(error.message) || /column/i.test(error.message);
+            say(error.message + (needMig ? " — hình như chưa chạy " + migHint + "." : ""), true);
+            return;
+          }
+          hwRows.unshift(data);
+          renderList();
+          inTitle.value = ""; inStart.value = ""; inDue.value = "";
+          selStu.selectedIndex = -1;
+          say("Đã giao bộ thẻ ✓");
+        });
+
+        listBox.addEventListener("click", async e => {
+          const del = e.target.closest(".fhw-del");
+          if (!del) return;
+          if (!confirm("Xoá bộ thẻ đã giao này? Tiến độ ôn thẻ của học viên vẫn được giữ.")) return;
+          const id = del.dataset.id;
+          const { error } = await sb.from("hsk_homework").delete().eq("id", id);
+          if (error) { say(error.message, true); return; }
+          hwRows = hwRows.filter(h => h.id !== id);
+          renderList();
+        });
+
+        load();
+      }
+
+      function mountFcProgress() {
+        const card = document.getElementById("fhp-card");
+        if (!card) return;
+        const $ = id => document.getElementById(id);
+        const selClass = $("fhp-class"), selHw = $("fhp-hw"),
+              sumBox = $("fhp-summary"), chipBox = $("fhp-chips"), body = $("fhp-body");
+        let classesReady = false, assigns = [], revByUser = {}, roster = [], filter = "all";
+
+        const fmt = ts => { if (!ts) return "—"; const d = new Date(ts);
+          const today = new Date().toDateString() === d.toDateString();
+          return today ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                       : d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
+        const lessonName = lid => lid === FC_NOLESSON ? "Chưa phân loại"
+          : ((lessons || []).find(l => l.id === lid)?.title || "(bài)");
+        const courseTitle = cid => (courses || []).find(c => c.id === cid)?.title || "(khóa)";
+        const setLabel = a => esc(courseTitle(a.course_id)) + " · " + esc(lessonName(a.lesson_id));
+
+        async function loadClasses() {
+          if (classesReady) return;
+          classesReady = true;
+          const cRes = await sb.from("classes").select("id, name").order("starts_on", { ascending: true });
+          selClass.innerHTML = `<option value="">— Chọn lớp —</option>` +
+            (cRes.data || []).map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
+        }
+
+        async function loadClass(classId) {
+          assigns = []; revByUser = {}; roster = [];
+          if (!classId) { selHw.innerHTML = `<option value="">— Tất cả bài của lớp —</option>`; render(); return; }
+          body.innerHTML = `<p class="empty" style="margin:0;">Đang tải…</p>`;
+          const [aRes, rRes] = await Promise.all([
+            sb.from("hsk_homework").select("*").eq("class_id", classId).order("created_at", { ascending: false }),
+            sb.from("class_students").select("student_id").eq("class_id", classId)
+          ]);
+          assigns = (aRes.data || []).filter(h => h.kind === "flashcards");
+          const sids = (rRes.data || []).map(r => r.student_id);
+          let profs = [];
+          if (sids.length) { const pr = await sb.from("profiles").select("id, full_name, email").in("id", sids); profs = pr.data || []; }
+          roster = profs.map(p => ({ id: p.id, name: p.full_name || p.email }));
+          // mọi thẻ thuộc mọi bộ đã giao của lớp → nạp review một lần
+          const allCards = [...new Set(assigns.flatMap(a => fcCardIdsOf(a)))];
+          if (allCards.length) {
+            const rv = await sb.from("flashcard_reviews")
+              .select("student_id, card_id, interval_days, reps, updated_at").in("card_id", allCards);
+            (rv.data || []).forEach(r => { (revByUser[r.student_id] = revByUser[r.student_id] || {})[r.card_id] = r; });
+          }
+          selHw.innerHTML = `<option value="">— Tất cả bài của lớp —</option>` +
+            assigns.map(a => `<option value="${a.id}">${esc(a.title || lessonName(a.lesson_id))}</option>`).join("");
+          render();
+        }
+
+        function targetsOf(a) {
+          if (a.student_ids && a.student_ids.length) {
+            const set = new Set(a.student_ids);
+            return roster.filter(r => set.has(r.id));
+          }
+          return roster;
+        }
+        function statOf(a, sid) {
+          const ids = fcCardIdsOf(a);
+          const mine = revByUser[sid] || {};
+          let done = 0, mastered = 0, last = null;
+          ids.forEach(cid => {
+            const r = mine[cid];
+            if (r) {
+              done++;
+              if (Number(r.interval_days) >= FC_MASTER_DAYS) mastered++;
+              if (!last || r.updated_at > last) last = r.updated_at;
+            }
+          });
+          const total = ids.length;
+          const pct = total ? Math.round(done / total * 100) : 0;
+          let code = "inprogress";
+          if (done === 0) code = "notstarted";
+          else if (total && done >= total) code = "completed";
+          return { code, done, total, mastered, learning: done - mastered, pct, last };
+        }
+
+        const LABEL = { completed: "Hoàn thành", inprogress: "Đang làm", notstarted: "Chưa làm" };
+        const PILL = { completed: "done", inprogress: "todo", notstarted: "off" };
+
+        function chipsRow(counts, total) {
+          const defs = [["all", "Tất cả", total], ["completed", "Hoàn thành", counts.completed],
+            ["inprogress", "Đang làm", counts.inprogress], ["notstarted", "Chưa làm", counts.notstarted]];
+          chipBox.innerHTML = defs.map(([k, lb, n]) =>
+            `<button class="ghost fhp-chip${filter === k ? " on" : ""}" data-k="${k}"
+               style="width:auto;padding:.3rem .6rem;font-size:.82rem;${filter === k ? "background:var(--tone-teal,#0d9488);color:#fff;border-color:transparent;" : ""}">${lb} (${n})</button>`).join("");
+        }
+
+        function studentTable(a) {
+          const tg = targetsOf(a);
+          const stats = tg.map(s => ({ s, st: statOf(a, s.id) }));
+          const counts = { completed: 0, inprogress: 0, notstarted: 0 };
+          stats.forEach(x => counts[x.st.code]++);
+          const total = fcCardIdsOf(a).length;
+          const shown = filter === "all" ? stats : stats.filter(x => x.st.code === filter);
+          sumBox.innerHTML = `
+            <div class="lesson" style="background:var(--surface,#0000000a);border-radius:8px;">
+              <div class="meta">
+                <div class="title">${esc(a.title || lessonName(a.lesson_id))}</div>
+                <span class="kind">${setLabel(a)} · ${total} thẻ · ${tg.length} học viên${a.due_at ? " · hạn " + esc(fmt(a.due_at)) : ""}</span>
+              </div>
+            </div>`;
+          chipsRow(counts, tg.length);
+          if (!tg.length) { body.innerHTML = `<p class="empty" style="margin:0;">Bài này chưa nhắm tới học viên nào.</p>`; return; }
+          const rows = shown.map(({ s, st }) => `
+            <tr>
+              <td>${esc(s.name)}</td>
+              <td><span class="pill ${PILL[st.code]}">${LABEL[st.code]}</span></td>
+              <td style="text-align:center;">${st.done}/${st.total}</td>
+              <td style="text-align:center;">${st.pct}%</td>
+              <td style="text-align:center;">${st.mastered || "—"}</td>
+              <td style="text-align:center;">${st.learning || "—"}</td>
+              <td style="white-space:nowrap;">${fmt(st.last)}</td>
+            </tr>`).join("");
+          body.innerHTML = `
+            <div style="overflow-x:auto;">
+              <table class="hp-table" style="width:100%;border-collapse:collapse;font-size:.9rem;">
+                <thead><tr style="text-align:left;border-bottom:1px solid var(--line,#0002);">
+                  <th style="padding:.4rem;">Học viên</th><th>Trạng thái</th>
+                  <th style="text-align:center;">Đã học</th><th style="text-align:center;">%</th>
+                  <th style="text-align:center;">Thành thạo</th><th style="text-align:center;">Đang học</th>
+                  <th>Gần nhất</th>
+                </tr></thead>
+                <tbody>${rows || `<tr><td colspan="7" style="padding:.6rem;color:var(--muted);">Không có học viên ở trạng thái này.</td></tr>`}</tbody>
+              </table>
+            </div>`;
+        }
+
+        function classOverview() {
+          if (!assigns.length) { sumBox.innerHTML = ""; chipBox.innerHTML = "";
+            body.innerHTML = `<p class="empty" style="margin:0;">Lớp này chưa được giao bộ thẻ nào.</p>`; return; }
+          sumBox.innerHTML = ""; chipBox.innerHTML = "";
+          body.innerHTML = assigns.map(a => {
+            const tg = targetsOf(a);
+            const stats = tg.map(s => statOf(a, s.id));
+            const completed = stats.filter(s => s.code === "completed").length;
+            const started = stats.filter(s => s.done > 0);
+            const avg = started.length ? Math.round(started.reduce((s, x) => s + x.pct, 0) / started.length) : 0;
+            return `
+              <div class="lesson" style="flex-wrap:wrap;">
+                <div class="meta">
+                  <div class="title">${esc(a.title || lessonName(a.lesson_id))}</div>
+                  <span class="kind">${setLabel(a)} · ${completed}/${tg.length} hoàn thành · TB ${avg}%${a.due_at ? " · hạn " + esc(fmt(a.due_at)) : ""}</span>
+                </div>
+                <button class="ghost fhp-open" data-id="${a.id}">Xem chi tiết ▸</button>
+              </div>`;
+          }).join("");
+        }
+
+        function render() {
+          const a = assigns.find(x => x.id === selHw.value);
+          if (a) studentTable(a); else classOverview();
+        }
+
+        selClass.addEventListener("change", () => { filter = "all"; loadClass(selClass.value); });
+        selHw.addEventListener("change", () => { filter = "all"; render(); });
+        $("fhp-refresh").addEventListener("click", () => { if (selClass.value) loadClass(selClass.value); });
+        chipBox.addEventListener("click", e => { const c = e.target.closest(".fhp-chip"); if (!c) return; filter = c.dataset.k; render(); });
+        body.addEventListener("click", e => { const o = e.target.closest(".fhp-open"); if (!o) return; selHw.value = o.dataset.id; filter = "all"; render(); });
+
+        loadClasses();
+      }
+
+      mountFcAssign();
+      mountFcProgress();
 
       // ---- filtered, searchable, sortable lesson list ----
       let lf = { course: "all", sort: "order" };
