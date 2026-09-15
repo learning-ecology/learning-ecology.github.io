@@ -3594,6 +3594,20 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               placeholder="你好 | xin chào | nǐ hǎo | 你好，我是Thông。&#10;谢谢 | cảm ơn | xièxie"></textarea>
             <button id="fc-import" style="margin-top:0.5rem;">Import cards</button>
           </details>
+          <details style="margin-top:0.5rem;" id="fc-imp-wrap">
+            <summary style="cursor:pointer; font-size:0.88rem; color:var(--accent-ink); font-weight:600;">📥 Lấy từ Luyện từ vựng HSK — Import from HSK Vocab Practice</summary>
+            <p class="kind" style="margin:0.5rem 0; text-transform:none; letter-spacing:0;">
+              Dùng lại từ vựng đã có trong <b>HSK Vocab Practice</b> — không phải nhập lại. Thẻ được tạo vào
+              <b id="fc-imp-target">khóa + bài đang chọn ở trên</b>. Ánh xạ: Chữ Hán → <b>Front</b> · Pinyin → <b>Reading</b>
+              · Nghĩa Việt → <b>Back</b> · Ví dụ → <b>Example</b>. Mỗi thẻ lưu tham chiếu về từ gốc để tránh trùng lặp.</p>
+            <div class="form-row" style="align-items:flex-end;">
+              <div class="field"><label>Bài Luyện từ vựng HSK (nguồn)</label>
+                <select id="fc-imp-src"><option value="">— Đang tải danh sách bài… —</option></select></div>
+              <button class="ghost" id="fc-imp-load" style="flex:none;">Xem trước</button>
+            </div>
+            <p id="fc-imp-msg" class="msg"></p>
+            <div id="fc-imp-preview" style="margin-top:0.5rem;"></div>
+          </details>
           <div id="fc-list" style="margin-top:0.8rem;"></div>
         </div>
 
@@ -12159,6 +12173,158 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           say("Imported " + (ins || []).length + " cards ✓" + (lesson_id ? "" : " (Chưa phân loại)"));
           fcRows();
         });
+
+        /* ===== Lấy từ Luyện từ vựng HSK (Phase 112) =====================
+           Dùng lại data.vocab[] của vocab_lessons làm nguồn — KHÔNG nhập lại.
+           Ánh xạ hanzi→front, pinyin→reading, vi→back, ví dụ→example; lưu tham
+           chiếu (source_lesson, source_item) để lần sau nhận ra từ đã có. */
+        const impSel = document.getElementById("fc-imp-src");
+        const impMsg = document.getElementById("fc-imp-msg");
+        const impPrev = document.getElementById("fc-imp-preview");
+        const impTgt = document.getElementById("fc-imp-target");
+        const isay = (t, err) => { if (impMsg) { impMsg.textContent = t || ""; impMsg.className = "msg" + (err ? " err" : ""); } };
+        let vimp = { srcLesson: "", items: [] };   // trạng thái xem trước hiện tại
+
+        const impLabel = l => (l.language === "en" ? "🇬🇧 " : "HSK " + (l.hsk_level || 1) + " · ") + (l.title || l.lesson_id);
+        const mapVocab = v => {
+          const g = (...ks) => { for (const k of ks) { const x = v[k]; if (x != null && String(x).trim()) return String(x).trim(); } return ""; };
+          const exHz = g("exHanzi", "example", "ex", "exampleZh", "exZh");
+          const exVi = g("exVi", "exampleVi", "exVn");
+          const example = exHz + (exVi ? (exHz ? " — " : "") + exVi : "");
+          return {
+            srcId: String(v.id || v._id || ""),
+            front: g("hanzi", "chinese", "word", "front"),
+            reading: g("pinyin", "reading", "pin"),
+            back: g("vi", "vietnamese", "meaning", "en", "def"),
+            example
+          };
+        };
+        // các thẻ đang có trong ĐÚNG khóa + bài đích (để so trùng)
+        const targetCards = () => {
+          const tl = targetLesson();
+          return cards.filter(c => c.course_id === sel.value && (tl ? c.lesson_id === tl : !c.lesson_id));
+        };
+        const isDup = (it, existing, srcLesson) =>
+          existing.some(c =>
+            (it.srcId && c.source_lesson === srcLesson && c.source_item === it.srcId) ||
+            String(c.front || "").trim() === it.front);
+
+        function updImpTarget() {
+          if (!impTgt) return;
+          const cname = (courses || []).find(c => c.id === sel.value)?.title || "(chưa chọn khóa)";
+          const tl = targetLesson();
+          const lname = tl ? ((lessons || []).find(l => l.id === tl)?.title || "(bài)") : "— Chưa phân loại —";
+          impTgt.textContent = cname + " · " + lname;
+        }
+
+        async function loadImpList() {
+          if (!impSel) return;
+          const r = await sb.from("vocab_lessons")
+            .select("lesson_id, title, hsk_level, language, published")
+            .order("language").order("hsk_level").order("sort_order").order("created_at");
+          if (r.error) { impSel.innerHTML = `<option value="">— cần vocab_lessons (migration68) —</option>`; return; }
+          const rows = r.data || [];
+          impSel.innerHTML = `<option value="">— Chọn bài nguồn —</option>` +
+            rows.map(l => `<option value="${esc(l.lesson_id)}">${esc(impLabel(l))}${l.published ? "" : " (nháp)"}</option>`).join("");
+        }
+
+        function renderPreview() {
+          const existing = targetCards();
+          const src = vimp.srcLesson;
+          const rows = vimp.items.map((it, i) => {
+            const dup = isDup(it, existing, src);
+            return { it, i, dup };
+          });
+          const total = rows.length;
+          const dupN = rows.filter(r => r.dup).length;
+          const newN = total - dupN;
+          if (!total) { impPrev.innerHTML = `<p class="empty" style="margin:.4rem 0;">Bài nguồn không có từ vựng.</p>`; return; }
+          isay(total + " từ được tìm thấy · " + dupN + " đã có trong Flashcards · " + newN + " từ mới");
+          impPrev.innerHTML = `
+            <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; margin:0.3rem 0;">
+              <button class="ghost" id="fc-imp-all" style="width:auto;padding:.3rem .6rem;font-size:.82rem;">Chọn tất cả từ mới</button>
+              <button class="ghost" id="fc-imp-none" style="width:auto;padding:.3rem .6rem;font-size:.82rem;">Bỏ chọn</button>
+              <span class="kind" style="text-transform:none;letter-spacing:0;">Bỏ tick để không tạo · sửa trực tiếp trước khi tạo</span>
+            </div>
+            <div style="overflow-x:auto;">
+              <table style="width:100%;border-collapse:collapse;font-size:.88rem;">
+                <thead><tr style="text-align:left;border-bottom:1px solid var(--line,#0002);">
+                  <th style="padding:.35rem;width:2rem;"></th><th>Front (Hán)</th><th>Reading (pinyin)</th>
+                  <th>Back (nghĩa)</th><th>Example</th><th></th></tr></thead>
+                <tbody>
+                ${rows.map(({ it, i, dup }) => `
+                  <tr data-i="${i}" style="${dup ? "opacity:.55;" : ""}">
+                    <td style="text-align:center;"><input type="checkbox" class="fci-ck" data-i="${i}" ${dup ? "" : "checked"} ${dup ? "disabled" : ""} /></td>
+                    <td><input class="fci-f" data-i="${i}" data-k="front" value="${esc(it.front)}" style="min-width:90px;" ${dup ? "disabled" : ""} /></td>
+                    <td><input class="fci-f" data-i="${i}" data-k="reading" value="${esc(it.reading)}" style="min-width:90px;" ${dup ? "disabled" : ""} /></td>
+                    <td><input class="fci-f" data-i="${i}" data-k="back" value="${esc(it.back)}" style="min-width:110px;" ${dup ? "disabled" : ""} /></td>
+                    <td><input class="fci-f" data-i="${i}" data-k="example" value="${esc(it.example)}" style="min-width:130px;" ${dup ? "disabled" : ""} /></td>
+                    <td>${dup ? `<span class="pill off" title="Đã có trong bộ thẻ">đã có</span>` : `<span class="pill todo">mới</span>`}</td>
+                  </tr>`).join("")}
+                </tbody>
+              </table>
+            </div>
+            <button id="fc-imp-create" style="margin-top:0.6rem;" ${newN ? "" : "disabled"}>Tạo thẻ (${newN} mới)</button>`;
+
+          impPrev.querySelector("#fc-imp-all")?.addEventListener("click", () =>
+            impPrev.querySelectorAll(".fci-ck:not([disabled])").forEach(c => c.checked = true));
+          impPrev.querySelector("#fc-imp-none")?.addEventListener("click", () =>
+            impPrev.querySelectorAll(".fci-ck:not([disabled])").forEach(c => c.checked = false));
+          impPrev.querySelector("#fc-imp-create")?.addEventListener("click", doImport);
+        }
+
+        async function doImport(e) {
+          const btn = e.currentTarget;
+          if (!sel.value) { isay("Hãy chọn khóa ở trên trước.", true); return; }
+          const lesson_id = targetLesson();
+          const picks = [...impPrev.querySelectorAll(".fci-ck:not([disabled]):checked")].map(c => Number(c.dataset.i));
+          if (!picks.length) { isay("Chưa chọn từ nào để tạo.", true); return; }
+          const base = cards.filter(c => c.course_id === sel.value).length;
+          const rowsIn = [];
+          for (let n = 0; n < picks.length; n++) {
+            const i = picks[n];
+            const val = k => (impPrev.querySelector(`.fci-f[data-i="${i}"][data-k="${k}"]`)?.value || "").trim();
+            const front = val("front"), back = val("back");
+            if (!front || !back) { isay("Từ #" + (i + 1) + " thiếu Front hoặc Back — hãy sửa lại.", true); return; }
+            rowsIn.push({
+              course_id: sel.value, lesson_id, front, back,
+              reading: val("reading") || null, example: val("example") || null,
+              sort_order: base + n + 1, created_by: user.id,
+              source_kind: "vocab", source_lesson: vimp.srcLesson, source_item: vimp.items[i].srcId || null
+            });
+          }
+          btn.disabled = true; isay("Đang tạo " + rowsIn.length + " thẻ…");
+          let { data: ins, error } = await sb.from("flashcards").insert(rowsIn).select();
+          // migration73 chưa chạy (chưa có cột source_*) → thử lại không kèm tham chiếu
+          if (error && /column .*source_/i.test(error.message)) {
+            const stripped = rowsIn.map(({ source_kind, source_lesson, source_item, ...r }) => r);
+            ({ data: ins, error } = await sb.from("flashcards").insert(stripped).select());
+          }
+          btn.disabled = false;
+          if (error) { isay("Tạo thẻ lỗi: " + error.message, true); return; }
+          cards.push(...(ins || []));
+          fcRows();
+          renderPreview();   // các từ vừa tạo giờ hiện "đã có"
+          isay("Đã tạo " + (ins || []).length + " thẻ ✓" + (lesson_id ? "" : " (Chưa phân loại)"));
+        }
+
+        document.getElementById("fc-imp-load")?.addEventListener("click", async () => {
+          const lid = impSel.value;
+          if (!lid) { isay("Hãy chọn bài nguồn.", true); return; }
+          if (!sel.value) { isay("Hãy chọn khóa ở trên trước.", true); return; }
+          isay("Đang tải từ vựng…");
+          impPrev.innerHTML = "";
+          const r = await sb.from("vocab_lessons").select("data, lesson_id, language").eq("lesson_id", lid).maybeSingle();
+          if (r.error) { isay("Không tải được: " + r.error.message, true); return; }
+          const arr = ((r.data && r.data.data && r.data.data.vocab) || []);
+          vimp = { srcLesson: lid, items: arr.map(mapVocab).filter(x => x.front) };
+          updImpTarget();
+          renderPreview();
+        });
+        sel.addEventListener("change", updImpTarget);
+        lsel.addEventListener("change", updImpTarget);
+        loadImpList();
+        updImpTarget();
 
         fillLessons();
         fcRows();
