@@ -4915,93 +4915,422 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       }));
 
 
-      // ================= LỚP HỌC — TOÀN HỆ THỐNG (Phase 29) =================
-      // Chủ sở hữu xem lớp của MỌI trung tâm (chỉ đọc). Việc tạo/sửa lớp do
-      // quản trị viên từng trung tâm làm trong admin.html — chủ sở hữu vẫn có
-      // toàn quyền ở tầng cơ sở dữ liệu (policy "classes owner manage") nếu cần
-      // can thiệp trực tiếp bằng SQL.
+      // ============ LỚP HỌC — QUẢN LÝ TẬP TRUNG (Phase 113) ============
+      // Chủ sở hữu quản lý lớp của TOÀN hệ thống ngay trong Bảng điều khiển:
+      // tạo/sửa/xoá lớp của mình, xem & quản lý cả lớp của các trung tâm thuê.
+      // DÙNG CHUNG bảng classes/class_students/enrollments/hsk_homework như
+      // admin.html (không tạo hệ thống lớp riêng); RLS "classes owner manage"
+      // đã cho chủ sở hữu toàn quyền. Phân biệt lớp "của tôi" và lớp "trung tâm"
+      // bằng LOGIC: trung tâm cho thuê luôn có tài khoản quản trị (role='admin')
+      // thuộc org đó; org KHÔNG có admin là org của chính chủ sở hữu (vd
+      // "Direct students"). Không cần đổi cấu trúc CSDL, tương thích ngược.
       (function () {
-        let done = false;
-        window.__ocInit = async function () {
-          const box = document.getElementById("oc-root");
-          if (!box || done) return;
-          box.innerHTML = `<p class="empty">Đang tải…</p>`;
-          const [cl, cs, orgs, crs, pe] = await Promise.all([
+        const STATUS = { upcoming: "Sắp mở", active: "Đang học", completed: "Kết thúc", archived: "Lưu trữ" };
+        const PILL   = { upcoming: "todo", active: "done", completed: "off", archived: "bad" };
+        const D = { classes: [], members: [], teachers: [], adminOrgIds: new Set() };
+        const classHw = {}, classProg = {};   // cache tiến độ theo lớp (nạp khi mở)
+        let filter = { q: "", course: "all", status: "all", scope: "all" };
+        let view = { editing: null, openId: null };
+        let loaded = false, failed = false;
+        const toast = (m, k) => { if (window.UI) UI.toast(m, k); };
+
+        const orgName   = oid => (orgs || []).find(o => o.id === oid)?.name || "(không rõ)";
+        const isOwnerOrg = oid => !D.adminOrgIds.has(oid);
+        const cTitle    = id => (courses || []).find(c => c.id === id)?.title || "—";
+        const membersOf = id => D.members.filter(m => m.class_id === id);
+        const clsOf     = id => D.classes.find(c => c.id === id);
+        const tName = id => { const p = D.teachers.find(x => x.id === id); return p ? (p.full_name || p.email) : ""; };
+        function ownerOrgId() {
+          const direct = (orgs || []).find(o => /^direct students$/i.test(o.name || "") && isOwnerOrg(o.id));
+          if (direct) return direct.id;
+          const anyOwner = (orgs || []).find(o => isOwnerOrg(o.id));
+          return anyOwner ? anyOwner.id : ((orgs || [])[0] || {}).id || null;
+        }
+        // "của tôi" nếu lớp thuộc org không có admin (org của chủ sở hữu)
+        const isOwnerClass = c => isOwnerOrg(c.org_id);
+        const ownBadge = c => isOwnerClass(c)
+          ? `<span class="pill done" title="Lớp của bạn (chủ sở hữu)">Của tôi</span>`
+          : `<span class="pill" title="Lớp của trung tâm thuê">🏢 ${esc(orgName(c.org_id))}</span>`;
+
+        async function load() {
+          const [cl, cs, adm] = await Promise.all([
             sb.from("classes").select("*").order("created_at"),
-            sb.from("class_students").select("class_id, student_id"),
-            sb.from("organizations").select("id, name"),
-            sb.from("courses").select("id, title"),
-            sb.from("profiles").select("id, full_name, email").in("role", ["teacher", "admin"])
+            sb.from("class_students").select("class_id, student_id, added_at"),
+            sb.from("profiles").select("id, full_name, email, role, org_id").in("role", ["teacher", "admin"])
           ]);
-          if (cl.error) {
-            box.innerHTML = `<div class="card"><p class="empty">Chưa chạy <b>migration39_classes.sql</b>.
-              Chạy migration đó trong SQL Editor rồi mở lại tab này.</p></div>`;
-            return;
-          }
-          done = true;
-          const classes = cl.data || [], mem = cs.data || [];
-          if (!classes.length) {
-            box.innerHTML = `<div class="card"><p class="empty">Chưa có trung tâm nào tạo lớp.</p></div>`;
-            return;
-          }
-          const oName = id => ((orgs.data || []).find(o => o.id === id) || {}).name || "(không thuộc trung tâm)";
-          const cTitle = id => ((crs.data || []).find(c => c.id === id) || {}).title || "—";
-          const tName = id => {
-            const p = (pe.data || []).find(x => x.id === id);
-            return p ? (p.full_name || p.email) : "chưa phân công";
+          if (cl.error) { failed = true; return; }
+          D.classes = cl.data || [];
+          D.members = cs.data || [];
+          const people = adm.data || [];
+          D.teachers = people;   // dùng cho ô chọn giáo viên (teacher + admin)
+          D.adminOrgIds = new Set(people.filter(p => p.role === "admin" && p.org_id).map(p => p.org_id));
+          loaded = true;
+        }
+        async function reload() { await load(); paint(); }
+
+        function filtered() {
+          const q = filter.q.trim().toLowerCase();
+          return D.classes.filter(c => {
+            if (filter.course !== "all" && c.course_id !== filter.course) return false;
+            if (filter.status !== "all" && (c.status || "upcoming") !== filter.status) return false;
+            if (filter.scope === "owner" && !isOwnerClass(c)) return false;
+            if (filter.scope !== "all" && filter.scope !== "owner" && c.org_id !== filter.scope) return false;
+            if (q) {
+              const hay = (c.name + " " + cTitle(c.course_id) + " " + orgName(c.org_id) + " " + tName(c.teacher_id)).toLowerCase();
+              if (!hay.includes(q)) return false;
+            }
+            return true;
+          });
+        }
+
+        /* ------- form tạo/sửa lớp ------- */
+        function classForm(c) {
+          const isNew = !c.id;
+          const orgOpts = (orgs || []).map(o =>
+            `<option value="${o.id}" ${c.org_id === o.id ? "selected" : ""}>${esc(o.name)}${isOwnerOrg(o.id) ? " · của tôi" : " · trung tâm"}</option>`).join("");
+          return `
+            <div class="card" style="border-color:var(--accent);">
+              <div class="card-head"><h2>${isNew ? "➕ Tạo lớp mới" : "✏️ Sửa lớp"}</h2></div>
+              <div class="form-row">
+                <div class="field"><label>Tên lớp *</label>
+                  <input id="ocf-name" value="${esc(c.name || "")}" placeholder="HSK 1 – Lớp A"></div>
+                <div class="field"><label>Khóa học *</label>
+                  <select id="ocf-course">${(courses || []).map(x =>
+                    `<option value="${x.id}" ${c.course_id === x.id ? "selected" : ""}>${esc(x.title)}</option>`).join("")}</select></div>
+                <div class="field"><label>Thuộc ${isNew ? "" : "(cố định)"}</label>
+                  <select id="ocf-org" ${isNew ? "" : "disabled"}>${orgOpts || `<option value="">— chưa có org —</option>`}</select></div>
+              </div>
+              <div class="form-row">
+                <div class="field"><label>Giáo viên phụ trách</label>
+                  <select id="ocf-teacher"><option value="">— chưa phân công —</option>
+                    ${D.teachers.map(t => `<option value="${t.id}" ${c.teacher_id === t.id ? "selected" : ""}>${esc(t.full_name || t.email)}${t.role === "admin" ? " (QT)" : ""}</option>`).join("")}</select></div>
+                <div class="field" style="max-width:150px;"><label>Trạng thái</label>
+                  <select id="ocf-status">${Object.entries(STATUS).map(([k, v]) =>
+                    `<option value="${k}" ${(c.status || "upcoming") === k ? "selected" : ""}>${v}</option>`).join("")}</select></div>
+                <div class="field" style="max-width:140px;"><label>Bắt đầu</label>
+                  <input type="date" id="ocf-start" value="${esc(c.starts_on || "")}"></div>
+                <div class="field" style="max-width:140px;"><label>Kết thúc</label>
+                  <input type="date" id="ocf-end" value="${esc(c.ends_on || "")}"></div>
+                <div class="field" style="max-width:130px;"><label>Sĩ số tối đa</label>
+                  <input type="number" min="1" id="ocf-max" value="${c.max_students != null ? c.max_students : ""}" placeholder="không giới hạn"></div>
+                <div class="field"><label>Lịch học</label>
+                  <input id="ocf-sched" value="${esc(c.schedule || "")}" placeholder="T2-4-6 · 18:00–19:30"></div>
+              </div>
+              <div class="form-row" style="margin-top:.5rem;">
+                <button data-act="save-class">💾 Lưu</button>
+                <button class="ghost" data-act="cancel-class">Hủy</button>
+                <span class="msg" id="ocf-msg"></span>
+              </div>
+            </div>`;
+        }
+
+        /* ------- panel học viên trong lớp ------- */
+        function studentPanel(c) {
+          const mem = membersOf(c.id);
+          const memIds = new Set(mem.map(m => m.student_id));
+          const free = onlyStudents.filter(s => !memIds.has(s.id));
+          const cap = c.max_students;
+          const room = cap == null ? Infinity : cap - mem.length;
+          return `
+            <hr style="border:none; border-top:1px solid var(--line); margin:.8rem 0;">
+            <h3 style="margin:.2rem 0 .5rem; font-size:1rem;">👥 Học viên (${mem.length}${cap != null ? " / " + cap : ""})</h3>
+            <div class="form-row" style="align-items:flex-end;">
+              <div class="field" style="min-width:240px;"><label>Thêm học viên (giữ Ctrl/⌘ để chọn nhiều)</label>
+                <select id="ocs-pick" multiple size="5" style="min-height:110px;">
+                  ${free.map(s => `<option value="${s.id}">${esc(s.full_name || s.email)}${s.org_id && !isOwnerOrg(s.org_id) ? " · " + esc(orgName(s.org_id)) : ""}${s.suspended ? " (đã khoá)" : ""}</option>`).join("")
+                    || `<option disabled>Mọi học viên đã ở trong lớp này</option>`}
+                </select></div>
+              <button data-act="add-picked" data-id="${c.id}">➕ Thêm vào lớp</button>
+              <span style="align-self:center; color:var(--muted); font-size:.85rem;">
+                ${cap != null ? (room > 0 ? `còn ${room} chỗ` : "đã đầy") : "không giới hạn"}</span>
+            </div>
+            <p class="msg" id="ocs-msg"></p>
+            ${mem.length ? `
+            <table class="stackable" style="margin-top:.5rem;">
+              <thead><tr><th>Học viên</th><th>Email</th><th>Ngày thêm</th><th></th></tr></thead>
+              <tbody>${mem.map(m => {
+                const s = onlyStudents.find(x => x.id === m.student_id) || {};
+                return `<tr>
+                  <td data-th="Học viên">${esc(s.full_name || "—")}</td>
+                  <td data-th="Email">${esc(s.email || "—")}</td>
+                  <td data-th="Ngày thêm">${(m.added_at || "").slice(0, 10)}</td>
+                  <td><button class="ghost" data-act="rm-student" data-id="${c.id}" data-student="${m.student_id}"
+                        style="color:var(--danger); border-color:var(--danger);">Gỡ</button></td>
+                </tr>`;
+              }).join("")}</tbody>
+            </table>` : `<p class="empty" style="margin-top:.4rem;">Lớp chưa có học viên nào.</p>`}`;
+        }
+
+        /* ------- panel bài đã giao + tiến độ ------- */
+        function homeworkPanel(c) {
+          const hws = classHw[c.id];
+          if (hws === undefined) return `<hr style="border:none;border-top:1px solid var(--line);margin:.8rem 0;"><p class="empty" style="margin:0;">Đang tải bài tập…</p>`;
+          const KIND = { slides: "HSK Slides", vocab: "Luyện từ vựng", flashcards: "Flashcards" };
+          const roster = membersOf(c.id).map(m => m.student_id);
+          const prog = classProg[c.id] || { attempts: [], revByUser: {} };
+          const targetsOf = a => (a.student_ids && a.student_ids.length) ? roster.filter(x => a.student_ids.includes(x)) : roster;
+          const doneCount = a => {
+            const tg = targetsOf(a);
+            if (!tg.length) return { done: 0, total: 0 };
+            if ((a.kind || "slides") === "flashcards") {
+              const ids = (typeof fcCardIdsOf === "function") ? fcCardIdsOf(a) : [];
+              const need = ids.length;
+              const done = tg.filter(sid => {
+                const mine = prog.revByUser[sid] || {}; let d = 0;
+                ids.forEach(cid => { if (mine[cid]) d++; });
+                return need > 0 && d >= need;
+              }).length;
+              return { done, total: tg.length };
+            }
+            const done = tg.filter(sid => prog.attempts.some(x => x.homework_id === a.id && x.user_id === sid && x.status === "completed")).length;
+            return { done, total: tg.length };
           };
-          const nOf = id => mem.filter(m => m.class_id === id).length;
-          const ST = { upcoming: "Sắp mở", active: "Đang học",
-                       completed: "Kết thúc", archived: "Lưu trữ" };
-          const PILL = { upcoming: "todo", active: "done", completed: "off", archived: "bad" };
+          const fmtDue = ts => ts ? new Date(ts).toLocaleDateString() : "";
+          return `
+            <hr style="border:none;border-top:1px solid var(--line);margin:.8rem 0;">
+            <h3 style="margin:.2rem 0 .5rem; font-size:1rem;">📌 Bài tập đã giao & tiến độ (${hws.length})</h3>
+            ${hws.length ? `<table class="stackable">
+              <thead><tr><th>Loại</th><th>Bài</th><th>Hạn</th><th>Hoàn thành</th></tr></thead>
+              <tbody>${hws.map(a => { const d = doneCount(a); return `
+                <tr>
+                  <td data-th="Loại"><span class="pill">${KIND[a.kind || "slides"] || a.kind}</span></td>
+                  <td data-th="Bài">${esc(a.title || "(bài)")}</td>
+                  <td data-th="Hạn">${esc(fmtDue(a.due_at)) || "—"}</td>
+                  <td data-th="Hoàn thành">${d.done}/${d.total}</td>
+                </tr>`; }).join("")}</tbody>
+            </table>` : `<p class="empty" style="margin:0;">Chưa giao bài nào cho lớp này. Vào các tab <b>HSK Slides</b> / <b>HSK Vocab Practice</b> / <b>Flashcards</b> → “Giao bài” và chọn lớp này.</p>`}`;
+        }
 
-          const byOrg = {};
-          classes.forEach(c => { (byOrg[c.org_id] = byOrg[c.org_id] || []).push(c); });
+        function classCard(c) {
+          const n = membersOf(c.id).length;
+          const cap = c.max_students;
+          const open = view.openId === c.id;
+          return `
+            <div class="card">
+              <div class="card-head">
+                <h2 style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap;">
+                  ${esc(c.name)} ${ownBadge(c)}
+                  <span class="pill ${PILL[c.status] || ""}">${STATUS[c.status] || ""}</span></h2>
+                <div class="form-row" style="gap:.35rem;">
+                  <button class="ghost" data-act="toggle" data-id="${c.id}">${open ? "Đóng ▲" : "Mở ▼"}</button>
+                  <button class="ghost" data-act="edit-class" data-id="${c.id}">✏️</button>
+                  <button class="ghost" data-act="del-class" data-id="${c.id}" style="color:var(--danger); border-color:var(--danger);">🗑</button>
+                </div>
+              </div>
+              <p style="margin:0; color:var(--muted); font-size:.85rem;">
+                📘 ${esc(cTitle(c.course_id))} · 👩‍🏫 ${esc(c.teacher_id ? (tName(c.teacher_id) || "—") : "chưa phân công")}
+                · 👥 ${n}${cap != null ? " / " + cap : ""}${c.schedule ? " · 🗓 " + esc(c.schedule) : ""}${c.starts_on ? " · từ " + esc(c.starts_on) : ""}</p>
+              ${view.editing && view.editing.id === c.id ? classForm(view.editing) : ""}
+              ${open ? studentPanel(c) + homeworkPanel(c) : ""}
+            </div>`;
+        }
 
+        function paint() {
+          const box = document.getElementById("oc-root");
+          if (!box) return;
+          if (failed) { box.innerHTML = `<div class="card"><p class="empty">Chưa chạy <b>migration39_classes.sql</b>. Chạy migration đó trong SQL Editor rồi mở lại tab này.</p></div>`; return; }
+          if (!loaded) { box.innerHTML = `<p class="empty">Đang tải…</p>`; return; }
+          const rentalOrgs = [...D.adminOrgIds];
+          const list = filtered();
+          const ownerN = D.classes.filter(isOwnerClass).length;
           box.innerHTML = `
             <div class="card">
-              <div class="card-head"><h2>🏫 Lớp học theo trung tâm</h2>
-                <button class="ghost" id="oc-csv">Tải CSV</button></div>
+              <div class="card-head"><h2>🏫 Lớp học</h2>
+                <div class="form-row" style="gap:.4rem;">
+                  <button data-act="new-class">➕ Tạo lớp của tôi</button>
+                  <button class="ghost" id="oc-csv">Tải CSV</button></div></div>
               <div class="stat-grid">
-                <div class="stat"><div class="k">Trung tâm</div><div class="v">${Object.keys(byOrg).length}</div></div>
-                <div class="stat"><div class="k">Tổng số lớp</div><div class="v">${classes.length}</div></div>
-                <div class="stat"><div class="k">Đang học</div><div class="v">${classes.filter(c => c.status === "active").length}</div></div>
-                <div class="stat"><div class="k">Lượt học viên</div><div class="v">${mem.length}</div></div>
+                <div class="stat"><div class="k">Tổng số lớp</div><div class="v">${D.classes.length}</div></div>
+                <div class="stat"><div class="k">Của tôi</div><div class="v">${ownerN}</div></div>
+                <div class="stat"><div class="k">Trung tâm</div><div class="v">${D.classes.length - ownerN}</div></div>
+                <div class="stat"><div class="k">Đang học</div><div class="v">${D.classes.filter(c => c.status === "active").length}</div></div>
+              </div>
+              <div class="form-row" style="margin-top:.7rem;">
+                <div class="field" style="min-width:170px;"><label>Tìm kiếm</label>
+                  <input id="ocf-q" value="${esc(filter.q)}" placeholder="Tên lớp, khóa, giáo viên…" autocomplete="off"></div>
+                <div class="field" style="max-width:200px;"><label>Khóa học</label>
+                  <select id="ocf-fcourse"><option value="all">Tất cả khóa</option>${(courses || []).map(x =>
+                    `<option value="${x.id}" ${filter.course === x.id ? "selected" : ""}>${esc(x.title)}</option>`).join("")}</select></div>
+                <div class="field" style="max-width:150px;"><label>Trạng thái</label>
+                  <select id="ocf-fstatus"><option value="all">Tất cả</option>${Object.entries(STATUS).map(([k, v]) =>
+                    `<option value="${k}" ${filter.status === k ? "selected" : ""}>${v}</option>`).join("")}</select></div>
+                <div class="field" style="max-width:210px;"><label>Nhóm</label>
+                  <select id="ocf-fscope">
+                    <option value="all" ${filter.scope === "all" ? "selected" : ""}>Tất cả</option>
+                    <option value="owner" ${filter.scope === "owner" ? "selected" : ""}>Lớp của tôi (Owner)</option>
+                    ${rentalOrgs.map(oid => `<option value="${oid}" ${filter.scope === oid ? "selected" : ""}>🏢 ${esc(orgName(oid))}</option>`).join("")}
+                  </select></div>
               </div>
             </div>
-            ${Object.entries(byOrg).map(([oid, list]) => `
-              <div class="card">
-                <div class="card-head"><h2>${esc(oName(oid))}</h2>
-                  <span class="pill">${list.length} lớp</span></div>
-                <table class="stackable">
-                  <thead><tr><th>Lớp</th><th>Khóa</th><th>Giáo viên</th>
-                    <th>Học viên</th><th>Lịch</th><th>Trạng thái</th></tr></thead>
-                  <tbody>${list.map(c => `
-                    <tr>
-                      <td data-th="Lớp">${esc(c.name)}</td>
-                      <td data-th="Khóa">${esc(cTitle(c.course_id))}</td>
-                      <td data-th="Giáo viên">${esc(tName(c.teacher_id))}</td>
-                      <td data-th="Học viên">${nOf(c.id)}${c.max_students != null ? " / " + c.max_students : ""}</td>
-                      <td data-th="Lịch">${esc(c.schedule || "—")}</td>
-                      <td data-th="Trạng thái"><span class="pill ${PILL[c.status] || ""}">${ST[c.status] || ""}</span></td>
-                    </tr>`).join("")}</tbody>
-                </table>
-              </div>`).join("")}`;
+            ${view.editing && !view.editing.id ? classForm(view.editing) : ""}
+            ${list.length ? list.map(classCard).join("")
+              : `<div class="card"><p class="empty">Không có lớp nào khớp bộ lọc.</p></div>`}`;
+          bindToolbar();
+        }
 
-          document.getElementById("oc-csv").addEventListener("click", () => {
-            const rows = [["Trung tâm", "Lớp", "Khóa", "Giáo viên", "Học viên", "Sĩ số tối đa",
-                           "Lịch", "Bắt đầu", "Kết thúc", "Trạng thái"]];
-            classes.forEach(c => rows.push([oName(c.org_id), c.name, cTitle(c.course_id),
-              tName(c.teacher_id), nOf(c.id), c.max_students == null ? "" : c.max_students,
-              c.schedule || "", c.starts_on || "", c.ends_on || "", ST[c.status] || ""]));
-            const body = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
-            const a = document.createElement("a");
-            a.href = URL.createObjectURL(new Blob(["﻿" + body], { type: "text/csv;charset=utf-8" }));
-            a.download = "lop-hoc.csv"; a.click(); URL.revokeObjectURL(a.href);
-          });
+        async function openDetail(cid) {
+          if (classHw[cid] !== undefined) return;   // đã nạp
+          const hwRes = await sb.from("hsk_homework").select("*").eq("class_id", cid).order("created_at", { ascending: false });
+          const hws = hwRes.error ? [] : (hwRes.data || []);
+          const nonFc = hws.filter(h => (h.kind || "slides") !== "flashcards");
+          const fcs = hws.filter(h => h.kind === "flashcards");
+          let attempts = [], revByUser = {};
+          if (nonFc.length) {
+            const at = await sb.from("hsk_attempts").select("user_id, homework_id, status").in("homework_id", nonFc.map(h => h.id));
+            attempts = at.error ? [] : (at.data || []);
+          }
+          const allCards = [...new Set(fcs.flatMap(a => (typeof fcCardIdsOf === "function" ? fcCardIdsOf(a) : [])))];
+          if (allCards.length) {
+            const rv = await sb.from("flashcard_reviews").select("student_id, card_id, interval_days").in("card_id", allCards);
+            (rv.data || []).forEach(r => { (revByUser[r.student_id] = revByUser[r.student_id] || {})[r.card_id] = r; });
+          }
+          classHw[cid] = hws;
+          classProg[cid] = { attempts, revByUser };
+        }
+
+        function bindToolbar() {
+          const box = document.getElementById("oc-root"); if (!box) return;
+          const q = box.querySelector("#ocf-q");
+          if (q) q.oninput = () => { filter.q = q.value; const l = filtered(); /* live filter without losing focus */
+            // chỉ vẽ lại danh sách để không mất con trỏ
+            renderListOnly(); };
+          const fc = box.querySelector("#ocf-fcourse"); if (fc) fc.onchange = () => { filter.course = fc.value; paint(); };
+          const fs = box.querySelector("#ocf-fstatus"); if (fs) fs.onchange = () => { filter.status = fs.value; paint(); };
+          const sc = box.querySelector("#ocf-fscope"); if (sc) sc.onchange = () => { filter.scope = sc.value; paint(); };
+          const csv = box.querySelector("#oc-csv"); if (csv) csv.onclick = exportCsv;
+        }
+        function renderListOnly() {
+          // vẽ lại chỉ phần danh sách (giữ nguyên thanh công cụ + con trỏ tìm kiếm)
+          const box = document.getElementById("oc-root"); if (!box) return;
+          // đơn giản: vẽ lại toàn bộ rồi phục hồi tiêu điểm ô tìm kiếm
+          const pos = (() => { const el = box.querySelector("#ocf-q"); return el ? el.selectionStart : null; })();
+          paint(); bindToolbar();
+          const el = box.querySelector("#ocf-q");
+          if (el) { el.focus(); if (pos != null) try { el.setSelectionRange(pos, pos); } catch (e) {} }
+        }
+        function exportCsv() {
+          const ST = STATUS;
+          const rows = [["Nhóm", "Trung tâm", "Lớp", "Khóa", "Giáo viên", "Học viên", "Sĩ số tối đa", "Lịch", "Bắt đầu", "Kết thúc", "Trạng thái"]];
+          filtered().forEach(c => rows.push([
+            isOwnerClass(c) ? "Của tôi" : "Trung tâm", isOwnerClass(c) ? "" : orgName(c.org_id),
+            c.name, cTitle(c.course_id), tName(c.teacher_id) || "", membersOf(c.id).length,
+            c.max_students == null ? "" : c.max_students, c.schedule || "", c.starts_on || "", c.ends_on || "", ST[c.status] || ""]));
+          const body = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(new Blob(["﻿" + body], { type: "text/csv;charset=utf-8" }));
+          a.download = "lop-hoc.csv"; a.click(); URL.revokeObjectURL(a.href);
+        }
+
+        // click deleg. — gắn vào chính hộp oc-root. Hộp này được renderAdmin
+        // dựng mới mỗi lần (app.innerHTML), còn paint() chỉ đổi innerHTML bên
+        // trong nên listener không bị tích tụ.
+        async function onClick(e) {
+          const b = e.target.closest("[data-act]"); if (!b) return;
+          const act = b.getAttribute("data-act");
+          const id = b.getAttribute("data-id");
+
+          if (act === "new-class") { view.editing = { org_id: ownerOrgId(), course_id: (courses || [])[0]?.id }; view.openId = null; paint(); bindToolbar(); return; }
+          if (act === "edit-class") { view.editing = { ...clsOf(id) }; paint(); bindToolbar(); return; }
+          if (act === "cancel-class") { view.editing = null; paint(); bindToolbar(); return; }
+          if (act === "toggle") {
+            if (view.openId === id) { view.openId = null; paint(); bindToolbar(); return; }
+            view.openId = id; paint(); bindToolbar();       // hiện panel + "đang tải"
+            await openDetail(id); paint(); bindToolbar(); return;
+          }
+
+          if (act === "save-class") {
+            const box2 = document.getElementById("oc-root");
+            const msg = box2.querySelector("#ocf-msg");
+            const say = (t, err) => { if (msg) { msg.textContent = t; msg.className = "msg" + (err ? " err" : ""); } };
+            const g = i => box2.querySelector("#" + i);
+            const name = g("ocf-name").value.trim();
+            if (!name) return say("Tên lớp không được để trống.", true);
+            const start = g("ocf-start").value || null, end = g("ocf-end").value || null;
+            if (start && end && end < start) return say("Ngày kết thúc phải sau ngày bắt đầu.", true);
+            const maxRaw = g("ocf-max").value.trim();
+            const row = {
+              name, course_id: g("ocf-course").value,
+              teacher_id: g("ocf-teacher").value || null,
+              status: g("ocf-status").value, starts_on: start, ends_on: end,
+              max_students: maxRaw === "" ? null : Math.max(1, parseInt(maxRaw, 10) || 1),
+              schedule: g("ocf-sched").value.trim()
+            };
+            if (!row.course_id) return say("Hãy chọn khóa học.", true);
+            b.disabled = true;
+            let error;
+            if (view.editing.id) ({ error } = await sb.from("classes").update(row).eq("id", view.editing.id));
+            else {
+              const oid = g("ocf-org") ? g("ocf-org").value : ownerOrgId();
+              if (!oid) { b.disabled = false; return say("Chưa có tổ chức nào để gán lớp. Tạo tổ chức ở trang Organizations trước.", true); }
+              ({ error } = await sb.from("classes").insert({ ...row, org_id: oid }));
+            }
+            b.disabled = false;
+            if (error) return say(/duplicate|unique/i.test(error.message) ? "Đã có lớp trùng tên trong khóa này." : "Không lưu được: " + error.message, true);
+            view.editing = null;
+            await reload(); bindToolbar();
+            toast("✓ Đã lưu lớp");
+            return;
+          }
+
+          if (act === "del-class") {
+            const c = clsOf(id); if (!c) return;
+            const n = membersOf(id).length;
+            const ok = window.UI ? await UI.confirmDialog({
+              title: `Xoá lớp "${esc(c.name)}"?`, danger: true, okText: "Xoá lớp",
+              body: `Lớp đang có <b>${n}</b> học viên. Xoá lớp sẽ gỡ họ khỏi lớp và thu hồi quyền học khóa này
+                     (nếu họ không còn lớp nào khác cùng khóa).<br><br><b>Tài khoản & tiến độ học của họ vẫn giữ nguyên.</b>`
+            }) : confirm(`Xoá lớp "${c.name}"?`);
+            if (!ok) return;
+            const { error } = await sb.from("classes").delete().eq("id", id);
+            if (error) return toast("Không xoá được: " + error.message, "err");
+            view.openId = null; delete classHw[id]; delete classProg[id];
+            await reload(); bindToolbar();
+            toast("🗑 Đã xoá lớp");
+            return;
+          }
+
+          if (act === "add-picked") {
+            const box2 = document.getElementById("oc-root");
+            const sel = box2.querySelector("#ocs-pick");
+            const ids = [...sel.selectedOptions].map(o => o.value).filter(Boolean);
+            const msg = box2.querySelector("#ocs-msg");
+            if (!ids.length) { if (msg) { msg.textContent = "Hãy chọn ít nhất một học viên."; msg.className = "msg err"; } return; }
+            b.disabled = true;
+            const { error } = await sb.from("class_students").insert(ids.map(sid => ({ class_id: id, student_id: sid })));
+            b.disabled = false;
+            if (error) { if (msg) { msg.textContent = /đủ|capacity|check_violation/i.test(error.message) ? error.message : "Không thêm được: " + error.message; msg.className = "msg err"; } return; }
+            await load();            // cập nhật members
+            paint(); bindToolbar();
+            toast(`✓ Đã thêm ${ids.length} học viên`);
+            return;
+          }
+
+          if (act === "rm-student") {
+            const sid = b.getAttribute("data-student");
+            const ok = window.UI ? await UI.confirmDialog({
+              title: "Gỡ học viên khỏi lớp?", danger: true, okText: "Gỡ khỏi lớp",
+              body: `Học viên sẽ không còn trong lớp này. Nếu đây là lớp cuối cùng của khóa, họ cũng mất quyền vào bài học của khóa.<br><br>Tài khoản & tiến độ <b>vẫn được giữ</b>.`
+            }) : confirm("Gỡ học viên khỏi lớp?");
+            if (!ok) return;
+            const { error } = await sb.from("class_students").delete().eq("class_id", id).eq("student_id", sid);
+            if (error) return toast("Không gỡ được: " + error.message, "err");
+            await load(); paint(); bindToolbar();
+            toast("Đã gỡ khỏi lớp");
+            return;
+          }
+        }
+
+        const __ocBox = document.getElementById("oc-root");
+        if (__ocBox) __ocBox.addEventListener("click", onClick);
+
+        window.__ocInit = async function () {
+          if (loaded || failed) { paint(); bindToolbar(); return; }
+          paint();                 // "Đang tải…"
+          await load();
+          paint(); bindToolbar();
         };
       })();
-      // =============== HẾT LỚP HỌC TOÀN HỆ THỐNG ===============
+      // =============== HẾT LỚP HỌC (QUẢN LÝ TẬP TRUNG) ===============
 
       /* ================= KẾT QUẢ BÀI THI (Phase 36) =================
          Đọc bảng test_attempts (RLS đã giới hạn theo quyền). Mỗi lần học viên
