@@ -117,6 +117,12 @@
     lessonId = fromUrl || sessionStorage.getItem("lms_lesson");
   } catch (e) { lessonId = fromUrl; }
 
+  // Owner Preview: the dashboard opens a lesson with ?owner_preview=1 so the
+  // owner can inspect it exactly as a student would. Tracking, access logging
+  // and the one-device lock are all skipped for that visit (see init()).
+  const ownerPreview =
+    new URLSearchParams(location.search).get("owner_preview") === "1";
+
   // ---- time tracking (visible time only) ----
   let baseSeconds = 0, dayBase = 0, accrued = 0;
   let visibleSince = document.visibilityState === "visible" ? Date.now() : null;
@@ -196,6 +202,21 @@
 
     if (!session || !lessonId) return;   // not a hub student → no tracking
     uid = session.user.id;
+
+    // ---- staff / owner-preview: view only, never tracked ----
+    // The platform owner (role 'owner') and centre admins (role 'admin') can
+    // open ANY lesson to inspect it. The RLS gate above already unlocked the
+    // page for them; here we make sure their visit is NOT logged, NOT time-
+    // tracked, and NOT subject to the one-device sign-out. Same for an explicit
+    // Owner Preview (?owner_preview=1). Normal students fall through unchanged.
+    try {
+      const { data: who } = await sb.from("profiles")
+        .select("role").eq("id", uid).maybeSingle();
+      if (ownerPreview || (who && (who.role === "owner" || who.role === "admin"))) {
+        document.documentElement.style.visibility = "";
+        return;
+      }
+    } catch (e) {}
 
     // ---- access period enforcement inside lessons ----
     try {

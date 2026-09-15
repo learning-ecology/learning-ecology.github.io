@@ -3395,9 +3395,13 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           if (error) { alert("Không mở được tệp: " + error.message); return; }
           src = data.signedUrl; newTab = src;
         } else if (l.url) {
-          // đúng URL học viên mở, thêm cờ owner_preview (trang nào không dùng thì bỏ qua);
-          // KHÔNG kèm lms= để không ghi nhận tiến độ dưới tài khoản chủ sở hữu.
-          src = l.url + (l.url.includes("?") ? "&" : "?") + "owner_preview=1";
+          // Đúng URL học viên mở, KÈM lms=<id> để mở đúng "cổng" của bài (bài đặt
+          // data-lms-require kiểm tra tham số này). Chủ sở hữu đã đăng nhập nên
+          // tracker.js xác thực qua RLS (is_admin) và mở khóa — không cần ghi danh.
+          // Cờ owner_preview=1 để tracker.js BỎ QUA việc ghi nhận (không tính là
+          // hoạt động học viên, không áp luật một-thiết-bị).
+          const sep = l.url.includes("?") ? "&" : "?";
+          src = l.url + sep + "lms=" + encodeURIComponent(l.id) + "&owner_preview=1";
           newTab = src;
         }
         const ov = document.createElement("div");
