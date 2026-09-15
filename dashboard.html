@@ -3327,6 +3327,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           </div>
           ${(l.tier || cc?.tier) === "premium" ? `<span class="pill todo" style="flex:none;">👑</span>` : ""}
           ${badge}
+          <button class="ghost l-preview" data-id="${l.id}" title="Mở bài học đúng như học viên thấy (Owner Preview) — bỏ qua ghi danh/Premium/khóa" style="flex:none;">👁 Xem trước</button>
           <button class="ghost l-img" data-id="${l.id}" title="${l.image_url ? "Replace the cover image" : "Upload a cover image"}">🖼${l.image_url ? " ↻" : " +"}</button>
           ${l.image_url ? `<button class="ghost l-img-del" data-id="${l.id}" title="Remove the cover image" style="color:var(--danger); border-color:var(--danger);">🖼 ✕</button>` : ""}
           ${l.storage_path ? `<button class="ghost open-file" data-path="${esc(l.storage_path)}">Open</button>` : ""}
@@ -3361,6 +3362,66 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           <p class="msg le-msg" data-id="${l.id}"></p>
         </div>`;
       };
+
+      /* ============ OWNER LESSON PREVIEW (Phase 114) ============
+         Mở đúng nội dung học viên thấy (link bài học / tệp đã tải lên qua signed
+         URL) trong một lớp phủ có banner "Owner Preview" + nút Về Bảng điều
+         khiển. KHÔNG dựng trình xem riêng: iframe trỏ THẲNG tới cùng URL/tệp mà
+         học viên mở, nên nội dung y hệt. Chủ sở hữu (is_admin ở policy storage
+         'materials') đọc được mọi tệp; link bài học là URL công khai — nên xem
+         trước KHÔNG cần ghi danh/Premium/mở khóa và KHÔNG làm yếu luật của học
+         viên (không đổi RLS). Không ghi lesson_activity/progress → không lẫn vào
+         dữ liệu học viên. */
+      if (!document.getElementById("owner-prev-css")) {
+        const st = document.createElement("style"); st.id = "owner-prev-css";
+        st.textContent = `
+          .owner-prev-ov{position:fixed;inset:0;z-index:9999;background:var(--bg,#f7f7f5);display:flex;flex-direction:column;}
+          .owner-prev-bar{display:flex;align-items:center;gap:.55rem;padding:.5rem .8rem;background:#0f1725;color:#fff;flex-wrap:wrap;}
+          .owner-prev-badge{background:#f59e0b;color:#111;font-weight:800;padding:.18rem .55rem;border-radius:6px;font-size:.82rem;white-space:nowrap;}
+          .owner-prev-title{font-weight:700;max-width:38vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+          .owner-prev-kind{opacity:.65;font-size:.8rem;}
+          .owner-prev-btn{background:#1e4f8f;color:#fff;border:1px solid transparent;border-radius:8px;padding:.4rem .75rem;font-size:.85rem;cursor:pointer;text-decoration:none;display:inline-block;line-height:1.1;}
+          .owner-prev-btn.owner-prev-close{background:#334155;}
+          .owner-prev-hint{background:#fff7ed;color:#7c2d12;font-size:.8rem;padding:.35rem .8rem;border-bottom:1px solid #fed7aa;}
+          .owner-prev-frame{flex:1;border:0;width:100%;background:#fff;}
+          .owner-prev-empty{flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted,#667085);padding:2rem;text-align:center;}`;
+        document.head.appendChild(st);
+      }
+      async function ownerPreviewLesson(l) {
+        if (!l) return;
+        let src = "", newTab = "";
+        if (l.storage_path) {
+          const { data, error } = await sb.storage.from("materials").createSignedUrl(l.storage_path, 3600);
+          if (error) { alert("Không mở được tệp: " + error.message); return; }
+          src = data.signedUrl; newTab = src;
+        } else if (l.url) {
+          // đúng URL học viên mở, thêm cờ owner_preview (trang nào không dùng thì bỏ qua);
+          // KHÔNG kèm lms= để không ghi nhận tiến độ dưới tài khoản chủ sở hữu.
+          src = l.url + (l.url.includes("?") ? "&" : "?") + "owner_preview=1";
+          newTab = src;
+        }
+        const ov = document.createElement("div");
+        ov.className = "owner-prev-ov";
+        const body = src
+          ? `<iframe class="owner-prev-frame" src="${esc(src)}" allow="autoplay; fullscreen; encrypted-media; picture-in-picture; clipboard-write; microphone; camera" allowfullscreen></iframe>`
+          : `<div class="owner-prev-empty">Bài học này chưa có nội dung (chưa có link hoặc tệp tải lên). Hãy thêm link/tệp ở phần quản lý bài học rồi xem lại.</div>`;
+        ov.innerHTML = `
+          <div class="owner-prev-bar">
+            <span class="owner-prev-badge">👁 Owner Preview</span>
+            <span class="owner-prev-title">${esc(l.title || "Bài học")}</span>
+            <span class="owner-prev-kind">${esc(l.kind || "")}</span>
+            <span style="flex:1;"></span>
+            ${newTab ? `<a class="owner-prev-btn" href="${esc(newTab)}" target="_blank" rel="noopener">↗ Mở tab mới</a>` : ""}
+            <button class="owner-prev-btn owner-prev-close">← Về Bảng điều khiển</button>
+          </div>
+          <div class="owner-prev-hint">Đang xem đúng giao diện học viên — bỏ qua giới hạn ghi danh / Premium / thanh toán / khóa. Không tính là hoạt động của học viên. Nếu nội dung không hiển thị (trang chặn nhúng), bấm <b>↗ Mở tab mới</b>.</div>
+          ${body}`;
+        document.body.appendChild(ov);
+        const close = () => { ov.remove(); document.removeEventListener("keydown", onKey); };
+        const onKey = e => { if (e.key === "Escape") close(); };
+        ov.querySelector(".owner-prev-close").addEventListener("click", close);
+        document.addEventListener("keydown", onKey);
+      }
 
       const courseOptions = (courses || []).map(c =>
         `<option value="${c.id}">${esc(c.title)}</option>`).join("");
@@ -13029,6 +13090,10 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       const normA = s => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
       function wireLessonRows(box) {
+        box.querySelectorAll(".l-preview").forEach(btn => btn.addEventListener("click", () => {
+          const l = (lessons || []).find(x => x.id === btn.getAttribute("data-id"));
+          ownerPreviewLesson(l);
+        }));
         box.querySelectorAll(".l-save").forEach(btn => {
           btn.addEventListener("click", async () => {
             const id = btn.getAttribute("data-id");
