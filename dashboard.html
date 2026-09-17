@@ -1518,8 +1518,29 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
 
       const { data: profile } = await sb
         .from("profiles")
-        .select("full_name, role, avatar_url, active_session, multi_device, access_expires, suspended")
+        .select("full_name, role, avatar_url, active_session, multi_device, access_expires, suspended, google_linked, notification_email")
         .eq("id", user.id).single();
+
+      // ---- Google account-linking: finish a link redirect started earlier ----
+      // A student on their dashboard taps "Connect with Google" → linkIdentity
+      // redirects to Google → back here. We flag it in sessionStorage; on return
+      // we sync the verified identity (server-side RPC) onto the SAME account.
+      try {
+        const glp = sessionStorage.getItem("hub_glink") === "1";
+        const q0 = new URLSearchParams(location.search);
+        const h0 = new URLSearchParams((location.hash || "").replace(/^#/, ""));
+        const gerr = q0.get("error") || h0.get("error");
+        if (glp) {
+          sessionStorage.removeItem("hub_glink");
+          if (gerr) { if (window.UI) UI.toast("Đã huỷ kết nối Google.", "err"); }
+          else {
+            const { data: sres } = await sb.rpc("sync_my_google_identity");
+            if (sres && sres.linked) { if (window.UI) UI.toast("Đã kết nối Google ✓"); }
+            else if (window.UI) UI.toast("Chưa thấy tài khoản Google được kết nối. Hãy thử lại.", "err");
+          }
+          try { const n = q0.get("next"); history.replaceState(null, "", location.pathname + (n ? "?next=" + encodeURIComponent(n) : "")); } catch (e) {}
+        }
+      } catch (e) { /* linking is best-effort; never block the dashboard */ }
 
       // ---- access period enforcement (students only) ----
       const STAFF = ["owner", "admin", "teacher"];
@@ -1632,7 +1653,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         sb.rpc("class_leaderboard"),
         sb.from("profiles").select("show_on_leaderboard").eq("id", user.id).single(),
         sb.from("profiles").select("full_name, avatar_url, bio").neq("id", user.id).limit(1),
-        sb.from("profiles").select("full_name, bio, avatar_url, access_expires, org_id").eq("id", user.id).single()
+        sb.from("profiles").select("full_name, bio, avatar_url, access_expires, org_id, notification_email, google_linked, google_sub").eq("id", user.id).single()
       ]);
       const myCards = myCardsRaw || [];
       const myRevs = myRevsRaw || [];
@@ -2095,6 +2116,20 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               <label style="font-size:0.85rem; color:var(--muted); cursor:pointer; display:block; margin-top:0.5rem;">
                 <input type="checkbox" id="p-lb" ${lbPref ? "checked" : ""} /> 🏆 ${t("lb_show_me")}
               </label>`}
+
+              <div id="p-google" style="margin-top:0.9rem; padding-top:0.8rem; border-top:1px solid var(--line);">
+                ${me?.google_linked ? `
+                  <div style="font-weight:700;">Tài khoản Google: <span class="pill done">Đã kết nối ✓</span></div>
+                  <div class="kind" style="margin-top:.35rem; text-transform:none; letter-spacing:0;">Email nhận thông báo: <b>${esc(me.notification_email || "—")}</b></div>
+                  <div style="display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.55rem;">
+                    <button class="ghost" id="p-gname">Dùng tên Google của tôi</button>
+                    <button class="ghost" id="p-gunlink" style="color:var(--danger); border-color:var(--danger);">Ngắt kết nối Google</button>
+                  </div>` : `
+                  <div style="font-weight:700;">🔗 Kết nối tài khoản Google</div>
+                  <p class="kind" style="margin:.35rem 0 .55rem; text-transform:none; letter-spacing:0;">Kết nối Google để cập nhật tên & ảnh đại diện, và <b>nhận email nhắc bài tập</b> cùng thông báo lớp học. Tài khoản, lớp, điểm và tiến độ của bạn <b>giữ nguyên</b> — Google chỉ là một cách đăng nhập thêm.</p>
+                  <button id="p-glink">Kết nối với Google</button>`}
+                <p class="msg" id="p-gmsg"></p>
+              </div>
             </div>
           </div>
         </div>`;
@@ -2248,6 +2283,13 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             <button id="upg-open" class="ghost" style="flex:none;">${T2p("upgrade")}</button>
           </div>` : "");
 
+      // Nhắc kết nối Google cho tài khoản chưa có email nhận thông báo — không chặn học.
+      const googleNotice = (!me?.google_linked && !me?.notification_email) ? `
+        <div class="alert-bar" style="display:flex; gap:0.6rem; align-items:center; flex-wrap:wrap; background:#eef4ff; border:1px solid #cfe0ff;">
+          <span style="flex:1;">🔗 <b>Kết nối tài khoản Google</b> để nhận email nhắc bài tập &amp; thông báo lớp học. Tài khoản, lớp, điểm và tiến độ của bạn giữ nguyên.</span>
+          <button id="p-glink-top" class="ghost" style="flex:none;">Kết nối với Google</button>
+        </div>` : "";
+
       /* ---------- Phase 65: trang chủ học viên hướng-khóa-học ----------
          Dùng lại dữ liệu đã tải (courses, lessons, done, thống kê). Thẻ khóa
          học gọn có thanh tiến độ; bấm "Tiếp tục học" nhảy sang tab Khóa học
@@ -2358,6 +2400,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       app.innerHTML = `
         ${accessNote}
         ${premBar}
+        ${googleNotice}
         <div class="tabpane" data-tab="home">
           ${streakBar}
           ${stuHero}
@@ -2620,6 +2663,50 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         m.className = "msg" + (error ? " err" : "");
         m.textContent = error ? t("err_save") + error.message : t("saved");
         if (!error) who.textContent = full_name || user.email;
+      });
+
+      // ---- Google account linking (student) ----
+      const gmsg = (txt, err) => { const el = document.getElementById("p-gmsg"); if (el) { el.textContent = txt; el.className = "msg" + (err ? " err" : ""); } };
+      function startGoogleLink() {
+        try { sessionStorage.setItem("hub_glink", "1"); } catch (e) {}
+        gmsg("Đang chuyển tới Google…");
+        // link the Google identity to THIS signed-in account (same id, no new account)
+        Promise.resolve(sb.auth.linkIdentity({
+          provider: "google",
+          options: { redirectTo: location.origin + location.pathname, queryParams: { prompt: "select_account" } }
+        })).then(r => { if (r && r.error) throw r.error; })
+          .catch(err => {
+            try { sessionStorage.removeItem("hub_glink"); } catch (e) {}
+            const dup = /already|exists|linked|identity/i.test(err.message || "");
+            gmsg(dup ? "Tài khoản Google này đã được liên kết với một tài khoản học viên khác. Vui lòng liên hệ giáo viên."
+                     : "Không mở được Google. Trung tâm cần bật 'Manual linking' trong Supabase. (" + (err.message || "") + ")", true);
+          });
+      }
+      document.getElementById("p-glink")?.addEventListener("click", startGoogleLink);
+      document.getElementById("p-glink-top")?.addEventListener("click", startGoogleLink);
+      document.getElementById("p-gname")?.addEventListener("click", async () => {
+        gmsg("Đang lấy tên Google…");
+        const { data: nm, error } = await sb.rpc("my_google_name");
+        if (error || !nm) { gmsg("Không lấy được tên Google.", true); return; }
+        const { error: e2 } = await sb.from("profiles").update({ full_name: nm }).eq("id", user.id);
+        if (e2) { gmsg("Lưu tên lỗi: " + e2.message, true); return; }
+        gmsg("Đã đổi sang tên Google: " + nm + " ✓");
+        who.textContent = nm; setTimeout(renderStudent, 700);
+      });
+      document.getElementById("p-gunlink")?.addEventListener("click", async () => {
+        const ok = window.UI ? await UI.confirmDialog({
+          title: "Ngắt kết nối Google?", danger: true, okText: "Ngắt kết nối",
+          body: "Bạn sẽ không nhận email nhắc bài qua Gmail này nữa và không dùng 'Đăng nhập với Google' được cho tới khi kết nối lại.<br><br><b>Toàn bộ lớp, điểm và tiến độ vẫn được giữ nguyên.</b> Bạn vẫn đăng nhập bằng email/mật khẩu như cũ."
+        }) : confirm("Ngắt kết nối Google?");
+        if (!ok) return;
+        try {
+          const { data: idres } = await sb.auth.getUserIdentities();
+          const gid = (idres?.identities || []).find(i => i.provider === "google");
+          if (gid) { const { error } = await sb.auth.unlinkIdentity(gid); if (error) throw error; }
+          await sb.rpc("sync_my_google_identity");   // flips google_linked → false
+          if (window.UI) UI.toast("Đã ngắt kết nối Google.");
+          setTimeout(renderStudent, 600);
+        } catch (err) { gmsg("Không ngắt được: " + (err.message || err), true); }
       });
 
       document.getElementById("p-pick").addEventListener("click", () =>
@@ -3228,7 +3315,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       ] = await Promise.all([
         sb.from("lessons").select("*").order("sort_order").order("created_at"),
         sb.from("profiles")
-          .select("id, full_name, email, role, org_id, avatar_url, bio, multi_device, access_start, access_expires, suspended, plan, premium_until")
+          .select("id, full_name, email, role, org_id, avatar_url, bio, multi_device, access_start, access_expires, suspended, plan, premium_until, google_linked, notification_email")
           .order("created_at"),
         sb.from("courses").select("*").order("sort_order").order("created_at"),
         // profiles must be joined via the student link explicitly: enrollments has
@@ -4548,6 +4635,14 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
                 <option value="on">Enabled</option>
                 <option value="off">Disabled</option>
               </select></div>
+            <div class="field" style="max-width:190px;"><label>Google / thông báo</label>
+              <select id="sf-google">
+                <option value="all">All students</option>
+                <option value="linked">Google connected</option>
+                <option value="unlinked">Google not connected</option>
+                <option value="hasmail">Has notification email</option>
+                <option value="nomail">Missing notification email</option>
+              </select></div>
           </div>
           <div id="stu-table"></div>
           <p class="empty" style="margin-top:0.5rem;">Click "Manage ▸" on a row to grant or extend access, suspend, or see the student's details.</p>
@@ -5497,34 +5592,40 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           if (rows === undefined) return `<div class="card"><p class="empty">Đang tải danh sách học viên…</p></div>`;
           const sel = view.sel[h.id] || new Set();
           const incomplete = rows.filter(r => r.status !== "completed");
+          const emailable = incomplete.filter(r => r.notification_email);   // can actually receive email
           const body = rows.map(r => {
             const overdue = r.status !== "completed" && isOverdue(h);
             const stCode = overdue ? "overdue" : r.status;
             const lr = lastReminderFor(h.id, r.student_id);
             const done = r.status === "completed";
+            const noMail = !r.notification_email;
             return `
               <tr>
-                <td data-th=""><input type="checkbox" class="rem-ck" data-hw="${h.id}" data-sid="${r.student_id}" ${sel.has(r.student_id) ? "checked" : ""} ${done ? "disabled" : ""} /></td>
+                <td data-th=""><input type="checkbox" class="rem-ck" data-hw="${h.id}" data-sid="${r.student_id}" ${sel.has(r.student_id) ? "checked" : ""} ${done || noMail ? "disabled" : ""} /></td>
                 <td data-th="Học viên">${esc(r.full_name || "—")}</td>
-                <td data-th="Email">${esc(r.email || "—")}</td>
+                <td data-th="Email nhận thông báo">${r.notification_email
+                  ? esc(r.notification_email)
+                  : `<span class="pill bad" title="Chưa kết nối Google">Không có · chưa kết nối Google</span>`}</td>
                 <td data-th="Trạng thái"><span class="pill ${SPILL[stCode]}">${SLABEL[stCode]}</span></td>
                 <td data-th="Hoạt động gần nhất">${fmt(r.last_activity)}</td>
                 <td data-th="Nhắc gần nhất">${lr ? esc(fmt(lr.sent_at)) + " · " + (lr.mode === "auto" ? "tự động" : "thủ công") + (lr.status === "sent" ? "" : " (" + esc(lr.status) + ")") : "—"}</td>
-                <td data-th="">${done ? "" : `<button class="ghost rem-send-one" data-hw="${h.id}" data-sid="${r.student_id}">Gửi</button>`}</td>
+                <td data-th="">${done || noMail ? "" : `<button class="ghost rem-send-one" data-hw="${h.id}" data-sid="${r.student_id}">Gửi</button>`}</td>
               </tr>`;
           }).join("");
+          const noMailN = incomplete.length - emailable.length;
           return `
             ${ruleEditor(h)}
             <div class="card">
               <div class="form-row" style="align-items:center; flex-wrap:wrap; gap:.5rem;">
                 <b>Chưa hoàn thành: ${incomplete.length}/${rows.length}</b>
+                ${noMailN ? `<span class="pill bad" title="Chưa kết nối Google — không nhận được email">${noMailN} không có email</span>` : ""}
                 <span style="flex:1;"></span>
                 <button class="ghost rem-send-sel" data-hw="${h.id}">Gửi cho mục đã chọn</button>
-                <button class="rem-send-all" data-hw="${h.id}" ${incomplete.length ? "" : "disabled"}>Gửi cho tất cả chưa hoàn thành (${incomplete.length})</button>
+                <button class="rem-send-all" data-hw="${h.id}" ${emailable.length ? "" : "disabled"}>Gửi cho tất cả chưa hoàn thành (${emailable.length})</button>
               </div>
               <div style="overflow-x:auto; margin-top:.6rem;">
                 <table class="stackable" style="width:100%; font-size:.9rem;">
-                  <thead><tr><th></th><th>Học viên</th><th>Email</th><th>Trạng thái</th><th>Gần nhất</th><th>Nhắc gần nhất</th><th></th></tr></thead>
+                  <thead><tr><th></th><th>Học viên</th><th>Email nhận thông báo</th><th>Trạng thái</th><th>Gần nhất</th><th>Nhắc gần nhất</th><th></th></tr></thead>
                   <tbody>${body || `<tr><td colspan="7" class="empty">Bài này chưa nhắm học viên nào.</td></tr>`}</tbody>
                 </table>
               </div>
@@ -5664,7 +5765,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           }
           if (b.classList.contains("rem-send-all")) {
             const hw = b.getAttribute("data-hw");
-            const ids = (view.rows[hw] || []).filter(r => r.status !== "completed").map(r => r.student_id);
+            const ids = (view.rows[hw] || []).filter(r => r.status !== "completed" && r.notification_email).map(r => r.student_id);
             doSend(hw, ids, "chưa hoàn thành"); return;
           }
         }
@@ -14149,10 +14250,10 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         void urgent;
       })();
 
-      let sf = { q: "", status: "all", access: "all", role: "all", multi: "all", plan: "all" };
+      let sf = { q: "", status: "all", access: "all", role: "all", multi: "all", plan: "all", google: "all" };
       try { sf = Object.assign(sf, JSON.parse(localStorage.getItem("hub_sfilter") || "{}")); } catch (e) {}
       const sfEls = { q: $id("sf-q"), status: $id("sf-status"), access: $id("sf-access"),
-                      role: $id("sf-role"), multi: $id("sf-multi"), plan: $id("sf-plan") };
+                      role: $id("sf-role"), multi: $id("sf-multi"), plan: $id("sf-plan"), google: $id("sf-google") };
       Object.entries(sfEls).forEach(([k, el]) => { el.value = sf[k]; });
       const saveSf = () => { try { localStorage.setItem("hub_sfilter", JSON.stringify(sf)); } catch (e) {} };
 
@@ -14186,6 +14287,10 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           if (sf.access === "expired" && st.key !== "expired") return false;
           if (sf.multi === "on" && !(s.multi_device || s.role !== "student")) return false;
           if (sf.multi === "off" && (s.multi_device || s.role !== "student")) return false;
+          if (sf.google === "linked" && !s.google_linked) return false;
+          if (sf.google === "unlinked" && s.google_linked) return false;
+          if (sf.google === "hasmail" && !s.notification_email) return false;
+          if (sf.google === "nomail" && s.notification_email) return false;
           if (q) {
             const hay = normA((s.full_name || "") + " " + (s.email || "") + " " +
                               coursesOf(s.id).join(" ") + " " + st.key);
@@ -14209,7 +14314,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
 
         const box = $id("stu-table");
         box.innerHTML = list.length ? `
-          <table><thead><tr><th>Name</th><th>Email · courses</th><th>Role</th><th>Membership</th><th>Access</th><th>Multi-device</th><th></th></tr></thead>
+          <table><thead><tr><th>Name</th><th>Email · courses</th><th>Role</th><th>Membership</th><th>Access</th><th>Multi-device</th><th>Google · Thông báo</th><th></th></tr></thead>
           <tbody>${list.map(s => {
             const st = accStatus(s);
             const mk = mbOf(s);
@@ -14239,13 +14344,18 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               <td>${s.role !== "student" ? `<span class="kind">always</span>`
                 : `<label style="font-size:0.82rem; color:var(--muted); cursor:pointer; white-space:nowrap;">
                      <input type="checkbox" class="s-multi" data-id="${s.id}" ${s.multi_device ? "checked" : ""} /> allow</label>`}</td>
+              <td style="min-width:150px;">${s.role !== "student" ? `<span class="kind">—</span>` : `
+                <div>${s.google_linked ? `<span class="pill done">Manual + Google ✓</span>` : `<span class="pill off">Manual · chưa kết nối</span>`}</div>
+                ${s.notification_email
+                  ? `<div class="kind" style="text-transform:none; letter-spacing:0;">📧 ${esc(s.notification_email)}</div><div class="kind" style="color:var(--success,#0a7); text-transform:none; letter-spacing:0;">Nhận được email</div>`
+                  : `<div class="kind" style="color:var(--danger); text-transform:none; letter-spacing:0;">Không nhận được email — chưa kết nối Google</div>`}`}</td>
               <td style="white-space:nowrap;">
                 <button class="ghost s-save" data-id="${s.id}">Save</button>
                 ${s.role !== "student" ? "" : `<button class="ghost st-manage" data-id="${s.id}">Manage ▸</button>`}
               </td>
             </tr>
             ${s.role !== "student" ? "" : `
-            <tr class="st-panel" data-id="${s.id}" style="display:none;"><td colspan="7">
+            <tr class="st-panel" data-id="${s.id}" style="display:none;"><td colspan="8">
               <div class="eng-detail">
                 <b>Access control — ${esc(studentName(s))}</b>
                 <div class="form-row" style="margin-top:0.5rem;">
