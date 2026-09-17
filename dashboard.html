@@ -3970,6 +3970,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         </div>
 
         <div class="tabpane" data-tab="classes"><div id="oc-root"></div></div>
+        <div class="tabpane" data-tab="reminders"><div id="rem-root"></div></div>
 
         <div class="tabpane" data-tab="vsat">
           <div class="card">
@@ -5397,6 +5398,289 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       })();
       // =============== HẾT LỚP HỌC (QUẢN LÝ TẬP TRUNG) ===============
 
+      // ============ NHẮC BÀI TẬP QUA EMAIL (Phase 115) ============
+      // Dùng lại toàn bộ dữ liệu bài tập sẵn có: hsk_homework (bài giao),
+      // hsk_attempts + flashcard_reviews (tiến độ THẬT), class_students (lớp),
+      // profiles (học viên). Chỉ thêm: cấu hình email, luật tự động và LỊCH SỬ
+      // nhắc. Việc GỬI email nằm ở edge function 'send-reminders' (khóa/API key
+      // chỉ ở máy chủ). Trạng thái hoàn thành được RPC/edge tính lại ngay trước
+      // khi gửi — học viên đã xong sẽ KHÔNG bị nhắc.
+      (function () {
+        const KIND = { slides: "HSK Slides", vocab: "Luyện từ vựng", flashcards: "Flashcards" };
+        const SPILL = { completed: "done", in_progress: "todo", not_started: "off", overdue: "bad" };
+        const SLABEL = { completed: "Hoàn thành", in_progress: "Đang làm", not_started: "Chưa làm", overdue: "Quá hạn" };
+        const D = { hw: [], classes: {}, overview: {}, rules: {}, email: null, history: [] };
+        let view = { openId: null, rows: {}, sel: {} };   // sel[hwId] = Set(studentId)
+        let loaded = false, failed = false, failMsg = "";
+        const toast = (m, k) => { if (window.UI) UI.toast(m, k); };
+        const fmt = ts => { if (!ts) return "—"; const d = new Date(ts);
+          return d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
+        const hwName = h => esc(h.title || h.lesson_id || "(bài)");
+        const className = h => esc(D.classes[h.class_id] || "—");
+        const isOverdue = h => h.due_at && new Date(h.due_at).getTime() < Date.now();
+        const lastReminderFor = (hwId, sid) => {
+          const rows = D.history.filter(r => r.homework_id === hwId && r.student_id === sid);
+          return rows.length ? rows.sort((a, b) => String(b.sent_at).localeCompare(String(a.sent_at)))[0] : null;
+        };
+
+        async function load() {
+          const [hwR, clR, ovR, ruR, emR, hiR] = await Promise.all([
+            sb.from("hsk_homework").select("*").order("due_at", { ascending: true, nullsFirst: false }),
+            sb.from("classes").select("id, name"),
+            sb.rpc("homework_reminder_overview"),
+            sb.from("homework_reminder_settings").select("*"),
+            sb.from("reminder_email_settings").select("*").eq("id", 1).maybeSingle(),
+            sb.from("homework_reminders").select("*").order("sent_at", { ascending: false }).limit(200)
+          ]);
+          if (ovR.error || emR.error) { failed = true; failMsg = (ovR.error || emR.error).message; return; }
+          D.hw = hwR.data || [];
+          (clR.data || []).forEach(c => D.classes[c.id] = c.name);
+          D.overview = {}; (ovR.data || []).forEach(o => D.overview[o.homework_id] = o);
+          D.rules = {}; (ruR.data || []).forEach(r => D.rules[r.homework_id] = r);
+          D.email = emR.data || { from_name: "Learning Ecology", reply_to: "", subject: "Nhắc bài tập: {{assignment_name}}", template: "" };
+          D.history = hiR.data || [];
+          loaded = true;
+        }
+        async function reload() { await load(); paint(); }
+
+        async function callSend(homeworkId, studentIds) {
+          const { data: { session } } = await sb.auth.getSession();
+          const res = await fetch(SUPABASE_URL + "/functions/v1/send-reminders", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.access_token, apikey: SUPABASE_ANON_KEY },
+            body: JSON.stringify({ mode: "manual", homework_id: homeworkId, student_ids: studentIds })
+          });
+          const out = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(out.error || ("HTTP " + res.status));
+          return out;
+        }
+
+        // ---------- render ----------
+        function emailCard() {
+          const e = D.email || {};
+          return `
+            <div class="card">
+              <details>
+                <summary style="cursor:pointer; font-weight:700;">✉️ Cấu hình email nhắc bài</summary>
+                <p class="kind" style="margin:.5rem 0; text-transform:none; letter-spacing:0;">Placeholder dùng được: <code>{{student_name}}</code> · <code>{{class_name}}</code> · <code>{{assignment_name}}</code> · <code>{{due_date}}</code> · <code>{{assignment_link}}</code>. Link luôn đưa học viên tới ĐÚNG bài đã giao (đăng nhập xong tự chuyển).</p>
+                <div class="form-row">
+                  <div class="field"><label>Tên người gửi</label><input id="rem-from" value="${esc(e.from_name || "")}" /></div>
+                  <div class="field"><label>Reply-to (email nhận trả lời)</label><input id="rem-reply" value="${esc(e.reply_to || "")}" placeholder="thay@example.com" /></div>
+                </div>
+                <div class="field"><label>Tiêu đề</label><input id="rem-subject" value="${esc(e.subject || "")}" /></div>
+                <div class="field"><label>Nội dung</label><textarea id="rem-template" style="min-height:150px; font-family:var(--mono); font-size:.85rem;">${esc(e.template || "")}</textarea></div>
+                <div class="form-row" style="margin-top:.5rem;"><button id="rem-save-email">💾 Lưu cấu hình</button><span class="msg" id="rem-email-msg"></span></div>
+              </details>
+            </div>`;
+        }
+
+        function ruleEditor(h) {
+          const r = D.rules[h.id] || {};
+          return `
+            <div class="card" style="border-left:4px solid var(--tone-teal,#0d9488); margin:.6rem 0;">
+              <label style="font-weight:700; display:flex; gap:.5rem; align-items:center;">
+                <input type="checkbox" id="rem-auto-on" ${r.auto_enabled ? "checked" : ""} /> Tự động nhắc bài này</label>
+              <p class="kind" style="margin:.4rem 0; text-transform:none; letter-spacing:0;">Máy chủ kiểm tra định kỳ; trước mỗi email luôn kiểm tra lại — ai đã hoàn thành thì KHÔNG gửi. Mỗi luật gửi tối đa một lần / học viên.</p>
+              <div class="form-row">
+                <div class="field" style="max-width:190px;"><label>Trước hạn (số ngày)</label><input type="number" min="0" id="rem-before" value="${r.before_days != null ? r.before_days : ""}" placeholder="tắt" /></div>
+                <label style="align-self:center; font-size:.9rem;"><input type="checkbox" id="rem-ondue" ${r.on_due ? "checked" : ""} /> Đúng hạn</label>
+                <label style="align-self:center; font-size:.9rem;"><input type="checkbox" id="rem-overdue" ${r.on_overdue ? "checked" : ""} /> Khi quá hạn</label>
+                <div class="field" style="max-width:190px;"><label>Sau hạn (số ngày)</label><input type="number" min="0" id="rem-after" value="${r.after_days != null ? r.after_days : ""}" placeholder="tắt" /></div>
+                <button id="rem-save-rule" data-id="${h.id}" style="align-self:flex-end;">💾 Lưu luật</button>
+              </div>
+              <p class="msg" id="rem-rule-msg"></p>
+            </div>`;
+        }
+
+        function detailPanel(h) {
+          const rows = view.rows[h.id];
+          if (rows === undefined) return `<div class="card"><p class="empty">Đang tải danh sách học viên…</p></div>`;
+          const sel = view.sel[h.id] || new Set();
+          const incomplete = rows.filter(r => r.status !== "completed");
+          const body = rows.map(r => {
+            const overdue = r.status !== "completed" && isOverdue(h);
+            const stCode = overdue ? "overdue" : r.status;
+            const lr = lastReminderFor(h.id, r.student_id);
+            const done = r.status === "completed";
+            return `
+              <tr>
+                <td data-th=""><input type="checkbox" class="rem-ck" data-hw="${h.id}" data-sid="${r.student_id}" ${sel.has(r.student_id) ? "checked" : ""} ${done ? "disabled" : ""} /></td>
+                <td data-th="Học viên">${esc(r.full_name || "—")}</td>
+                <td data-th="Email">${esc(r.email || "—")}</td>
+                <td data-th="Trạng thái"><span class="pill ${SPILL[stCode]}">${SLABEL[stCode]}</span></td>
+                <td data-th="Hoạt động gần nhất">${fmt(r.last_activity)}</td>
+                <td data-th="Nhắc gần nhất">${lr ? esc(fmt(lr.sent_at)) + " · " + (lr.mode === "auto" ? "tự động" : "thủ công") + (lr.status === "sent" ? "" : " (" + esc(lr.status) + ")") : "—"}</td>
+                <td data-th="">${done ? "" : `<button class="ghost rem-send-one" data-hw="${h.id}" data-sid="${r.student_id}">Gửi</button>`}</td>
+              </tr>`;
+          }).join("");
+          return `
+            ${ruleEditor(h)}
+            <div class="card">
+              <div class="form-row" style="align-items:center; flex-wrap:wrap; gap:.5rem;">
+                <b>Chưa hoàn thành: ${incomplete.length}/${rows.length}</b>
+                <span style="flex:1;"></span>
+                <button class="ghost rem-send-sel" data-hw="${h.id}">Gửi cho mục đã chọn</button>
+                <button class="rem-send-all" data-hw="${h.id}" ${incomplete.length ? "" : "disabled"}>Gửi cho tất cả chưa hoàn thành (${incomplete.length})</button>
+              </div>
+              <div style="overflow-x:auto; margin-top:.6rem;">
+                <table class="stackable" style="width:100%; font-size:.9rem;">
+                  <thead><tr><th></th><th>Học viên</th><th>Email</th><th>Trạng thái</th><th>Gần nhất</th><th>Nhắc gần nhất</th><th></th></tr></thead>
+                  <tbody>${body || `<tr><td colspan="7" class="empty">Bài này chưa nhắm học viên nào.</td></tr>`}</tbody>
+                </table>
+              </div>
+            </div>`;
+        }
+
+        function historyCard() {
+          if (!D.history.length) return "";
+          const rows = D.history.slice(0, 60).map(r => {
+            const h = D.hw.find(x => x.id === r.homework_id);
+            return `<tr>
+              <td data-th="Thời gian">${esc(fmt(r.sent_at))}</td>
+              <td data-th="Học viên">${esc(r.email)}</td>
+              <td data-th="Bài">${h ? hwName(h) : esc(r.homework_id.slice(0, 8))}</td>
+              <td data-th="Kiểu">${r.mode === "auto" ? "Tự động · " + esc(r.rule) : "Thủ công"}</td>
+              <td data-th="Kết quả"><span class="pill ${r.status === "sent" ? "done" : r.status === "skipped_completed" ? "off" : "bad"}">${esc(r.status)}</span></td>
+            </tr>`;
+          }).join("");
+          return `<div class="card"><details><summary style="cursor:pointer; font-weight:700;">🕓 Lịch sử nhắc (${D.history.length})</summary>
+            <div style="overflow-x:auto; margin-top:.5rem;"><table class="stackable" style="width:100%; font-size:.88rem;">
+              <thead><tr><th>Thời gian</th><th>Email</th><th>Bài</th><th>Kiểu</th><th>Kết quả</th></tr></thead>
+              <tbody>${rows}</tbody></table></div></details></div>`;
+        }
+
+        function paint() {
+          const box = document.getElementById("rem-root");
+          if (!box) return;
+          if (failed) { box.innerHTML = `<div class="card"><p class="empty">Chưa chạy <b>migration74_homework_reminders.sql</b> (hoặc thiếu quyền). ${esc(failMsg || "")}</p></div>`; return; }
+          if (!loaded) { box.innerHTML = `<p class="empty">Đang tải…</p>`; return; }
+          const list = D.hw;
+          const overviewRows = list.map(h => {
+            const o = D.overview[h.id] || { total: 0, completed: 0, last_reminder_at: null };
+            const inc = Math.max(0, (o.total || 0) - (o.completed || 0));
+            const auto = D.rules[h.id]?.auto_enabled;
+            const overdue = isOverdue(h);
+            return `
+              <tr>
+                <td data-th="Bài">${hwName(h)} <span class="pill" style="font-size:.72rem;">${KIND[h.kind || "slides"] || h.kind}</span></td>
+                <td data-th="Lớp">${className(h)}</td>
+                <td data-th="Hạn">${h.due_at ? esc(fmt(h.due_at)) + (overdue ? ' <span class="pill bad" style="font-size:.7rem;">quá hạn</span>' : "") : "—"}</td>
+                <td data-th="Sĩ số" style="text-align:center;">${o.total || 0}</td>
+                <td data-th="Xong" style="text-align:center;">${o.completed || 0}</td>
+                <td data-th="Chưa xong" style="text-align:center;"><b>${inc}</b></td>
+                <td data-th="Tự động" style="text-align:center;">${auto ? "✅" : "—"}</td>
+                <td data-th="Nhắc gần nhất">${o.last_reminder_at ? esc(fmt(o.last_reminder_at)) : "—"}</td>
+                <td data-th=""><button class="ghost rem-open" data-id="${h.id}">${view.openId === h.id ? "Đóng ▲" : "Mở ▼"}</button></td>
+              </tr>
+              ${view.openId === h.id ? `<tr><td colspan="9" style="padding:0;">${detailPanel(h)}</td></tr>` : ""}`;
+          }).join("");
+          box.innerHTML = `
+            ${emailCard()}
+            <div class="card">
+              <div class="card-head"><h2>🔔 Nhắc bài tập</h2>
+                <button class="ghost" id="rem-refresh" style="width:auto; padding:.35rem .7rem; font-size:.85rem;">↻ Làm mới</button></div>
+              <p class="kind" style="margin:0 0 .6rem; text-transform:none; letter-spacing:0;">Dựa trên tiến độ THẬT của học viên (HSK Slides · Luyện từ vựng · Flashcards). Không bao giờ nhắc học viên đã hoàn thành.</p>
+              ${list.length ? `<div style="overflow-x:auto;"><table class="stackable" style="width:100%; font-size:.9rem;">
+                <thead><tr><th>Bài</th><th>Lớp</th><th>Hạn</th><th>Sĩ số</th><th>Xong</th><th>Chưa xong</th><th>Tự động</th><th>Nhắc gần nhất</th><th></th></tr></thead>
+                <tbody>${overviewRows}</tbody></table></div>`
+                : `<p class="empty">Chưa có bài tập nào được giao. Giao bài ở các tab HSK Slides / Luyện từ vựng / Flashcards trước.</p>`}
+            </div>
+            ${historyCard()}`;
+        }
+
+        async function openDetail(hwId) {
+          if (view.rows[hwId] !== undefined) return;
+          const { data, error } = await sb.rpc("homework_status", { p_homework: hwId });
+          view.rows[hwId] = error ? [] : (data || []);
+        }
+
+        async function doSend(hwId, studentIds, label) {
+          if (!studentIds.length) { toast("Không có học viên nào để gửi.", "err"); return; }
+          const ok = window.UI ? await UI.confirmDialog({
+            title: "Gửi email nhắc bài?", okText: "Gửi " + studentIds.length + " email",
+            body: `Sẽ gửi tới <b>${studentIds.length}</b> học viên ${esc(label || "")}. Học viên đã hoàn thành (nếu có) sẽ tự động bị bỏ qua.`
+          }) : confirm("Gửi tới " + studentIds.length + " học viên?");
+          if (!ok) return;
+          try {
+            const out = await callSend(hwId, studentIds);
+            toast(`Đã gửi ${out.sent || 0} · bỏ qua (đã xong) ${out.skipped_completed || 0}` + (out.failed ? ` · lỗi ${out.failed}` : ""));
+            view.rows[hwId] = undefined; view.sel[hwId] = new Set();
+            await load(); await openDetail(hwId); paint(); bindTop();
+          } catch (e) { toast("Gửi lỗi: " + e.message, "err"); }
+        }
+
+        function bindTop() {
+          const box = document.getElementById("rem-root"); if (!box) return;
+          const rf = box.querySelector("#rem-refresh"); if (rf) rf.onclick = () => reload().then(bindTop);
+          const se = box.querySelector("#rem-save-email"); if (se) se.onclick = saveEmail;
+        }
+        async function saveEmail() {
+          const box = document.getElementById("rem-root");
+          const g = id => box.querySelector("#" + id);
+          const m = g("rem-email-msg");
+          const patch = { id: 1, from_name: g("rem-from").value.trim() || "Learning Ecology",
+            reply_to: g("rem-reply").value.trim() || null, subject: g("rem-subject").value.trim() || "Nhắc bài tập: {{assignment_name}}",
+            template: g("rem-template").value, updated_at: new Date().toISOString() };
+          const { error } = await sb.from("reminder_email_settings").upsert(patch, { onConflict: "id" });
+          if (m) { m.textContent = error ? "Lỗi: " + error.message : "Đã lưu ✓"; m.className = "msg" + (error ? " err" : ""); }
+          if (!error) D.email = patch;
+        }
+        async function saveRule(hwId) {
+          const box = document.getElementById("rem-root");
+          const g = id => box.querySelector("#" + id);
+          const bd = g("rem-before").value.trim(), ad = g("rem-after").value.trim();
+          const patch = { homework_id: hwId, auto_enabled: g("rem-auto-on").checked,
+            before_days: bd === "" ? null : Math.max(0, parseInt(bd, 10) || 0),
+            on_due: g("rem-ondue").checked, on_overdue: g("rem-overdue").checked,
+            after_days: ad === "" ? null : Math.max(0, parseInt(ad, 10) || 0),
+            updated_at: new Date().toISOString(), updated_by: user.id };
+          const m = g("rem-rule-msg");
+          const { error } = await sb.from("homework_reminder_settings").upsert(patch, { onConflict: "homework_id" });
+          if (m) { m.textContent = error ? "Lỗi: " + error.message : "Đã lưu luật ✓"; m.className = "msg" + (error ? " err" : ""); }
+          if (!error) { D.rules[hwId] = patch; }
+        }
+
+        async function onClick(e) {
+          const b = e.target.closest("[data-act], button, input.rem-ck"); if (!b) return;
+          if (b.classList.contains("rem-open")) {
+            const id = b.getAttribute("data-id");
+            if (view.openId === id) { view.openId = null; paint(); bindTop(); return; }
+            view.openId = id; view.sel[id] = view.sel[id] || new Set(); paint(); bindTop();
+            await openDetail(id); paint(); bindTop(); return;
+          }
+          if (b.classList.contains("rem-ck")) {
+            const hw = b.getAttribute("data-hw"), sid = b.getAttribute("data-sid");
+            view.sel[hw] = view.sel[hw] || new Set();
+            if (b.checked) view.sel[hw].add(sid); else view.sel[hw].delete(sid);
+            return;
+          }
+          if (b.classList.contains("rem-save-rule")) { saveRule(b.getAttribute("data-id")); return; }
+          if (b.classList.contains("rem-send-one")) {
+            doSend(b.getAttribute("data-hw"), [b.getAttribute("data-sid")], "đã chọn"); return;
+          }
+          if (b.classList.contains("rem-send-sel")) {
+            const hw = b.getAttribute("data-hw"); const ids = [...(view.sel[hw] || new Set())];
+            doSend(hw, ids, "đã chọn"); return;
+          }
+          if (b.classList.contains("rem-send-all")) {
+            const hw = b.getAttribute("data-hw");
+            const ids = (view.rows[hw] || []).filter(r => r.status !== "completed").map(r => r.student_id);
+            doSend(hw, ids, "chưa hoàn thành"); return;
+          }
+        }
+
+        const __remBox = document.getElementById("rem-root");
+        if (__remBox) __remBox.addEventListener("click", onClick);
+
+        window.__remInit = async function () {
+          if (loaded || failed) { paint(); bindTop(); return; }
+          paint();
+          await load();
+          paint(); bindTop();
+        };
+      })();
+      // =============== HẾT NHẮC BÀI TẬP ===============
+
       /* ================= KẾT QUẢ BÀI THI (Phase 36) =================
          Đọc bảng test_attempts (RLS đã giới hạn theo quyền). Mỗi lần học viên
          nộp là MỘT dòng — giữ toàn bộ lịch sử. Chấm điểm ở máy chủ, nên bảng
@@ -5816,6 +6100,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         if (t === "nav" && window.__navInit) window.__navInit();
         if (t === "visib" && window.__visibInit) window.__visibInit();
         if (t === "classes" && window.__ocInit) window.__ocInit();
+        if (t === "reminders" && window.__remInit) window.__remInit();
         app.querySelectorAll(".tabpane").forEach(p =>
           p.classList.toggle("show", p.getAttribute("data-tab") === t));
         document.querySelectorAll("#subnav .sn-item[data-id]").forEach(b =>
@@ -5844,6 +6129,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           { id: "modules", label: "Tính năng", icon: "toggle-right", group: "Settings" },
           { id: "students", label: "Students (" + onlyStudents.length + ")" + (stuWarn ? " ⚠️" : ""), icon: "users", group: "Users" },
           { id: "classes", label: "Lớp học", icon: "layers", group: "Users" },
+          { id: "reminders", label: "Nhắc bài", icon: "bell-ring", group: "Users" },
           { id: "progress", label: "Analytics", icon: "bar-chart-3", group: "Analytics" },
           { id: "announce", label: "Announce" + ((anns || []).length ? " (" + anns.length + ")" : ""), icon: "megaphone", group: "Community" },
           { href: "organizations.html", label: "Organizations & licenses", icon: "building-2", group: "Settings" },
