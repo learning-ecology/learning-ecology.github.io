@@ -5504,13 +5504,25 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         const KIND = { slides: "HSK Slides", vocab: "Luyện từ vựng", flashcards: "Flashcards" };
         const SPILL = { completed: "done", in_progress: "todo", not_started: "off", overdue: "bad" };
         const SLABEL = { completed: "Hoàn thành", in_progress: "Đang làm", not_started: "Chưa làm", overdue: "Quá hạn" };
-        const D = { hw: [], classes: {}, overview: {}, rules: {}, email: null, history: [] };
+        const D = { hw: [], classes: {}, overview: {}, rules: {}, email: null, history: [], vocabLessons: [] };
         let view = { openId: null, rows: {}, sel: {} };   // sel[hwId] = Set(studentId)
+        let flt = { class: "all", lesson: "all", type: "all", q: "" };   // bộ lọc (Phase 117)
         let loaded = false, failed = false, failMsg = "";
         const toast = (m, k) => { if (window.UI) UI.toast(m, k); };
         const fmt = ts => { if (!ts) return "—"; const d = new Date(ts);
           return d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
-        const hwName = h => esc(h.title || h.lesson_id || "(bài)");
+        // TÊN BÀI THẬT (không phải mã nội bộ như hsk1-bai-01) — tra theo loại bài
+        const lessonTitle = h => {
+          const k = h.kind || "slides";
+          if (k === "slides") return ((typeof hskRows !== "undefined" && hskRows || []).find(r => r.lesson_id === h.lesson_id) || {}).title || h.lesson_id || "";
+          if (k === "vocab") return ((D.vocabLessons || []).find(r => r.lesson_id === h.lesson_id) || {}).title || h.lesson_id || "";
+          if (k === "flashcards") {
+            if (h.lesson_id === "__nolesson__") return "Chưa phân loại";
+            return ((typeof lessons !== "undefined" && lessons || []).find(l => l.id === h.lesson_id) || {}).title || h.lesson_id || "";
+          }
+          return h.lesson_id || "";
+        };
+        const hwName = h => esc(h.title || lessonTitle(h) || "(bài)");
         const className = h => esc(D.classes[h.class_id] || "—");
         const isOverdue = h => h.due_at && new Date(h.due_at).getTime() < Date.now();
         const lastReminderFor = (hwId, sid) => {
@@ -5534,6 +5546,9 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           D.rules = {}; (ruR.data || []).forEach(r => D.rules[r.homework_id] = r);
           D.email = emR.data || { from_name: "Learning Ecology", reply_to: "", subject: "Nhắc bài tập: {{assignment_name}}", template: "" };
           D.history = hiR.data || [];
+          // tên bài Luyện từ vựng (để hiện tiêu đề thật thay vì mã); slides/flashcards
+          // đọc từ hskRows/lessons đã có sẵn trong bộ nhớ.
+          try { D.vocabLessons = (typeof getVocabLessons === "function") ? await getVocabLessons() : []; } catch (e) { D.vocabLessons = []; }
           loaded = true;
         }
         async function reload() { await load(); paint(); }
@@ -5650,12 +5665,38 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               <tbody>${rows}</tbody></table></div></details></div>`;
         }
 
-        function paint() {
-          const box = document.getElementById("rem-root");
-          if (!box) return;
-          if (failed) { box.innerHTML = `<div class="card"><p class="empty">Chưa chạy <b>migration74_homework_reminders.sql</b> (hoặc thiếu quyền). ${esc(failMsg || "")}</p></div>`; return; }
-          if (!loaded) { box.innerHTML = `<p class="empty">Đang tải…</p>`; return; }
-          const list = D.hw;
+        // ---- bộ lọc (Phase 117): Lớp + Bài + Loại + Tìm kiếm, lọc tức thì ----
+        function filteredHw() {
+          const q = flt.q.trim().toLowerCase();
+          return D.hw.filter(h => {
+            if (flt.class !== "all" && h.class_id !== flt.class) return false;
+            if (flt.type !== "all" && (h.kind || "slides") !== flt.type) return false;
+            if (flt.lesson !== "all" && h.lesson_id !== flt.lesson) return false;
+            if (q) {
+              const hay = (String(h.title || "") + " " + lessonTitle(h) + " " + (D.classes[h.class_id] || "")).toLowerCase();
+              if (!hay.includes(q)) return false;
+            }
+            return true;
+          });
+        }
+        function classFilterOptions() {
+          const ids = [...new Set(D.hw.map(h => h.class_id).filter(Boolean))]
+            .map(id => [id, D.classes[id] || "(lớp)"]).sort((a, b) => a[1].localeCompare(b[1]));
+          return `<option value="all">Tất cả lớp</option>` +
+            ids.map(([id, n]) => `<option value="${id}"${flt.class === id ? " selected" : ""}>${esc(n)}</option>`).join("");
+        }
+        function lessonFilterOptions() {
+          const rows = D.hw.filter(h => flt.class === "all" || h.class_id === flt.class);
+          const seen = new Map();
+          rows.forEach(h => { if (!seen.has(h.lesson_id)) seen.set(h.lesson_id, lessonTitle(h) || h.lesson_id); });
+          const opts = [...seen.entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1])));
+          return `<option value="all">Tất cả bài</option>` +
+            opts.map(([lid, t]) => `<option value="${esc(lid)}"${flt.lesson === lid ? " selected" : ""}>${esc(t)}</option>`).join("");
+        }
+        function overviewTable() {
+          if (!D.hw.length) return `<p class="empty">Chưa có bài tập nào được giao. Giao bài ở các tab HSK Slides / Luyện từ vựng / Flashcards trước.</p>`;
+          const list = filteredHw();
+          if (!list.length) return `<p class="empty">Không có bài nào khớp bộ lọc. Thử bỏ bớt bộ lọc hoặc xoá ô tìm kiếm.</p>`;
           const overviewRows = list.map(h => {
             const o = D.overview[h.id] || { total: 0, completed: 0, last_reminder_at: null };
             const inc = Math.max(0, (o.total || 0) - (o.completed || 0));
@@ -5675,18 +5716,53 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               </tr>
               ${view.openId === h.id ? `<tr><td colspan="9" style="padding:0;">${detailPanel(h)}</td></tr>` : ""}`;
           }).join("");
+          return `<div class="kind" style="margin:.1rem 0 .5rem; text-transform:none; letter-spacing:0;">Hiển thị ${list.length}/${D.hw.length} bài</div>
+            <div style="overflow-x:auto;"><table class="stackable" style="width:100%; font-size:.9rem;">
+              <thead><tr><th>Bài</th><th>Lớp</th><th>Hạn</th><th>Sĩ số</th><th>Xong</th><th>Chưa xong</th><th>Tự động</th><th>Nhắc gần nhất</th><th></th></tr></thead>
+              <tbody>${overviewRows}</tbody></table></div>`;
+        }
+        function renderList() { const el = document.getElementById("rem-list"); if (el) el.innerHTML = overviewTable(); }
+        function bindFilters() {
+          const box = document.getElementById("rem-root"); if (!box) return;
+          const fc = box.querySelector("#rem-f-class"), fl = box.querySelector("#rem-f-lesson"),
+                ft = box.querySelector("#rem-f-type"), fq = box.querySelector("#rem-f-q");
+          if (fc) fc.onchange = () => { flt.class = fc.value; flt.lesson = "all"; if (fl) fl.innerHTML = lessonFilterOptions(); renderList(); };
+          if (fl) fl.onchange = () => { flt.lesson = fl.value; renderList(); };
+          if (ft) ft.onchange = () => { flt.type = ft.value; renderList(); };
+          // chỉ vẽ lại DANH SÁCH (#rem-list) → ô tìm kiếm không mất tiêu điểm
+          if (fq) fq.oninput = () => { flt.q = fq.value; renderList(); };
+        }
+
+        function paint() {
+          const box = document.getElementById("rem-root");
+          if (!box) return;
+          if (failed) { box.innerHTML = `<div class="card"><p class="empty">Chưa chạy <b>migration74_homework_reminders.sql</b> (hoặc thiếu quyền). ${esc(failMsg || "")}</p></div>`; return; }
+          if (!loaded) { box.innerHTML = `<p class="empty">Đang tải…</p>`; return; }
           box.innerHTML = `
             ${emailCard()}
             <div class="card">
               <div class="card-head"><h2>🔔 Nhắc bài tập</h2>
                 <button class="ghost" id="rem-refresh" style="width:auto; padding:.35rem .7rem; font-size:.85rem;">↻ Làm mới</button></div>
               <p class="kind" style="margin:0 0 .6rem; text-transform:none; letter-spacing:0;">Dựa trên tiến độ THẬT của học viên (HSK Slides · Luyện từ vựng · Flashcards). Không bao giờ nhắc học viên đã hoàn thành.</p>
-              ${list.length ? `<div style="overflow-x:auto;"><table class="stackable" style="width:100%; font-size:.9rem;">
-                <thead><tr><th>Bài</th><th>Lớp</th><th>Hạn</th><th>Sĩ số</th><th>Xong</th><th>Chưa xong</th><th>Tự động</th><th>Nhắc gần nhất</th><th></th></tr></thead>
-                <tbody>${overviewRows}</tbody></table></div>`
-                : `<p class="empty">Chưa có bài tập nào được giao. Giao bài ở các tab HSK Slides / Luyện từ vựng / Flashcards trước.</p>`}
+              <div class="form-row" style="margin-bottom:.5rem;">
+                <div class="field" style="max-width:230px;"><label>Lớp</label>
+                  <select id="rem-f-class">${classFilterOptions()}</select></div>
+                <div class="field" style="max-width:230px;"><label>Bài</label>
+                  <select id="rem-f-lesson">${lessonFilterOptions()}</select></div>
+                <div class="field" style="max-width:170px;"><label>Loại</label>
+                  <select id="rem-f-type">
+                    <option value="all"${flt.type === "all" ? " selected" : ""}>Tất cả</option>
+                    <option value="slides"${flt.type === "slides" ? " selected" : ""}>HSK Slides</option>
+                    <option value="vocab"${flt.type === "vocab" ? " selected" : ""}>Luyện từ vựng</option>
+                    <option value="flashcards"${flt.type === "flashcards" ? " selected" : ""}>Flashcards</option>
+                  </select></div>
+                <div class="field"><label>Tìm kiếm</label>
+                  <input id="rem-f-q" value="${esc(flt.q)}" placeholder="Tên bài · tên lớp…" autocomplete="off" /></div>
+              </div>
+              <div id="rem-list">${overviewTable()}</div>
             </div>
             ${historyCard()}`;
+          bindFilters();
         }
 
         async function openDetail(hwId) {
