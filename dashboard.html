@@ -80,6 +80,34 @@
     font-weight:800; cursor:pointer; }
   body.stu #cont-open:hover{ background:var(--accent-ink); }
 
+  /* hero + leaderboard side-by-side (Phase 119) */
+  .stu-hero-wrap{ display:flex; gap:1.1rem; align-items:stretch; margin:1rem 0 1.4rem; }
+  .stu-hero-wrap .stu-hero{ flex:1 1 auto; margin:0; min-width:0; }
+  .stu-lb{ flex:0 0 340px; max-width:340px; background:var(--card); border:1px solid var(--stu-line);
+    border-radius:20px; padding:1rem 1.05rem; display:flex; flex-direction:column; }
+  @media (max-width:900px){ .stu-hero-wrap{ flex-direction:column; } .stu-lb{ flex-basis:auto; max-width:none; } }
+  .stu-lb-head{ display:flex; align-items:center; justify-content:space-between; gap:.5rem; margin-bottom:.6rem; flex-wrap:wrap; }
+  .stu-lb-head b{ font-size:1rem; }
+  .stu-lb-tabs{ display:flex; gap:.3rem; }
+  .lb-tab{ font-size:.76rem; font-weight:700; padding:.3rem .6rem; border-radius:999px; border:1px solid var(--stu-line);
+    background:var(--card); cursor:pointer; color:var(--muted); white-space:nowrap; }
+  .lb-tab.on{ background:var(--accent); color:#fff; border-color:transparent; }
+  .lb-tab[disabled]{ opacity:.45; cursor:not-allowed; }
+  .stu-lb-cls{ margin-bottom:.5rem; }
+  .stu-lb-cls select{ width:100%; }
+  .lb-row{ display:flex; align-items:center; gap:.55rem; padding:.4rem .35rem; border-radius:10px; }
+  .lb-row.me{ background:rgba(183,130,63,.12); }
+  .lb-rank{ width:1.7rem; text-align:center; font-weight:800; flex:none; font-variant-numeric:tabular-nums; }
+  .lb-av{ width:26px; height:26px; border-radius:50%; object-fit:cover; flex:none; }
+  .lb-av.ph{ display:grid; place-items:center; background:var(--stu-line); font-size:.72rem; font-weight:700; color:var(--muted); }
+  .lb-name{ flex:1; min-width:0; font-weight:600; font-size:.9rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .lb-streak{ flex:none; font-size:.78rem; color:var(--muted); }
+  .lb-pts{ flex:none; font-weight:800; font-variant-numeric:tabular-nums; font-size:.86rem; color:var(--accent-ink); }
+  .lb-me-sep{ border-top:1px dashed var(--stu-line); margin:.35rem 0 0; }
+  .lb-full{ margin-top:.7rem; background:transparent; border:1px solid var(--stu-line); border-radius:999px;
+    padding:.45rem .8rem; font-weight:700; font-size:.85rem; cursor:pointer; color:var(--accent-ink); }
+  .lb-full:hover{ background:var(--stu-soft); }
+
   /* sections */
   .stu-sec{ margin:0 0 1.8rem; }
   .stu-sec-h{ display:flex; align-items:baseline; justify-content:space-between; gap:1rem; margin:0 0 1rem; }
@@ -2403,7 +2431,10 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         ${googleNotice}
         <div class="tabpane" data-tab="home">
           ${streakBar}
-          ${stuHero}
+          <div class="stu-hero-wrap">
+            ${stuHero}
+            <aside class="stu-lb" id="hero-lb"><p class="empty" style="margin:0; font-size:.85rem;">Đang tải xếp hạng…</p></aside>
+          </div>
           <div class="search-wrap">
             <input id="hub-search" placeholder="${esc(t("search_ph"))}" autocomplete="off" />
             <div id="search-results" class="search-results" style="display:none;"></div>
@@ -2733,6 +2764,78 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         loadBoard();
       }
       mountRanking();
+
+      /* ---- Compact leaderboard in the hero (Phase 119) — 🏫 Lớp / 🌐 Toàn hệ
+         thống, Top 5 + vị trí của bạn nếu ngoài Top 5. Chỉ lấy đúng dữ liệu cần
+         (RPC giới hạn 5 dòng + hạng của mình) — không tải cả CSDL học viên. Ẩn
+         gọn nếu chưa chạy migration77/78 (hero tự chiếm toàn chiều rộng). */
+      async function mountHeroLeaderboard() {
+        const box = document.getElementById("hero-lb");
+        if (!box) return;
+        let myCls = [];
+        try {
+          const cs = await sb.from("class_students").select("class_id").eq("student_id", user.id);
+          const ids = (cs.data || []).map(r => r.class_id);
+          if (ids.length) { const cl = await sb.from("classes").select("id, name").in("id", ids); myCls = cl.data || []; }
+        } catch (e) {}
+        let tab = myCls.length ? "class" : "all";
+        let clsId = myCls.length ? myCls[0].id : null;
+
+        async function draw() {
+          const pClass = tab === "class" ? clsId : null;
+          let lb, mr;
+          try {
+            [lb, mr] = await Promise.all([
+              sb.rpc("points_leaderboard", { p_scope: "all", p_class: pClass, p_limit: 5 }),
+              sb.rpc("my_points_rank", { p_scope: "all", p_class: pClass })
+            ]);
+          } catch (e) { box.style.display = "none"; return; }
+          if (lb.error) { box.style.display = "none"; return; }   // chưa migrate → ẩn
+          const list = lb.data || [];
+          const me = mr.error ? null : mr.data;
+          const inTop = list.some(r => r.student_id === user.id);
+          const rowHtml = r => `
+            <div class="lb-row${r.student_id === user.id ? " me" : ""}">
+              <span class="lb-rank">${Number(r.rank) <= 3 ? ["🥇", "🥈", "🥉"][Number(r.rank) - 1] : r.rank}</span>
+              ${r.avatar_url ? `<img class="lb-av" src="${esc(r.avatar_url)}" alt="" />` : `<span class="lb-av ph">${esc(String(r.full_name || "?").charAt(0).toUpperCase())}</span>`}
+              <span class="lb-name">${esc(r.full_name || "—")}${r.student_id === user.id ? " (bạn)" : ""}</span>
+              ${r.current_streak ? `<span class="lb-streak">🔥${r.current_streak}</span>` : ""}
+              <span class="lb-pts">${r.points}</span>
+            </div>`;
+          const rows = list.map(rowHtml).join("") ||
+            `<p class="empty" style="margin:.3rem 0; font-size:.84rem;">Chưa có ai có điểm. Luyện tập để dẫn đầu!</p>`;
+          const meRow = (me && !inTop && me.points > 0) ? `
+            <div class="lb-me-sep"></div>
+            <div class="lb-row me"><span class="lb-rank">${me.rank}</span>
+              <span class="lb-name">Bạn</span>
+              <span class="lb-pts">${me.points}</span></div>` : "";
+          const clsSel = (tab === "class" && myCls.length > 1) ? `
+            <div class="stu-lb-cls"><select id="lb-cls">${myCls.map(c =>
+              `<option value="${c.id}"${c.id === clsId ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select></div>` : "";
+          box.style.display = "";
+          box.innerHTML = `
+            <div class="stu-lb-head">
+              <b>🏆 Xếp hạng</b>
+              <div class="stu-lb-tabs">
+                <button class="lb-tab${tab === "class" ? " on" : ""}" data-scope="class"${myCls.length ? "" : " disabled"}>🏫 Lớp</button>
+                <button class="lb-tab${tab === "all" ? " on" : ""}" data-scope="all">🌐 Toàn hệ thống</button>
+              </div>
+            </div>
+            ${clsSel}
+            <div class="stu-lb-list">${rows}</div>
+            ${meRow}
+            <button class="lb-full">Xem bảng đầy đủ →</button>`;
+          box.querySelectorAll(".lb-tab").forEach(b => b.addEventListener("click", () => {
+            if (b.hasAttribute("disabled")) return; tab = b.getAttribute("data-scope"); draw();
+          }));
+          const sel = box.querySelector("#lb-cls"); if (sel) sel.addEventListener("change", () => { clsId = sel.value; draw(); });
+          const full = box.querySelector(".lb-full"); if (full) full.addEventListener("click", () => {
+            const el = document.getElementById("rank-card"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+          });
+        }
+        draw();
+      }
+      mountHeroLeaderboard();
 
       document.getElementById("p-save").addEventListener("click", async () => {
         const m = document.getElementById("p-msg");
