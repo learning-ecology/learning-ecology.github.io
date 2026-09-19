@@ -1551,6 +1551,7 @@ const Practice={
     const pct=total?Math.round(correct/total*100):0;
     Progress.set(this.lid,{correct,total,pct});
     this.recordAttempt(correct,total,pct);
+    this.reportRanking(correct,total,pct);
     const emoji=pct>=90?'🏆':pct>=70?'🎉':pct>=50?'👍':'💪';
     const isEn=this.lesson.language==='en';
     const pubs=isEn?Store.enLessonsBySub(this.cid)
@@ -1616,6 +1617,20 @@ const Practice={
         score:pct, time_spent_sec:secs, completed_at:new Date().toISOString()
       });
     }catch(e){ /* bỏ qua nếu chưa chạy migration71 hoặc mạng lỗi */ }
+  },
+  /* Gửi sự kiện CHUẨN vào hệ thống xếp hạng dùng chung (Phase 118). Máy chủ
+     tự tính điểm công bằng + chống gian lận; không chặn màn hình kết quả nếu
+     bảng ranking chưa tạo. Chỉ cho học viên đã đăng nhập (khách không tính). */
+  async reportRanking(correct,total,pct){
+    try{
+      if(!DB || VP.GUEST || !VP.USER) return;
+      const secs=Math.max(0, Math.round((Date.now()-(this._startedAt||Date.now()))/1000));
+      await DB.rpc('record_learning_event', {
+        p_source:'vocab', p_event:'activity_completed', p_ref:this.lid,
+        p_correct:correct, p_total:total, p_seconds:secs,
+        p_meta:{ course:this.cid, pct, lang:(this.lesson&&this.lesson.language)||'zh' }
+      });
+    }catch(e){ /* migration77 chưa chạy / mạng lỗi — bỏ qua */ }
   },
   unitFromKey(k){
     const [kind,id]=[k.slice(0,k.indexOf(':')),k.slice(k.indexOf(':')+1)];

@@ -1945,7 +1945,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
 
       // ---- weekly class leaderboard (opt-out in Profile) ----
       const lbCard = (lbRows && lbRows.length && lbRows.some(r => r.xp > 0)) ? `
-        <div class="card" style="border-top:4px solid var(--gold);">
+        <div class="card" id="lb-old" style="border-top:4px solid var(--gold);">
           <h2>🏆 ${t("lb_title")}</h2>
           <p class="kind" style="margin:0 0 0.4rem;">${t("lb_hint")}</p>
           ${lbRows.map((r, i) => `
@@ -2414,7 +2414,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           <section class="stu-sec" id="stu-tools"><div class="stu-sec-h"><h2>${t("learning_tools") || "Công cụ học tập"}</h2></div>
             ${stuTools}</section>
           <div class="stu-more"><div class="stu-more-grid">
-            ${schedCard}${statsCard}${lbCard}${annCard}
+            ${schedCard}<div id="rank-card"></div>${statsCard}${lbCard}${annCard}
           </div></div>
         </div>
         <div class="tabpane" data-tab="courses">
@@ -2655,6 +2655,85 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       }
       mountStudentFlashcardHomework();
 
+      /* ---- Điểm & Xếp hạng thống nhất (Phase 118) — dùng student_points +
+         student_streaks + RPC points_leaderboard/my_points_rank. Nếu chưa chạy
+         migration77 thì ẩn thẻ này, giữ nguyên leaderboard cũ (không vỡ gì). */
+      async function mountRanking() {
+        const box = document.getElementById("rank-card");
+        if (!box) return;
+        let spRes, ssRes;
+        try {
+          [spRes, ssRes] = await Promise.all([
+            sb.from("student_points").select("source, points, correct, incorrect, seconds, activities").eq("student_id", user.id),
+            sb.from("student_streaks").select("current, longest").eq("student_id", user.id).maybeSingle()
+          ]);
+        } catch (e) { return; }
+        if (spRes.error) return;   // migration77 chưa chạy → giữ leaderboard cũ
+        const old = document.getElementById("lb-old"); if (old) old.style.display = "none";
+        const rows = spRes.data || [];
+        const bySource = {}; let totalP = 0, totalSec = 0, totalAct = 0, totC = 0, totI = 0;
+        rows.forEach(r => {
+          const s = r.source || "other";
+          const b = bySource[s] = bySource[s] || { points: 0, seconds: 0, activities: 0, correct: 0, incorrect: 0 };
+          b.points += r.points; b.seconds += r.seconds; b.activities += r.activities; b.correct += r.correct; b.incorrect += r.incorrect;
+          totalP += r.points; totalSec += r.seconds; totalAct += r.activities; totC += r.correct; totI += r.incorrect;
+        });
+        const acc = (totC + totI) > 0 ? Math.round(totC / (totC + totI) * 100) : 0;
+        const cur = ssRes && ssRes.data && ssRes.data.current || 0;
+        const lng = ssRes && ssRes.data && ssRes.data.longest || 0;
+        const SRC = { vocab: "Luyện từ vựng", flashcards: "Flashcards", lesson: "Bài học", other: "Khác" };
+        const fmtMin = s => { const m = Math.round(s / 60); return m >= 60 ? Math.floor(m / 60) + "h " + (m % 60) + "m" : m + " phút"; };
+        let scope = "all";
+        const scopeBtns = () => ["all", "week", "month"].map(k =>
+          `<button class="ghost rk-scope" data-k="${k}" style="width:auto;padding:.3rem .6rem;font-size:.82rem;${scope === k ? "background:var(--gold,#b7823f);color:#fff;border-color:transparent;" : ""}">${k === "all" ? "Tổng" : k === "week" ? "Tuần" : "Tháng"}</button>`).join("");
+        async function loadBoard() {
+          const bd = document.getElementById("rk-board"); if (bd) bd.innerHTML = `<p class="empty" style="margin:.4rem 0;">Đang tải…</p>`;
+          const [lb, mr] = await Promise.all([
+            sb.rpc("points_leaderboard", { p_scope: scope, p_class: null, p_limit: 15 }),
+            sb.rpc("my_points_rank", { p_scope: scope, p_class: null })
+          ]);
+          const list = lb.error ? [] : (lb.data || []);
+          const me = mr.error ? null : mr.data;
+          const inList = list.some(r => r.student_id === user.id);
+          const rowsHtml = list.map(r => `
+            <div class="lesson" style="padding:.45rem .4rem;${r.student_id === user.id ? " background:rgba(183,130,63,0.09);border-radius:8px;" : ""}">
+              <span style="width:1.7rem;text-align:center;font-weight:800;flex:none;">${Number(r.rank) <= 3 ? ["🥇", "🥈", "🥉"][Number(r.rank) - 1] : r.rank}</span>
+              ${r.avatar_url ? `<img src="${esc(r.avatar_url)}" alt="" style="width:26px;height:26px;border-radius:50%;object-fit:cover;flex:none;" />` : `<span style="width:26px;height:26px;border-radius:50%;background:var(--line);display:grid;place-items:center;font-size:.72rem;font-weight:700;color:var(--muted);flex:none;">${esc(String(r.full_name || "?").charAt(0).toUpperCase())}</span>`}
+              <div class="meta"><div class="title" style="font-weight:600;">${esc(r.full_name || "—")}${r.student_id === user.id ? ` <span class="pill done">Bạn</span>` : ""} ${r.current_streak ? `<span class="kind">🔥 ${r.current_streak}</span>` : ""}</div></div>
+              <span class="pill todo">${r.points} điểm</span>
+            </div>`).join("") || `<p class="empty" style="margin:.4rem 0;">Chưa có điểm nào trong khoảng này. Hãy luyện tập để lên bảng xếp hạng!</p>`;
+          const meHtml = (me && !inList && me.points > 0) ? `
+            <div class="lesson" style="padding:.45rem .4rem;background:rgba(183,130,63,0.09);border-radius:8px;margin-top:.3rem;">
+              <span style="width:1.7rem;text-align:center;font-weight:800;flex:none;">${me.rank}</span>
+              <div class="meta"><div class="title" style="font-weight:600;">Bạn <span class="pill done">vị trí của bạn</span></div></div>
+              <span class="pill todo">${me.points} điểm</span></div>` : "";
+          const b2 = document.getElementById("rk-board"); if (b2) b2.innerHTML = rowsHtml + meHtml;
+        }
+        box.innerHTML = `
+          <div class="card" style="border-top:4px solid var(--gold,#b7823f);">
+            <h2>🏆 Điểm &amp; Xếp hạng</h2>
+            <div class="stat-grid" style="margin:.2rem 0 .5rem;">
+              ${statx("⭐ Tổng điểm", totalP)}
+              ${statx("🔥 Chuỗi ngày", cur, lng > cur ? "kỷ lục " + lng : "")}
+              ${statx("⏱ Thời gian", fmtMin(totalSec))}
+              ${statx("✅ Hoạt động", totalAct)}
+              ${statx("🎯 Chính xác", acc + "%")}
+            </div>
+            ${Object.keys(bySource).length ? `<div class="kind" style="margin:.2rem 0;">Điểm theo hệ thống:</div>
+              <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.5rem;">${Object.entries(bySource).sort((a, b) => b[1].points - a[1].points).map(([s, b]) => `<span class="pill">${esc(SRC[s] || s)}: <b>${b.points}</b></span>`).join("")}</div>` : ""}
+            <div style="display:flex;gap:.35rem;flex-wrap:wrap;align-items:center;margin:.3rem 0;"><b style="font-size:.95rem;">Bảng xếp hạng lớp</b><span style="flex:1;"></span><span id="rk-scopes">${scopeBtns()}</span></div>
+            <div id="rk-board"></div>
+          </div>`;
+        box.querySelector("#rk-scopes").addEventListener("click", e => {
+          const b = e.target.closest(".rk-scope"); if (!b) return;
+          scope = b.getAttribute("data-k");
+          box.querySelector("#rk-scopes").innerHTML = scopeBtns();
+          loadBoard();
+        });
+        loadBoard();
+      }
+      mountRanking();
+
       document.getElementById("p-save").addEventListener("click", async () => {
         const m = document.getElementById("p-msg");
         const full_name = document.getElementById("p-name").value.trim() || null;
@@ -2846,7 +2925,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         const cs = myCards.filter(k => k.course_id === courseId);
         const due = cs.filter(k => revBy[k.id] && revBy[k.id].due_on <= fcToday);
         const fresh = cs.filter(k => !revBy[k.id]).slice(0, NEW_PER_DAY);
-        runReview([...due, ...fresh].sort(() => Math.random() - 0.5));
+        runReview([...due, ...fresh].sort(() => Math.random() - 0.5), "deck:" + courseId);
       }
       // Assigned set: study the WHOLE set (due/new first, then the rest) so
       // the student can reach 100% of the bộ thẻ đã giao.
@@ -2854,16 +2933,32 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         const due = cardList.filter(k => revBy[k.id] && revBy[k.id].due_on <= fcToday);
         const fresh = cardList.filter(k => !revBy[k.id]);
         const rest = cardList.filter(k => revBy[k.id] && revBy[k.id].due_on > fcToday);
-        runReview([...due, ...fresh, ...rest]);
+        runReview([...due, ...fresh, ...rest], "deck:" + ((cardList[0] && cardList[0].course_id) || "set"));
       }
-      function runReview(queueIn) {
+      function runReview(queueIn, ref) {
         const queue = (queueIn || []).slice();
         if (!queue.length) return;
         let doneN = 0;
+        const sessTotal = queue.length;         // distinct cards at start (Phase 118)
+        const startedAt = Date.now();
+        let graded = 0, reported = false;
         const ov = document.createElement("div");
         ov.className = "cert-overlay";
         document.body.appendChild(ov);
-        const finish = () => { ov.remove(); renderStudent(); };
+        // báo MỘT sự kiện chuẩn vào hệ thống xếp hạng khi kết thúc phiên ôn thẻ;
+        // máy chủ tự tính điểm công bằng (không chặn UI nếu migration77 chưa chạy).
+        const report = () => {
+          if (reported || graded < 1) return;
+          reported = true;
+          const secs = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
+          try {
+            sb.rpc("record_learning_event", {
+              p_source: "flashcards", p_event: "activity_completed", p_ref: ref || "session",
+              p_correct: doneN, p_total: sessTotal, p_seconds: secs, p_meta: {}
+            }).then(() => {}, () => {});
+          } catch (e) {}
+        };
+        const finish = () => { report(); ov.remove(); renderStudent(); };
 
         function show() {
           if (!queue.length) {
@@ -2923,6 +3018,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             sb.from("flashcard_reviews")
               .upsert(rec, { onConflict: "student_id,card_id" }).then(() => {});
             queue.shift();
+            graded++;                       // đã chấm một thẻ (Phase 118)
             if (g < 3) queue.push(card);   // failed → comes back this session
             else doneN++;
             show();
@@ -4650,6 +4746,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         </div>
 
         <div class="tabpane" data-tab="progress">
+        <div id="rank-owner"></div>
         <div id="tests-root"></div>
         <div class="card">
           <div class="card-head">
@@ -5858,6 +5955,110 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       })();
       // =============== HẾT NHẮC BÀI TẬP ===============
 
+      // ============ ĐIỂM & TƯƠNG TÁC HỌC VIÊN (Phase 118) ============
+      // Chủ sở hữu theo dõi mức độ tham gia: điểm, thời gian học tích cực, số
+      // hoạt động, độ chính xác, chuỗi ngày — lọc theo Lớp · Hệ thống · Khoảng
+      // thời gian. Đọc từ student_points/student_streaks (RLS cho staff đọc hết);
+      // KHÔNG tạo dữ liệu mới — chỉ tổng hợp.
+      (function () {
+        const R = { pts: [], streaks: {}, classOf: {}, classes: {}, loaded: false, failed: false };
+        let f = { class: "all", source: "all", days: "all", q: "" };
+        const SRC = { vocab: "Luyện từ vựng", flashcards: "Flashcards", lesson: "Bài học", other: "Khác" };
+        const fmtMin = s => { const m = Math.round(s / 60); return m >= 60 ? Math.floor(m / 60) + "h " + (m % 60) + "m" : m + "m"; };
+
+        async function load() {
+          const [sp, ss, cs, cl] = await Promise.all([
+            sb.from("student_points").select("student_id, source, day, points, correct, incorrect, seconds, activities"),
+            sb.from("student_streaks").select("student_id, current, longest"),
+            sb.from("class_students").select("class_id, student_id"),
+            sb.from("classes").select("id, name")
+          ]);
+          if (sp.error) { R.failed = true; return; }
+          R.pts = sp.data || [];
+          (ss.data || []).forEach(r => R.streaks[r.student_id] = r);
+          (cs.data || []).forEach(r => { (R.classOf[r.student_id] = R.classOf[r.student_id] || []).push(r.class_id); });
+          (cl.data || []).forEach(c => R.classes[c.id] = c.name);
+          R.loaded = true;
+        }
+
+        function agg() {
+          const fromDay = f.days === "all" ? "0000-00-00"
+            : (() => { const d = new Date(); d.setDate(d.getDate() - (f.days === "7" ? 6 : 29)); return d.toISOString().slice(0, 10); })();
+          const per = {};
+          R.pts.forEach(r => {
+            if (f.source !== "all" && (r.source || "other") !== f.source) return;
+            if (f.days !== "all" && r.day < fromDay) return;
+            if (f.class !== "all" && !(R.classOf[r.student_id] || []).includes(f.class)) return;
+            const p = per[r.student_id] = per[r.student_id] || { sid: r.student_id, points: 0, seconds: 0, activities: 0, correct: 0, incorrect: 0, last: "" };
+            p.points += r.points; p.seconds += r.seconds; p.activities += r.activities;
+            p.correct += r.correct; p.incorrect += r.incorrect;
+            if (r.day > p.last) p.last = r.day;
+          });
+          const nameOf = id => { const s = (onlyStudents || []).find(x => x.id === id); return s ? (s.full_name || s.email || "—") : id.slice(0, 8); };
+          const classNames = id => (R.classOf[id] || []).map(c => R.classes[c]).filter(Boolean).join(", ");
+          let list = Object.values(per).map(p => ({ ...p, name: nameOf(p.sid), cls: classNames(p.sid), acc: (p.correct + p.incorrect) > 0 ? Math.round(p.correct / (p.correct + p.incorrect) * 100) : 0, streak: (R.streaks[p.sid] || {}).current || 0 }));
+          if (f.q) { const q = f.q.trim().toLowerCase(); list = list.filter(x => (x.name + " " + x.cls).toLowerCase().includes(q)); }
+          list.sort((a, b) => b.points - a.points);
+          return list;
+        }
+
+        function paint() {
+          const box = document.getElementById("rank-owner");
+          if (!box) return;
+          if (R.failed) { box.innerHTML = `<div class="card"><p class="empty">Chưa chạy <b>migration77_ranking.sql</b> — chạy trong SQL Editor để bật hệ thống điểm & xếp hạng.</p></div>`; return; }
+          if (!R.loaded) { box.innerHTML = `<div class="card"><p class="empty">Đang tải điểm…</p></div>`; return; }
+          const list = agg();
+          const totP = list.reduce((s, x) => s + x.points, 0), totSec = list.reduce((s, x) => s + x.seconds, 0), totAct = list.reduce((s, x) => s + x.activities, 0);
+          const classOpts = Object.entries(R.classes).sort((a, b) => a[1].localeCompare(b[1]));
+          const rows = list.map((x, i) => `
+            <tr>
+              <td style="text-align:center;">${i + 1}</td>
+              <td data-th="Học viên">${esc(x.name)}</td>
+              <td data-th="Lớp">${esc(x.cls || "—")}</td>
+              <td data-th="Điểm" style="text-align:center;"><b>${x.points}</b></td>
+              <td data-th="Thời gian" style="text-align:center;">${fmtMin(x.seconds)}</td>
+              <td data-th="Hoạt động" style="text-align:center;">${x.activities}</td>
+              <td data-th="Chính xác" style="text-align:center;">${x.acc}%</td>
+              <td data-th="Chuỗi" style="text-align:center;">${x.streak ? "🔥 " + x.streak : "—"}</td>
+              <td data-th="Gần nhất" style="white-space:nowrap;">${x.last || "—"}</td>
+            </tr>`).join("");
+          box.innerHTML = `
+            <div class="card">
+              <div class="card-head"><h2>🏆 Điểm &amp; tương tác học viên</h2>
+                <button class="ghost" id="rko-refresh" style="width:auto;padding:.35rem .7rem;font-size:.85rem;">↻ Làm mới</button></div>
+              <div class="stat-grid" style="margin:.2rem 0 .5rem;">
+                <div class="stat"><div class="k">Học viên có điểm</div><div class="v">${list.length}</div></div>
+                <div class="stat"><div class="k">Tổng điểm</div><div class="v">${totP}</div></div>
+                <div class="stat"><div class="k">Thời gian học</div><div class="v">${fmtMin(totSec)}</div></div>
+                <div class="stat"><div class="k">Hoạt động</div><div class="v">${totAct}</div></div>
+              </div>
+              <div class="form-row" style="margin-bottom:.5rem;">
+                <div class="field" style="max-width:200px;"><label>Lớp</label>
+                  <select id="rko-class"><option value="all">Tất cả lớp</option>${classOpts.map(([id, n]) => `<option value="${id}"${f.class === id ? " selected" : ""}>${esc(n)}</option>`).join("")}</select></div>
+                <div class="field" style="max-width:180px;"><label>Hệ thống</label>
+                  <select id="rko-source"><option value="all">Tất cả</option>${Object.entries(SRC).map(([k, v]) => `<option value="${k}"${f.source === k ? " selected" : ""}>${esc(v)}</option>`).join("")}</select></div>
+                <div class="field" style="max-width:150px;"><label>Thời gian</label>
+                  <select id="rko-days"><option value="all"${f.days === "all" ? " selected" : ""}>Tất cả</option><option value="30"${f.days === "30" ? " selected" : ""}>30 ngày</option><option value="7"${f.days === "7" ? " selected" : ""}>7 ngày</option></select></div>
+                <div class="field"><label>Tìm học viên</label><input id="rko-q" value="${esc(f.q)}" placeholder="Tên học viên…" autocomplete="off" /></div>
+              </div>
+              <div style="overflow-x:auto;"><table class="stackable" style="width:100%;font-size:.9rem;">
+                <thead><tr><th>#</th><th>Học viên</th><th>Lớp</th><th>Điểm</th><th>Thời gian</th><th>Hoạt động</th><th>Chính xác</th><th>Chuỗi</th><th>Gần nhất</th></tr></thead>
+                <tbody>${rows || `<tr><td colspan="9" class="empty">Chưa có dữ liệu điểm khớp bộ lọc.</td></tr>`}</tbody></table></div>
+            </div>`;
+          const g = id => box.querySelector("#" + id);
+          if (g("rko-class")) g("rko-class").onchange = () => { f.class = g("rko-class").value; paint(); };
+          if (g("rko-source")) g("rko-source").onchange = () => { f.source = g("rko-source").value; paint(); };
+          if (g("rko-days")) g("rko-days").onchange = () => { f.days = g("rko-days").value; paint(); };
+          if (g("rko-q")) g("rko-q").oninput = () => { const pos = g("rko-q").selectionStart; f.q = g("rko-q").value; paint(); const el = box.querySelector("#rko-q"); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) {} } };
+          if (g("rko-refresh")) g("rko-refresh").onclick = async () => { R.loaded = false; paint(); await load(); paint(); };
+        }
+
+        window.__rankOwnerInit = async function () {
+          if (R.loaded || R.failed) { paint(); return; }
+          paint(); await load(); paint();
+        };
+      })();
+
       /* ================= KẾT QUẢ BÀI THI (Phase 36) =================
          Đọc bảng test_attempts (RLS đã giới hạn theo quyền). Mỗi lần học viên
          nộp là MỘT dòng — giữ toàn bộ lịch sử. Chấm điểm ở máy chủ, nên bảng
@@ -6278,6 +6479,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         if (t === "visib" && window.__visibInit) window.__visibInit();
         if (t === "classes" && window.__ocInit) window.__ocInit();
         if (t === "reminders" && window.__remInit) window.__remInit();
+        if (t === "progress" && window.__rankOwnerInit) window.__rankOwnerInit();
         app.querySelectorAll(".tabpane").forEach(p =>
           p.classList.toggle("show", p.getAttribute("data-tab") === t));
         document.querySelectorAll("#subnav .sn-item[data-id]").forEach(b =>
