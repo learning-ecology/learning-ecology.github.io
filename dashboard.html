@@ -5869,21 +5869,25 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
 
         function ruleEditor(h) {
           const r = D.rules[h.id] || {};
+          const cfg = {
+            notify_on_assign: r.notify_on_assign !== false,
+            auto_enabled: !!r.auto_enabled,
+            interval_hours: r.interval_hours || 5,
+            levels: (Array.isArray(r.levels) && r.levels.length) ? r.levels : REM_SYS_DEFAULT().levels
+          };
           return `
             <div class="card" style="border-left:4px solid var(--tone-teal,#0d9488); margin:.6rem 0;">
-              <label style="font-weight:700; display:flex; gap:.5rem; align-items:center;">
-                <input type="checkbox" id="rem-auto-on" ${r.auto_enabled ? "checked" : ""} /> Tự động nhắc bài này</label>
-              <p class="kind" style="margin:.4rem 0; text-transform:none; letter-spacing:0;">Máy chủ kiểm tra định kỳ; trước mỗi email luôn kiểm tra lại — ai đã hoàn thành thì KHÔNG gửi. Mỗi luật gửi tối đa một lần / học viên.</p>
-              <div class="form-row">
-                <div class="field" style="max-width:190px;"><label>Trước hạn (số ngày)</label><input type="number" min="0" id="rem-before" value="${r.before_days != null ? r.before_days : ""}" placeholder="tắt" /></div>
-                <label style="align-self:center; font-size:.9rem;"><input type="checkbox" id="rem-ondue" ${r.on_due ? "checked" : ""} /> Đúng hạn</label>
-                <label style="align-self:center; font-size:.9rem;"><input type="checkbox" id="rem-overdue" ${r.on_overdue ? "checked" : ""} /> Khi quá hạn</label>
-                <div class="field" style="max-width:190px;"><label>Sau hạn (số ngày)</label><input type="number" min="0" id="rem-after" value="${r.after_days != null ? r.after_days : ""}" placeholder="tắt" /></div>
-                <button id="rem-save-rule" data-id="${h.id}" style="align-self:flex-end;">💾 Lưu luật</button>
+              <div style="display:flex; gap:.6rem; align-items:center; flex-wrap:wrap;">
+                <b>Cài đặt nhắc bài</b><span style="flex:1;"></span>
+                <label style="font-size:.9rem;"><input type="checkbox" id="rmk-paused" ${r.paused ? "checked" : ""}/> ⏸ Tạm dừng nhắc</label>
               </div>
-              <p class="msg" id="rem-rule-msg"></p>
+              <p class="kind" style="margin:.3rem 0; text-transform:none; letter-spacing:0;">Máy chủ kiểm tra định kỳ; trước mỗi email luôn kiểm tra lại — ai đã hoàn thành/quá hạn/tạm dừng thì KHÔNG gửi. Mỗi mức gửi tối đa một lần / học viên.</p>
+              <div id="rmk-r-embed">${remPanelHtml("rmk", cfg)}</div>
+              <div class="form-row" style="margin-top:.3rem;"><button class="rem-save-rule" data-id="${h.id}">💾 Lưu cài đặt nhắc</button><span class="msg" id="rem-rule-msg"></span></div>
             </div>`;
         }
+        // wire the embedded panel each time a detail (with the editor) is shown
+        function wireDetailPanel() { if (view.openId) { try { wireRemPanel("rmk", "rmk-nodue"); } catch (e) {} } }
 
         function detailPanel(h) {
           const rows = view.rows[h.id];
@@ -6004,7 +6008,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               <thead><tr><th>Bài</th><th>Lớp</th><th>Hạn</th><th>Sĩ số</th><th>Xong</th><th>Chưa xong</th><th>Tự động</th><th>Nhắc gần nhất</th><th></th></tr></thead>
               <tbody>${overviewRows}</tbody></table></div>`;
         }
-        function renderList() { const el = document.getElementById("rem-list"); if (el) el.innerHTML = overviewTable(); }
+        function renderList() { const el = document.getElementById("rem-list"); if (el) { el.innerHTML = overviewTable(); wireDetailPanel(); } }
         function bindFilters() {
           const box = document.getElementById("rem-root"); if (!box) return;
           const fc = box.querySelector("#rem-f-class"), fl = box.querySelector("#rem-f-lesson"),
@@ -6038,6 +6042,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
                     <option value="slides"${flt.type === "slides" ? " selected" : ""}>HSK Slides</option>
                     <option value="vocab"${flt.type === "vocab" ? " selected" : ""}>Luyện từ vựng</option>
                     <option value="flashcards"${flt.type === "flashcards" ? " selected" : ""}>Flashcards</option>
+                    <option value="ctg"${flt.type === "ctg" ? " selected" : ""}>Đề kiểm tra</option>
                   </select></div>
                 <div class="field"><label>Tìm kiếm</label>
                   <input id="rem-f-q" value="${esc(flt.q)}" placeholder="Tên bài · tên lớp…" autocomplete="off" /></div>
@@ -6046,6 +6051,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             </div>
             ${historyCard()}`;
           bindFilters();
+          wireDetailPanel();
         }
 
         async function openDetail(hwId) {
@@ -6086,18 +6092,21 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           if (!error) D.email = patch;
         }
         async function saveRule(hwId) {
-          const box = document.getElementById("rem-root");
-          const g = id => box.querySelector("#" + id);
-          const bd = g("rem-before").value.trim(), ad = g("rem-after").value.trim();
-          const patch = { homework_id: hwId, auto_enabled: g("rem-auto-on").checked,
-            before_days: bd === "" ? null : Math.max(0, parseInt(bd, 10) || 0),
-            on_due: g("rem-ondue").checked, on_overdue: g("rem-overdue").checked,
-            after_days: ad === "" ? null : Math.max(0, parseInt(ad, 10) || 0),
+          const rem = remPanelRead("rmk");
+          const pausedEl = document.getElementById("rmk-paused");
+          const patch = { homework_id: hwId,
+            notify_on_assign: rem.notify_on_assign,
+            auto_enabled: rem.auto_enabled,
+            interval_hours: rem.auto_enabled ? rem.interval_hours : null,
+            levels: rem.levels,
+            paused: pausedEl ? pausedEl.checked : false,
+            // the interval/level model supersedes the legacy day-rules for this row
+            before_days: null, on_due: false, on_overdue: false, after_days: null,
             updated_at: new Date().toISOString(), updated_by: user.id };
-          const m = g("rem-rule-msg");
+          const m = document.getElementById("rem-rule-msg");
           const { error } = await sb.from("homework_reminder_settings").upsert(patch, { onConflict: "homework_id" });
-          if (m) { m.textContent = error ? "Lỗi: " + error.message : "Đã lưu luật ✓"; m.className = "msg" + (error ? " err" : ""); }
-          if (!error) { D.rules[hwId] = patch; }
+          if (m) { m.textContent = error ? "Lỗi: " + error.message : "Đã lưu cài đặt ✓"; m.className = "msg" + (error ? " err" : ""); }
+          if (!error) { D.rules[hwId] = Object.assign({}, D.rules[hwId], patch); }
         }
 
         async function onClick(e) {
@@ -10252,11 +10261,168 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       })();
 
       // ================= GIAO BÀI TẬP (Homework) — Phase 80 / Phase 101 =========
-      // Chủ/giáo viên giao một bài cho lớp (hoặc chọn học viên). MỘT hàm dùng
-      // chung cho cả HSK Slides (kind='slides') và Luyện từ vựng (kind='vocab')
-      // — cùng bảng hsk_homework, cùng quy trình, chỉ khác cột `kind`, danh sách
-      // bài (getLessons) và tiền tố id trên giao diện (prefix). Học viên thấy ở
-      // Bảng điều khiển → Bài tập; điểm/tiến độ lưu trong hsk_attempts.
+      /* ===== Panel "Email thông báo & nhắc bài" (Phase 121) — NHÚNG vào MỌI
+         form giao bài (Slides/Vocab/CTG qua mountAssignCard + Flashcards qua
+         mountFcAssign). Dùng lại hệ nhắc bài Phase 115/116: cùng bảng
+         homework_reminder_settings + edge function send-reminders. Mặc định lấy
+         từ reminder_defaults (owner tự lưu được). */
+      const REM_PH = ["{{student_name}}","{{class_name}}","{{assignment_name}}","{{due_date}}","{{time_remaining}}","{{assignment_link}}"];
+      const REM_SYS_DEFAULT = () => ({
+        notify_on_assign: true, auto_enabled: true, interval_hours: 5, deadline_shortcut: "1w",
+        levels: [
+          { level: 1, enabled: true, subject: "Nhắc nhẹ: {{assignment_name}}",
+            message: "Chào {{student_name}},\n\nBạn còn bài \"{{assignment_name}}\" (lớp {{class_name}}) chưa hoàn thành. Hạn nộp: {{due_date}} (còn {{time_remaining}}).\nDành ít phút làm nốt nhé: {{assignment_link}}\n\nCố lên! · Learning Ecology" },
+          { level: 2, enabled: true, subject: "Nhắc lại: {{assignment_name}} — đừng quên nhé",
+            message: "Chào {{student_name}},\n\nBài \"{{assignment_name}}\" (lớp {{class_name}}) vẫn chưa hoàn thành, hạn {{due_date}} (còn {{time_remaining}}).\nHãy tranh thủ hoàn thành sớm nhé: {{assignment_link}}\n\nLearning Ecology" },
+          { level: 3, enabled: true, subject: "Khẩn: sắp hết hạn \"{{assignment_name}}\"",
+            message: "Chào {{student_name}},\n\nBài \"{{assignment_name}}\" (lớp {{class_name}}) SẮP HẾT HẠN: {{due_date}} — chỉ còn {{time_remaining}}.\nHãy hoàn thành ngay hôm nay nhé: {{assignment_link}}\n\nBạn làm được mà! · Learning Ecology" }
+        ]
+      });
+      let __remDefaults = null;
+      async function remDefaults() {
+        if (__remDefaults) return __remDefaults;
+        try { const r = await sb.from("reminder_defaults").select("config").eq("id", 1).maybeSingle();
+          __remDefaults = (r.data && r.data.config) || REM_SYS_DEFAULT(); }
+        catch (e) { __remDefaults = REM_SYS_DEFAULT(); }
+        return __remDefaults;
+      }
+      const remLevel = (cfg, n) => (cfg.levels || []).find(x => x.level === n) || { level: n, enabled: true, subject: "", message: "" };
+      function remPanelHtml(prefix, cfg) {
+        const iv = cfg.interval_hours || 5; const ivPreset = [3, 5, 7].includes(iv);
+        const lvBlock = n => { const l = remLevel(cfg, n); const nm = ["Mức 1 — Nhắc nhẹ", "Mức 2 — Nhắc lại", "Mức 3 — Khẩn"][n - 1];
+          return `<details style="margin:.4rem 0; border:1px solid var(--line); border-radius:8px; padding:.35rem .6rem;">
+            <summary style="cursor:pointer;"><b>${nm}</b> <label style="font-weight:400; margin-left:.4rem;"><input type="checkbox" class="${prefix}-r-lvon" data-lv="${n}" ${l.enabled ? "checked" : ""}/> bật</label></summary>
+            <div class="field" style="margin-top:.3rem;"><label>Tiêu đề</label><input class="${prefix}-r-lvsub" data-lv="${n}" value="${esc(l.subject || "")}"/></div>
+            <div class="field"><label>Nội dung</label><textarea class="${prefix}-r-lvmsg" data-lv="${n}" style="min-height:78px; font-family:var(--mono); font-size:.82rem;">${esc(l.message || "")}</textarea></div>
+          </details>`; };
+        return `
+          <details class="card" style="border-left:4px solid var(--tone-teal,#0d9488); margin:.6rem 0 0;" open>
+            <summary style="cursor:pointer; font-weight:700;">✉️ Email thông báo &amp; nhắc bài <span class="kind" style="font-weight:400;">(đã chọn sẵn — sửa nếu cần)</span></summary>
+            <label style="display:block; margin:.5rem 0;"><input type="checkbox" id="${prefix}-r-notify" ${cfg.notify_on_assign ? "checked" : ""}/> <b>Gửi email thông báo ngay khi giao bài</b> <span class="pill" style="font-size:.7rem;">mặc định</span></label>
+            <label style="display:block; margin:.4rem 0;"><input type="checkbox" id="${prefix}-r-auto" ${cfg.auto_enabled ? "checked" : ""}/> <b>Tự động nhắc học viên chưa hoàn thành</b> <span class="pill" style="font-size:.7rem;">mặc định</span></label>
+            <div class="form-row" style="align-items:flex-end;">
+              <div class="field" style="max-width:200px;"><label>Khoảng nhắc</label>
+                <select id="${prefix}-r-ivsel">
+                  <option value="3" ${iv === 3 ? "selected" : ""}>Mỗi 3 giờ</option>
+                  <option value="5" ${iv === 5 ? "selected" : ""}>Mỗi 5 giờ</option>
+                  <option value="7" ${iv === 7 ? "selected" : ""}>Mỗi 7 giờ</option>
+                  <option value="custom" ${!ivPreset ? "selected" : ""}>Tùy chỉnh…</option></select></div>
+              <div class="field" style="max-width:120px; ${ivPreset ? "display:none;" : ""}" id="${prefix}-r-ivcustom-wrap"><label>Số giờ</label>
+                <input type="number" min="1" max="168" id="${prefix}-r-ivcustom" value="${iv}"/></div>
+            </div>
+            ${[1, 2, 3].map(lvBlock).join("")}
+            <p class="kind" style="text-transform:none; letter-spacing:0; margin:.3rem 0;">Placeholder: ${REM_PH.map(p => "<code>" + p + "</code>").join(" ")}</p>
+            <div id="${prefix}-r-summary" class="kind" style="text-transform:none; letter-spacing:0;"></div>
+            <div class="form-row" style="margin-top:.3rem;">
+              <button class="ghost" id="${prefix}-r-savedef" type="button">💾 Lưu làm thiết lập mặc định</button>
+              <button class="ghost" id="${prefix}-r-restore" type="button">↺ Khôi phục mặc định</button>
+              <span class="msg" id="${prefix}-r-msg"></span>
+            </div>
+          </details>`;
+      }
+      function remPanelRead(prefix) {
+        const g = s => document.getElementById(prefix + s);
+        const ivsel = g("-r-ivsel").value;
+        const iv = ivsel === "custom" ? Math.max(1, Math.min(168, parseInt(g("-r-ivcustom").value, 10) || 5)) : parseInt(ivsel, 10);
+        const qa = (cls, n) => document.querySelector("." + prefix + cls + '[data-lv="' + n + '"]');
+        const levels = [1, 2, 3].map(n => ({ level: n, enabled: qa("-r-lvon", n).checked, subject: qa("-r-lvsub", n).value, message: qa("-r-lvmsg", n).value }));
+        return { notify_on_assign: g("-r-notify").checked, auto_enabled: g("-r-auto").checked, interval_hours: iv, levels };
+      }
+      // gắn: khoảng-nhắc tùy chỉnh, nút mốc hạn nộp, lưu/khôi phục mặc định
+      function wireRemPanel(prefix, dueInputId) {
+        const g = s => document.getElementById(prefix + s);
+        const ivsel = g("-r-ivsel"), ivWrap = g("-r-ivcustom-wrap");
+        if (ivsel) ivsel.onchange = () => { ivWrap.style.display = ivsel.value === "custom" ? "" : "none"; };
+        // deadline shortcuts next to the due field
+        const due = document.getElementById(dueInputId);
+        if (due && !document.getElementById(prefix + "-r-dl")) {
+          const bar = document.createElement("div");
+          bar.id = prefix + "-r-dl"; bar.style.cssText = "display:flex; gap:.3rem; flex-wrap:wrap; margin-top:.3rem;";
+          const setDue = days => { const d = new Date(); d.setDate(d.getDate() + days); d.setHours(23, 59, 0, 0);
+            const p = n => String(n).padStart(2, "0");
+            due.value = d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + "T" + p(d.getHours()) + ":" + p(d.getMinutes()); };
+          [["3 ngày", 3], ["1 tuần", 7], ["2 tuần", 14]].forEach(([lb, n]) => {
+            const b = document.createElement("button"); b.type = "button"; b.className = "ghost"; b.textContent = lb;
+            b.style.cssText = "width:auto; padding:.25rem .55rem; font-size:.8rem;"; b.onclick = () => setDue(n); bar.appendChild(b);
+          });
+          const c = document.createElement("button"); c.type = "button"; c.className = "ghost"; c.textContent = "Tùy chỉnh";
+          c.style.cssText = "width:auto; padding:.25rem .55rem; font-size:.8rem;"; c.onclick = () => due.focus(); bar.appendChild(c);
+          due.parentElement.appendChild(bar);
+          // apply the default deadline shortcut once (only if empty)
+          if (!due.value && __remDefaults && __remDefaults.deadline_shortcut) {
+            const map = { "3d": 3, "1w": 7, "2w": 14 }; if (map[__remDefaults.deadline_shortcut]) setDue(map[__remDefaults.deadline_shortcut]);
+          }
+        }
+        const sd = g("-r-savedef"), rs = g("-r-restore"), msg = g("-r-msg");
+        if (sd) sd.onclick = async () => {
+          const cfg = Object.assign(remPanelRead(prefix), { deadline_shortcut: (__remDefaults && __remDefaults.deadline_shortcut) || "1w" });
+          const { error } = await sb.from("reminder_defaults").upsert({ id: 1, config: cfg, updated_at: new Date().toISOString(), updated_by: user.id }, { onConflict: "id" });
+          __remDefaults = error ? __remDefaults : cfg;
+          if (msg) { msg.textContent = error ? "Lỗi: " + error.message : "Đã lưu làm mặc định ✓"; msg.className = "msg" + (error ? " err" : ""); }
+        };
+        if (rs) rs.onclick = () => {
+          const emb = g("-r-embed"); if (emb) { emb.innerHTML = remPanelHtml(prefix, REM_SYS_DEFAULT()); wireRemPanel(prefix, dueInputId); }
+        };
+      }
+      // nhúng panel vào một form giao bài (tạo container nếu chưa có)
+      async function remEmbedInto(prefix, saveBtn) {
+        const cfg = await remDefaults();
+        let emb = document.getElementById(prefix + "-r-embed");
+        if (!emb && saveBtn && saveBtn.parentElement) { emb = document.createElement("div"); emb.id = prefix + "-r-embed"; saveBtn.parentElement.insertAdjacentElement("beforebegin", emb); }
+        if (emb) { emb.innerHTML = remPanelHtml(prefix, cfg); wireRemPanel(prefix, prefix + "-due"); }
+      }
+      // số học viên được giao + số có email nhận thông báo (cho hộp xác nhận)
+      async function remTargetsInfo(class_id, student_ids) {
+        if (!class_id) return { total: 0, valid: 0 };
+        const cs = await sb.from("class_students").select("student_id").eq("class_id", class_id);
+        let ids = (cs.data || []).map(r => r.student_id);
+        if (student_ids && student_ids.length) { const set = new Set(student_ids); ids = ids.filter(x => set.has(x)); }
+        if (!ids.length) return { total: 0, valid: 0 };
+        const pr = await sb.from("profiles").select("notification_email").in("id", ids);
+        return { total: ids.length, valid: (pr.data || []).filter(p => p.notification_email).length };
+      }
+      async function remSaveSettings(homeworkId, rem) {
+        try { await sb.from("homework_reminder_settings").upsert({
+          homework_id: homeworkId, auto_enabled: rem.auto_enabled, interval_hours: rem.interval_hours,
+          levels: rem.levels, notify_on_assign: rem.notify_on_assign, paused: false,
+          before_days: null, on_due: false, on_overdue: false, after_days: null,
+          updated_at: new Date().toISOString(), updated_by: user.id }, { onConflict: "homework_id" }); }
+        catch (e) { /* migration80 chưa chạy → bỏ qua, phần giao bài vẫn xong */ }
+      }
+      async function remNotify(homeworkId) {
+        try {
+          const { data: { session } } = await sb.auth.getSession();
+          const res = await fetch(SUPABASE_URL + "/functions/v1/send-reminders", {
+            method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.access_token, apikey: SUPABASE_ANON_KEY },
+            body: JSON.stringify({ mode: "notify", homework_id: homeworkId }) });
+          return await res.json().catch(() => ({}));
+        } catch (e) { return {}; }
+      }
+      // hộp xác nhận + lưu settings + gửi thông báo ngay (dùng chung cho mọi form)
+      async function remConfirmAndFinish(prefix, class_id, student_ids, dueIso, doInsert) {
+        const rem = remPanelRead(prefix);
+        const info = await remTargetsInfo(class_id, student_ids);
+        const dueTxt = dueIso ? new Date(dueIso).toLocaleString("vi-VN") : "không đặt";
+        const noMail = info.total - info.valid;
+        const ok = window.UI ? await UI.confirmDialog({
+          title: "Xác nhận giao bài & thông báo", okText: "Giao bài",
+          body: `<b>${info.total}</b> học viên được giao · <b>${info.valid}</b> có email nhận thông báo`
+            + (noMail ? ` · <span style="color:var(--danger)">${noMail} chưa kết nối Google (không nhận email)</span>` : "")
+            + `.<br>${rem.notify_on_assign ? "✉️ Gửi email thông báo <b>ngay</b>" : "Không gửi thông báo ngay"}`
+            + ` · ${rem.auto_enabled ? `🔁 Tự nhắc mỗi <b>${rem.interval_hours} giờ</b> (3 mức)` : "Không tự nhắc"}`
+            + `.<br>Hạn nộp: <b>${esc(dueTxt)}</b>. Tiến độ được theo dõi tự động.`
+        }) : true;
+        if (!ok) return false;
+        const data = await doInsert();           // caller inserts hsk_homework, returns the row (or null on error)
+        if (!data) return false;
+        await remSaveSettings(data.id, rem);
+        if (rem.notify_on_assign) {
+          const out = await remNotify(data.id);
+          if (window.UI) UI.toast("Đã giao bài · email thông báo: gửi " + (out.sent || 0) + (out.no_email ? " · " + out.no_email + " chưa có email" : ""));
+        } else if (window.UI) UI.toast("Đã giao bài ✓");
+        return true;
+      }
+
       function mountAssignCard(prefix, kind, getLessons, migHint) {
         const card = document.getElementById(prefix + "-card");
         if (!card) return;
@@ -10301,6 +10467,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           lessonRows = lrows || [];
           fillLessons();
           renderList();
+          remEmbedInto(prefix, btnSave);   // panel Email thông báo & nhắc bài (Phase 121)
         }
 
         async function loadMembers(classId) {
@@ -10375,35 +10542,34 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             if (!student_ids.length) { say("Hãy chọn ít nhất một học viên, hoặc chuyển sang 'Cả lớp'.", true); return; }
           }
           const cls = classes.find(c => c.id === class_id);
+          const dueIso = inDue.value ? new Date(inDue.value).toISOString() : null;
           const row = {
             org_id: (cls && cls.org_id) || null,
             class_id, lesson_id, kind,
             title: inTitle.value.trim(),
             student_ids,
             start_at: inStart.value ? new Date(inStart.value).toISOString() : null,
-            due_at: inDue.value ? new Date(inDue.value).toISOString() : null,
+            due_at: dueIso,
             required_score: Math.max(0, Math.min(100, Number(inScore.value) || 0)),
             max_attempts: Math.max(0, Number(inTries.value) || 0),
             created_by: user.id
           };
-          say("Đang lưu…");
-          let { data, error } = await sb.from("hsk_homework").insert(row).select().single();
-          // Nếu chưa chạy migration71 (chưa có cột kind) mà đang giao bài SLIDES,
-          // thử lại không kèm kind để không làm hỏng luồng cũ.
-          if (error && /column .*kind.* does not exist/i.test(error.message) && kind === "slides") {
-            const { kind: _drop, ...row2 } = row;
-            ({ data, error } = await sb.from("hsk_homework").insert(row2).select().single());
-          }
-          if (error) {
-            const needMig = /relation .* does not exist/i.test(error.message) || /column .*kind.* does not exist/i.test(error.message);
-            say(error.message + (needMig ? " — hình như chưa chạy " + migHint + "." : ""), true);
-            return;
-          }
-          hwRows.unshift(data);
-          renderList();
-          inTitle.value = ""; inStart.value = ""; inDue.value = "";
-          selStu.selectedIndex = -1;
-          say("Đã giao bài ✓");
+          const done = await remConfirmAndFinish(prefix, class_id, student_ids, dueIso, async () => {
+            say("Đang lưu…");
+            let { data, error } = await sb.from("hsk_homework").insert(row).select().single();
+            if (error && /column .*kind.* does not exist/i.test(error.message) && kind === "slides") {
+              const { kind: _drop, ...row2 } = row;
+              ({ data, error } = await sb.from("hsk_homework").insert(row2).select().single());
+            }
+            if (error) {
+              const needMig = /relation .* does not exist/i.test(error.message) || /column .*kind.* does not exist/i.test(error.message);
+              say(error.message + (needMig ? " — hình như chưa chạy " + migHint + "." : ""), true);
+              return null;
+            }
+            hwRows.unshift(data); renderList();
+            return data;
+          });
+          if (done) { inTitle.value = ""; inStart.value = ""; inDue.value = ""; selStu.selectedIndex = -1; say("Đã giao bài ✓"); }
         });
 
         listBox.addEventListener("click", async e => {
@@ -13844,6 +14010,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           fillCourses();
           fillLessons();
           renderList();
+          remEmbedInto("fhw", btnSave);   // panel Email thông báo & nhắc bài (Phase 121)
         }
         async function loadMembers(classId) {
           if (!classId) { selStu.innerHTML = ""; return; }
@@ -13912,26 +14079,27 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             if (!student_ids.length) { say("Hãy chọn ít nhất một học viên, hoặc chuyển sang 'Cả lớp'.", true); return; }
           }
           const cls = classes.find(c => c.id === class_id);
+          const dueIso = inDue.value ? new Date(inDue.value).toISOString() : null;
           const row = {
             org_id: (cls && cls.org_id) || null,
             class_id, kind: "flashcards", course_id: cid, lesson_id: lv, card_ids,
             title: inTitle.value.trim(), student_ids,
             start_at: inStart.value ? new Date(inStart.value).toISOString() : null,
-            due_at: inDue.value ? new Date(inDue.value).toISOString() : null,
+            due_at: dueIso,
             created_by: user.id
           };
-          say("Đang lưu…");
-          const { data, error } = await sb.from("hsk_homework").insert(row).select().single();
-          if (error) {
-            const needMig = /does not exist/i.test(error.message) || /column/i.test(error.message);
-            say(error.message + (needMig ? " — hình như chưa chạy " + migHint + "." : ""), true);
-            return;
-          }
-          hwRows.unshift(data);
-          renderList();
-          inTitle.value = ""; inStart.value = ""; inDue.value = "";
-          selStu.selectedIndex = -1;
-          say("Đã giao bộ thẻ ✓");
+          const done = await remConfirmAndFinish("fhw", class_id, student_ids, dueIso, async () => {
+            say("Đang lưu…");
+            const { data, error } = await sb.from("hsk_homework").insert(row).select().single();
+            if (error) {
+              const needMig = /does not exist/i.test(error.message) || /column/i.test(error.message);
+              say(error.message + (needMig ? " — hình như chưa chạy " + migHint + "." : ""), true);
+              return null;
+            }
+            hwRows.unshift(data); renderList();
+            return data;
+          });
+          if (done) { inTitle.value = ""; inStart.value = ""; inDue.value = ""; selStu.selectedIndex = -1; say("Đã giao bộ thẻ ✓"); }
         });
 
         listBox.addEventListener("click", async e => {
