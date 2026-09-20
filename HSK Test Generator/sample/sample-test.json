@@ -1,0 +1,620 @@
+{
+  "schemaVersion": 1,
+  "testId": "test_c4dd4c2d",
+  "title": "Sample Chinese Test (Units 1–4)",
+  "createdAt": "2026-09-19T11:22:07.869Z",
+  "seed": null,
+  "settings": {
+    "randomize": true,
+    "pinyinDefaultOn": false,
+    "allowPinyinToggle": true,
+    "pinyinScopes": {
+      "passages": true,
+      "questions": true,
+      "sentences": true,
+      "options": true
+    }
+  },
+  "lessonIds": [
+    "L1",
+    "L2",
+    "L3",
+    "L4"
+  ],
+  "sections": [
+    {
+      "id": "sec_329654da",
+      "type": "pinyin_choice",
+      "label": "Choose the Correct Pinyin",
+      "order": 1,
+      "items": [
+        {
+          "id": "PY2",
+          "type": "pinyin_choice",
+          "answerId": "PY2-o0",
+          "options": [
+            {
+              "id": "PY2-o3",
+              "text": "lǎoshì"
+            },
+            {
+              "id": "PY2-o2",
+              "text": "láoshì"
+            },
+            {
+              "id": "PY2-o1",
+              "text": "lāoshī"
+            },
+            {
+              "id": "PY2-o0",
+              "text": "lǎoshī"
+            }
+          ],
+          "explanation": "老 third tone, 师 first tone.",
+          "hanzi": "老师"
+        },
+        {
+          "id": "PY4",
+          "type": "pinyin_choice",
+          "answerId": "PY4-o0",
+          "options": [
+            {
+              "id": "PY4-o0",
+              "text": "túshūguǎn"
+            },
+            {
+              "id": "PY4-o1",
+              "text": "tǔshūguǎn"
+            },
+            {
+              "id": "PY4-o2",
+              "text": "túshuguǎn"
+            },
+            {
+              "id": "PY4-o3",
+              "text": "túshūguàn"
+            }
+          ],
+          "explanation": "馆 is third tone: guǎn.",
+          "hanzi": "图书馆"
+        },
+        {
+          "id": "PY5",
+          "type": "pinyin_choice",
+          "answerId": "PY5-o0",
+          "options": [
+            {
+              "id": "PY5-o2",
+              "text": "xiānzài"
+            },
+            {
+              "id": "PY5-o0",
+              "text": "xiànzài"
+            },
+            {
+              "id": "PY5-o1",
+              "text": "xiǎnzài"
+            },
+            {
+              "id": "PY5-o3",
+              "text": "xiànzǎi"
+            }
+          ],
+          "explanation": "Both syllables are fourth tone.",
+          "hanzi": "现在"
+        },
+        {
+          "id": "PY1",
+          "type": "pinyin_choice",
+          "answerId": "PY1-o0",
+          "options": [
+            {
+              "id": "PY1-o2",
+              "text": "zōngguó"
+            },
+            {
+              "id": "PY1-o1",
+              "text": "zhòngguó"
+            },
+            {
+              "id": "PY1-o0",
+              "text": "zhōngguó"
+            },
+            {
+              "id": "PY1-o3",
+              "text": "zhōnggǔo"
+            }
+          ],
+          "explanation": "中 is first tone: zhōng.",
+          "hanzi": "中国"
+        },
+        {
+          "id": "PY3",
+          "type": "pinyin_choice",
+          "answerId": "PY3-o0",
+          "options": [
+            {
+              "id": "PY3-o0",
+              "text": "xièxie"
+            },
+            {
+              "id": "PY3-o3",
+              "text": "xièxue"
+            },
+            {
+              "id": "PY3-o2",
+              "text": "xiéxie"
+            },
+            {
+              "id": "PY3-o1",
+              "text": "xièxiè"
+            }
+          ],
+          "explanation": "The second 谢 is neutral tone: xie.",
+          "hanzi": "谢谢"
+        }
+      ],
+      "maxPoints": 5
+    },
+    {
+      "id": "sec_fed1e453",
+      "type": "meaning_match",
+      "label": "Meaning Matching",
+      "order": 2,
+      "items": [
+        {
+          "id": "MS1",
+          "type": "meaning_match",
+          "left": [
+            {
+              "pairId": "MS1-p4",
+              "chinese": "再见",
+              "pinyin": "zàijiàn"
+            },
+            {
+              "pairId": "MS1-p1",
+              "chinese": "老师",
+              "pinyin": "lǎoshī"
+            },
+            {
+              "pairId": "MS1-p3",
+              "chinese": "谢谢",
+              "pinyin": "xièxie"
+            },
+            {
+              "pairId": "MS1-p2",
+              "chinese": "学生",
+              "pinyin": "xuésheng"
+            },
+            {
+              "pairId": "MS1-p0",
+              "chinese": "你好",
+              "pinyin": "nǐ hǎo"
+            }
+          ],
+          "right": [
+            {
+              "id": "MS1-p4",
+              "meaning": "Tạm biệt"
+            },
+            {
+              "id": "MS1-p0",
+              "meaning": "Xin chào"
+            },
+            {
+              "id": "MS1-p3",
+              "meaning": "Cảm ơn"
+            },
+            {
+              "id": "MS1-p2",
+              "meaning": "Học sinh"
+            },
+            {
+              "id": "MS1-p1",
+              "meaning": "Giáo viên"
+            }
+          ],
+          "explanation": ""
+        },
+        {
+          "id": "MS2",
+          "type": "meaning_match",
+          "left": [
+            {
+              "pairId": "MS2-p1",
+              "chinese": "水",
+              "pinyin": "shuǐ"
+            },
+            {
+              "pairId": "MS2-p2",
+              "chinese": "茶",
+              "pinyin": "chá"
+            },
+            {
+              "pairId": "MS2-p0",
+              "chinese": "米饭",
+              "pinyin": "mǐfàn"
+            },
+            {
+              "pairId": "MS2-p3",
+              "chinese": "苹果",
+              "pinyin": "píngguǒ"
+            }
+          ],
+          "right": [
+            {
+              "id": "MS2-p3",
+              "meaning": "Táo"
+            },
+            {
+              "id": "MS2-p2",
+              "meaning": "Trà"
+            },
+            {
+              "id": "MS2-p0",
+              "meaning": "Cơm"
+            },
+            {
+              "id": "MS2-p1",
+              "meaning": "Nước"
+            }
+          ],
+          "explanation": ""
+        }
+      ],
+      "maxPoints": 9
+    },
+    {
+      "id": "sec_f3778ca6",
+      "type": "mcq",
+      "label": "Multiple Choice",
+      "order": 3,
+      "items": [
+        {
+          "id": "MC3",
+          "type": "mcq",
+          "answerId": "MC3-o1",
+          "options": [
+            {
+              "id": "MC3-o1",
+              "text": "三点",
+              "pinyin": "sān diǎn"
+            },
+            {
+              "id": "MC3-o2",
+              "text": "三岁",
+              "pinyin": "sān suì"
+            },
+            {
+              "id": "MC3-o3",
+              "text": "三本",
+              "pinyin": "sān běn"
+            },
+            {
+              "id": "MC3-o0",
+              "text": "三个",
+              "pinyin": "sān gè"
+            }
+          ],
+          "explanation": "点 is the measure word for clock time.",
+          "prompt": "现在几点？ ______",
+          "promptPinyin": "Xiànzài jǐ diǎn?"
+        },
+        {
+          "id": "MC4",
+          "type": "mcq",
+          "answerId": "MC4-o1",
+          "options": [
+            {
+              "id": "MC4-o0",
+              "text": "我叫王芳。",
+              "pinyin": "Wǒ jiào Wáng Fāng."
+            },
+            {
+              "id": "MC4-o3",
+              "text": "不客气。",
+              "pinyin": "Bú kèqi."
+            },
+            {
+              "id": "MC4-o2",
+              "text": "再见。",
+              "pinyin": "Zàijiàn."
+            },
+            {
+              "id": "MC4-o1",
+              "text": "我很好，谢谢。",
+              "pinyin": "Wǒ hěn hǎo, xièxie."
+            }
+          ],
+          "explanation": "你好吗？ asks how you are; the natural reply is 我很好，谢谢。",
+          "prompt": "A: 你好吗？\nB: ______",
+          "promptPinyin": "A: Nǐ hǎo ma?"
+        },
+        {
+          "id": "MC2",
+          "type": "mcq",
+          "answerId": "MC2-o0",
+          "options": [
+            {
+              "id": "MC2-o1",
+              "text": "很",
+              "pinyin": "hěn"
+            },
+            {
+              "id": "MC2-o0",
+              "text": "是",
+              "pinyin": "shì"
+            },
+            {
+              "id": "MC2-o3",
+              "text": "有",
+              "pinyin": "yǒu"
+            },
+            {
+              "id": "MC2-o2",
+              "text": "在",
+              "pinyin": "zài"
+            }
+          ],
+          "explanation": "是 links a noun to identity: 我是学生 (I am a student).",
+          "prompt": "我 ______ 学生。",
+          "promptPinyin": "Wǒ ______ xuésheng."
+        },
+        {
+          "id": "MC1",
+          "type": "mcq",
+          "answerId": "MC1-o0",
+          "options": [
+            {
+              "id": "MC1-o1",
+              "text": "我很好。",
+              "pinyin": "Wǒ hěn hǎo."
+            },
+            {
+              "id": "MC1-o2",
+              "text": "谢谢。",
+              "pinyin": "Xièxie."
+            },
+            {
+              "id": "MC1-o0",
+              "text": "我叫李明。",
+              "pinyin": "Wǒ jiào Lǐ Míng."
+            },
+            {
+              "id": "MC1-o3",
+              "text": "再见。",
+              "pinyin": "Zàijiàn."
+            }
+          ],
+          "explanation": "The question asks for a name, so the reply gives a name.",
+          "prompt": "A: 你叫什么名字？\nB: ______",
+          "promptPinyin": "A: Nǐ jiào shénme míngzi?"
+        }
+      ],
+      "maxPoints": 4
+    },
+    {
+      "id": "sec_f7d84907",
+      "type": "sentence_arrange",
+      "label": "Sentence Arrangement",
+      "order": 4,
+      "items": [
+        {
+          "id": "SA1",
+          "type": "sentence_arrange",
+          "chunks": [
+            {
+              "id": "SA1-c3",
+              "text": "起床",
+              "pinyin": "qǐchuáng"
+            },
+            {
+              "id": "SA1-c2",
+              "text": "七点",
+              "pinyin": "qī diǎn"
+            },
+            {
+              "id": "SA1-c1",
+              "text": "每天",
+              "pinyin": "měitiān"
+            },
+            {
+              "id": "SA1-c0",
+              "text": "我",
+              "pinyin": "wǒ"
+            }
+          ],
+          "correctOrder": [
+            "SA1-c0",
+            "SA1-c1",
+            "SA1-c2",
+            "SA1-c3"
+          ],
+          "meaning": "Tôi thức dậy lúc 7 giờ mỗi ngày.",
+          "explanation": "Time-of-day comes before the verb."
+        },
+        {
+          "id": "SA2",
+          "type": "sentence_arrange",
+          "chunks": [
+            {
+              "id": "SA2-c3",
+              "text": "中文",
+              "pinyin": "zhōngwén"
+            },
+            {
+              "id": "SA2-c2",
+              "text": "我的",
+              "pinyin": "wǒde"
+            },
+            {
+              "id": "SA2-c4",
+              "text": "老师",
+              "pinyin": "lǎoshī"
+            },
+            {
+              "id": "SA2-c0",
+              "text": "她",
+              "pinyin": "tā"
+            },
+            {
+              "id": "SA2-c1",
+              "text": "是",
+              "pinyin": "shì"
+            }
+          ],
+          "correctOrder": [
+            "SA2-c0",
+            "SA2-c1",
+            "SA2-c2",
+            "SA2-c3",
+            "SA2-c4"
+          ],
+          "meaning": "Cô ấy là giáo viên tiếng Trung của tôi.",
+          "explanation": ""
+        },
+        {
+          "id": "SA3",
+          "type": "sentence_arrange",
+          "chunks": [
+            {
+              "id": "SA3-c3",
+              "text": "商店",
+              "pinyin": "shāngdiàn"
+            },
+            {
+              "id": "SA3-c1",
+              "text": "明天",
+              "pinyin": "míngtiān"
+            },
+            {
+              "id": "SA3-c0",
+              "text": "我们",
+              "pinyin": "wǒmen"
+            },
+            {
+              "id": "SA3-c2",
+              "text": "去",
+              "pinyin": "qù"
+            }
+          ],
+          "correctOrder": [
+            "SA3-c0",
+            "SA3-c1",
+            "SA3-c2",
+            "SA3-c3"
+          ],
+          "meaning": "Ngày mai chúng tôi đi cửa hàng.",
+          "explanation": "Subject + time + verb + place."
+        }
+      ],
+      "maxPoints": 3
+    },
+    {
+      "id": "sec_f75aa652",
+      "type": "reading",
+      "label": "Reading Comprehension",
+      "order": 5,
+      "items": [
+        {
+          "id": "RP1",
+          "type": "reading",
+          "title": "我的一天",
+          "passage": "我叫王芳。我是学生。我每天七点起床，八点去学校。我喜欢学习中文。下午我常常去图书馆看书。晚上我在家吃饭，然后做作业。",
+          "passagePinyin": "Wǒ jiào Wáng Fāng. Wǒ shì xuésheng. Wǒ měitiān qī diǎn qǐchuáng, bā diǎn qù xuéxiào. Wǒ xǐhuan xuéxí zhōngwén. Xiàwǔ wǒ chángcháng qù túshūguǎn kàn shū. Wǎnshang wǒ zài jiā chīfàn, ránhòu zuò zuòyè.",
+          "questions": [
+            {
+              "id": "RQ2",
+              "prompt": "王芳是做什么的？",
+              "promptPinyin": "Wáng Fāng shì zuò shénme de?",
+              "answerId": "RQ2-o1",
+              "options": [
+                {
+                  "id": "RQ2-o3",
+                  "text": "司机",
+                  "pinyin": "sījī"
+                },
+                {
+                  "id": "RQ2-o2",
+                  "text": "医生",
+                  "pinyin": "yīshēng"
+                },
+                {
+                  "id": "RQ2-o1",
+                  "text": "学生",
+                  "pinyin": "xuésheng"
+                },
+                {
+                  "id": "RQ2-o0",
+                  "text": "老师",
+                  "pinyin": "lǎoshī"
+                }
+              ],
+              "explanation": "“我是学生。”"
+            },
+            {
+              "id": "RQ3",
+              "prompt": "下午王芳常常去哪儿？",
+              "promptPinyin": "Xiàwǔ Wáng Fāng chángcháng qù nǎr?",
+              "answerId": "RQ3-o2",
+              "options": [
+                {
+                  "id": "RQ3-o2",
+                  "text": "图书馆",
+                  "pinyin": "túshūguǎn"
+                },
+                {
+                  "id": "RQ3-o1",
+                  "text": "商店",
+                  "pinyin": "shāngdiàn"
+                },
+                {
+                  "id": "RQ3-o3",
+                  "text": "家",
+                  "pinyin": "jiā"
+                },
+                {
+                  "id": "RQ3-o0",
+                  "text": "学校",
+                  "pinyin": "xuéxiào"
+                }
+              ],
+              "explanation": "“下午我常常去图书馆看书。”"
+            },
+            {
+              "id": "RQ1",
+              "prompt": "王芳几点起床？",
+              "promptPinyin": "Wáng Fāng jǐ diǎn qǐchuáng?",
+              "answerId": "RQ1-o1",
+              "options": [
+                {
+                  "id": "RQ1-o2",
+                  "text": "八点",
+                  "pinyin": "bā diǎn"
+                },
+                {
+                  "id": "RQ1-o1",
+                  "text": "七点",
+                  "pinyin": "qī diǎn"
+                },
+                {
+                  "id": "RQ1-o0",
+                  "text": "六点",
+                  "pinyin": "liù diǎn"
+                },
+                {
+                  "id": "RQ1-o3",
+                  "text": "九点",
+                  "pinyin": "jiǔ diǎn"
+                }
+              ],
+              "explanation": "文中说“我每天七点起床”。"
+            }
+          ]
+        }
+      ],
+      "maxPoints": 3
+    }
+  ],
+  "maxPoints": 24
+}

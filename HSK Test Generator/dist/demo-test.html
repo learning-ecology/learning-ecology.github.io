@@ -1,0 +1,1297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chinese Test</title>
+<meta name="description" content="Take a Chinese test.">
+<style>
+/* ============================================================================
+ * common.css — shared design tokens, base elements, pinyin rendering, buttons,
+ * cards, forms. Loaded by both the teacher app and the student player.
+ * ==========================================================================*/
+:root {
+  --red: #c62828;
+  --red-dark: #a01c1c;
+  --red-soft: #fdecec;
+  --ink: #1f2328;
+  --ink-soft: #4a5158;
+  --muted: #7a828b;
+  --line: #e4e7eb;
+  --line-strong: #cdd2d8;
+  --bg: #f6f7f9;
+  --card: #ffffff;
+  --ok: #2e7d32;
+  --ok-soft: #e8f5e9;
+  --bad: #c62828;
+  --bad-soft: #fdecec;
+  --warn: #b26a00;
+  --warn-soft: #fff4e0;
+  --accent: #1565c0;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 1px 3px rgba(20,25,35,.08), 0 4px 16px rgba(20,25,35,.05);
+  --shadow-lg: 0 8px 30px rgba(20,25,35,.14);
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --cn-font: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", var(--font);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --red: #ff6b6b; --red-dark: #ff8787; --red-soft: #3a2020;
+    --ink: #e9edf1; --ink-soft: #c2c9d1; --muted: #8b939c;
+    --line: #2c313a; --line-strong: #3a4049;
+    --bg: #14171c; --card: #1c2027;
+    --ok: #7bd88f; --ok-soft: #1e2e21; --bad: #ff8080; --bad-soft: #3a2020;
+    --warn: #ffc46b; --warn-soft: #33280f; --accent: #6ba8ff;
+    --shadow: 0 1px 3px rgba(0,0,0,.4); --shadow-lg: 0 8px 30px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"] {
+  --red: #ff6b6b; --red-dark: #ff8787; --red-soft: #3a2020;
+  --ink: #e9edf1; --ink-soft: #c2c9d1; --muted: #8b939c;
+  --line: #2c313a; --line-strong: #3a4049;
+  --bg: #14171c; --card: #1c2027;
+  --ok: #7bd88f; --ok-soft: #1e2e21; --bad: #ff8080; --bad-soft: #3a2020;
+  --warn: #ffc46b; --warn-soft: #33280f; --accent: #6ba8ff;
+  --shadow: 0 1px 3px rgba(0,0,0,.4); --shadow-lg: 0 8px 30px rgba(0,0,0,.5);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font);
+  color: var(--ink);
+  background: var(--bg);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+}
+h1, h2, h3, h4 { line-height: 1.25; margin: 0 0 .4em; }
+a { color: var(--accent); }
+p { margin: 0 0 .8em; }
+small { color: var(--muted); }
+
+/* ---- layout ---- */
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+.wrap-narrow { max-width: 780px; margin: 0 auto; padding: 0 16px; }
+
+.appbar {
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 40;
+}
+.appbar .wrap, .appbar .wrap-narrow { display: flex; align-items: center; gap: 12px; min-height: 60px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
+.brand .logo {
+  width: 34px; height: 34px; border-radius: 9px;
+  background: linear-gradient(135deg, var(--red), var(--red-dark));
+  color: #fff; display: grid; place-items: center; font-size: 20px; font-family: var(--cn-font);
+}
+.appbar .spacer { flex: 1; }
+
+/* ---- cards ---- */
+.card {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 20px; margin: 16px 0;
+}
+.card h2 { font-size: 18px; }
+.card .card-hd { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.card .card-hd .num {
+  width: 26px; height: 26px; border-radius: 50%; background: var(--red-soft); color: var(--red);
+  display: grid; place-items: center; font-weight: 700; font-size: 14px; flex: none;
+}
+.hint { color: var(--muted); font-size: 14px; margin: 2px 0 14px; }
+
+/* ---- buttons ---- */
+.btn {
+  font: inherit; font-weight: 600; cursor: pointer;
+  border: 1px solid var(--line-strong); background: var(--card); color: var(--ink);
+  padding: 10px 16px; border-radius: var(--radius-sm); display: inline-flex; align-items: center; gap: 8px;
+  transition: background .12s, border-color .12s, transform .04s; text-decoration: none;
+}
+.btn:hover { border-color: var(--muted); }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn-primary { background: var(--red); border-color: var(--red); color: #fff; }
+.btn-primary:hover { background: var(--red-dark); border-color: var(--red-dark); }
+.btn-ghost { background: transparent; }
+.btn-sm { padding: 6px 12px; font-size: 14px; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 10px; }
+
+/* ---- forms ---- */
+label { font-weight: 600; font-size: 14px; }
+input[type="text"], input[type="number"], select, textarea {
+  font: inherit; color: var(--ink); background: var(--card);
+  border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
+  padding: 9px 11px; width: 100%;
+}
+input:focus, select:focus, textarea:focus { outline: 2px solid color-mix(in srgb, var(--red) 40%, transparent); outline-offset: 1px; }
+.field { margin-bottom: 14px; }
+.check { display: flex; align-items: center; gap: 9px; font-weight: 500; cursor: pointer; padding: 4px 0; }
+.check input { width: auto; }
+.grid { display: grid; gap: 14px; }
+.grid-2 { grid-template-columns: 1fr 1fr; }
+.grid-3 { grid-template-columns: repeat(3, 1fr); }
+
+/* ---- badges / pills ---- */
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; }
+.pill-red { background: var(--red-soft); color: var(--red); }
+.pill-ok { background: var(--ok-soft); color: var(--ok); }
+.pill-muted { background: var(--line); color: var(--ink-soft); }
+
+/* ---- Chinese + pinyin rendering ------------------------------------------
+   Pinyin sits on its own line above the Chinese. Toggling visibility only
+   hides the pinyin line; the Chinese never moves. */
+.cn { display: inline-flex; flex-direction: column; align-items: flex-start; vertical-align: bottom; }
+.cn-hz { font-family: var(--cn-font); }
+.cn-py { font-size: .72em; color: var(--red); line-height: 1.2; letter-spacing: .01em; min-height: 0; }
+.cn-block { }
+.cn-block-hz { font-family: var(--cn-font); font-size: 1.15em; line-height: 2; }
+.cn-block-py { color: var(--red); line-height: 1.7; margin-bottom: 6px; font-size: .95em; }
+/* hidden state */
+.pinyin-off .cn-py, .pinyin-off .cn-block-py { display: none; }
+
+/* ---- notices ---- */
+.notice { border-radius: var(--radius-sm); padding: 12px 14px; margin: 10px 0; font-size: 14.5px; border: 1px solid transparent; }
+.notice-ok { background: var(--ok-soft); color: var(--ok); border-color: color-mix(in srgb, var(--ok) 30%, transparent); }
+.notice-bad { background: var(--bad-soft); color: var(--bad); border-color: color-mix(in srgb, var(--bad) 30%, transparent); }
+.notice-warn { background: var(--warn-soft); color: var(--warn); border-color: color-mix(in srgb, var(--warn) 30%, transparent); }
+.notice-info { background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
+
+/* ---- tables ---- */
+table.data { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.data th, table.data td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.data th { color: var(--muted); font-size: 12.5px; text-transform: uppercase; letter-spacing: .03em; }
+
+/* ---- utility ---- */
+.muted { color: var(--muted); }
+.center { text-align: center; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+.hidden { display: none !important; }
+
+@media (max-width: 720px) {
+  .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  body { font-size: 15.5px; }
+}
+
+</style>
+<style>
+/* ============================================================================
+ * student.css — student test player + results.
+ * ==========================================================================*/
+.player-hd {
+  background: var(--card); border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 30;
+}
+.player-hd .wrap-narrow { display: flex; align-items: center; gap: 12px; min-height: 56px; }
+.player-hd .title { font-weight: 700; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.progress { height: 6px; background: var(--line); border-radius: 999px; overflow: hidden; }
+.progress > i { display: block; height: 100%; background: linear-gradient(90deg, var(--red), var(--red-dark)); width: 0; transition: width .25s; }
+
+.screen { min-height: 60vh; }
+.section-tag { font-size: 13px; font-weight: 700; color: var(--red); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+.qcounter { color: var(--muted); font-size: 14px; }
+
+.stem { font-size: 1.15em; margin: 6px 0 18px; }
+.stem .cn-hz { font-size: 1.1em; }
+.big-hanzi .cn-hz { font-size: 2.1em; font-weight: 600; }
+.big-hanzi { margin: 10px 0 22px; }
+
+/* options */
+.options { display: grid; gap: 10px; }
+.opt-btn {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  border: 1.5px solid var(--line-strong); background: var(--card); color: var(--ink);
+  border-radius: var(--radius-sm); padding: 13px 15px; cursor: pointer; font: inherit;
+  transition: border-color .12s, background .12s;
+}
+.opt-btn:hover { border-color: var(--muted); }
+.opt-btn .key {
+  width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid var(--line-strong);
+  display: grid; place-items: center; font-weight: 700; font-size: 14px; flex: none; color: var(--muted);
+}
+.opt-btn.sel { border-color: var(--red); background: var(--red-soft); }
+.opt-btn.sel .key { background: var(--red); color: #fff; border-color: var(--red); }
+.opt-btn .cn { }
+
+/* matching */
+.match-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+.match-row {
+  display: flex; align-items: center; gap: 12px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; background: var(--card);
+}
+.match-row .term { flex: 1; min-width: 0; font-weight: 600; }
+.match-row select { flex: 1; max-width: 55%; }
+
+/* sentence arrange */
+.arrange-answer {
+  min-height: 58px; border: 2px dashed var(--line-strong); border-radius: var(--radius-sm);
+  padding: 10px; display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; background: var(--bg);
+}
+.arrange-answer.empty::before { content: "Tap chunks below (in order) to build the sentence"; color: var(--muted); font-size: 14px; }
+.arrange-bank { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.chunk {
+  font-family: var(--cn-font); border: 1.5px solid var(--line-strong); background: var(--card);
+  border-radius: var(--radius-sm); padding: 8px 13px; cursor: pointer; user-select: none;
+  display: inline-flex; flex-direction: column; align-items: center; line-height: 1.3;
+}
+.chunk .py { font-size: .7em; color: var(--red); }
+.chunk.in-answer { border-color: var(--red); background: var(--red-soft); }
+.chunk.dragging { opacity: .4; }
+.chunk[draggable="true"] { cursor: grab; }
+
+/* reading */
+.passage {
+  background: var(--bg); border: 1px solid var(--line); border-left: 4px solid var(--red);
+  border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 18px;
+}
+.passage h3 { font-size: 16px; }
+.sub-q { margin: 18px 0; padding-top: 8px; border-top: 1px dashed var(--line); }
+.sub-q:first-of-type { border-top: 0; }
+.sub-q .sub-stem { font-weight: 600; margin-bottom: 10px; }
+
+/* nav */
+.nav-row { display: flex; align-items: center; gap: 10px; margin-top: 24px; }
+.nav-row .spacer { flex: 1; }
+.dots { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0; }
+.dot {
+  width: 30px; height: 30px; border-radius: 7px; border: 1px solid var(--line-strong); background: var(--card);
+  font-size: 12.5px; font-weight: 600; cursor: pointer; color: var(--ink-soft);
+}
+.dot.answered { border-color: var(--red); color: var(--red); }
+.dot.current { background: var(--red); color: #fff; border-color: var(--red); }
+
+/* modal */
+.modal-back { position: fixed; inset: 0; background: rgba(10,12,16,.5); display: grid; place-items: center; z-index: 100; padding: 16px; }
+.modal { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow-lg); max-width: 440px; width: 100%; padding: 24px; }
+
+/* start / results */
+.hero { text-align: center; padding: 34px 0 10px; }
+.hero .cn-badge { font-family: var(--cn-font); font-size: 40px; }
+.score-ring { text-align: center; margin: 10px 0 20px; }
+.score-big { font-size: 52px; font-weight: 800; line-height: 1; }
+.score-sub { color: var(--muted); }
+.res-item { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 10px; }
+.res-item.correct { border-left: 4px solid var(--ok); }
+.res-item.incorrect { border-left: 4px solid var(--bad); }
+.res-item .tag { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+.res-item.correct .tag { color: var(--ok); }
+.res-item.incorrect .tag { color: var(--bad); }
+.res-line { margin: 4px 0; font-size: 14.5px; }
+.res-line b { color: var(--ink-soft); font-weight: 600; }
+.res-expl { background: var(--bg); border-radius: 6px; padding: 8px 10px; margin-top: 8px; font-size: 14px; }
+.ans-good { color: var(--ok); font-weight: 600; }
+.ans-bad { color: var(--bad); font-weight: 600; text-decoration: line-through; }
+
+</style>
+</head>
+<body>
+<!-- The teacher's "standalone" export injects the frozen test here: -->
+<script>window.__EMBEDDED_TEST__ = {"schemaVersion":1,"testId":"test_c4dd4c2d","title":"Sample Chinese Test (Units 1–4)","createdAt":"2026-09-19T11:22:07.869Z","seed":null,"settings":{"randomize":true,"pinyinDefaultOn":false,"allowPinyinToggle":true,"pinyinScopes":{"passages":true,"questions":true,"sentences":true,"options":true}},"lessonIds":["L1","L2","L3","L4"],"sections":[{"id":"sec_329654da","type":"pinyin_choice","label":"Choose the Correct Pinyin","order":1,"items":[{"id":"PY2","type":"pinyin_choice","answerId":"PY2-o0","options":[{"id":"PY2-o3","text":"lǎoshì"},{"id":"PY2-o2","text":"láoshì"},{"id":"PY2-o1","text":"lāoshī"},{"id":"PY2-o0","text":"lǎoshī"}],"explanation":"老 third tone, 师 first tone.","hanzi":"老师"},{"id":"PY4","type":"pinyin_choice","answerId":"PY4-o0","options":[{"id":"PY4-o0","text":"túshūguǎn"},{"id":"PY4-o1","text":"tǔshūguǎn"},{"id":"PY4-o2","text":"túshuguǎn"},{"id":"PY4-o3","text":"túshūguàn"}],"explanation":"馆 is third tone: guǎn.","hanzi":"图书馆"},{"id":"PY5","type":"pinyin_choice","answerId":"PY5-o0","options":[{"id":"PY5-o2","text":"xiānzài"},{"id":"PY5-o0","text":"xiànzài"},{"id":"PY5-o1","text":"xiǎnzài"},{"id":"PY5-o3","text":"xiànzǎi"}],"explanation":"Both syllables are fourth tone.","hanzi":"现在"},{"id":"PY1","type":"pinyin_choice","answerId":"PY1-o0","options":[{"id":"PY1-o2","text":"zōngguó"},{"id":"PY1-o1","text":"zhòngguó"},{"id":"PY1-o0","text":"zhōngguó"},{"id":"PY1-o3","text":"zhōnggǔo"}],"explanation":"中 is first tone: zhōng.","hanzi":"中国"},{"id":"PY3","type":"pinyin_choice","answerId":"PY3-o0","options":[{"id":"PY3-o0","text":"xièxie"},{"id":"PY3-o3","text":"xièxue"},{"id":"PY3-o2","text":"xiéxie"},{"id":"PY3-o1","text":"xièxiè"}],"explanation":"The second 谢 is neutral tone: xie.","hanzi":"谢谢"}],"maxPoints":5},{"id":"sec_fed1e453","type":"meaning_match","label":"Meaning Matching","order":2,"items":[{"id":"MS1","type":"meaning_match","left":[{"pairId":"MS1-p4","chinese":"再见","pinyin":"zàijiàn"},{"pairId":"MS1-p1","chinese":"老师","pinyin":"lǎoshī"},{"pairId":"MS1-p3","chinese":"谢谢","pinyin":"xièxie"},{"pairId":"MS1-p2","chinese":"学生","pinyin":"xuésheng"},{"pairId":"MS1-p0","chinese":"你好","pinyin":"nǐ hǎo"}],"right":[{"id":"MS1-p4","meaning":"Tạm biệt"},{"id":"MS1-p0","meaning":"Xin chào"},{"id":"MS1-p3","meaning":"Cảm ơn"},{"id":"MS1-p2","meaning":"Học sinh"},{"id":"MS1-p1","meaning":"Giáo viên"}],"explanation":""},{"id":"MS2","type":"meaning_match","left":[{"pairId":"MS2-p1","chinese":"水","pinyin":"shuǐ"},{"pairId":"MS2-p2","chinese":"茶","pinyin":"chá"},{"pairId":"MS2-p0","chinese":"米饭","pinyin":"mǐfàn"},{"pairId":"MS2-p3","chinese":"苹果","pinyin":"píngguǒ"}],"right":[{"id":"MS2-p3","meaning":"Táo"},{"id":"MS2-p2","meaning":"Trà"},{"id":"MS2-p0","meaning":"Cơm"},{"id":"MS2-p1","meaning":"Nước"}],"explanation":""}],"maxPoints":9},{"id":"sec_f3778ca6","type":"mcq","label":"Multiple Choice","order":3,"items":[{"id":"MC3","type":"mcq","answerId":"MC3-o1","options":[{"id":"MC3-o1","text":"三点","pinyin":"sān diǎn"},{"id":"MC3-o2","text":"三岁","pinyin":"sān suì"},{"id":"MC3-o3","text":"三本","pinyin":"sān běn"},{"id":"MC3-o0","text":"三个","pinyin":"sān gè"}],"explanation":"点 is the measure word for clock time.","prompt":"现在几点？ ______","promptPinyin":"Xiànzài jǐ diǎn?"},{"id":"MC4","type":"mcq","answerId":"MC4-o1","options":[{"id":"MC4-o0","text":"我叫王芳。","pinyin":"Wǒ jiào Wáng Fāng."},{"id":"MC4-o3","text":"不客气。","pinyin":"Bú kèqi."},{"id":"MC4-o2","text":"再见。","pinyin":"Zàijiàn."},{"id":"MC4-o1","text":"我很好，谢谢。","pinyin":"Wǒ hěn hǎo, xièxie."}],"explanation":"你好吗？ asks how you are; the natural reply is 我很好，谢谢。","prompt":"A: 你好吗？\nB: ______","promptPinyin":"A: Nǐ hǎo ma?"},{"id":"MC2","type":"mcq","answerId":"MC2-o0","options":[{"id":"MC2-o1","text":"很","pinyin":"hěn"},{"id":"MC2-o0","text":"是","pinyin":"shì"},{"id":"MC2-o3","text":"有","pinyin":"yǒu"},{"id":"MC2-o2","text":"在","pinyin":"zài"}],"explanation":"是 links a noun to identity: 我是学生 (I am a student).","prompt":"我 ______ 学生。","promptPinyin":"Wǒ ______ xuésheng."},{"id":"MC1","type":"mcq","answerId":"MC1-o0","options":[{"id":"MC1-o1","text":"我很好。","pinyin":"Wǒ hěn hǎo."},{"id":"MC1-o2","text":"谢谢。","pinyin":"Xièxie."},{"id":"MC1-o0","text":"我叫李明。","pinyin":"Wǒ jiào Lǐ Míng."},{"id":"MC1-o3","text":"再见。","pinyin":"Zàijiàn."}],"explanation":"The question asks for a name, so the reply gives a name.","prompt":"A: 你叫什么名字？\nB: ______","promptPinyin":"A: Nǐ jiào shénme míngzi?"}],"maxPoints":4},{"id":"sec_f7d84907","type":"sentence_arrange","label":"Sentence Arrangement","order":4,"items":[{"id":"SA1","type":"sentence_arrange","chunks":[{"id":"SA1-c3","text":"起床","pinyin":"qǐchuáng"},{"id":"SA1-c2","text":"七点","pinyin":"qī diǎn"},{"id":"SA1-c1","text":"每天","pinyin":"měitiān"},{"id":"SA1-c0","text":"我","pinyin":"wǒ"}],"correctOrder":["SA1-c0","SA1-c1","SA1-c2","SA1-c3"],"meaning":"Tôi thức dậy lúc 7 giờ mỗi ngày.","explanation":"Time-of-day comes before the verb."},{"id":"SA2","type":"sentence_arrange","chunks":[{"id":"SA2-c3","text":"中文","pinyin":"zhōngwén"},{"id":"SA2-c2","text":"我的","pinyin":"wǒde"},{"id":"SA2-c4","text":"老师","pinyin":"lǎoshī"},{"id":"SA2-c0","text":"她","pinyin":"tā"},{"id":"SA2-c1","text":"是","pinyin":"shì"}],"correctOrder":["SA2-c0","SA2-c1","SA2-c2","SA2-c3","SA2-c4"],"meaning":"Cô ấy là giáo viên tiếng Trung của tôi.","explanation":""},{"id":"SA3","type":"sentence_arrange","chunks":[{"id":"SA3-c3","text":"商店","pinyin":"shāngdiàn"},{"id":"SA3-c1","text":"明天","pinyin":"míngtiān"},{"id":"SA3-c0","text":"我们","pinyin":"wǒmen"},{"id":"SA3-c2","text":"去","pinyin":"qù"}],"correctOrder":["SA3-c0","SA3-c1","SA3-c2","SA3-c3"],"meaning":"Ngày mai chúng tôi đi cửa hàng.","explanation":"Subject + time + verb + place."}],"maxPoints":3},{"id":"sec_f75aa652","type":"reading","label":"Reading Comprehension","order":5,"items":[{"id":"RP1","type":"reading","title":"我的一天","passage":"我叫王芳。我是学生。我每天七点起床，八点去学校。我喜欢学习中文。下午我常常去图书馆看书。晚上我在家吃饭，然后做作业。","passagePinyin":"Wǒ jiào Wáng Fāng. Wǒ shì xuésheng. Wǒ měitiān qī diǎn qǐchuáng, bā diǎn qù xuéxiào. Wǒ xǐhuan xuéxí zhōngwén. Xiàwǔ wǒ chángcháng qù túshūguǎn kàn shū. Wǎnshang wǒ zài jiā chīfàn, ránhòu zuò zuòyè.","questions":[{"id":"RQ2","prompt":"王芳是做什么的？","promptPinyin":"Wáng Fāng shì zuò shénme de?","answerId":"RQ2-o1","options":[{"id":"RQ2-o3","text":"司机","pinyin":"sījī"},{"id":"RQ2-o2","text":"医生","pinyin":"yīshēng"},{"id":"RQ2-o1","text":"学生","pinyin":"xuésheng"},{"id":"RQ2-o0","text":"老师","pinyin":"lǎoshī"}],"explanation":"“我是学生。”"},{"id":"RQ3","prompt":"下午王芳常常去哪儿？","promptPinyin":"Xiàwǔ Wáng Fāng chángcháng qù nǎr?","answerId":"RQ3-o2","options":[{"id":"RQ3-o2","text":"图书馆","pinyin":"túshūguǎn"},{"id":"RQ3-o1","text":"商店","pinyin":"shāngdiàn"},{"id":"RQ3-o3","text":"家","pinyin":"jiā"},{"id":"RQ3-o0","text":"学校","pinyin":"xuéxiào"}],"explanation":"“下午我常常去图书馆看书。”"},{"id":"RQ1","prompt":"王芳几点起床？","promptPinyin":"Wáng Fāng jǐ diǎn qǐchuáng?","answerId":"RQ1-o1","options":[{"id":"RQ1-o2","text":"八点","pinyin":"bā diǎn"},{"id":"RQ1-o1","text":"七点","pinyin":"qī diǎn"},{"id":"RQ1-o0","text":"六点","pinyin":"liù diǎn"},{"id":"RQ1-o3","text":"九点","pinyin":"jiǔ diǎn"}],"explanation":"文中说“我每天七点起床”。"}]}],"maxPoints":3}],"maxPoints":24};</script>
+
+<div id="app"></div>
+
+<!-- engine (no Excel needed on the student side) -->
+<script>
+/* ============================================================================
+ * schema.js  —  Chinese Test Generator
+ * ----------------------------------------------------------------------------
+ * The single source of truth for the data model. Everything else (import,
+ * generation, scoring, UI, LMS integration) depends only on the shapes and
+ * constants defined here.
+ *
+ * Design notes for future LMS integration:
+ *   - Every entity (lesson, question, option, pair, chunk, section, test,
+ *     attempt) carries a STABLE id. Correct-answer relationships are stored by
+ *     id, never by display position, so randomising order never changes the
+ *     truth about which answer is correct.
+ *   - Nothing here knows about students, classes, courses or auth. The LMS
+ *     supplies that context at runtime via js/core/lms-adapter.js.
+ *
+ * Loaded as a classic <script> (works over file:// with no build step). It
+ * attaches everything to the global namespace object `window.CTG`.
+ * ==========================================================================*/
+(function (global) {
+  'use strict';
+
+  var CTG = global.CTG = global.CTG || {};
+
+  /* Bump when the persisted data shape changes in a breaking way. */
+  var SCHEMA_VERSION = 1;
+
+  /* -- Section / question types -------------------------------------------- */
+  var TYPE = {
+    PINYIN:  'pinyin_choice',    // A. Choose the correct Pinyin
+    MATCH:   'meaning_match',    // B. Meaning matching
+    MCQ:     'mcq',              // C. Multiple choice (word / dialogue)
+    ARRANGE: 'sentence_arrange', // D. Sentence arrangement
+    READING: 'reading'           // E. Reading comprehension
+  };
+
+  /* Ordered metadata for every section type. `sheet` is the Excel sheet name
+   * that feeds it (reading uses two sheets). `order` fixes section order in a
+   * generated test. */
+  var SECTIONS = [
+    { type: TYPE.PINYIN,  order: 1, label: 'Choose the Correct Pinyin',  sheet: 'Pinyin' },
+    { type: TYPE.MATCH,   order: 2, label: 'Meaning Matching',           sheet: 'Matching' },
+    { type: TYPE.MCQ,     order: 3, label: 'Multiple Choice',            sheet: 'MultipleChoice' },
+    { type: TYPE.ARRANGE, order: 4, label: 'Sentence Arrangement',       sheet: 'SentenceArrange' },
+    { type: TYPE.READING, order: 5, label: 'Reading Comprehension',      sheet: 'ReadingPassages / ReadingQuestions' }
+  ];
+
+  var SECTION_BY_TYPE = {};
+  SECTIONS.forEach(function (s) { SECTION_BY_TYPE[s.type] = s; });
+
+  function sectionLabel(type) {
+    return (SECTION_BY_TYPE[type] && SECTION_BY_TYPE[type].label) || type;
+  }
+  function sectionOrder(type) {
+    return (SECTION_BY_TYPE[type] && SECTION_BY_TYPE[type].order) || 99;
+  }
+
+  /* -- Pinyin scope categories --------------------------------------------- *
+   * The teacher decides which kinds of Chinese text expose Pinyin. Data must
+   * exist in the Excel for a scope to have any effect. */
+  var PINYIN_SCOPE = {
+    PASSAGES:  'passages',   // reading passages
+    QUESTIONS: 'questions',  // question prompts / stems
+    SENTENCES: 'sentences',  // sentence-arrangement chunks + matching terms
+    OPTIONS:   'options'     // answer options
+  };
+  var PINYIN_SCOPE_LABEL = {
+    passages:  'Reading passages',
+    questions: 'Question prompts',
+    sentences: 'Sentences & matching terms',
+    options:   'Answer options'
+  };
+
+  /* -- ID generation ------------------------------------------------------- *
+   * Prefer teacher-supplied ids from the Excel. When absent we mint one that
+   * is stable within an import and unique across the bank. */
+  var _counters = {};
+  function uid(prefix) {
+    prefix = prefix || 'id';
+    // Prefer crypto for globally-unique ids (tests, attempts).
+    try {
+      if (global.crypto && global.crypto.randomUUID) {
+        return prefix + '_' + global.crypto.randomUUID().slice(0, 8);
+      }
+    } catch (e) { /* fall through */ }
+    _counters[prefix] = (_counters[prefix] || 0) + 1;
+    return prefix + '_' + Date.now().toString(36) + '_' +
+           _counters[prefix].toString(36) +
+           Math.random().toString(36).slice(2, 6);
+  }
+
+  /* A deterministic child id (option/pair/chunk/sub-question ids that hang off
+   * a parent question). Keeps ids readable and stable given the same input. */
+  function childId(parentId, tag, index) {
+    return String(parentId) + '-' + tag + (index != null ? index : '');
+  }
+
+  /* -- Randomisation utilities --------------------------------------------- *
+   * A small seedable PRNG (mulberry32) so a test can be reproduced from its
+   * seed if the LMS ever needs deterministic regeneration. Falls back to
+   * Math.random when no seed is given. */
+  function makeRng(seed) {
+    if (seed == null) {
+      return { next: function () { return Math.random(); }, seed: null };
+    }
+    var a = (typeof seed === 'number') ? seed : hashString(String(seed));
+    return {
+      seed: a,
+      next: function () {
+        a |= 0; a = (a + 0x6D2B79F5) | 0;
+        var t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      }
+    };
+  }
+  function hashString(str) {
+    var h = 2166136261;
+    for (var i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+
+  /* Fisher–Yates, non-mutating. Accepts an optional rng ({next:fn}). */
+  function shuffle(arr, rng) {
+    var a = arr.slice();
+    var rand = rng ? function () { return rng.next(); } : Math.random;
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(rand() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  /* Pick n distinct items at random (or all, if n >= length / n falsy). */
+  function sample(arr, n, rng) {
+    var s = shuffle(arr, rng);
+    if (!n || n >= s.length) return s;
+    return s.slice(0, n);
+  }
+
+  /* -- Type guards / helpers ----------------------------------------------- */
+  function isBlank(v) {
+    return v === null || v === undefined || String(v).trim() === '';
+  }
+  function str(v) {
+    return v == null ? '' : String(v).trim();
+  }
+
+  /* Split a chunk string ("我 / 每天 / 七点 / 起床") into trimmed chunks.
+   * Accepts / | ／ ｜ as separators. */
+  function splitChunks(raw) {
+    return str(raw)
+      .split(/\s*[\/|／｜]\s*/)
+      .map(function (c) { return c.trim(); })
+      .filter(function (c) { return c.length > 0; });
+  }
+
+  CTG.schema = {
+    SCHEMA_VERSION: SCHEMA_VERSION,
+    TYPE: TYPE,
+    SECTIONS: SECTIONS,
+    SECTION_BY_TYPE: SECTION_BY_TYPE,
+    PINYIN_SCOPE: PINYIN_SCOPE,
+    PINYIN_SCOPE_LABEL: PINYIN_SCOPE_LABEL,
+    sectionLabel: sectionLabel,
+    sectionOrder: sectionOrder,
+    uid: uid,
+    childId: childId,
+    makeRng: makeRng,
+    hashString: hashString,
+    shuffle: shuffle,
+    sample: sample,
+    isBlank: isBlank,
+    str: str,
+    splitChunks: splitChunks
+  };
+})(typeof window !== 'undefined' ? window : this);
+
+</script>
+<script>
+/* ============================================================================
+ * pinyin.js  —  Chinese Test Generator
+ * ----------------------------------------------------------------------------
+ * Renders Chinese text with an optional tone-marked Pinyin line placed above
+ * it, without disturbing the surrounding layout. Whole-phrase pinyin is shown
+ * as one line above the phrase (we do not attempt per-character alignment
+ * because the Excel provides phrase-level pinyin).
+ *
+ * Visibility model:
+ *   - When `include` is false, no pinyin text is emitted into the DOM at all
+ *     (used when the teacher forbids showing pinyin — students cannot reveal
+ *     what was never rendered).
+ *   - When `include` is true, the pinyin <span> is emitted and its visibility
+ *     is controlled by a `.pinyin-on` / `.pinyin-off` class on an ancestor,
+ *     so the Show/Hide toggle is instant and never shifts layout.
+ *
+ * Public API (window.CTG.pinyin):
+ *   escapeHtml(s)
+ *   annotate(chinese, pinyin, include)      -> inline HTML string
+ *   annotateBlock(chinese, pinyin, include) -> block HTML string (passages)
+ * ==========================================================================*/
+(function (global) {
+  'use strict';
+  var CTG = global.CTG = global.CTG || {};
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  // Preserve author line breaks (e.g. dialogue A:/B:) as <br>.
+  function withBreaks(s) {
+    return escapeHtml(s).replace(/\r?\n/g, '<br>');
+  }
+
+  function annotate(chinese, pinyin, include) {
+    var hz = withBreaks(chinese);
+    if (include && pinyin) {
+      return '<span class="cn">' +
+               '<span class="cn-py">' + withBreaks(pinyin) + '</span>' +
+               '<span class="cn-hz">' + hz + '</span>' +
+             '</span>';
+    }
+    return '<span class="cn cn-nopy"><span class="cn-hz">' + hz + '</span></span>';
+  }
+
+  function annotateBlock(chinese, pinyin, include) {
+    var hz = withBreaks(chinese);
+    var out = '<div class="cn-block">';
+    if (include && pinyin) {
+      out += '<div class="cn-block-py">' + withBreaks(pinyin) + '</div>';
+    }
+    out += '<div class="cn-block-hz">' + hz + '</div></div>';
+    return out;
+  }
+
+  CTG.pinyin = {
+    escapeHtml: escapeHtml,
+    withBreaks: withBreaks,
+    annotate: annotate,
+    annotateBlock: annotateBlock
+  };
+})(typeof window !== 'undefined' ? window : this);
+
+</script>
+<script>
+/* ============================================================================
+ * scoring.js  —  Chinese Test Generator
+ * ----------------------------------------------------------------------------
+ * Scores a set of student answers against a generated test. Pure functions,
+ * no DOM. All correctness decisions compare stable ids, never positions.
+ *
+ * answers (keyed by item / sub-question id):
+ *   pinyin_choice / mcq        answers[itemId]  = optionId
+ *   reading (per sub-question)  answers[subId]   = optionId
+ *   sentence_arrange            answers[itemId]  = [chunkId, ...]  (student order)
+ *   meaning_match               answers[itemId]  = { pairId: rightId, ... }
+ *
+ * Public API (window.CTG.scoring):
+ *   score(test, answers) -> result   (see shape below)
+ * ==========================================================================*/
+(function (global) {
+  'use strict';
+  var CTG = global.CTG = global.CTG || {};
+  var S = CTG.schema;
+  var TYPE = S.TYPE;
+
+  function score(test, answers) {
+    answers = answers || {};
+    var result = {
+      testId: test.testId,
+      title: test.title,
+      scoredAt: new Date().toISOString(),
+      maxPoints: 0,
+      earnedPoints: 0,
+      percent: 0,
+      sections: []
+    };
+
+    test.sections.forEach(function (sec) {
+      var secRes = { id: sec.id, type: sec.type, label: sec.label, maxPoints: 0, earnedPoints: 0, items: [] };
+      sec.items.forEach(function (item) {
+        var ir = scoreItem(item, answers);
+        secRes.items.push(ir);
+        secRes.maxPoints += ir.maxPoints;
+        secRes.earnedPoints += ir.earnedPoints;
+      });
+      result.sections.push(secRes);
+      result.maxPoints += secRes.maxPoints;
+      result.earnedPoints += secRes.earnedPoints;
+    });
+
+    result.percent = result.maxPoints ? Math.round((result.earnedPoints / result.maxPoints) * 100) : 0;
+    return result;
+  }
+
+  function scoreItem(item, answers) {
+    switch (item.type) {
+      case TYPE.PINYIN:
+      case TYPE.MCQ:
+        return scoreChoice(item, answers[item.id]);
+      case TYPE.MATCH:
+        return scoreMatch(item, answers[item.id]);
+      case TYPE.ARRANGE:
+        return scoreArrange(item, answers[item.id]);
+      case TYPE.READING:
+        return scoreReading(item, answers);
+    }
+    return { id: item.id, type: item.type, maxPoints: 0, earnedPoints: 0, correct: false, answered: false };
+  }
+
+  function scoreChoice(item, selectedId) {
+    var answered = !!selectedId;
+    var correct = answered && selectedId === item.answerId;
+    return {
+      id: item.id, type: item.type, maxPoints: 1, earnedPoints: correct ? 1 : 0,
+      answered: answered, correct: correct,
+      selectedId: selectedId || null, correctId: item.answerId,
+      explanation: item.explanation || ''
+    };
+  }
+
+  function scoreMatch(item, mapping) {
+    mapping = mapping || {};
+    var pairResults = item.left.map(function (l) {
+      var selected = mapping[l.pairId] || null;
+      var isCorrect = selected === l.pairId; // right item id equals its pair id
+      return {
+        pairId: l.pairId, chinese: l.chinese, pinyin: l.pinyin,
+        selectedRightId: selected, correct: isCorrect,
+        correctMeaning: meaningFor(item, l.pairId),
+        selectedMeaning: selected ? meaningFor(item, selected) : null
+      };
+    });
+    var earned = pairResults.filter(function (p) { return p.correct; }).length;
+    var answered = pairResults.some(function (p) { return p.selectedRightId; });
+    return {
+      id: item.id, type: TYPE.MATCH, maxPoints: item.left.length, earnedPoints: earned,
+      answered: answered, correct: earned === item.left.length,
+      pairResults: pairResults, explanation: item.explanation || ''
+    };
+  }
+  function meaningFor(item, pairId) {
+    var r = item.right.filter(function (x) { return x.id === pairId; })[0];
+    return r ? r.meaning : null;
+  }
+
+  function scoreArrange(item, order) {
+    order = Array.isArray(order) ? order : [];
+    var answered = order.length > 0;
+    var correct = answered && order.length === item.correctOrder.length &&
+      order.every(function (id, i) { return id === item.correctOrder[i]; });
+    return {
+      id: item.id, type: TYPE.ARRANGE, maxPoints: 1, earnedPoints: correct ? 1 : 0,
+      answered: answered, correct: correct,
+      studentOrder: order.slice(), correctOrder: item.correctOrder.slice(),
+      chunks: item.chunks, meaning: item.meaning || '', explanation: item.explanation || ''
+    };
+  }
+
+  function scoreReading(item, answers) {
+    var qResults = item.questions.map(function (sq) {
+      var r = scoreChoice(sq, answers[sq.id]);
+      r.prompt = sq.prompt; r.promptPinyin = sq.promptPinyin || '';
+      return r;
+    });
+    var earned = qResults.reduce(function (s, r) { return s + r.earnedPoints; }, 0);
+    return {
+      id: item.id, type: TYPE.READING, maxPoints: item.questions.length, earnedPoints: earned,
+      answered: qResults.some(function (r) { return r.answered; }),
+      correct: earned === item.questions.length,
+      title: item.title || '', questions: qResults
+    };
+  }
+
+  CTG.scoring = { score: score };
+})(typeof window !== 'undefined' ? window : this);
+
+</script>
+<script>
+/* ============================================================================
+ * lms-adapter.js  —  Chinese Test Generator
+ * ----------------------------------------------------------------------------
+ * The ONLY place that knows how the test module talks to an outside host
+ * (your future LMS). It is deliberately thin and framework-free so the module
+ * stays standalone today and drops into an LMS later without touching the
+ * generator / player / scorer.
+ *
+ * IN — context the host may provide (all optional):
+ *   window.CTG_CONTEXT = { studentId, studentName, class, course,
+ *                          lessonId, assignedTestId, attemptId }
+ *   ...or the same keys as URL query params (?studentId=...&attemptId=...).
+ *   ...or a parent window/LMS can postMessage({type:'ctg:context', context}).
+ *
+ * OUT — when a test is submitted, the adapter emits the attempt every way a
+ *   host might listen:
+ *     • window.CTG_ON_RESULT(attempt)         (callback hook, if defined)
+ *     • CustomEvent 'ctg:result' on window     (detail = attempt)
+ *     • window.parent.postMessage({type:'ctg:result', attempt}, '*')  (iframe)
+ *
+ * The `attempt` object is the stable, LMS-friendly record. Extend it here (not
+ * elsewhere) if the LMS needs more fields.
+ * ==========================================================================*/
+(function (global) {
+  'use strict';
+  var CTG = global.CTG = global.CTG || {};
+
+  var CONTEXT_KEYS = ['studentId', 'studentName', 'class', 'course',
+    'lessonId', 'assignedTestId', 'attemptId'];
+
+  var _pushed = null; // context delivered via postMessage
+
+  function readQuery() {
+    var out = {};
+    try {
+      var q = new URLSearchParams(global.location ? global.location.search : '');
+      CONTEXT_KEYS.forEach(function (k) { if (q.has(k)) out[k] = q.get(k); });
+    } catch (e) { /* no location (node) */ }
+    return out;
+  }
+
+  function readContext() {
+    var ctx = {};
+    // precedence: query < global object < pushed message
+    Object.assign(ctx, readQuery());
+    if (global.CTG_CONTEXT && typeof global.CTG_CONTEXT === 'object') {
+      CONTEXT_KEYS.forEach(function (k) { if (global.CTG_CONTEXT[k] != null) ctx[k] = global.CTG_CONTEXT[k]; });
+    }
+    if (_pushed) Object.assign(ctx, _pushed);
+    if (!ctx.attemptId) ctx.attemptId = CTG.schema.uid('attempt');
+    return ctx;
+  }
+
+  // Let a host push context after load.
+  function listenForContext(onUpdate) {
+    try {
+      global.addEventListener('message', function (ev) {
+        var d = ev && ev.data;
+        if (d && d.type === 'ctg:context' && d.context) {
+          _pushed = _pushed || {};
+          Object.assign(_pushed, d.context);
+          if (typeof onUpdate === 'function') onUpdate(readContext());
+        }
+      });
+    } catch (e) { /* ignore */ }
+  }
+
+  /* Build the stable attempt record from a test, the raw answers, the scoring
+   * result and the runtime context. This is what you persist / send to the LMS. */
+  function buildAttempt(test, answers, result, context, timing) {
+    context = context || {};
+    timing = timing || {};
+    return {
+      schemaVersion: CTG.schema.SCHEMA_VERSION,
+      attemptId: context.attemptId || CTG.schema.uid('attempt'),
+      // pass-through LMS identifiers (never invented here)
+      studentId: context.studentId || null,
+      studentName: context.studentName || null,
+      class: context['class'] || null,
+      course: context.course || null,
+      assignedTestId: context.assignedTestId || null,
+      // the test taken
+      testId: test.testId,
+      testTitle: test.title,
+      lessonIds: test.lessonIds,
+      seed: test.seed,
+      // timing
+      startedAt: timing.startedAt || null,
+      submittedAt: new Date().toISOString(),
+      durationSeconds: timing.startedAt
+        ? Math.round((Date.now() - new Date(timing.startedAt).getTime()) / 1000) : null,
+      // score
+      maxPoints: result.maxPoints,
+      earnedPoints: result.earnedPoints,
+      percent: result.percent,
+      // full detail for analytics / review
+      rawAnswers: answers,
+      sections: result.sections
+    };
+  }
+
+  function emitResult(attempt) {
+    // 1) callback hook
+    try { if (typeof global.CTG_ON_RESULT === 'function') global.CTG_ON_RESULT(attempt); } catch (e) {}
+    // 2) DOM event
+    try {
+      if (global.dispatchEvent && global.CustomEvent) {
+        global.dispatchEvent(new global.CustomEvent('ctg:result', { detail: attempt }));
+      }
+    } catch (e) {}
+    // 3) postMessage to embedding host
+    try {
+      if (global.parent && global.parent !== global) {
+        global.parent.postMessage({ type: 'ctg:result', attempt: attempt }, '*');
+      }
+    } catch (e) {}
+    return attempt;
+  }
+
+  CTG.lms = {
+    CONTEXT_KEYS: CONTEXT_KEYS,
+    readContext: readContext,
+    listenForContext: listenForContext,
+    buildAttempt: buildAttempt,
+    emitResult: emitResult
+  };
+})(typeof window !== 'undefined' ? window : this);
+
+</script>
+<script>
+/* ============================================================================
+ * student-app.js  —  Chinese Test Generator (student test player)
+ * ----------------------------------------------------------------------------
+ * A small, framework-free SPA that takes ONE generated test and runs it:
+ *   load test  ->  start screen  ->  one screen per item  ->  submit  ->  results
+ *
+ * The test can arrive three ways (in priority order):
+ *   1. window.__EMBEDDED_TEST__     (teacher's "standalone .html" export / preview)
+ *   2. ?test=<url>                  (a .json fetched alongside a served page)
+ *   3. a file the student opens     (drag/drop or picker of a .json test file)
+ *
+ * On submit, results are shown AND handed to the LMS adapter (event / callback /
+ * postMessage) so a host can capture the attempt. Nothing here knows about
+ * accounts, classes or courses — that context comes from lms-adapter.js.
+ * ==========================================================================*/
+(function () {
+  'use strict';
+  var CTG = window.CTG;
+  var S = CTG.schema, P = CTG.pinyin, esc = P.escapeHtml;
+  var TYPE = S.TYPE;
+  var app = document.getElementById('app');
+
+  var state = {
+    test: null, ctx: null, screens: [], idx: 0,
+    answers: {}, startedAt: null, pinyinOn: false, include: {}, allowToggle: false
+  };
+
+  /* ---------------- load ---------------- */
+  init();
+  function init() {
+    state.ctx = CTG.lms.readContext();
+    CTG.lms.listenForContext(function () { /* context can arrive late; used at submit */ });
+
+    if (window.__EMBEDDED_TEST__) { loadTest(window.__EMBEDDED_TEST__); return; }
+    var url = new URLSearchParams(location.search).get('test');
+    if (url) {
+      fetch(url).then(function (r) { return r.json(); })
+        .then(loadTest)
+        .catch(function () { renderLoader('Could not load the test from "' + esc(url) + '". Choose the file manually below.'); });
+      return;
+    }
+    renderLoader();
+  }
+
+  function loadTest(test) {
+    if (!test || !test.sections) { renderLoader('That file is not a valid test package.'); return; }
+    state.test = test;
+    var pref = test.settings || {};
+    state.allowToggle = pref.allowPinyinToggle !== false;
+    var scopes = pref.pinyinScopes || {};
+    // A scope's pinyin is rendered into the DOM only if allowed to ever be seen.
+    ['passages', 'questions', 'sentences', 'options'].forEach(function (sc) {
+      state.include[sc] = !!scopes[sc] && (!!pref.pinyinDefaultOn || state.allowToggle);
+    });
+    state.pinyinOn = !!pref.pinyinDefaultOn;
+    renderStart();
+  }
+
+  /* ---------------- loader (manual file) ---------------- */
+  function renderLoader(msg) {
+    app.innerHTML =
+      '<div class="wrap-narrow">' +
+      '<div class="hero"><div class="cn-badge">中</div><h1>Open a test</h1></div>' +
+      (msg ? '<div class="notice notice-bad">' + msg + '</div>' : '') +
+      '<div class="card"><p class="hint">Your teacher gave you a test file (<code>.json</code>). Choose it or drag it here. ' +
+      'If you were given a single <code>.html</code> file, just open that file directly instead.</p>' +
+      '<div class="dropzone" id="dz" style="border:2px dashed var(--line-strong);border-radius:12px;padding:26px;text-align:center;cursor:pointer">' +
+      '<div style="font-size:30px">📄</div><p><strong>Click to choose</strong> or drag your .json test here</p>' +
+      '<input type="file" id="fi" accept=".json,application/json" class="hidden"></div></div></div>';
+    var dz = document.getElementById('dz'), fi = document.getElementById('fi');
+    dz.onclick = function () { fi.click(); };
+    fi.onchange = function (e) { if (e.target.files[0]) readFile(e.target.files[0]); };
+    ['dragenter', 'dragover'].forEach(function (ev) { dz.addEventListener(ev, function (e) { e.preventDefault(); dz.style.borderColor = 'var(--red)'; }); });
+    dz.addEventListener('drop', function (e) { e.preventDefault(); if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
+  }
+  function readFile(f) {
+    var r = new FileReader();
+    r.onload = function (e) { try { loadTest(JSON.parse(e.target.result)); } catch (err) { renderLoader('That file could not be read as a test.'); } };
+    r.readAsText(f);
+  }
+
+  /* ---------------- start screen ---------------- */
+  function renderStart() {
+    var t = state.test;
+    var secLines = t.sections.map(function (s) {
+      return '<li>' + esc(s.label) + ' — ' + s.items.length + (s.type === TYPE.READING ? ' passage(s)' : s.type === TYPE.MATCH ? ' set(s)' : ' question(s)') + '</li>';
+    }).join('');
+    var needName = !state.ctx.studentName;
+    app.innerHTML =
+      '<div class="wrap-narrow">' +
+      (window.__PREVIEW__ ? '<div class="notice notice-info" style="margin-top:14px">Teacher preview — you can take the test to check it; results are not sent anywhere.</div>' : '') +
+      '<div class="hero"><div class="cn-badge">中</div><h1>' + esc(t.title) + '</h1>' +
+      '<p class="score-sub">' + t.sections.length + ' sections · ' + t.maxPoints + ' points</p></div>' +
+      '<div class="card">' +
+      (state.ctx.studentName ? '<p>Good luck, <strong>' + esc(state.ctx.studentName) + '</strong>!</p>' : '') +
+      (needName ? '<div class="field"><label for="nm">Your name (optional)</label><input type="text" id="nm" placeholder="Enter your name"></div>' : '') +
+      '<p><strong>This test contains:</strong></p><ul>' + secLines + '</ul>' +
+      '<p class="hint">' + (state.allowToggle ? 'You can show or hide Pinyin during the test.' : (state.pinyinOn ? 'Pinyin is shown throughout.' : 'Pinyin is hidden for this test.')) + '</p>' +
+      '<button class="btn btn-primary" id="startBtn">Start test →</button></div></div>';
+    document.getElementById('startBtn').onclick = function () {
+      var nm = document.getElementById('nm');
+      if (nm && nm.value.trim()) state.ctx.studentName = nm.value.trim();
+      startTest();
+    };
+  }
+
+  /* ---------------- build & run ---------------- */
+  function startTest() {
+    state.screens = [];
+    state.test.sections.forEach(function (sec) {
+      sec.items.forEach(function (item) {
+        state.screens.push({ sectionLabel: sec.label, type: sec.type, item: item });
+      });
+    });
+    state.idx = 0; state.answers = {}; state.startedAt = new Date().toISOString();
+    renderShell();
+    renderScreen();
+  }
+
+  function renderShell() {
+    app.innerHTML =
+      '<header class="player-hd"><div class="wrap-narrow">' +
+      '<span class="title" id="hdTitle">' + esc(state.test.title) + '</span>' +
+      (state.allowToggle ? '<button class="btn btn-sm btn-ghost" id="pyToggle"></button>' : '') +
+      '</div><div class="wrap-narrow" style="padding-bottom:8px"><div class="progress"><i id="prog"></i></div></div></header>' +
+      '<main class="wrap-narrow"><div id="screen" class="screen"></div>' +
+      '<div class="dots" id="dots"></div>' +
+      '<div class="nav-row">' +
+      '<button class="btn" id="prevBtn">← Prev</button>' +
+      '<span class="spacer qcounter" id="counter"></span>' +
+      '<button class="btn btn-primary" id="nextBtn">Next →</button>' +
+      '</div></main>';
+    setPinyinClass();
+    var tog = document.getElementById('pyToggle');
+    if (tog) { updateToggleLabel(); tog.onclick = function () { state.pinyinOn = !state.pinyinOn; setPinyinClass(); updateToggleLabel(); }; }
+    document.getElementById('prevBtn').onclick = function () { go(-1); };
+    document.getElementById('nextBtn').onclick = function () { go(1); };
+  }
+  function setPinyinClass() {
+    document.body.classList.toggle('pinyin-on', state.pinyinOn);
+    document.body.classList.toggle('pinyin-off', !state.pinyinOn);
+  }
+  function updateToggleLabel() {
+    var tog = document.getElementById('pyToggle');
+    if (tog) tog.textContent = state.pinyinOn ? '拼 Hide Pinyin' : '拼 Show Pinyin';
+  }
+
+  function go(delta) {
+    var n = state.idx + delta;
+    if (n < 0) return;
+    if (n >= state.screens.length) { confirmSubmit(); return; }
+    state.idx = n; renderScreen();
+  }
+
+  function renderScreen() {
+    var sc = state.screens[state.idx];
+    var mount = document.getElementById('screen');
+    var h = '<div class="section-tag">' + esc(sc.sectionLabel) + '</div>';
+    mount.innerHTML = h + '<div id="body"></div>';
+    var body = document.getElementById('body');
+    switch (sc.type) {
+      case TYPE.PINYIN:  renderPinyin(sc.item, body); break;
+      case TYPE.MCQ:     renderMcq(sc.item, body); break;
+      case TYPE.MATCH:   renderMatch(sc.item, body); break;
+      case TYPE.ARRANGE: renderArrange(sc.item, body); break;
+      case TYPE.READING: renderReading(sc.item, body); break;
+    }
+    // nav labels
+    document.getElementById('counter').textContent = 'Question ' + (state.idx + 1) + ' of ' + state.screens.length;
+    document.getElementById('prevBtn').disabled = state.idx === 0;
+    document.getElementById('nextBtn').textContent = (state.idx === state.screens.length - 1) ? 'Finish →' : 'Next →';
+    renderDots();
+    updateProgress();
+  }
+
+  /* ---------------- per-type renderers ---------------- */
+  function optionButtons(item, mount, subId) {
+    var key = subId || item.id;
+    var opts = item.options;
+    var wrap = document.createElement('div'); wrap.className = 'options';
+    opts.forEach(function (o, i) {
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'opt-btn';
+      if (state.answers[key] === o.id) b.classList.add('sel');
+      var isPinyinChoice = (item.type === TYPE.PINYIN);
+      var label = isPinyinChoice
+        ? '<span class="cn cn-nopy"><span class="cn-hz">' + esc(o.text) + '</span></span>'
+        : P.annotate(o.text, o.pinyin, state.include.options);
+      b.innerHTML = '<span class="key">' + String.fromCharCode(65 + i) + '</span>' + label;
+      b.onclick = function () {
+        state.answers[key] = o.id;
+        [].forEach.call(wrap.children, function (c) { c.classList.remove('sel'); });
+        b.classList.add('sel');
+        renderDots(); updateProgress();
+      };
+      wrap.appendChild(b);
+    });
+    mount.appendChild(wrap);
+  }
+
+  function renderPinyin(item, mount) {
+    mount.innerHTML = '<div class="big-hanzi center"><span class="cn cn-nopy"><span class="cn-hz">' + esc(item.hanzi) + '</span></span></div>' +
+      '<p class="hint center">Choose the correct Pinyin.</p>';
+    optionButtons(item, mount);
+  }
+
+  function renderMcq(item, mount) {
+    mount.innerHTML = '<div class="stem">' + P.annotateBlock(item.prompt, item.promptPinyin, state.include.questions) + '</div>';
+    optionButtons(item, mount);
+  }
+
+  function renderMatch(item, mount) {
+    state.answers[item.id] = state.answers[item.id] || {};
+    var ans = state.answers[item.id];
+    var optionsHtml = '<option value="">— choose —</option>' + item.right.map(function (r) {
+      return '<option value="' + esc(r.id) + '">' + esc(r.meaning) + '</option>';
+    }).join('');
+    var h = '<p class="hint">Match each Chinese word to its meaning.</p><div class="match-grid">';
+    item.left.forEach(function (l) {
+      h += '<div class="match-row"><span class="term">' + P.annotate(l.chinese, l.pinyin, state.include.sentences) +
+        '</span><select data-pair="' + esc(l.pairId) + '">' + optionsHtml + '</select></div>';
+    });
+    mount.innerHTML = h + '</div>';
+    [].forEach.call(mount.querySelectorAll('select'), function (sel) {
+      var pid = sel.getAttribute('data-pair');
+      if (ans[pid]) sel.value = ans[pid];
+      sel.onchange = function () {
+        if (sel.value) ans[pid] = sel.value; else delete ans[pid];
+        renderDots(); updateProgress();
+      };
+    });
+  }
+
+  function renderArrange(item, mount) {
+    mount.innerHTML = '<p class="hint">Put the chunks in the correct order.</p>' +
+      (item.meaning ? '<p class="muted">Meaning: ' + esc(item.meaning) + '</p>' : '') +
+      '<div class="arrange-answer" id="ansArea"></div>' +
+      '<div class="arrange-bank" id="bankArea"></div>' +
+      '<div style="margin-top:10px"><button class="btn btn-sm btn-ghost" id="clearArr">Clear</button></div>';
+    var ansArea = document.getElementById('ansArea');
+    var bankArea = document.getElementById('bankArea');
+    var byId = {}; item.chunks.forEach(function (c) { byId[c.id] = c; });
+
+    function chunkEl(c, inAnswer) {
+      var el = document.createElement('div');
+      el.className = 'chunk' + (inAnswer ? ' in-answer' : '');
+      el.innerHTML = (c.pinyin && state.include.sentences ? '<span class="py">' + esc(c.pinyin) + '</span>' : '') +
+        '<span class="hz">' + esc(c.text) + '</span>';
+      el.dataset.id = c.id;
+      if (inAnswer) {
+        el.setAttribute('draggable', 'true');
+        el.onclick = function () { removeChunk(c.id); };
+        el.addEventListener('dragstart', function (e) { el.classList.add('dragging'); e.dataTransfer.setData('text/plain', c.id); });
+        el.addEventListener('dragend', function () { el.classList.remove('dragging'); });
+      } else {
+        el.onclick = function () { addChunk(c.id); };
+      }
+      return el;
+    }
+    function draw() {
+      var ans = state.answers[item.id] || [];
+      ansArea.innerHTML = ''; bankArea.innerHTML = '';
+      ansArea.classList.toggle('empty', ans.length === 0);
+      ans.forEach(function (id) { ansArea.appendChild(chunkEl(byId[id], true)); });
+      item.chunks.forEach(function (c) { if (ans.indexOf(c.id) < 0) bankArea.appendChild(chunkEl(c, false)); });
+    }
+    function addChunk(id) { var a = state.answers[item.id] = (state.answers[item.id] || []).slice(); a.push(id); draw(); renderDots(); updateProgress(); }
+    function removeChunk(id) { state.answers[item.id] = (state.answers[item.id] || []).filter(function (x) { return x !== id; }); draw(); renderDots(); updateProgress(); }
+    // drag reorder within the answer area
+    ansArea.addEventListener('dragover', function (e) {
+      e.preventDefault();
+      var after = dragAfter(ansArea, e.clientX, e.clientY);
+      var dragging = ansArea.querySelector('.dragging');
+      if (!dragging) return;
+      if (after == null) ansArea.appendChild(dragging); else ansArea.insertBefore(dragging, after);
+    });
+    ansArea.addEventListener('drop', function (e) {
+      e.preventDefault();
+      var order = [].map.call(ansArea.querySelectorAll('.chunk'), function (c) { return c.dataset.id; });
+      state.answers[item.id] = order; renderDots(); updateProgress();
+    });
+    document.getElementById('clearArr').onclick = function () { state.answers[item.id] = []; draw(); renderDots(); updateProgress(); };
+    draw();
+  }
+  function dragAfter(container, x, y) {
+    var els = [].slice.call(container.querySelectorAll('.chunk:not(.dragging)'));
+    var closest = null, closestDist = -Infinity;
+    els.forEach(function (el) {
+      var box = el.getBoundingClientRect();
+      var offset = x - box.left - box.width / 2;
+      if (offset < 0 && offset > closestDist) { closestDist = offset; closest = el; }
+    });
+    return closest;
+  }
+
+  function renderReading(item, mount) {
+    var h = '<div class="passage">';
+    if (item.title) h += '<h3>' + P.annotate(item.title, '', false) + '</h3>';
+    h += P.annotateBlock(item.passage, item.passagePinyin, state.include.passages) + '</div>';
+    item.questions.forEach(function (sq, i) {
+      h += '<div class="sub-q"><div class="sub-stem">' + (i + 1) + '. ' +
+        P.annotate(sq.prompt, sq.promptPinyin, state.include.questions) + '</div><div class="sub-opts" data-sub="' + esc(sq.id) + '"></div></div>';
+    });
+    mount.innerHTML = h;
+    item.questions.forEach(function (sq) {
+      var holder = mount.querySelector('.sub-opts[data-sub="' + cssEscape(sq.id) + '"]');
+      optionButtons(sq, holder, sq.id);
+    });
+  }
+  function cssEscape(s) { return String(s).replace(/["\\]/g, '\\$&'); }
+
+  /* ---------------- progress / dots ---------------- */
+  function isComplete(sc) {
+    var it = sc.item, a = state.answers;
+    switch (sc.type) {
+      case TYPE.PINYIN: case TYPE.MCQ: return !!a[it.id];
+      case TYPE.MATCH: return it.left.every(function (l) { return a[it.id] && a[it.id][l.pairId]; });
+      case TYPE.ARRANGE: return (a[it.id] || []).length === it.chunks.length;
+      case TYPE.READING: return it.questions.every(function (q) { return !!a[q.id]; });
+    }
+    return false;
+  }
+  function completedCount() {
+    return state.screens.reduce(function (n, sc) { return n + (isComplete(sc) ? 1 : 0); }, 0);
+  }
+  function updateProgress() {
+    var pct = Math.round((completedCount() / state.screens.length) * 100);
+    var bar = document.getElementById('prog'); if (bar) bar.style.width = pct + '%';
+  }
+  function renderDots() {
+    var wrap = document.getElementById('dots'); if (!wrap) return;
+    wrap.innerHTML = '';
+    state.screens.forEach(function (sc, i) {
+      var d = document.createElement('button');
+      d.className = 'dot' + (i === state.idx ? ' current' : '') + (isComplete(sc) ? ' answered' : '');
+      d.textContent = i + 1;
+      d.onclick = function () { state.idx = i; renderScreen(); };
+      wrap.appendChild(d);
+    });
+  }
+
+  /* ---------------- submit ---------------- */
+  function confirmSubmit() {
+    var done = completedCount(), total = state.screens.length;
+    var back = document.createElement('div'); back.className = 'modal-back';
+    back.innerHTML = '<div class="modal"><h2>Submit your test?</h2>' +
+      '<p>You have completed <strong>' + done + ' of ' + total + '</strong> questions.' +
+      (done < total ? ' Unanswered questions will be marked as incorrect.' : '') + '</p>' +
+      '<p class="hint">You can’t change your answers after submitting.</p>' +
+      '<div class="btn-row" style="margin-top:8px"><button class="btn btn-primary" id="mConfirm">Submit</button>' +
+      '<button class="btn btn-ghost" id="mCancel">Keep working</button></div></div>';
+    document.body.appendChild(back);
+    document.getElementById('mCancel').onclick = function () { back.remove(); };
+    document.getElementById('mConfirm').onclick = function () { back.remove(); submit(); };
+  }
+
+  function submit() {
+    var result = CTG.scoring.score(state.test, state.answers);
+    var ctx = CTG.lms.readContext();
+    if (state.ctx.studentName && !ctx.studentName) ctx.studentName = state.ctx.studentName;
+    ctx.attemptId = state.ctx.attemptId; // keep the id used on the start screen
+    var attempt = CTG.lms.buildAttempt(state.test, state.answers, result, ctx, { startedAt: state.startedAt });
+    if (!window.__PREVIEW__) CTG.lms.emitResult(attempt);
+    state.lastAttempt = attempt;
+    renderResults(result, attempt);
+  }
+
+  /* ---------------- results ---------------- */
+  function renderResults(result, attempt) {
+    document.body.classList.add('pinyin-on'); // reveal everything in review
+    document.body.classList.remove('pinyin-off');
+    var correctItems = 0, totalItems = 0;
+    result.sections.forEach(function (s) { s.items.forEach(function (it) { totalItems++; if (it.correct) correctItems++; }); });
+
+    var h = '<div class="wrap-narrow"><div class="hero"><h1>Results</h1><p class="score-sub">' + esc(result.title) + '</p></div>' +
+      '<div class="card"><div class="score-ring"><div class="score-big">' + result.percent + '%</div>' +
+      '<div class="score-sub">' + result.earnedPoints + ' / ' + result.maxPoints + ' points · ' +
+      correctItems + ' / ' + totalItems + ' questions fully correct</div></div>' +
+      '<div class="btn-row center" style="justify-content:center">' +
+      '<button class="btn" id="dlRes">⬇ Download my results (.json)</button>' +
+      (window.__PREVIEW__ ? '<button class="btn btn-ghost" id="retake">↻ Retake</button>' : '') +
+      '</div></div>';
+
+    result.sections.forEach(function (sec) {
+      h += '<h2 style="margin-top:22px">' + esc(sec.label) + ' <span class="muted" style="font-size:15px">' + sec.earnedPoints + '/' + sec.maxPoints + '</span></h2>';
+      sec.items.forEach(function (it) { h += resultItem(it); });
+    });
+    h += '</div>';
+    app.innerHTML = h;
+
+    document.getElementById('dlRes').onclick = function () {
+      var blob = new Blob([JSON.stringify(attempt, null, 2)], { type: 'application/json;charset=utf-8' });
+      var url = URL.createObjectURL(blob), a = document.createElement('a');
+      a.href = url; a.download = 'result_' + (attempt.studentName || 'student').replace(/\s+/g, '_') + '.json';
+      document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 400);
+    };
+    var rt = document.getElementById('retake'); if (rt) rt.onclick = function () { renderStart(); };
+    window.scrollTo(0, 0);
+  }
+
+  function tag(ok) { return '<span class="tag">' + (ok ? '✓ Correct' : '✗ Incorrect') + '</span>'; }
+  function cls(ok) { return 'res-item ' + (ok ? 'correct' : 'incorrect'); }
+  function expl(e) { return e ? '<div class="res-expl">💡 ' + esc(e) + '</div>' : ''; }
+
+  function resultItem(it) {
+    if (it.type === TYPE.PINYIN || it.type === TYPE.MCQ) return choiceResult(it);
+    if (it.type === TYPE.MATCH) return matchResult(it);
+    if (it.type === TYPE.ARRANGE) return arrangeResult(it);
+    if (it.type === TYPE.READING) return readingResult(it);
+    return '';
+  }
+  function textOf(item, optId, list) { var o = (list || []).filter(function (x) { return x.id === optId; })[0]; return o ? o.text : '—'; }
+
+  function choiceResult(it, subStem) {
+    // it.selectedId / it.correctId are option ids; we need the label text — but
+    // the scoring result doesn't carry option text, so store maps on the test.
+    var yourTxt = optText(it.selectedId), corrTxt = optText(it.correctId);
+    var stem = subStem || stemFor(it.id);
+    var h = '<div class="' + cls(it.correct) + '">' + tag(it.correct) +
+      (stem ? '<div class="res-line" style="margin-top:4px">' + stem + '</div>' : '') +
+      '<div class="res-line"><b>Your answer:</b> ' + (it.selectedId ? '<span class="' + (it.correct ? 'ans-good' : 'ans-bad') + '">' + esc(yourTxt) + '</span>' : '<span class="muted">— not answered —</span>') + '</div>';
+    if (!it.correct) h += '<div class="res-line"><b>Correct:</b> <span class="ans-good">' + esc(corrTxt) + '</span></div>';
+    h += expl(it.explanation) + '</div>';
+    return h;
+  }
+  function matchResult(it) {
+    var h = '<div class="' + cls(it.correct) + '">' + tag(it.correct) +
+      '<div class="res-line" style="margin-top:4px"><b>Matching (' + it.earnedPoints + '/' + it.maxPoints + ')</b></div>';
+    it.pairResults.forEach(function (p) {
+      h += '<div class="res-line">' + esc(p.chinese) + ' → ' +
+        (p.correct ? '<span class="ans-good">' + esc(p.correctMeaning) + '</span>'
+          : '<span class="ans-bad">' + esc(p.selectedMeaning || '—') + '</span> <span class="ans-good">' + esc(p.correctMeaning) + '</span>') + '</div>';
+    });
+    return h + expl(it.explanation) + '</div>';
+  }
+  function arrangeResult(it) {
+    var byId = {}; (it.chunks || []).forEach(function (c) { byId[c.id] = c.text; });
+    var yours = (it.studentOrder || []).map(function (id) { return byId[id] || '?'; }).join(' ');
+    var corr = (it.correctOrder || []).map(function (id) { return byId[id] || '?'; }).join(' ');
+    var h = '<div class="' + cls(it.correct) + '">' + tag(it.correct) +
+      '<div class="res-line" style="margin-top:4px"><b>Your sentence:</b> ' +
+      (yours ? '<span class="cn-hz ' + (it.correct ? 'ans-good' : 'ans-bad') + '">' + esc(yours) + '</span>' : '<span class="muted">— not answered —</span>') + '</div>';
+    if (!it.correct) h += '<div class="res-line"><b>Correct:</b> <span class="cn-hz ans-good">' + esc(corr) + '</span></div>';
+    if (it.meaning) h += '<div class="res-line muted">' + esc(it.meaning) + '</div>';
+    return h + expl(it.explanation) + '</div>';
+  }
+  function readingResult(it) {
+    var h = '<div class="res-item ' + (it.correct ? 'correct' : 'incorrect') + '">' + tag(it.correct) +
+      (it.title ? '<div class="res-line" style="margin-top:4px"><b>' + esc(it.title) + '</b></div>' : '') +
+      '<div class="res-line"><b>' + it.earnedPoints + '/' + it.maxPoints + ' correct</b></div>';
+    it.questions.forEach(function (q) {
+      var yourTxt = optText(q.selectedId), corrTxt = optText(q.correctId);
+      h += '<div class="res-line" style="border-top:1px dashed var(--line);padding-top:6px;margin-top:6px">' +
+        (q.correct ? '✓ ' : '✗ ') + esc(q.prompt) + '<br>' +
+        '<b>You:</b> ' + (q.selectedId ? '<span class="' + (q.correct ? 'ans-good' : 'ans-bad') + '">' + esc(yourTxt) + '</span>' : '<span class="muted">—</span>');
+      if (!q.correct) h += ' &nbsp; <b>Correct:</b> <span class="ans-good">' + esc(corrTxt) + '</span>';
+      if (q.explanation) h += '<div class="res-expl">💡 ' + esc(q.explanation) + '</div>';
+      h += '</div>';
+    });
+    return h + '</div>';
+  }
+
+  /* Lookups back into the test so results can show option TEXT (scoring keeps
+   * ids only, on purpose). Built once per test. */
+  var _optText = null, _stem = null;
+  function buildLookups() {
+    _optText = {}; _stem = {};
+    state.test.sections.forEach(function (sec) {
+      sec.items.forEach(function (it) {
+        if (it.options) { it.options.forEach(function (o) { _optText[o.id] = o.text; }); }
+        if (it.type === TYPE.PINYIN) _stem[it.id] = '<span class="cn-hz">' + esc(it.hanzi) + '</span>';
+        if (it.type === TYPE.MCQ) _stem[it.id] = P.withBreaks(it.prompt);
+        if (it.type === TYPE.READING) it.questions.forEach(function (q) {
+          q.options.forEach(function (o) { _optText[o.id] = o.text; });
+        });
+      });
+    });
+  }
+  function optText(id) { if (!_optText) buildLookups(); return id && _optText[id] != null ? _optText[id] : '—'; }
+  function stemFor(id) { if (!_stem) buildLookups(); return _stem[id] || ''; }
+})();
+
+</script>
+</body>
+</html>

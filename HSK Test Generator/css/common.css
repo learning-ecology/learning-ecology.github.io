@@ -1,0 +1,169 @@
+/* ============================================================================
+ * common.css — shared design tokens, base elements, pinyin rendering, buttons,
+ * cards, forms. Loaded by both the teacher app and the student player.
+ * ==========================================================================*/
+:root {
+  --red: #c62828;
+  --red-dark: #a01c1c;
+  --red-soft: #fdecec;
+  --ink: #1f2328;
+  --ink-soft: #4a5158;
+  --muted: #7a828b;
+  --line: #e4e7eb;
+  --line-strong: #cdd2d8;
+  --bg: #f6f7f9;
+  --card: #ffffff;
+  --ok: #2e7d32;
+  --ok-soft: #e8f5e9;
+  --bad: #c62828;
+  --bad-soft: #fdecec;
+  --warn: #b26a00;
+  --warn-soft: #fff4e0;
+  --accent: #1565c0;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 1px 3px rgba(20,25,35,.08), 0 4px 16px rgba(20,25,35,.05);
+  --shadow-lg: 0 8px 30px rgba(20,25,35,.14);
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --cn-font: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", var(--font);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --red: #ff6b6b; --red-dark: #ff8787; --red-soft: #3a2020;
+    --ink: #e9edf1; --ink-soft: #c2c9d1; --muted: #8b939c;
+    --line: #2c313a; --line-strong: #3a4049;
+    --bg: #14171c; --card: #1c2027;
+    --ok: #7bd88f; --ok-soft: #1e2e21; --bad: #ff8080; --bad-soft: #3a2020;
+    --warn: #ffc46b; --warn-soft: #33280f; --accent: #6ba8ff;
+    --shadow: 0 1px 3px rgba(0,0,0,.4); --shadow-lg: 0 8px 30px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"] {
+  --red: #ff6b6b; --red-dark: #ff8787; --red-soft: #3a2020;
+  --ink: #e9edf1; --ink-soft: #c2c9d1; --muted: #8b939c;
+  --line: #2c313a; --line-strong: #3a4049;
+  --bg: #14171c; --card: #1c2027;
+  --ok: #7bd88f; --ok-soft: #1e2e21; --bad: #ff8080; --bad-soft: #3a2020;
+  --warn: #ffc46b; --warn-soft: #33280f; --accent: #6ba8ff;
+  --shadow: 0 1px 3px rgba(0,0,0,.4); --shadow-lg: 0 8px 30px rgba(0,0,0,.5);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font);
+  color: var(--ink);
+  background: var(--bg);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+}
+h1, h2, h3, h4 { line-height: 1.25; margin: 0 0 .4em; }
+a { color: var(--accent); }
+p { margin: 0 0 .8em; }
+small { color: var(--muted); }
+
+/* ---- layout ---- */
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+.wrap-narrow { max-width: 780px; margin: 0 auto; padding: 0 16px; }
+
+.appbar {
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 40;
+}
+.appbar .wrap, .appbar .wrap-narrow { display: flex; align-items: center; gap: 12px; min-height: 60px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
+.brand .logo {
+  width: 34px; height: 34px; border-radius: 9px;
+  background: linear-gradient(135deg, var(--red), var(--red-dark));
+  color: #fff; display: grid; place-items: center; font-size: 20px; font-family: var(--cn-font);
+}
+.appbar .spacer { flex: 1; }
+
+/* ---- cards ---- */
+.card {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 20px; margin: 16px 0;
+}
+.card h2 { font-size: 18px; }
+.card .card-hd { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.card .card-hd .num {
+  width: 26px; height: 26px; border-radius: 50%; background: var(--red-soft); color: var(--red);
+  display: grid; place-items: center; font-weight: 700; font-size: 14px; flex: none;
+}
+.hint { color: var(--muted); font-size: 14px; margin: 2px 0 14px; }
+
+/* ---- buttons ---- */
+.btn {
+  font: inherit; font-weight: 600; cursor: pointer;
+  border: 1px solid var(--line-strong); background: var(--card); color: var(--ink);
+  padding: 10px 16px; border-radius: var(--radius-sm); display: inline-flex; align-items: center; gap: 8px;
+  transition: background .12s, border-color .12s, transform .04s; text-decoration: none;
+}
+.btn:hover { border-color: var(--muted); }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn-primary { background: var(--red); border-color: var(--red); color: #fff; }
+.btn-primary:hover { background: var(--red-dark); border-color: var(--red-dark); }
+.btn-ghost { background: transparent; }
+.btn-sm { padding: 6px 12px; font-size: 14px; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 10px; }
+
+/* ---- forms ---- */
+label { font-weight: 600; font-size: 14px; }
+input[type="text"], input[type="number"], select, textarea {
+  font: inherit; color: var(--ink); background: var(--card);
+  border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
+  padding: 9px 11px; width: 100%;
+}
+input:focus, select:focus, textarea:focus { outline: 2px solid color-mix(in srgb, var(--red) 40%, transparent); outline-offset: 1px; }
+.field { margin-bottom: 14px; }
+.check { display: flex; align-items: center; gap: 9px; font-weight: 500; cursor: pointer; padding: 4px 0; }
+.check input { width: auto; }
+.grid { display: grid; gap: 14px; }
+.grid-2 { grid-template-columns: 1fr 1fr; }
+.grid-3 { grid-template-columns: repeat(3, 1fr); }
+
+/* ---- badges / pills ---- */
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; }
+.pill-red { background: var(--red-soft); color: var(--red); }
+.pill-ok { background: var(--ok-soft); color: var(--ok); }
+.pill-muted { background: var(--line); color: var(--ink-soft); }
+
+/* ---- Chinese + pinyin rendering ------------------------------------------
+   Pinyin sits on its own line above the Chinese. Toggling visibility only
+   hides the pinyin line; the Chinese never moves. */
+.cn { display: inline-flex; flex-direction: column; align-items: flex-start; vertical-align: bottom; }
+.cn-hz { font-family: var(--cn-font); }
+.cn-py { font-size: .72em; color: var(--red); line-height: 1.2; letter-spacing: .01em; min-height: 0; }
+.cn-block { }
+.cn-block-hz { font-family: var(--cn-font); font-size: 1.15em; line-height: 2; }
+.cn-block-py { color: var(--red); line-height: 1.7; margin-bottom: 6px; font-size: .95em; }
+/* hidden state */
+.pinyin-off .cn-py, .pinyin-off .cn-block-py { display: none; }
+
+/* ---- notices ---- */
+.notice { border-radius: var(--radius-sm); padding: 12px 14px; margin: 10px 0; font-size: 14.5px; border: 1px solid transparent; }
+.notice-ok { background: var(--ok-soft); color: var(--ok); border-color: color-mix(in srgb, var(--ok) 30%, transparent); }
+.notice-bad { background: var(--bad-soft); color: var(--bad); border-color: color-mix(in srgb, var(--bad) 30%, transparent); }
+.notice-warn { background: var(--warn-soft); color: var(--warn); border-color: color-mix(in srgb, var(--warn) 30%, transparent); }
+.notice-info { background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
+
+/* ---- tables ---- */
+table.data { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.data th, table.data td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.data th { color: var(--muted); font-size: 12.5px; text-transform: uppercase; letter-spacing: .03em; }
+
+/* ---- utility ---- */
+.muted { color: var(--muted); }
+.center { text-align: center; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+.hidden { display: none !important; }
+
+@media (max-width: 720px) {
+  .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  body { font-size: 15.5px; }
+}

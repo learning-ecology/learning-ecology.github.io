@@ -1,0 +1,47 @@
+/* ============================================================================
+ * teacher.css — teacher/admin app only.
+ * ==========================================================================*/
+.dropzone {
+  border: 2px dashed var(--line-strong); border-radius: var(--radius);
+  padding: 30px; text-align: center; background: var(--bg);
+  cursor: pointer; transition: border-color .15s, background .15s;
+}
+.dropzone:hover, .dropzone.drag { border-color: var(--red); background: var(--red-soft); }
+.dropzone .big { font-size: 34px; }
+
+.stat-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.stat {
+  background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  padding: 10px 14px; min-width: 96px;
+}
+.stat .n { font-size: 22px; font-weight: 700; }
+.stat .l { font-size: 12.5px; color: var(--muted); }
+
+.lesson-list, .type-list { display: grid; gap: 8px; }
+.lesson-item, .section-config {
+  display: flex; align-items: center; gap: 12px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; background: var(--card);
+}
+.section-config { flex-wrap: wrap; }
+.section-config .sc-main { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 220px; }
+.section-config .sc-avail { color: var(--muted); font-size: 13px; }
+.section-config .sc-count { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.section-config .sc-count input { width: 76px; }
+.section-config.off { opacity: .55; }
+
+.toolbar-select { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+
+/* preview */
+.preview-shell { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; margin-top: 12px; }
+.preview-shell iframe { width: 100%; height: 620px; border: 0; display: block; background: var(--card); }
+
+/* bank browser */
+.bank-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.bank-tab { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--card); cursor: pointer; font-size: 14px; font-weight: 600; }
+.bank-tab.active { background: var(--red); color: #fff; border-color: var(--red); }
+.q-card { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 10px; background: var(--card); }
+.q-card .q-meta { font-size: 12px; color: var(--muted); margin-bottom: 6px; display: flex; gap: 8px; align-items: center; }
+.q-card .opt { padding: 2px 0; }
+.q-card .opt.correct { color: var(--ok); font-weight: 600; }
+
+.step-num { counter-reset: none; }

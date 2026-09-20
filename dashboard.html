@@ -2463,6 +2463,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           <div id="hsk-hw"></div>
           <div id="vocab-hw"></div>
           <div id="flash-hw"></div>
+          <div id="ctg-hw"></div>
           ${asgnCard || (`<div class="card" id="asgn-empty"><p class="empty">${T2p("no_asgn_student")}</p></div>`)}
         </div>
         <div class="tabpane" data-tab="community">
@@ -2602,6 +2603,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       // Bài tập HSK Slides + Bài tập Luyện từ vựng (cùng khu vực "Bài tập")
       mountStudentHomework("hsk-hw", "slides", "hsk_lessons", "hsk-slides.html", "🀄 Bài tập tiếng Trung");
       mountStudentHomework("vocab-hw", "vocab", "vocab_lessons", "vocab-practice.html", "🀄 Bài tập Luyện từ vựng");
+      mountStudentHomework("ctg-hw", "ctg", "ctg_tests", "hsk-test.html", "📝 Bài kiểm tra");
 
       /* ---- Bài tập Flashcards (Phase 111) — cùng bảng hsk_homework
          (kind='flashcards'); RLS chỉ trả bộ thẻ được giao cho tôi. Bấm Bắt đầu
@@ -4427,6 +4429,79 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             <div id="hp-summary" style="margin-top:0.6rem;"></div>
             <div id="hp-chips" style="display:flex; gap:0.4rem; flex-wrap:wrap; margin:0.6rem 0;"></div>
             <div id="hp-body"><p class="empty" style="margin:0;">Chọn lớp để xem tiến độ.</p></div>
+          </div>
+        </div>
+
+        <div class="tabpane" data-tab="ctg">
+          <div class="card">
+            <div class="card-head"><h2>📝 Đề kiểm tra (Chinese Test Generator)</h2>
+              <a class="ghost btn" href="HSK%20Test%20Generator/index.html" target="_blank" rel="noopener" style="text-decoration:none;">🛠 Mở trình tạo đề ↗</a></div>
+            <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
+              Tạo đề trong <b>trình tạo đề</b> (nhập Excel → Generate → <b>Download test file (.json)</b>), rồi tải tệp
+              <b>.json</b> đó lên đây. Học viên làm bài trong LMS; điểm tự lưu vào <b>sổ điểm</b> và có ở trang kết quả.</p>
+            <div class="form-row" style="align-items:flex-end;">
+              <div class="field" style="max-width:300px;"><label>Tệp đề (.json)</label>
+                <input type="file" id="ctg-file" accept=".json,application/json" style="padding:0.42rem;" /></div>
+              <div class="field" style="max-width:200px;"><label>Gắn khóa (tuỳ chọn)</label>
+                <select id="ctg-course"><option value="">— Không gắn —</option>${courseOptions}</select></div>
+              <div class="field" style="max-width:120px;"><label>Truy cập</label>
+                <select id="ctg-tier"><option value="free">Free</option><option value="premium">👑 Premium</option></select></div>
+              <label style="font-size:.85rem; color:var(--muted); white-space:nowrap; padding-bottom:.5rem;">
+                <input type="checkbox" id="ctg-pub" checked /> đăng</label>
+              <button id="ctg-upload" style="flex:none;">⬆ Tải đề lên</button>
+            </div>
+            <p id="ctg-msg" class="msg"></p>
+            <div id="ctg-list" style="margin-top:0.8rem;"><p class="empty">Đang tải…</p></div>
+          </div>
+
+          <div class="card" id="chw-card" style="border-top:4px solid var(--tone-red,#c0392b);">
+            <div class="card-head"><h2>📌 Giao bài kiểm tra</h2></div>
+            <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
+              Giao một <b>đề kiểm tra</b> cho cả lớp hoặc chọn từng học viên — cùng quy trình với HSK Slides/Luyện từ vựng
+              (có nhắc bài, theo dõi tiến độ). Học viên thấy trong <b>Bảng điều khiển → Bài tập</b>.</p>
+            <div class="form-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:0.7rem;">
+              <div class="field" style="grid-column:1/-1;"><label>Đề kiểm tra</label>
+                <select id="chw-lesson"><option value="">— Chọn đề —</option></select></div>
+              <div class="field"><label>Lớp</label>
+                <select id="chw-class"><option value="">— Chọn lớp —</option></select></div>
+              <div class="field"><label>Giao cho</label>
+                <select id="chw-who"><option value="all">Cả lớp</option><option value="some">Chọn học viên…</option></select></div>
+              <div class="field" id="chw-stu-wrap" style="grid-column:1/-1; display:none;">
+                <label>Học viên (giữ Ctrl/⌘ để chọn nhiều)</label>
+                <select id="chw-students" multiple size="5" style="height:auto;"></select></div>
+              <div class="field"><label>Mở lúc (tuỳ chọn)</label>
+                <input type="datetime-local" id="chw-start" /></div>
+              <div class="field"><label>Hạn nộp (tuỳ chọn)</label>
+                <input type="datetime-local" id="chw-due" /></div>
+              <div class="field"><label>Điểm cần đạt (%) · 0 = không bắt buộc</label>
+                <input type="number" id="chw-score" min="0" max="100" value="0" /></div>
+              <div class="field"><label>Số lượt tối đa · 0 = không giới hạn</label>
+                <input type="number" id="chw-tries" min="0" value="0" /></div>
+              <div class="field" style="grid-column:1/-1;"><label>Ghi chú / tiêu đề (tuỳ chọn)</label>
+                <input type="text" id="chw-title" placeholder="Để trống sẽ dùng tên đề" /></div>
+            </div>
+            <div style="display:flex; gap:0.6rem; align-items:center; margin-top:0.6rem; flex-wrap:wrap;">
+              <button id="chw-save">Giao bài</button>
+              <span id="chw-msg" class="msg"></span>
+            </div>
+            <div id="chw-list" style="margin-top:0.9rem;"></div>
+          </div>
+
+          <div class="card" id="chp-card" style="border-top:4px solid var(--tone-teal,#0d9488);">
+            <div class="card-head"><h2>📊 Theo dõi tiến độ (Đề kiểm tra)</h2>
+              <button class="ghost" id="chp-refresh" style="width:auto; padding:.35rem .7rem; font-size:.85rem;">↻ Làm mới</button>
+            </div>
+            <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
+              Xem ai đã làm, điểm cao nhất và số lượt cho từng đề đã giao. Chi tiết từng câu ở trang kết quả (sổ điểm).</p>
+            <div class="form-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:0.7rem;">
+              <div class="field"><label>Lớp</label>
+                <select id="chp-class"><option value="">— Chọn lớp —</option></select></div>
+              <div class="field"><label>Bài đã giao</label>
+                <select id="chp-hw"><option value="">— Tất cả bài của lớp —</option></select></div>
+            </div>
+            <div id="chp-summary" style="margin-top:0.6rem;"></div>
+            <div id="chp-chips" style="display:flex; gap:0.4rem; flex-wrap:wrap; margin:0.6rem 0;"></div>
+            <div id="chp-body"><p class="empty" style="margin:0;">Chọn lớp để xem tiến độ.</p></div>
           </div>
         </div>
 
@@ -6600,6 +6675,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           { id: "vsat", label: "V-SAT" + (vsRows.length ? " (" + vsRows.length + ")" : ""), icon: "file-check", group: "Content" },
           { id: "hsk", label: "HSK Slides" + (hskRows.length ? " (" + hskRows.length + ")" : ""), icon: "presentation", group: "Content" },
           { id: "vocab", label: "HSK Vocab Practice", icon: "wallet-cards", group: "Content" },
+          { id: "ctg", label: "Đề kiểm tra", icon: "file-check", group: "Content" },
           { id: "vstep", label: "VSTEP" + ((vpRows.length + vlRows.length) ? " (" + (vpRows.length + vlRows.length) + ")" : ""), icon: "book-open", group: "Content" },
           { id: "shadow", label: "Shadowing" + ((svRes.data || []).length ? " (" + svRes.data.length + ")" : ""), icon: "video", group: "Content" },
           { id: "dict", label: "Dictation", icon: "headphones", group: "Content" },
@@ -10551,6 +10627,87 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       mountProgressCard("hp", "slides", getSlidesLessons);
       mountAssignCard("vhw", "vocab", getVocabLessons, "migration71_vocab_homework.sql");
       mountProgressCard("vhp", "vocab", getVocabLessons);
+
+      // ===== Đề kiểm tra (CTG) — dùng chung máy giao bài/tiến độ (Phase 120) =====
+      let __ctgRows = null;
+      const getCtgTests = async () => {
+        if (__ctgRows) return __ctgRows;
+        try {
+          const r = await sb.from("ctg_tests").select("lesson_id, title, hsk_level, course_id, tier, published, max_points, created_at")
+            .order("sort_order").order("created_at");
+          __ctgRows = r.error ? [] : (r.data || []);
+        } catch (e) { __ctgRows = []; }
+        return __ctgRows;
+      };
+      mountAssignCard("chw", "ctg", getCtgTests, "migration79_ctg.sql");
+      mountProgressCard("chp", "ctg", getCtgTests);
+
+      // upload + manage CTG test packages (.json exported from the module)
+      (function () {
+        const fileEl = document.getElementById("ctg-file");
+        if (!fileEl) return;
+        const msg = document.getElementById("ctg-msg");
+        const listEl = document.getElementById("ctg-list");
+        const say = (t, err) => { msg.textContent = t || ""; msg.className = "msg" + (err ? " err" : ""); };
+        const slugify = t => "ctg-" + String(t || "test").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+          .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) + "-" + Math.random().toString(36).slice(2, 7);
+
+        async function refresh() {
+          const rows = await getCtgTests();
+          listEl.innerHTML = rows.length ? rows.map(r => `
+            <div class="lesson" style="flex-wrap:wrap;">
+              <div class="meta"><div class="title">${esc(r.title)}</div>
+                <span class="kind">${esc(r.lesson_id)} · ${r.max_points || 0} điểm · ${r.tier === "premium" ? "👑 Premium" : "Free"} · ${r.published ? "đã đăng" : "nháp"}</span></div>
+              <a class="ghost btn" href="hsk-test.html?test=${encodeURIComponent(r.lesson_id)}" target="_blank" rel="noopener" style="text-decoration:none;">👁 Mở thử</a>
+              <button class="ghost ctg-tier" data-id="${r.lesson_id}" data-tier="${r.tier}">${r.tier === "premium" ? "→ Free" : "→ 👑"}</button>
+              <button class="ghost ctg-pub" data-id="${r.lesson_id}" data-pub="${r.published}">${r.published ? "Ẩn" : "Đăng"}</button>
+              <button class="ghost ctg-del" data-id="${r.lesson_id}" style="color:var(--danger); border-color:var(--danger);">Xoá</button>
+            </div>`).join("") : `<p class="empty">Chưa có đề nào. Tạo trong trình tạo đề rồi tải .json lên.</p>`;
+          listEl.querySelectorAll(".ctg-tier").forEach(b => b.addEventListener("click", async () => {
+            const nt = b.getAttribute("data-tier") === "premium" ? "free" : "premium";
+            await sb.from("ctg_tests").update({ tier: nt, updated_at: new Date().toISOString() }).eq("lesson_id", b.getAttribute("data-id"));
+            __ctgRows = null; refresh();
+          }));
+          listEl.querySelectorAll(".ctg-pub").forEach(b => b.addEventListener("click", async () => {
+            const np = b.getAttribute("data-pub") !== "true";
+            await sb.from("ctg_tests").update({ published: np, updated_at: new Date().toISOString() }).eq("lesson_id", b.getAttribute("data-id"));
+            __ctgRows = null; refresh();
+          }));
+          listEl.querySelectorAll(".ctg-del").forEach(b => b.addEventListener("click", async () => {
+            if (!confirm("Xoá đề này? Điểm học viên đã làm vẫn được giữ trong sổ điểm.")) return;
+            await sb.from("ctg_tests").delete().eq("lesson_id", b.getAttribute("data-id"));
+            __ctgRows = null; refresh();
+          }));
+        }
+        refresh();
+
+        document.getElementById("ctg-upload").addEventListener("click", async () => {
+          const f = fileEl.files && fileEl.files[0];
+          if (!f) { say("Hãy chọn tệp .json của đề.", true); return; }
+          say("Đang đọc tệp…");
+          let pkg;
+          try { pkg = JSON.parse(await f.text()); } catch (e) { say("Tệp không phải JSON hợp lệ.", true); return; }
+          if (!pkg || !pkg.sections || !pkg.testId) { say("Không phải gói đề của Chinese Test Generator (thiếu sections/testId).", true); return; }
+          const title = pkg.title || f.name.replace(/\.json$/i, "");
+          const row = {
+            lesson_id: slugify(title), title, package: pkg,
+            max_points: Number(pkg.maxPoints) || 0,
+            course_id: document.getElementById("ctg-course").value || null,
+            tier: document.getElementById("ctg-tier").value,
+            published: document.getElementById("ctg-pub").checked,
+            created_by: user.id
+          };
+          say("Đang lưu đề…");
+          const { error } = await sb.from("ctg_tests").insert(row);
+          if (error) {
+            const need = /relation .* does not exist|column/i.test(error.message);
+            say(error.message + (need ? " — hình như chưa chạy migration79_ctg.sql." : ""), true);
+            return;
+          }
+          fileEl.value = ""; __ctgRows = null;
+          say("Đã tải đề “" + title + "” ✓"); refresh();
+        });
+      })();
 
       // ================= HSK VOCAB PRACTICE (Phase 85) =================
       // Quản lý bài Luyện từ vựng HSK y như HSK Slides: nhập Excel (Info/

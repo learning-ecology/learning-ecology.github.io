@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chinese Test Generator — Teacher</title>
+<meta name="description" content="Import a Chinese question bank from Excel and generate randomised tests.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="css/common.css">
+<link rel="stylesheet" href="css/teacher.css">
+</head>
+<body>
+<header class="appbar">
+  <div class="wrap">
+    <div class="brand"><span class="logo">中</span> Chinese Test Generator</div>
+    <span class="spacer"></span>
+    <a class="btn btn-sm" href="templates/chinese-test-template.xlsx" download>⬇ Excel template</a>
+    <a class="btn btn-sm" href="student.html" target="_blank" rel="noopener">Open student player ↗</a>
+    <button class="btn btn-sm btn-ghost" id="themeBtn" title="Toggle theme">◐</button>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- STEP 1 — IMPORT -->
+  <section class="card" id="importCard">
+    <div class="card-hd"><span class="num">1</span><h2>Import the question bank</h2></div>
+    <p class="hint">Upload your <strong>.xlsx</strong> file. Don't have one yet? Download the template above — it comes pre-filled with sample questions for all five sections and an Instructions sheet.</p>
+    <div class="dropzone" id="dropzone">
+      <div class="big">📄</div>
+      <p><strong>Click to choose</strong> or drag your Excel file here</p>
+      <p class="muted" style="margin:0">.xlsx — the file never leaves this device</p>
+      <input type="file" id="fileInput" accept=".xlsx,.xls" class="hidden">
+    </div>
+    <div id="importReport"></div>
+  </section>
+
+  <!-- STEP 2 — BROWSE (hidden until import) -->
+  <section class="card hidden" id="bankCard">
+    <div class="card-hd"><span class="num">2</span><h2>Review the question bank</h2></div>
+    <p class="hint">Everything imported cleanly. Skim it here, or jump straight to generating a test.</p>
+    <div class="bank-tabs" id="bankTabs"></div>
+    <div id="bankBody"></div>
+  </section>
+
+  <!-- STEP 3 — SETTINGS (hidden until import) -->
+  <section class="card hidden" id="settingsCard">
+    <div class="card-hd"><span class="num">3</span><h2>Test settings</h2></div>
+
+    <div class="field">
+      <label for="testTitle">Test title</label>
+      <input type="text" id="testTitle" value="Chinese Test" placeholder="e.g. Unit 1–2 Quiz">
+    </div>
+
+    <div class="field">
+      <label>Lessons / units to include</label>
+      <div class="toolbar-select">
+        <button class="btn btn-sm btn-ghost" data-lessons="all">Select all</button>
+        <button class="btn btn-sm btn-ghost" data-lessons="none">Clear</button>
+      </div>
+      <div class="lesson-list" id="lessonList"></div>
+    </div>
+
+    <div class="field">
+      <label>Sections &amp; number of questions</label>
+      <p class="hint" style="margin-top:2px">Turn sections on/off and set how many to include. Matching &amp; Reading counts are numbers of <em>groups</em> (a matching set / a passage).</p>
+      <div class="type-list" id="sectionList"></div>
+    </div>
+
+    <div class="grid grid-2">
+      <div>
+        <label class="check"><input type="checkbox" id="optRandomize" checked> Randomise question &amp; option order</label>
+        <label class="check"><input type="checkbox" id="optPinyinDefault"> Show Pinyin by default</label>
+        <label class="check"><input type="checkbox" id="optPinyinToggle" checked> Let students show/hide Pinyin</label>
+      </div>
+      <div>
+        <label>Pinyin is available on:</label>
+        <div id="pinyinScopes" style="margin-top:6px">
+          <label class="check"><input type="checkbox" data-scope="passages" checked> Reading passages</label>
+          <label class="check"><input type="checkbox" data-scope="questions" checked> Question prompts</label>
+          <label class="check"><input type="checkbox" data-scope="sentences" checked> Sentences &amp; matching terms</label>
+          <label class="check"><input type="checkbox" data-scope="options" checked> Answer options</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-row" style="margin-top:8px">
+      <button class="btn btn-primary" id="generateBtn">⚡ Generate test</button>
+      <span class="muted" id="genHint" style="align-self:center"></span>
+    </div>
+  </section>
+
+  <!-- STEP 4 — RESULT (hidden until generated) -->
+  <section class="card hidden" id="resultCard">
+    <div class="card-hd"><span class="num">4</span><h2>Your test is ready</h2></div>
+    <div id="genSummary"></div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="dlStandalone">⬇ Download standalone test (one .html file)</button>
+      <button class="btn" id="dlJson">⬇ Download test file (.json)</button>
+      <button class="btn btn-ghost" id="launchBtn">▶ Take it now (preview)</button>
+      <button class="btn btn-ghost" id="regenBtn">↻ Regenerate (new random version)</button>
+    </div>
+    <p class="hint" style="margin-top:12px">
+      <strong>Standalone .html</strong> is the easiest to share — one file a student just opens (works offline, no internet).
+      <strong>.json</strong> is the portable test package: hand it to a student together with <code>student.html</code>, or feed it to your LMS later.
+    </p>
+    <div class="preview-shell hidden" id="previewShell">
+      <iframe id="previewFrame" title="Test preview"></iframe>
+    </div>
+  </section>
+
+</main>
+
+<footer class="wrap" style="padding:24px 16px 48px; color:var(--muted); font-size:13px">
+  Chinese Test Generator · standalone module · designed for later LMS integration.
+</footer>
+
+<!-- engine -->
+<script src="js/vendor/xlsx.full.min.js"></script>
+<script src="js/core/schema.js"></script>
+<script src="js/core/pinyin.js"></script>
+<script src="js/core/excel-import.js"></script>
+<script src="js/core/question-bank.js"></script>
+<script src="js/core/test-generator.js"></script>
+<script src="js/core/scoring.js"></script>
+<script src="js/core/storage.js"></script>
+<script src="js/core/lms-adapter.js"></script>
+<!-- self-contained player source, used to export standalone tests -->
+<script src="js/generated/player-template.js"></script>
+<!-- teacher UI -->
+<script src="js/teacher-app.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "name": "chinese-test-generator",
+  "version": "1.0.0",
+  "description": "Standalone, LMS-ready browser platform for generating randomised Chinese tests from an Excel question bank.",
+  "private": true,
+  "scripts": {
+    "build": "node tools/build.js",
+    "build:template": "python3 tools/build_template.py",
+    "test": "node tools/selftest.js"
+  },
+  "license": "MIT"
+}
