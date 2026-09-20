@@ -1156,3 +1156,65 @@ body.sb-nav .topbar { justify-content: flex-end; }
   #subnav, .sn-burger, .sn-backdrop { display: none !important; }
   body.sb-nav, body.sb-nav.sb-min { padding-left: 0; }
 }
+
+/* ============================================================
+   PHASE 122 — in-tab section navigation (.secnav)
+   A sticky sub-nav auto-built at the top of long owner tabs
+   (HSK Slides / HSK Vocab / Flashcards / Đề kiểm tra). Does not
+   touch the left sidebar (#subnav).
+   ============================================================ */
+.secnav {
+  position: sticky; top: 0; z-index: 30;
+  margin: 0 0 1rem; padding: 0.4rem 0.5rem;
+  display: flex; align-items: center; gap: 0.5rem;
+  background: var(--card);
+  background: color-mix(in srgb, var(--bg, #f7f7f5) 90%, transparent);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--line); border-radius: 12px;
+}
+.secnav-scroll {
+  display: flex; gap: 0.35rem; flex: 1; min-width: 0;
+  overflow-x: auto; scrollbar-width: thin; padding-bottom: 2px; scroll-behavior: smooth;
+}
+.secnav-scroll::-webkit-scrollbar { height: 6px; }
+.secnav-scroll::-webkit-scrollbar-thumb { background: var(--line); border-radius: 999px; }
+.secnav-item {
+  flex: none; white-space: nowrap; display: inline-flex; align-items: center; gap: 0.35rem;
+  border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  border-radius: 999px; padding: 0.34rem 0.8rem; min-height: 0;
+  font: inherit; font-weight: 600; font-size: 0.85rem; cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.secnav-item .sn-i { font-size: 0.95em; line-height: 1; }
+.secnav-item:hover { border-color: var(--accent); }
+.secnav-item.on { background: var(--accent); color: #fff; border-color: transparent; }
+.secnav-ctrls { display: flex; align-items: center; gap: 0.3rem; flex: none; }
+.secnav-btn {
+  border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  border-radius: 8px; width: 32px; height: 32px; min-height: 0; padding: 0;
+  display: grid; place-items: center; cursor: pointer; font-size: 1rem; line-height: 1;
+}
+.secnav-btn:hover { border-color: var(--accent); }
+.secnav-btn:disabled { opacity: 0.4; cursor: default; }
+.secnav-prog {
+  flex: none; padding: 0 0.15rem; font-size: 0.76rem; color: var(--muted);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.secnav-sel { display: none; flex: 1; min-width: 0; }
+.secnav-item:focus-visible, .secnav-btn:focus-visible, .secnav-sel:focus-visible, .sn-collapse:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+/* offset so a section heading is not hidden behind the sticky sub-nav */
+.secnav-sec { scroll-margin-top: 72px; }
+/* optional per-section collapse (content hidden via CSS only — never removed) */
+.sn-collapse {
+  margin-left: 0.4rem; flex: none; width: 26px; height: 26px; min-height: 0; padding: 0;
+  border: 1px solid var(--line); background: var(--card); color: var(--muted);
+  border-radius: 7px; cursor: pointer; font-size: 0.85rem; line-height: 1;
+}
+.sn-collapse:hover { border-color: var(--accent); color: var(--accent-ink); }
+.secnav-sec.sn-collapsed > :not(:first-child) { display: none !important; }
+@media (max-width: 720px) {
+  .secnav-scroll { display: none; }
+  .secnav-sel { display: block; }
+}

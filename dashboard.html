@@ -3923,7 +3923,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         </div>
 
         <div class="tabpane" data-tab="flash">
-        <div class="card">
+        <div class="card secnav-sec" id="fc-manage-card" data-sn-label="Quản lý thẻ" data-sn-icon="🃏">
           <h2>🃏 Flashcards <span class="kind" id="fc-count"></span></h2>
           <p class="kind" style="margin:0 0 0.7rem;">Students review these with spaced repetition (hard cards return sooner, easy ones wait longer). Organized <b>Course → Lesson → Flashcards</b>. Pick a course and a lesson; cards without a lesson stay under <b>— Chưa phân loại —</b> until you move them.</p>
           <div class="form-row" style="margin-bottom:0.7rem;">
@@ -3965,7 +3965,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         </div>
 
         <!-- ===== Giao bài Flashcards (dùng chung hệ thống HSK Slides) ===== -->
-        <div class="card" id="fhw-card" style="border-top:4px solid var(--tone-red,#c0392b);">
+        <div class="card secnav-sec" id="fhw-card" data-sn-label="Giao bài" data-sn-icon="📌" style="border-top:4px solid var(--tone-red,#c0392b);">
           <div class="card-head"><h2>📌 Giao bài Flashcards</h2></div>
           <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
             Giao một <b>bộ thẻ</b> (theo Khóa → Bài) cho cả lớp hoặc chọn từng học viên — cùng quy trình
@@ -4001,7 +4001,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           <div id="fhw-list" style="margin-top:0.9rem;"></div>
         </div>
 
-        <div class="card" id="fhp-card" style="border-top:4px solid var(--tone-teal,#0d9488);">
+        <div class="card secnav-sec" id="fhp-card" data-sn-label="Tiến độ" data-sn-icon="📊" style="border-top:4px solid var(--tone-teal,#0d9488);">
           <div class="card-head"><h2>📊 Theo dõi tiến độ (Flashcards)</h2>
             <button class="ghost" id="fhp-refresh" style="width:auto; padding:.35rem .7rem; font-size:.85rem;">↻ Làm mới</button>
           </div>
@@ -4335,7 +4335,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         </div>
 
         <div class="tabpane" data-tab="hsk">
-          <div class="card">
+          <div class="card secnav-sec" id="hsk-sec-create" data-sn-label="Tạo bài giảng" data-sn-icon="🀄">
             <h2>🀄 Tạo bài giảng HSK từ Excel</h2>
             <p class="kind" style="margin:0 0 0.7rem;">Soạn nội dung trong một tệp Excel rồi tải lên — hệ thống tự dựng
               toàn bộ slide giảng dạy: từ vựng, <b>hướng dẫn viết Hán tự</b>, bài đọc, ngữ pháp, luyện tập và bộ thủ.
@@ -4361,7 +4361,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             <p id="hs-msg" class="msg"></p>
             <div id="hs-report" style="margin-top:0.6rem;"></div>
           </div>
-          <div class="card">
+          <div class="card secnav-sec" id="hsk-sec-list" data-sn-label="Bài giảng" data-sn-icon="📚">
             <div class="card-head"><h2>Bài giảng <span class="kind" id="hs-count"></span></h2>
               <div style="display:flex; gap:0.6rem; align-items:flex-end; flex-wrap:wrap;">
                 <div class="field" style="max-width:190px; margin:0;"><label>Trạng thái ảnh</label>
@@ -4381,7 +4381,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             <div id="hs-list"><p class="empty">Đang tải…</p></div>
           </div>
 
-          <div class="card" id="hw-card" style="border-top:4px solid var(--tone-red,#c0392b);">
+          <div class="card secnav-sec" id="hw-card" data-sn-label="Giao bài" data-sn-icon="📌" style="border-top:4px solid var(--tone-red,#c0392b);">
             <div class="card-head"><h2>📌 Giao bài tập</h2></div>
             <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
               Giao một bài giảng HSK cho cả lớp hoặc chọn từng học viên. Học viên thấy bài trong
@@ -4414,7 +4414,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             <div id="hw-list" style="margin-top:0.9rem;"></div>
           </div>
 
-          <div class="card" id="hp-card" style="border-top:4px solid var(--tone-teal,#0d9488);">
+          <div class="card secnav-sec" id="hp-card" data-sn-label="Tiến độ" data-sn-icon="📊" style="border-top:4px solid var(--tone-teal,#0d9488);">
             <div class="card-head"><h2>📊 Theo dõi tiến độ</h2>
               <button class="ghost" id="hp-refresh" style="width:auto; padding:.35rem .7rem; font-size:.85rem;">↻ Làm mới</button>
             </div>
@@ -4433,7 +4433,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         </div>
 
         <div class="tabpane" data-tab="ctg">
-          <div class="card">
+          <div class="card secnav-sec" id="ctg-sec-manage" data-sn-label="Kho đề" data-sn-icon="📝">
             <div class="card-head"><h2>📝 Đề kiểm tra (Chinese Test Generator)</h2>
               <a class="ghost btn" href="HSK%20Test%20Generator/index.html" target="_blank" rel="noopener" style="text-decoration:none;">🛠 Mở trình tạo đề ↗</a></div>
             <p class="kind" style="margin:0 0 0.5rem; text-transform:none; letter-spacing:0;">
@@ -4462,7 +4462,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             <div id="ctg-list" style="margin-top:0.8rem;"><p class="empty">Đang tải…</p></div>
           </div>
 
-          <div class="card" id="chw-card" style="border-top:4px solid var(--tone-red,#c0392b);">
+          <div class="card secnav-sec" id="chw-card" data-sn-label="Giao bài" data-sn-icon="📌" style="border-top:4px solid var(--tone-red,#c0392b);">
             <div class="card-head"><h2>📌 Giao bài kiểm tra</h2></div>
             <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
               Giao một <b>đề kiểm tra</b> cho cả lớp hoặc chọn từng học viên — cùng quy trình với HSK Slides/Luyện từ vựng
@@ -4495,7 +4495,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             <div id="chw-list" style="margin-top:0.9rem;"></div>
           </div>
 
-          <div class="card" id="chp-card" style="border-top:4px solid var(--tone-teal,#0d9488);">
+          <div class="card secnav-sec" id="chp-card" data-sn-label="Tiến độ" data-sn-icon="📊" style="border-top:4px solid var(--tone-teal,#0d9488);">
             <div class="card-head"><h2>📊 Theo dõi tiến độ (Đề kiểm tra)</h2>
               <button class="ghost" id="chp-refresh" style="width:auto; padding:.35rem .7rem; font-size:.85rem;">↻ Làm mới</button>
             </div>
@@ -4514,7 +4514,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         </div>
 
         <div class="tabpane" data-tab="vocab">
-          <div class="card" style="padding:0.7rem 1rem;">
+          <div class="card secnav-sec" id="vk-lang-card" data-sn-label="Ngôn ngữ" data-sn-icon="🌐" style="padding:0.7rem 1rem;">
             <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
               <b style="font-size:0.95rem;">Ngôn ngữ:</b>
               <button class="vkl-btn on" id="vkl-zh" type="button" data-vl="zh" style="padding:0.4rem 0.9rem; border-radius:999px; border:1px solid var(--line);">🇨🇳 Tiếng Trung / HSK</button>
@@ -4523,7 +4523,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           </div>
 
           <!-- ===== Giao bài Luyện từ vựng (dùng chung hệ thống HSK Slides) ===== -->
-          <div class="card" id="vhw-card" style="border-top:4px solid var(--tone-red,#c0392b);">
+          <div class="card secnav-sec" id="vhw-card" data-sn-label="Giao bài" data-sn-icon="📌" style="border-top:4px solid var(--tone-red,#c0392b);">
             <div class="card-head"><h2>📌 Giao bài Luyện từ vựng</h2></div>
             <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
               Giao một bài <b>Luyện từ vựng</b> (🇨🇳 hoặc 🇬🇧) cho cả lớp hoặc chọn từng học viên — cùng quy trình
@@ -4556,7 +4556,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             <div id="vhw-list" style="margin-top:0.9rem;"></div>
           </div>
 
-          <div class="card" id="vhp-card" style="border-top:4px solid var(--tone-teal,#0d9488);">
+          <div class="card secnav-sec" id="vhp-card" data-sn-label="Tiến độ" data-sn-icon="📊" style="border-top:4px solid var(--tone-teal,#0d9488);">
             <div class="card-head"><h2>📊 Theo dõi tiến độ (Luyện từ vựng)</h2>
               <button class="ghost" id="vhp-refresh" style="width:auto; padding:.35rem .7rem; font-size:.85rem;">↻ Làm mới</button>
             </div>
@@ -4574,7 +4574,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           </div>
 
           <div id="vk-zh">
-          <div class="card">
+          <div class="card secnav-sec" id="vkzh-create" data-sn-label="Tạo bài (Trung)" data-sn-icon="🀄">
             <h2>🀄 Tạo bài Luyện từ vựng HSK từ Excel</h2>
             <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
               Soạn nội dung trong tệp Excel (bốn trang <b>Info · Vocabulary · GapFill · Arrange</b>) rồi tải lên —
@@ -4596,7 +4596,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             <p id="vk-msg" class="msg"></p>
             <div id="vk-report" style="margin-top:0.6rem;"></div>
           </div>
-          <div class="card">
+          <div class="card secnav-sec" id="vkzh-list" data-sn-label="Bài luyện tập" data-sn-icon="📚">
             <div class="card-head"><h2>Bài luyện tập <span class="kind" id="vk-count"></span></h2>
               <div style="display:flex; gap:0.6rem; align-items:flex-end; flex-wrap:wrap;">
                 <button class="ghost btn" id="vk-findimg" type="button" title="Tìm ảnh cho các từ CÒN THIẾU ảnh (không đụng ảnh đã có)">🔎 Tìm ảnh cho từ còn thiếu</button>
@@ -4617,7 +4617,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           </div><!-- /vk-zh -->
 
           <div id="vk-en" hidden>
-            <div class="card">
+            <div class="card secnav-sec" id="ven-cats-card" data-sn-label="Danh mục (Anh)" data-sn-icon="🗂️">
               <div class="card-head"><h2>🗂️ Danh mục tiếng Anh</h2>
                 <button class="ghost" id="ven-refresh" style="width:auto; padding:.35rem .7rem; font-size:.85rem;">↻ Làm mới</button></div>
               <p class="kind" style="margin:0 0 0.6rem; text-transform:none; letter-spacing:0;">
@@ -4631,7 +4631,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               <div id="ven-cats"><p class="empty" style="margin:0;">Đang tải…</p></div>
             </div>
 
-            <div class="card">
+            <div class="card secnav-sec" id="ven-import-card" data-sn-label="Nhập bài (Anh)" data-sn-icon="🇬🇧">
               <h2>🇬🇧 Nhập bài Từ vựng tiếng Anh từ Excel</h2>
               <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
                 Tệp Excel ba trang <b>Info · Vocabulary · MCQ</b>. Trò <b>Nối Từ·Hình·Nghĩa</b> tự sinh từ Vocabulary (từ có ảnh + nghĩa Việt).
@@ -4650,7 +4650,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               <div id="ven-report" style="margin-top:0.6rem;"></div>
             </div>
 
-            <div class="card">
+            <div class="card secnav-sec" id="ven-list-card" data-sn-label="Bài (Anh)" data-sn-icon="📚">
               <div class="card-head"><h2>Bài tiếng Anh <span class="kind" id="ven-count"></span></h2>
                 <div style="display:flex; gap:0.6rem; align-items:flex-end; flex-wrap:wrap;">
                   <button class="ghost btn" id="ven-findimg" type="button" title="Tìm ảnh cho các từ CÒN THIẾU ảnh (không đụng ảnh đã có)">🔎 Tìm ảnh cho từ còn thiếu</button>
@@ -6664,6 +6664,149 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       })();
       // =============== HẾT QUẢN LÝ ĐỀ THI ===============
 
+      /* ============ Điều hướng mục trong tab (Phase 122) ============
+         Thanh phụ dính ở đầu vùng nội dung cho các tab dài (HSK Slides ·
+         HSK Vocab · Flashcards · Đề kiểm tra). Tự sinh mục từ các thẻ
+         .secnav-sec ĐANG hiển thị — KHÔNG đổi/gộp/xoá bất kỳ mục nào.
+         Sidebar trái (#subnav) giữ nguyên. */
+      const SecNav = (function () {
+        const SEC_TABS = new Set(["hsk", "vocab", "flash", "ctg"]);
+        let cur = null;               // {tab, nav, secs, idx, onScroll}
+        const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+
+        function sections(pane) {
+          return [...pane.querySelectorAll(".secnav-sec")].filter(el => el.offsetParent !== null).map(el => {
+            if (!el.id) el.id = "sec-" + Math.random().toString(36).slice(2, 8);
+            const h2 = el.querySelector("h2");
+            return { id: el.id, el,
+              label: el.getAttribute("data-sn-label") || (h2 ? h2.textContent.trim() : "Mục"),
+              icon: el.getAttribute("data-sn-icon") || "" };
+          });
+        }
+        function navHeight() { return cur && cur.nav ? cur.nav.getBoundingClientRect().height : 0; }
+        function scrollToId(id) {
+          const el = document.getElementById(id); if (!el) return;
+          const y = el.getBoundingClientRect().top + window.pageYOffset - navHeight() - 12;
+          window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+        }
+        function writeHash(tab, id) {
+          try { history.replaceState(null, "", location.pathname + location.search + "#" + tab + "/" + id); } catch (e) {}
+          try { localStorage.setItem("secnav:" + tab, id); } catch (e) {}
+        }
+        function ctrlBtn(txt, label, fn) {
+          const b = document.createElement("button");
+          b.type = "button"; b.className = "secnav-btn"; b.textContent = txt;
+          b.setAttribute("aria-label", label); b.title = label;
+          b.addEventListener("click", fn); return b;
+        }
+        function addCollapse(sec) {
+          const head = sec.el.querySelector(":scope > h2, :scope > .card-head");
+          if (!head || head.querySelector(".sn-collapse")) return;
+          const c = document.createElement("button");
+          c.type = "button"; c.className = "sn-collapse"; c.textContent = "⌃";
+          c.setAttribute("aria-label", "Thu gọn / mở mục này"); c.setAttribute("aria-expanded", "true");
+          c.addEventListener("click", ev => {
+            ev.stopPropagation();
+            const col = sec.el.classList.toggle("sn-collapsed");
+            c.setAttribute("aria-expanded", col ? "false" : "true"); c.textContent = col ? "⌄" : "⌃";
+          });
+          head.appendChild(c);
+        }
+
+        function build(tab) {
+          const pane = document.querySelector('.tabpane[data-tab="' + tab + '"]');
+          if (!pane) return null;
+          const old = pane.querySelector(":scope > .secnav"); if (old) old.remove();
+          const secs = sections(pane);
+          if (secs.length < 2) return null;   // no point navigating a single section
+
+          const nav = document.createElement("div");
+          nav.className = "secnav"; nav.setAttribute("role", "navigation"); nav.setAttribute("aria-label", "Điều hướng mục trong tab");
+
+          const scroll = document.createElement("div"); scroll.className = "secnav-scroll";
+          const sel = document.createElement("select"); sel.className = "secnav-sel"; sel.setAttribute("aria-label", "Chuyển nhanh tới mục");
+          secs.forEach((s, i) => {
+            const b = document.createElement("button");
+            b.type = "button"; b.className = "secnav-item"; b.dataset.target = s.id; b.setAttribute("aria-controls", s.id);
+            if (s.icon) { const ic = document.createElement("span"); ic.className = "sn-i"; ic.setAttribute("aria-hidden", "true"); ic.textContent = s.icon; b.appendChild(ic); }
+            const tx = document.createElement("span"); tx.textContent = s.label; b.appendChild(tx);
+            b.addEventListener("click", () => go(i));
+            scroll.appendChild(b);
+            const o = document.createElement("option"); o.value = s.id; o.textContent = (i + 1) + ". " + s.label; sel.appendChild(o);
+            addCollapse(s);
+          });
+          sel.addEventListener("change", () => { const i = secs.findIndex(s => s.id === sel.value); if (i >= 0) go(i); });
+
+          const ctrls = document.createElement("div"); ctrls.className = "secnav-ctrls";
+          const prev = ctrlBtn("‹", "Mục trước", () => step(-1));
+          const next = ctrlBtn("›", "Mục sau", () => step(1));
+          const prog = document.createElement("span"); prog.className = "secnav-prog";
+          const top = ctrlBtn("↑", "Về đầu trang", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+          ctrls.append(prev, prog, next, top);
+
+          nav.append(scroll, sel, ctrls);
+          pane.insertBefore(nav, pane.firstChild);
+
+          const raf = { pending: false };
+          function spy() {
+            raf.pending = false;
+            const line = navHeight() + 18;
+            let idx = 0;
+            for (let i = 0; i < secs.length; i++) { if (secs[i].el.getBoundingClientRect().top <= line + 2) idx = i; }
+            setActive(idx);
+          }
+          function onScroll() { if (!raf.pending) { raf.pending = true; requestAnimationFrame(spy); } }
+          function setActive(i) {
+            if (!cur) return;
+            cur.idx = i;
+            [...scroll.children].forEach((b, j) => b.classList.toggle("on", j === i));
+            sel.value = secs[i].id;
+            prog.textContent = "Mục " + (i + 1) + "/" + secs.length;
+            prev.disabled = i === 0; next.disabled = i === secs.length - 1;
+            const chip = scroll.children[i]; if (chip) chip.scrollIntoView({ block: "nearest", inline: "nearest" });
+            writeHash(tab, secs[i].id);
+          }
+          function go(i) { i = clamp(i, 0, secs.length - 1); scrollToId(secs[i].id); setActive(i); }
+          function step(d) { go((cur ? cur.idx : 0) + d); }
+
+          return { tab, nav, secs, idx: 0, onScroll, spyNow: spy, go, setActive };
+        }
+
+        function teardown() {
+          if (!cur) return;
+          window.removeEventListener("scroll", cur.onScroll);
+          window.removeEventListener("resize", cur.onScroll);
+          cur = null;
+        }
+        function activate(tab) {
+          teardown();
+          if (!SEC_TABS.has(tab)) return;
+          const built = build(tab); if (!built) return;
+          cur = built;
+          window.addEventListener("scroll", cur.onScroll, { passive: true });
+          window.addEventListener("resize", cur.onScroll, { passive: true });
+          cur.spyNow();   // set initial active/progress synchronously (rAF may be throttled)
+        }
+        function refresh(tab) { if (cur && cur.tab === tab) activate(tab); }
+        function applyInitialHash(showTabFn) {
+          try {
+            const parts = (location.hash || "").replace(/^#/, "").split("/");
+            if (parts.length !== 2 || !SEC_TABS.has(parts[0])) return;
+            const tab = parts[0], id = parts[1];
+            const el = document.getElementById(id); if (!el) return;
+            if (tab === "vocab" && /^ven/.test(id)) { const b = document.getElementById("vkl-en"); if (b) b.click(); }
+            showTabFn(tab);
+            setTimeout(() => {
+              activate(tab);
+              const i = cur ? cur.secs.findIndex(s => s.id === id) : -1;
+              if (i >= 0) cur.go(i); else scrollToId(id);
+            }, 60);
+          } catch (e) {}
+        }
+        return { activate, refresh, applyInitialHash, isSecTab: t => SEC_TABS.has(t) };
+      })();
+      window.SecNav = SecNav;
+
       function showTab(t) {
         adminTab = t;
         if (t === "landing" && window.__lpmInit) window.__lpmInit();
@@ -6682,6 +6825,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         const lbl = document.querySelector(`#subnav .sn-item[data-id="${t}"] span`);
         const eb = app.querySelector(".eyebrow");
         if (eb && lbl) eb.textContent = "Admin / " + lbl.textContent;
+        try { SecNav.activate(t); } catch (e) {}
       }
       if (window.UI && UI.initNav) UI.initNav({
         items: [
@@ -6721,6 +6865,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         ]
       });
       showTab(adminTab);
+      try { SecNav.applyInitialHash(showTab); } catch (e) {}
 
       // --- drag & drop upload zone ---
       const drop = document.getElementById("l-drop");
@@ -11417,6 +11562,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           $("vkl-en").style.cssText = "padding:0.4rem 0.9rem;border-radius:999px;border:1px solid var(--line);" + (l === "en" ? "background:var(--tone-teal,#0d9488);color:#fff;" : "background:#fff;");
           zhBox.hidden = l !== "zh"; enBox.hidden = l !== "en";
           if (l === "en" && !enLoaded) { enLoaded = true; loadEn(); }
+          try { window.SecNav && SecNav.refresh("vocab"); } catch (e) {}
         }
         $("vkl-zh").addEventListener("click", () => setLang("zh"));
         $("vkl-en").addEventListener("click", () => setLang("en"));
