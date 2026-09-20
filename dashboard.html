@@ -4436,21 +4436,29 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           <div class="card">
             <div class="card-head"><h2>📝 Đề kiểm tra (Chinese Test Generator)</h2>
               <a class="ghost btn" href="HSK%20Test%20Generator/index.html" target="_blank" rel="noopener" style="text-decoration:none;">🛠 Mở trình tạo đề ↗</a></div>
-            <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
-              Tạo đề trong <b>trình tạo đề</b> (nhập Excel → Generate → <b>Download test file (.json)</b>), rồi tải tệp
-              <b>.json</b> đó lên đây. Học viên làm bài trong LMS; điểm tự lưu vào <b>sổ điểm</b> và có ở trang kết quả.</p>
+            <p class="kind" style="margin:0 0 0.5rem; text-transform:none; letter-spacing:0;">
+              Tải lên <b>tệp Excel (.xlsx/.xls)</b> đề bài — hệ thống tự đọc, kiểm tra và dựng đề — hoặc tệp
+              <b>.json</b> đã tạo sẵn. Xem trước rồi <b>Xuất bản</b>. Học viên làm trong LMS; đáp án tự xáo trộn khi làm
+              (đáp án đúng không đổi); điểm vào <b>sổ điểm</b> + trang kết quả. Cột/định dạng theo
+              <a href="HSK%20Test%20Generator/templates/chinese-test-template.xlsx" style="color:var(--accent-ink);">⬇ Excel mẫu</a>.</p>
             <div class="form-row" style="align-items:flex-end;">
-              <div class="field" style="max-width:300px;"><label>Tệp đề (.json)</label>
-                <input type="file" id="ctg-file" accept=".json,application/json" style="padding:0.42rem;" /></div>
-              <div class="field" style="max-width:200px;"><label>Gắn khóa (tuỳ chọn)</label>
+              <div class="field" style="max-width:320px;"><label>Tệp đề (.xlsx / .xls / .json)</label>
+                <input type="file" id="ctg-file" accept=".xlsx,.xls,.json,application/json" style="padding:0.42rem;" /></div>
+              <div class="field"><label>Tiêu đề (tuỳ chọn)</label>
+                <input type="text" id="ctg-name" placeholder="Để trống sẽ lấy từ tệp" /></div>
+              <button class="ghost" id="ctg-preview" style="flex:none;">🔎 Đọc & xem trước</button>
+            </div>
+            <div class="form-row" style="align-items:flex-end; margin-top:.5rem;">
+              <div class="field" style="max-width:220px;"><label>Gắn khóa (tuỳ chọn)</label>
                 <select id="ctg-course"><option value="">— Không gắn —</option>${courseOptions}</select></div>
-              <div class="field" style="max-width:120px;"><label>Truy cập</label>
+              <div class="field" style="max-width:130px;"><label>Truy cập</label>
                 <select id="ctg-tier"><option value="free">Free</option><option value="premium">👑 Premium</option></select></div>
               <label style="font-size:.85rem; color:var(--muted); white-space:nowrap; padding-bottom:.5rem;">
-                <input type="checkbox" id="ctg-pub" checked /> đăng</label>
-              <button id="ctg-upload" style="flex:none;">⬆ Tải đề lên</button>
+                <input type="checkbox" id="ctg-pub" checked /> đăng ngay</label>
+              <button id="ctg-upload" style="flex:none;" disabled>⬆ Xuất bản đề</button>
             </div>
             <p id="ctg-msg" class="msg"></p>
+            <div id="ctg-preview-box" style="margin-top:0.6rem;"></div>
             <div id="ctg-list" style="margin-top:0.8rem;"><p class="empty">Đang tải…</p></div>
           </div>
 
@@ -10642,15 +10650,40 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       mountAssignCard("chw", "ctg", getCtgTests, "migration79_ctg.sql");
       mountProgressCard("chp", "ctg", getCtgTests);
 
-      // upload + manage CTG test packages (.json exported from the module)
+      // Upload đề: Excel (.xlsx/.xls) HOẶC .json. Dùng LẠI engine của module
+      // (CTG.excel + CTG.generator) — nạp lười khi cần, không sửa mã module.
       (function () {
         const fileEl = document.getElementById("ctg-file");
         if (!fileEl) return;
+        const MOD = "HSK%20Test%20Generator/";
         const msg = document.getElementById("ctg-msg");
         const listEl = document.getElementById("ctg-list");
+        const prevBox = document.getElementById("ctg-preview-box");
+        const pubBtn = document.getElementById("ctg-upload");
         const say = (t, err) => { msg.textContent = t || ""; msg.className = "msg" + (err ? " err" : ""); };
         const slugify = t => "ctg-" + String(t || "test").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
           .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) + "-" + Math.random().toString(36).slice(2, 7);
+        let pending = null;   // gói đề đã xem trước, chờ xuất bản
+
+        // nạp lười engine module (SheetJS + core) — chỉ một lần
+        let engineReady = null;
+        function ensureEngine() {
+          if (engineReady) return engineReady;
+          const load = src => new Promise((res, rej) => {
+            const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = () => rej(new Error("load " + src)); document.body.appendChild(s);
+          });
+          engineReady = (async () => {
+            if (!(window.CTG && window.CTG.excel && window.CTG.generator)) {
+              await load(MOD + "js/vendor/xlsx.full.min.js");
+              await load(MOD + "js/core/schema.js");
+              await load(MOD + "js/core/question-bank.js");
+              await load(MOD + "js/core/test-generator.js");
+              await load(MOD + "js/core/excel-import.js");
+            }
+            if (!(window.CTG && window.CTG.excel && window.CTG.generator)) throw new Error("engine không nạp được");
+          })();
+          return engineReady;
+        }
 
         async function refresh() {
           const rows = await getCtgTests();
@@ -10662,7 +10695,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               <button class="ghost ctg-tier" data-id="${r.lesson_id}" data-tier="${r.tier}">${r.tier === "premium" ? "→ Free" : "→ 👑"}</button>
               <button class="ghost ctg-pub" data-id="${r.lesson_id}" data-pub="${r.published}">${r.published ? "Ẩn" : "Đăng"}</button>
               <button class="ghost ctg-del" data-id="${r.lesson_id}" style="color:var(--danger); border-color:var(--danger);">Xoá</button>
-            </div>`).join("") : `<p class="empty">Chưa có đề nào. Tạo trong trình tạo đề rồi tải .json lên.</p>`;
+            </div>`).join("") : `<p class="empty">Chưa có đề nào. Tải lên Excel hoặc .json ở trên.</p>`;
           listEl.querySelectorAll(".ctg-tier").forEach(b => b.addEventListener("click", async () => {
             const nt = b.getAttribute("data-tier") === "premium" ? "free" : "premium";
             await sb.from("ctg_tests").update({ tier: nt, updated_at: new Date().toISOString() }).eq("lesson_id", b.getAttribute("data-id"));
@@ -10681,17 +10714,94 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         }
         refresh();
 
-        document.getElementById("ctg-upload").addEventListener("click", async () => {
+        // ---- đọc file → gói đề (Excel qua engine module, hoặc .json trực tiếp) ----
+        async function buildPackage(f, title) {
+          const nm = (f.name || "").toLowerCase();
+          if (nm.endsWith(".json")) {
+            let pkg; try { pkg = JSON.parse(await f.text()); } catch (e) { throw new Error("Tệp .json không hợp lệ."); }
+            if (!pkg || !pkg.sections || !pkg.testId) throw new Error("Không phải gói đề của Chinese Test Generator (thiếu sections/testId).");
+            return pkg;
+          }
+          // Excel → dùng engine module
+          await ensureEngine();
+          const buf = await f.arrayBuffer();
+          const { bank, report } = window.CTG.excel.parseWorkbook(buf);
+          if (!report.ok) {
+            const e = new Error("Excel có lỗi — hãy sửa rồi tải lại.");
+            e.issues = report.errors; e.warnings = report.warnings; throw e;
+          }
+          // "nhập tất cả": mọi bài, mọi mục, toàn bộ câu; xáo trộn khi làm
+          const st = window.CTG.generator.defaultSettings();
+          st.title = title || (bank.title || "Bài kiểm tra");
+          st.lessonIds = (bank.lessons || []).map(l => l.id);
+          Object.keys(st.counts).forEach(k => { st.counts[k] = 9999; });
+          Object.keys(st.types).forEach(k => { st.types[k] = true; });
+          let out;
+          try { out = window.CTG.generator.generate(bank, st); }
+          catch (e2) { const e = new Error("Không dựng được đề: " + (e2.message || e2)); e.issues = e2.issues; throw e; }
+          const pkg = out.test || out;
+          pkg._warnings = report.warnings;   // để hiển thị nhắc nhở (không chặn)
+          return pkg;
+        }
+
+        function renderPreview(pkg) {
+          const itemHtml = it => {
+            if (it.options && it.answerId) {   // pinyin_choice / mcq
+              const head = esc(it.prompt || it.hanzi || it.stem || "");
+              const opts = (it.options || []).map(o => o.id === it.answerId ? "<b>✓ " + esc(o.text) + "</b>" : esc(o.text)).join(" · ");
+              return `<li>${head ? head + " — " : ""}${opts}</li>`;
+            }
+            if (it.left && it.right) return `<li>Ghép nghĩa: ${(it.left || []).length} cặp (đáp án lưu theo id)</li>`;
+            if (it.chunks) return `<li>Sắp xếp: <b>${esc((it.chunks || []).map(c => c.text).join(" "))}</b>${it.meaning ? " <span class=\"kind\">(" + esc(it.meaning) + ")</span>" : ""}</li>`;
+            if (it.passage || it.questions) return `<li>Đọc hiểu${it.title ? " “" + esc(it.title) + "”" : ""} + ${((it.questions || []).length)} câu hỏi</li>`;
+            return `<li class="kind">(câu)</li>`;
+          };
+          const secHtml = (pkg.sections || []).map(sec => {
+            const items = (sec.items || []).slice(0, 3).map(itemHtml).join("");
+            const more = (sec.items || []).length > 3 ? `<li class="kind">… và ${(sec.items.length - 3)} câu nữa</li>` : "";
+            return `<div style="margin:.4rem 0;"><b>${esc(sec.label || sec.type)}</b> <span class="kind">(${(sec.items || []).length} câu)</span><ul style="margin:.2rem 0 .2rem 1.1rem;">${items}${more}</ul></div>`;
+          }).join("");
+          const warns = (pkg._warnings && pkg._warnings.length)
+            ? `<p class="msg" style="color:var(--warning,#b45309);">⚠️ ${pkg._warnings.length} cảnh báo (không chặn): ${esc(pkg._warnings.slice(0, 3).map(w => w.message).join(" · "))}${pkg._warnings.length > 3 ? "…" : ""}</p>` : "";
+          prevBox.innerHTML = `
+            <div class="card" style="border:1px solid var(--accent); border-radius:12px; padding:.8rem 1rem;">
+              <b>Xem trước:</b> ${esc(pkg.title || "Bài kiểm tra")} · ${(pkg.sections || []).length} mục ·
+              ${(pkg.sections || []).reduce((s, x) => s + (x.items || []).length, 0)} câu · ${pkg.maxPoints || 0} điểm
+              ${warns}
+              ${secHtml}
+              <p class="kind" style="margin:.3rem 0 0;">Đáp án sẽ tự xáo trộn khi học viên làm; đáp án đúng (✓) không đổi. Bấm <b>⬆ Xuất bản đề</b> để lưu.</p>
+            </div>`;
+        }
+
+        document.getElementById("ctg-preview").addEventListener("click", async () => {
           const f = fileEl.files && fileEl.files[0];
-          if (!f) { say("Hãy chọn tệp .json của đề.", true); return; }
-          say("Đang đọc tệp…");
-          let pkg;
-          try { pkg = JSON.parse(await f.text()); } catch (e) { say("Tệp không phải JSON hợp lệ.", true); return; }
-          if (!pkg || !pkg.sections || !pkg.testId) { say("Không phải gói đề của Chinese Test Generator (thiếu sections/testId).", true); return; }
-          const title = pkg.title || f.name.replace(/\.json$/i, "");
+          if (!f) { say("Hãy chọn tệp Excel (.xlsx/.xls) hoặc .json.", true); return; }
+          pending = null; pubBtn.disabled = true; prevBox.innerHTML = "";
+          say("Đang đọc & kiểm tra tệp…");
+          try {
+            const title = document.getElementById("ctg-name").value.trim() || null;
+            const pkg = await buildPackage(f, title);
+            pending = pkg;
+            renderPreview(pkg);
+            pubBtn.disabled = false;
+            say("Đọc xong ✓ — xem trước rồi Xuất bản.");
+          } catch (e) {
+            const lines = (e.issues && e.issues.length)
+              ? "<ul style='margin:.3rem 0 0 1.1rem;'>" + e.issues.slice(0, 12).map(i =>
+                  `<li>${i.sheet ? "[" + esc(i.sheet) + (i.row ? " dòng " + i.row : "") + "] " : ""}${esc(i.message)}</li>`).join("") +
+                  (e.issues.length > 12 ? `<li>… và ${e.issues.length - 12} lỗi nữa</li>` : "") + "</ul>"
+              : "";
+            msg.className = "msg err"; msg.innerHTML = esc(e.message || "Đọc tệp lỗi.") + lines;
+          }
+        });
+
+        pubBtn.addEventListener("click", async () => {
+          if (!pending) { say("Hãy đọc & xem trước một tệp trước.", true); return; }
+          const title = document.getElementById("ctg-name").value.trim() || pending.title || "Bài kiểm tra";
+          const pkgClean = Object.assign({}, pending); delete pkgClean._warnings;   // don't persist transient field
           const row = {
-            lesson_id: slugify(title), title, package: pkg,
-            max_points: Number(pkg.maxPoints) || 0,
+            lesson_id: slugify(title), title, package: pkgClean,
+            max_points: Number(pending.maxPoints) || 0,
             course_id: document.getElementById("ctg-course").value || null,
             tier: document.getElementById("ctg-tier").value,
             published: document.getElementById("ctg-pub").checked,
@@ -10701,11 +10811,11 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           const { error } = await sb.from("ctg_tests").insert(row);
           if (error) {
             const need = /relation .* does not exist|column/i.test(error.message);
-            say(error.message + (need ? " — hình như chưa chạy migration79_ctg.sql." : ""), true);
-            return;
+            say(error.message + (need ? " — hình như chưa chạy migration79_ctg.sql." : ""), true); return;
           }
-          fileEl.value = ""; __ctgRows = null;
-          say("Đã tải đề “" + title + "” ✓"); refresh();
+          fileEl.value = ""; document.getElementById("ctg-name").value = ""; pending = null;
+          pubBtn.disabled = true; prevBox.innerHTML = ""; __ctgRows = null;
+          say("Đã xuất bản đề “" + title + "” ✓"); refresh();
         });
       })();
 
