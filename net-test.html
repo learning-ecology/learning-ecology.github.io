@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bài kiểm tra tiếng Anh · Learning Ecology</title>
+<meta name="robots" content="noindex">
+<!-- The "National English Test" engine is embedded UNCHANGED (black box). We only
+     drive it through its documented seams: TestEngine (parse/score/formatText),
+     TestRunner (UI) and TestStore (Supabase persistence in net-store.js). This
+     same-origin page holds the Supabase session and saves the attempt itself
+     (submit_net_attempt → test_attempts gradebook + progress + ranking). -->
+<link rel="stylesheet" href="English%20national%20test/test-system/css/styles.css">
+<style>
+  .lms-bar{ display:flex; align-items:center; gap:.7rem; padding:.55rem 1rem; background:#0f1725; color:#fff; flex-wrap:wrap; }
+  .lms-bar .brand{ font-weight:800; }
+  .lms-bar .sp{ flex:1; }
+  .lms-bar a, .lms-bar .who{ color:#cdd6e6; font-size:.9rem; text-decoration:none; }
+  .lms-bar a:hover{ color:#fff; }
+  .lms-msg{ max-width:760px; margin:2.4rem auto; background:#fff; border:1px solid #dde3ec; border-radius:14px;
+    padding:2rem; text-align:center; font-family:system-ui,Segoe UI,Roboto,sans-serif; color:#17263e; }
+  .lms-msg a.btn{ display:inline-block; margin-top:1rem; background:#1e4f8f; color:#fff; text-decoration:none;
+    padding:.6rem 1.2rem; border-radius:10px; font-weight:700; }
+  .lms-toast{ position:fixed; left:50%; bottom:1.2rem; transform:translateX(-50%); background:#0f1725; color:#fff;
+    padding:.6rem 1rem; border-radius:10px; font-size:.9rem; z-index:9999; box-shadow:0 6px 24px rgba(0,0,0,.25); }
+  #host{ max-width:1100px; margin:0 auto; }
+</style>
+</head>
+<body>
+<div class="lms-bar">
+  <span class="brand">📝 Learning Ecology</span>
+  <span class="who" id="lms-who"></span>
+  <span class="sp"></span>
+  <a href="dashboard.html">← Bảng điều khiển</a>
+</div>
+
+<div id="app"><div class="lms-msg">Đang tải bài kiểm tra…</div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="net-store.js"></script>
+<script>
+(function () {
+  "use strict";
+  var MOD = "English%20national%20test/test-system/";
+  var app = document.getElementById("app");
+  function fail(html) { app.innerHTML = '<div class="lms-msg">' + html + '</div>'; }
+  function toast(t) { var d = document.createElement("div"); d.className = "lms-toast"; d.textContent = t;
+    document.body.appendChild(d); setTimeout(function () { d.remove(); }, 3500); }
+
+  var q = new URLSearchParams(location.search);
+  var homeworkId = q.get("hw") || null;
+  var slug = q.get("lesson") || q.get("test") || null;   // net_tests.lesson_id
+
+  boot();
+  async function boot() {
+    var sess;
+    try { sess = (await sb.auth.getSession()).data.session; } catch (e) {}
+    if (!sess || !sess.user) {
+      location.href = "login.html?next=" + encodeURIComponent(location.pathname + location.search);
+      return;
+    }
+    var user = sess.user;
+
+    var prof = null;
+    try { prof = (await sb.from("profiles").select("full_name, role").eq("id", user.id).maybeSingle()).data; } catch (e) {}
+    document.getElementById("lms-who").textContent = (prof && prof.full_name) || user.email || "";
+
+    // resolve the assignment (if opened as homework) → its test slug + re-attempt rules
+    var hw = null;
+    if (homeworkId) {
+      try { hw = (await sb.from("hsk_homework").select("*").eq("id", homeworkId).maybeSingle()).data; } catch (e) {}
+      if (!hw) { fail("Không mở được bài tập này (có thể bài chưa giao cho bạn).<br><a class=\"btn\" href=\"dashboard.html\">Về Bảng điều khiển</a>"); return; }
+      if (hw.kind !== "net") { fail("Bài tập này không phải bài kiểm tra tiếng Anh."); return; }
+      slug = slug || hw.lesson_id;
+      if (hw.start_at && new Date(hw.start_at) > new Date()) {
+        fail("Bài kiểm tra sẽ mở lúc <b>" + new Date(hw.start_at).toLocaleString("vi-VN") + "</b>."); return;
+      }
+      if (hw.max_attempts && hw.max_attempts > 0) {
+        try {
+          var c = await sb.from("hsk_attempts").select("id", { count: "exact", head: true })
+            .eq("homework_id", homeworkId).eq("user_id", user.id).eq("kind", "net");
+          if (typeof c.count === "number" && c.count >= hw.max_attempts) {
+            fail("Bạn đã hết lượt làm bài này (" + c.count + "/" + hw.max_attempts + ").<br><a class=\"btn\" href=\"dashboard.html\">Về Bảng điều khiển</a>"); return;
+          }
+        } catch (e) {}
+      }
+    }
+
+    if (!slug) { fail("Thiếu mã bài kiểm tra."); return; }
+
+    // fetch the test model (RLS: active/free/enrolled, or via the assignment)
+    var record = null;
+    try { record = await TestStore.getTest(slug); } catch (e) {}
+    if (!record || !record.test) { fail("Không tìm thấy bài kiểm tra, hoặc bạn chưa có quyền mở.<br><a class=\"btn\" href=\"dashboard.html\">Về Bảng điều khiển</a>"); return; }
+
+    // context so the attempt is linked to this assignment + re-attempt checked
+    TestStore.context = { homeworkId: homeworkId, lessonId: slug };
+
+    app.innerHTML = '<div id="host"></div>';
+    var host = document.getElementById("host");
+
+    // load engine + runner + then start
+    loadSeq([MOD + "js/test-engine.js", MOD + "js/test-runner.js"], function () {
+      var saved = false;
+      new TestRunner(host, record.test, {
+        mode: (record.test.defaultMode === "practice" ? "practice" : "exam"),
+        preview: false,
+        candidate: { name: (prof && prof.full_name) || user.email || "Học viên", id: "" },
+        onSubmit: function (result) {
+          if (saved) return;
+          TestStore.saveAttempt(result).then(function (out) {
+            out = out || {};
+            if (out.ok === false) {
+              toast(out.reason === "no_attempts_left" ? "Đã hết lượt làm bài — điểm không được lưu."
+                  : "Không lưu được điểm (" + (out.reason || "?") + ").");
+              return;
+            }
+            saved = true;
+            toast("✓ Đã lưu điểm " + (out.score != null ? out.score + "/" + out.max : "") + " vào sổ điểm.");
+          }, function (e) { toast("Lưu điểm lỗi: " + (e.message || e)); });
+        },
+        onExit: function () { location.href = "dashboard.html"; }
+      });
+    });
+  }
+
+  function loadSeq(list, done) {
+    var i = 0;
+    (function next() {
+      if (i >= list.length) { if (done) done(); return; }
+      var s = document.createElement("script");
+      s.src = list[i++];
+      s.onload = next;
+      s.onerror = function () { fail("Không tải được trình chạy bài kiểm tra. Hãy thử lại."); };
+      document.body.appendChild(s);
+    })();
+  }
+})();
+</script>
+</body>
+</html>

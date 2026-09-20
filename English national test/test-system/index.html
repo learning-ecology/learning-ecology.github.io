@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>National English Test System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="logo">NE</div>
+    <div>
+      <div class="title">National English Test System</div>
+      <div class="sub">Test library</div>
+    </div>
+    <div class="spacer"></div>
+  </header>
+
+  <main id="app"><!-- app renders here --></main>
+
+  <!-- Dependencies (all local — works fully offline) -->
+  <script src="vendor/xlsx.full.min.js"></script>
+  <script src="js/test-engine.js"></script>
+  <script src="js/test-store.js"></script>
+  <script src="js/test-runner.js"></script>
+  <script src="js/test-app.js"></script>
+  <script>
+    // Boot the app. To embed the runner directly in your LMS instead, skip
+    // TestApp and do:  new TestRunner(el, testModel, { mode, onSubmit });
+    TestApp.mount(document.getElementById("app"));
+  </script>
+</body>
+</html>

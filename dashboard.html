@@ -289,6 +289,7 @@
   <script src="hsk-plan.js"></script>
   <script src="speech-zh.js"></script>
   <script src="premium.js"></script>
+  <script src="net-store.js"></script>
   <script>
     applyI18n();
     const langBtn = document.getElementById("lang-btn");
@@ -4970,6 +4971,103 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           </div>
         </div>
 
+        <div class="tabpane" data-tab="net">
+          <div class="card secnav-sec" id="net-sec-manage" data-sn-label="Kho đề" data-sn-icon="🇬🇧">
+            <div class="card-head"><h2>🇬🇧 Đề Tiếng Anh (thi THPT Quốc gia)</h2>
+              <a class="ghost btn" href="English%20national%20test/test-system/assets/test-template.xlsx" download style="text-decoration:none;">⬇ Excel mẫu</a></div>
+            <p class="kind" style="margin:0 0 0.5rem; text-transform:none; letter-spacing:0;">
+              Soạn đề trong <b>tệp Excel</b> (ba trang <b>Info · Groups · Questions</b>) rồi tải lên — hệ thống tự đọc,
+              <b>kiểm tra từng dòng</b> và dựng đề. Ba dạng câu: <b>sắp xếp</b>, <b>đọc hiểu</b> (kèm chèn câu [I]–[IV]),
+              <b>điền khuyết</b> (ô trống <code>{{n}}</code>). Chữ <b>in đậm</b> giữ nguyên. Học viên làm trong LMS;
+              điểm vào <b>sổ điểm</b> + trang kết quả. <b>Thêm đề chỉ cần tải Excel mới — không sửa mã.</b></p>
+            <div class="form-row" style="align-items:flex-end;">
+              <div class="field" style="max-width:320px;"><label>Tệp đề (.xlsx / .xls)</label>
+                <input type="file" id="net-file" accept=".xlsx,.xls" style="padding:0.42rem;" /></div>
+              <div class="field"><label>Tiêu đề (tuỳ chọn)</label>
+                <input type="text" id="net-name" placeholder="Để trống sẽ lấy từ tệp" /></div>
+              <button class="ghost" id="net-preview" style="flex:none;">🔎 Đọc & kiểm tra</button>
+            </div>
+            <div class="form-row" style="align-items:flex-end; margin-top:.5rem;">
+              <div class="field" style="max-width:220px;"><label>Gắn khóa (tuỳ chọn)</label>
+                <select id="net-course"><option value="">— Không gắn —</option>${courseOptions}</select></div>
+              <div class="field" style="max-width:130px;"><label>Truy cập</label>
+                <select id="net-tier"><option value="free">Free</option><option value="premium">👑 Premium</option></select></div>
+              <label style="font-size:.85rem; color:var(--muted); white-space:nowrap; padding-bottom:.5rem;">
+                <input type="checkbox" id="net-pub" checked /> đăng ngay</label>
+              <button id="net-upload" style="flex:none;" disabled>⬆ Xuất bản đề</button>
+            </div>
+            <p id="net-msg" class="msg"></p>
+            <div id="net-preview-box" style="margin-top:0.6rem;"></div>
+            <div id="net-list" style="margin-top:0.8rem;"><p class="empty">Đang tải…</p></div>
+          </div>
+
+          <div class="card secnav-sec" id="nhw-card" data-sn-label="Giao bài" data-sn-icon="📌" style="border-top:4px solid var(--tone-red,#c0392b);">
+            <div class="card-head"><h2>📌 Giao bài kiểm tra tiếng Anh</h2></div>
+            <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
+              Giao một <b>đề tiếng Anh</b> cho cả lớp hoặc chọn từng học viên — cùng quy trình với các bài khác
+              (có nhắc bài, theo dõi tiến độ). Học viên thấy trong <b>Bảng điều khiển → Bài tập</b>.</p>
+            <div class="form-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:0.7rem;">
+              <div class="field" style="grid-column:1/-1;"><label>Đề tiếng Anh</label>
+                <select id="nhw-lesson"><option value="">— Chọn đề —</option></select></div>
+              <div class="field"><label>Lớp</label>
+                <select id="nhw-class"><option value="">— Chọn lớp —</option></select></div>
+              <div class="field"><label>Giao cho</label>
+                <select id="nhw-who"><option value="all">Cả lớp</option><option value="some">Chọn học viên…</option></select></div>
+              <div class="field" id="nhw-stu-wrap" style="grid-column:1/-1; display:none;">
+                <label>Học viên (giữ Ctrl/⌘ để chọn nhiều)</label>
+                <select id="nhw-students" multiple size="5" style="height:auto;"></select></div>
+              <div class="field"><label>Mở lúc (tuỳ chọn)</label>
+                <input type="datetime-local" id="nhw-start" /></div>
+              <div class="field"><label>Hạn nộp (tuỳ chọn)</label>
+                <input type="datetime-local" id="nhw-due" /></div>
+              <div class="field"><label>Điểm cần đạt (%) · 0 = không bắt buộc</label>
+                <input type="number" id="nhw-score" min="0" max="100" value="0" /></div>
+              <div class="field"><label>Số lượt tối đa · 0 = không giới hạn</label>
+                <input type="number" id="nhw-tries" min="0" value="0" /></div>
+              <div class="field" style="grid-column:1/-1;"><label>Ghi chú / tiêu đề (tuỳ chọn)</label>
+                <input type="text" id="nhw-title" placeholder="Để trống sẽ dùng tên đề" /></div>
+            </div>
+            <div style="display:flex; gap:0.6rem; align-items:center; margin-top:0.6rem; flex-wrap:wrap;">
+              <button id="nhw-save">Giao bài</button>
+              <span id="nhw-msg" class="msg"></span>
+            </div>
+            <div id="nhw-list" style="margin-top:0.9rem;"></div>
+          </div>
+
+          <div class="card secnav-sec" id="nhp-card" data-sn-label="Tiến độ" data-sn-icon="📊" style="border-top:4px solid var(--tone-teal,#0d9488);">
+            <div class="card-head"><h2>📊 Theo dõi tiến độ (Đề tiếng Anh)</h2>
+              <button class="ghost" id="nhp-refresh" style="width:auto; padding:.35rem .7rem; font-size:.85rem;">↻ Làm mới</button>
+            </div>
+            <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
+              Xem ai đã làm, điểm cao nhất và số lượt cho từng đề đã giao. Chi tiết từng câu ở trang kết quả (sổ điểm).</p>
+            <div class="form-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:0.7rem;">
+              <div class="field"><label>Lớp</label>
+                <select id="nhp-class"><option value="">— Chọn lớp —</option></select></div>
+              <div class="field"><label>Bài đã giao</label>
+                <select id="nhp-hw"><option value="">— Tất cả bài của lớp —</option></select></div>
+            </div>
+            <div id="nhp-summary" style="margin-top:0.6rem;"></div>
+            <div id="nhp-chips" style="display:flex; gap:0.4rem; flex-wrap:wrap; margin:0.6rem 0;"></div>
+            <div id="nhp-body"><p class="empty" style="margin:0;">Chọn lớp để xem tiến độ.</p></div>
+          </div>
+
+          <div class="card secnav-sec" id="nres-card" data-sn-label="Kết quả" data-sn-icon="📋" style="border-top:4px solid var(--gold,#b7823f);">
+            <div class="card-head"><h2>📋 Kết quả &amp; xuất dữ liệu (item analysis)</h2>
+              <button class="ghost" id="nres-refresh" style="width:auto; padding:.35rem .7rem; font-size:.85rem;">↻ Làm mới</button></div>
+            <p class="kind" style="margin:0 0 0.6rem; text-transform:none; letter-spacing:0;">
+              Mọi lượt làm của học viên cho một đề, kèm điểm/phần trăm. Xuất <b>.csv</b> (một cột mỗi câu để phân tích) hoặc <b>.json</b>.</p>
+            <div class="form-row" style="align-items:flex-end; flex-wrap:wrap;">
+              <div class="field" style="max-width:340px;"><label>Đề</label>
+                <select id="nres-test"><option value="">— Chọn đề —</option></select></div>
+              <button class="ghost" id="nres-csv">⬇ CSV</button>
+              <button class="ghost" id="nres-json">⬇ JSON</button>
+              <span style="flex:1;"></span>
+              <button class="ghost" id="nres-clear" style="color:var(--danger); border-color:var(--danger);">Xoá kết quả đề này</button>
+            </div>
+            <div id="nres-body" style="margin-top:.6rem;"><p class="empty" style="margin:0;">Chọn một đề để xem kết quả.</p></div>
+          </div>
+        </div>
+
         <div class="tabpane" data-tab="vocab">
           <div class="card secnav-sec" id="vk-lang-card" data-sn-label="Ngôn ngữ" data-sn-icon="🌐" style="padding:0.7rem 1rem;">
             <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
@@ -7153,7 +7251,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
          .secnav-sec ĐANG hiển thị — KHÔNG đổi/gộp/xoá bất kỳ mục nào.
          Sidebar trái (#subnav) giữ nguyên. */
       const SecNav = (function () {
-        const SEC_TABS = new Set(["hsk", "vocab", "flash", "ctg"]);
+        const SEC_TABS = new Set(["hsk", "vocab", "flash", "ctg", "net"]);
         let cur = null;               // {tab, nav, secs, idx, onScroll}
         const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 
@@ -7320,6 +7418,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           { id: "hsk", label: "HSK Slides" + (hskRows.length ? " (" + hskRows.length + ")" : ""), icon: "presentation", group: "Content" },
           { id: "vocab", label: "HSK Vocab Practice", icon: "wallet-cards", group: "Content" },
           { id: "ctg", label: "Đề kiểm tra", icon: "file-check", group: "Content" },
+          { id: "net", label: "Đề Tiếng Anh", icon: "file-text", group: "Content" },
           { id: "vstep", label: "VSTEP" + ((vpRows.length + vlRows.length) ? " (" + (vpRows.length + vlRows.length) + ")" : ""), icon: "book-open", group: "Content" },
           { id: "shadow", label: "Shadowing" + ((svRes.data || []).length ? " (" + svRes.data.length + ")" : ""), icon: "video", group: "Content" },
           { id: "dict", label: "Dictation", icon: "headphones", group: "Content" },
@@ -11610,6 +11709,195 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           fileEl.value = ""; document.getElementById("ctg-name").value = ""; pending = null;
           pubBtn.disabled = true; prevBox.innerHTML = ""; __ctgRows = null;
           say("Đã xuất bản đề “" + title + "” ✓"); refresh();
+        });
+      })();
+
+      // ================= NATIONAL ENGLISH TEST (Phase 125) =================
+      // Nhúng engine "National English Test" (TestEngine/TestRunner) dạng HỘP ĐEN,
+      // chỉ nối qua TestStore (net-store.js → Supabase). Phân tích Excel Ở TRÌNH
+      // DUYỆT (TestEngine.parseWorkbook), lưu MODEL JSON lên server. Giao bài dùng
+      // lại hsk_homework kind='net'; điểm vào test_attempts + hsk_attempts + xếp hạng.
+      let __netRows = null;
+      const getNetTests = async () => {
+        if (__netRows) return __netRows;
+        try {
+          const r = await sb.from("net_tests").select("lesson_id, title, exam_code, active, total_questions, tier, created_at").order("sort_order").order("created_at");
+          __netRows = r.error ? [] : (r.data || []);
+        } catch (e) { __netRows = []; }
+        return __netRows;
+      };
+      mountAssignCard("nhw", "net", getNetTests, "migration82_net_tests.sql");
+      mountProgressCard("nhp", "net", getNetTests);
+
+      (function () {
+        const fileEl = document.getElementById("net-file");
+        if (!fileEl) return;
+        const MOD = "English%20national%20test/test-system/";
+        const msg = document.getElementById("net-msg");
+        const listEl = document.getElementById("net-list");
+        const prevBox = document.getElementById("net-preview-box");
+        const pubBtn = document.getElementById("net-upload");
+        const say = (t, err) => { msg.textContent = t || ""; msg.className = "msg" + (err ? " err" : ""); };
+        let pending = null;
+        // results view state (declared up here so refresh() can call fillResultTests)
+        const resTestSel = document.getElementById("nres-test");
+        const resBody = document.getElementById("nres-body");
+        let resList = [], resTest = null;
+
+        // lazy-load the engine (SheetJS + TestEngine) — client-side parse, once
+        let engineReady = null;
+        function ensureEngine() {
+          if (engineReady) return engineReady;
+          const load = src => new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = () => rej(new Error("load " + src)); document.body.appendChild(s); });
+          engineReady = (async () => {
+            if (!(window.TestEngine && window.TestEngine.parseWorkbook)) {
+              if (!window.XLSX) await load(MOD + "vendor/xlsx.full.min.js");
+              await load(MOD + "js/test-engine.js");
+            }
+            if (!(window.TestEngine && window.TestEngine.parseWorkbook)) throw new Error("engine không nạp được");
+          })();
+          return engineReady;
+        }
+
+        async function refresh() {
+          __netRows = null;
+          const rows = await getNetTests();
+          listEl.innerHTML = rows.length ? rows.map(r => `
+            <div class="lesson" style="flex-wrap:wrap;">
+              <div class="meta"><div class="title">${esc(r.title)}</div>
+                <span class="kind">${esc(r.lesson_id)}${r.exam_code ? " · mã " + esc(r.exam_code) : ""} · ${r.total_questions || 0} câu · ${r.tier === "premium" ? "👑 Premium" : "Free"} · ${r.active ? "đã đăng" : "nháp"}</span></div>
+              <a class="ghost btn" href="net-test.html?test=${encodeURIComponent(r.lesson_id)}" target="_blank" rel="noopener" style="text-decoration:none;">👁 Mở thử</a>
+              <button class="ghost net-tier" data-id="${esc(r.lesson_id)}" data-tier="${esc(r.tier)}">${r.tier === "premium" ? "→ Free" : "→ 👑"}</button>
+              <button class="ghost net-pub" data-id="${esc(r.lesson_id)}" data-pub="${r.active}">${r.active ? "Ẩn" : "Đăng"}</button>
+              <button class="ghost net-del" data-id="${esc(r.lesson_id)}" style="color:var(--danger); border-color:var(--danger);">Xoá</button>
+            </div>`).join("") : `<p class="empty">Chưa có đề nào. Tải lên tệp Excel ở trên.</p>`;
+          listEl.querySelectorAll(".net-tier").forEach(b => b.addEventListener("click", async () => {
+            const nt = b.getAttribute("data-tier") === "premium" ? "free" : "premium";
+            await sb.from("net_tests").update({ tier: nt, updated_at: new Date().toISOString() }).eq("lesson_id", b.getAttribute("data-id"));
+            refresh();
+          }));
+          listEl.querySelectorAll(".net-pub").forEach(b => b.addEventListener("click", async () => {
+            const na = b.getAttribute("data-pub") !== "true";
+            await sb.from("net_tests").update({ active: na, updated_at: new Date().toISOString() }).eq("lesson_id", b.getAttribute("data-id"));
+            refresh();
+          }));
+          listEl.querySelectorAll(".net-del").forEach(b => b.addEventListener("click", async () => {
+            if (!confirm("Xoá đề này? Điểm học viên đã làm vẫn được giữ trong sổ điểm.")) return;
+            await sb.from("net_tests").delete().eq("lesson_id", b.getAttribute("data-id"));
+            refresh(); fillResultTests();
+          }));
+          fillResultTests();
+        }
+        refresh();
+
+        function renderPreview(parsed) {
+          const t = parsed.test || {};
+          const errs = parsed.errors || [], warns = parsed.warnings || [];
+          const errHtml = errs.length ? `<div class="alert-bar" style="color:var(--danger);">❌ ${errs.length} lỗi — phải sửa trước khi lưu:
+            <ul style="margin:.3rem 0 0 1.1rem;">${errs.slice(0, 15).map(e => `<li>[${esc(e.sheet || "")}${e.row ? " dòng " + e.row : ""}] ${esc(e.message)}</li>`).join("")}${errs.length > 15 ? `<li>… và ${errs.length - 15} lỗi nữa</li>` : ""}</ul></div>` : "";
+          const warnHtml = warns.length ? `<p class="msg" style="color:var(--warning,#b45309);">⚠️ ${warns.length} cảnh báo (không chặn): ${esc(warns.slice(0, 3).map(w => w.message || w).join(" · "))}${warns.length > 3 ? "…" : ""}</p>` : "";
+          const secHtml = (t.sections || []).map(s => `<div style="margin:.25rem 0;"><b>${esc(s.type)}</b> <span class="kind">(${(t.questions || []).filter(q => q.sectionId === s.id).length} câu)${s.instructions ? " · " + esc(String(s.instructions).slice(0, 60)) : ""}</span></div>`).join("");
+          prevBox.innerHTML = `
+            <div class="card" style="border:1px solid ${errs.length ? "var(--danger)" : "var(--accent)"}; border-radius:12px; padding:.8rem 1rem;">
+              ${errHtml}
+              ${errs.length ? "" : `<b>Xem trước:</b> ${esc(t.title || "Bài kiểm tra")}${t.examCode ? " · mã " + esc(t.examCode) : ""} · ${(t.sections || []).length} mục · ${(t.questions || []).length} câu · ${t.durationMinutes || 0} phút
+              ${warnHtml}${secHtml}
+              <p class="kind" style="margin:.3rem 0 0;">Chế độ: ${esc(t.defaultMode || "exam")} · ${t.allowReview === false ? "không cho xem lại" : "cho xem lại chi tiết"}${t.passPercent != null ? " · đạt ≥ " + t.passPercent + "%" : ""}. Bấm <b>⬆ Xuất bản đề</b> để lưu.</p>`}
+            </div>`;
+        }
+
+        document.getElementById("net-preview").addEventListener("click", async () => {
+          const f = fileEl.files && fileEl.files[0];
+          if (!f) { say("Hãy chọn tệp Excel (.xlsx/.xls).", true); return; }
+          pending = null; pubBtn.disabled = true; prevBox.innerHTML = "";
+          say("Đang đọc & kiểm tra tệp…");
+          try {
+            await ensureEngine();
+            const parsed = window.TestEngine.parseWorkbook(new Uint8Array(await f.arrayBuffer()));
+            renderPreview(parsed);
+            if (parsed.errors && parsed.errors.length) { say("Có " + parsed.errors.length + " lỗi — chưa lưu được.", true); pubBtn.disabled = true; pending = null; }
+            else { pending = parsed.test; pubBtn.disabled = false; say("Đọc xong ✓ — xem trước rồi Xuất bản."); }
+          } catch (e) { say(e.message || "Đọc tệp lỗi.", true); }
+        });
+
+        pubBtn.addEventListener("click", async () => {
+          if (!pending) { say("Hãy đọc & kiểm tra một tệp sạch trước.", true); return; }
+          const title = document.getElementById("net-name").value.trim() || pending.title || "Bài kiểm tra tiếng Anh";
+          const f = fileEl.files && fileEl.files[0];
+          const record = {
+            title, examCode: pending.examCode || null, active: document.getElementById("net-pub").checked,
+            source: f ? f.name : null, test: pending,
+            course_id: document.getElementById("net-course").value || null,
+            tier: document.getElementById("net-tier").value
+          };
+          say("Đang lưu đề…");
+          try {
+            await TestStore.saveTest(record);
+            fileEl.value = ""; document.getElementById("net-name").value = ""; pending = null;
+            pubBtn.disabled = true; prevBox.innerHTML = "";
+            say("Đã xuất bản đề “" + title + "” ✓"); refresh();
+          } catch (e) {
+            const need = /relation .* does not exist|column|net_tests/i.test(e.message || "");
+            say((e.message || "Lưu lỗi") + (need ? " — hình như chưa chạy migration82_net_tests.sql." : ""), true);
+          }
+        });
+
+        // ---- results & export (item analysis) ----
+        async function fillResultTests() {
+          if (!resTestSel) return;
+          const rows = await getNetTests();
+          const cur = resTestSel.value;
+          resTestSel.innerHTML = `<option value="">— Chọn đề —</option>` + rows.map(r => `<option value="${esc(r.lesson_id)}">${esc(r.title)}</option>`).join("");
+          if (cur) resTestSel.value = cur;
+        }
+        async function loadResults() {
+          resTest = resTestSel.value;
+          if (!resTest) { resBody.innerHTML = `<p class="empty" style="margin:0;">Chọn một đề để xem kết quả.</p>`; resList = []; return; }
+          resBody.innerHTML = `<p class="empty">Đang tải…</p>`;
+          try { resList = await TestStore.listAttempts(resTest); }
+          catch (e) { resBody.innerHTML = `<p class="empty">Cần chạy migration82_net_tests.sql.</p>`; return; }
+          if (!resList.length) { resBody.innerHTML = `<p class="empty" style="margin:0;">Chưa có lượt làm nào cho đề này.</p>`; return; }
+          resBody.innerHTML = `
+            <table><thead><tr><th>Học viên</th><th>Điểm</th><th>%</th><th>Chế độ</th><th>Nộp lúc</th><th>Thời gian</th></tr></thead>
+            <tbody>${resList.map(a => `<tr>
+              <td>${esc((a.candidate && a.candidate.name) || "—")}</td>
+              <td>${a.score.correct}/${a.score.total}</td>
+              <td>${a.score.percent}%${a.passed === true ? ` <span class="pill done">ĐẠT</span>` : a.passed === false ? ` <span class="pill bad">chưa</span>` : ""}</td>
+              <td>${esc(a.mode || "")}${a.autoSubmitted ? " · tự nộp" : ""}</td>
+              <td>${a.submittedAt ? new Date(a.submittedAt).toLocaleString("vi-VN") : "—"}</td>
+              <td>${a.durationUsedSec != null ? Math.floor(a.durationUsedSec / 60) + "’" + (a.durationUsedSec % 60) + "”" : "—"}</td>
+            </tr>`).join("")}</tbody></table>
+            <p class="kind" style="margin:.4rem 0 0;">${resList.length} lượt làm.</p>`;
+        }
+        if (resTestSel) resTestSel.addEventListener("change", loadResults);
+        document.getElementById("nres-refresh")?.addEventListener("click", () => { __netRows = null; fillResultTests().then(loadResults); });
+
+        document.getElementById("nres-csv")?.addEventListener("click", () => {
+          if (!resList.length) { alert("Chưa có dữ liệu để xuất."); return; }
+          const qnos = [];
+          resList.forEach(a => (a.answers || []).forEach(x => { if (qnos.indexOf(x.questionNo) < 0) qnos.push(x.questionNo); }));
+          qnos.sort((a, b) => a - b);
+          const head = ["Name", "StudentId", "Correct", "Total", "Percent", "Passed", "Mode", "AutoSubmitted", "StartedAt", "SubmittedAt", "DurationSec"].concat(qnos.map(n => "Q" + n));
+          const rows = resList.map(a => {
+            const byNo = {}; (a.answers || []).forEach(x => { byNo[x.questionNo] = x; });
+            const base = [(a.candidate && a.candidate.name) || "", (a.candidate && a.candidate.id) || a.student_id || "",
+              a.score.correct, a.score.total, a.score.percent, a.passed === true ? "yes" : a.passed === false ? "no" : "",
+              a.mode || "", a.autoSubmitted ? "yes" : "no", a.startedAt || "", a.submittedAt || "", a.durationUsedSec != null ? a.durationUsedSec : ""];
+            return base.concat(qnos.map(n => { const x = byNo[n]; return x ? (x.chosen || "-") + (x.isCorrect ? "✓" : "✗") : ""; }));
+          });
+          const csv = [head].concat(rows).map(r => r.map(v => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+          const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+          const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "net-results-" + (resTest || "test") + ".csv"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+        });
+        document.getElementById("nres-json")?.addEventListener("click", () => {
+          if (!resList.length) { alert("Chưa có dữ liệu để xuất."); return; }
+          const blob = new Blob([JSON.stringify(resList, null, 2)], { type: "application/json" });
+          const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "net-results-" + (resTest || "test") + ".json"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+        });
+        document.getElementById("nres-clear")?.addEventListener("click", async () => {
+          if (!resTest) { alert("Chọn một đề trước."); return; }
+          if (!confirm("Xoá TẤT CẢ kết quả (net_attempts) của đề này? Sổ điểm (test_attempts) vẫn được giữ.")) return;
+          try { await TestStore.clearAttempts(resTest); loadResults(); } catch (e) { alert("Lỗi: " + e.message); }
         });
       })();
 
