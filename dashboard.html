@@ -1609,6 +1609,30 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       if (!session) { window.location.href = "login.html"; return; }
       user = session.user;
 
+      /* Phase 124: reliable login-history tracking. Log one `login` row per
+         session (throttled to ~30 min/device so reloads don't inflate counts),
+         with the real auth method from the session. Reuses the existing
+         access_events log (students may insert their own rows). Best-effort. */
+      (function logLogin() {
+        try {
+          const KEY = "hub_login_logged";
+          const last = Number(localStorage.getItem(KEY) || 0);
+          if (Date.now() - last < 30 * 60 * 1000) return;
+          localStorage.setItem(KEY, String(Date.now()));
+        } catch (e) {}
+        let dev = null, dtp = "web";
+        try { dev = localStorage.getItem("hub_device"); } catch (e) {}
+        try { dtp = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? "mobile" : "desktop"; } catch (e) {}
+        const method = (user.app_metadata && (user.app_metadata.provider || (user.app_metadata.providers || [])[0])) || "email";
+        sb.from("access_events").insert({ student_id: user.id, event: "login", device: dev, device_type: dtp, method, agent: "" })
+          .then(r => {
+            // older schema without the `method` column → log the login without it
+            if (r && r.error && /method/i.test(r.error.message || "")) {
+              sb.from("access_events").insert({ student_id: user.id, event: "login", device: dev, device_type: dtp, agent: "" }).then(() => {}, () => {});
+            }
+          }, () => {});
+      })();
+
       const { data: profile } = await sb
         .from("profiles")
         .select("full_name, role, avatar_url, active_session, multi_device, access_expires, suspended, google_linked, notification_email")
@@ -2214,6 +2238,9 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
                 ${me?.google_linked ? `
                   <div style="font-weight:700;">Tài khoản Google: <span class="pill done">Đã kết nối ✓</span></div>
                   <div class="kind" style="margin-top:.35rem; text-transform:none; letter-spacing:0;">Email nhận thông báo: <b>${esc(me.notification_email || "—")}</b></div>
+                  <label id="p-mkt-wrap" style="display:block; margin-top:.55rem; font-size:.88rem; cursor:pointer; text-transform:none; letter-spacing:0;">
+                    <input type="checkbox" id="p-mkt" /> ✉️ Đồng ý nhận email giới thiệu khóa học &amp; ưu đãi (tự nguyện, có thể bỏ chọn bất cứ lúc nào)</label>
+                  <span class="kind" id="p-mkt-msg" style="text-transform:none; letter-spacing:0;"></span>
                   <div style="display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.55rem;">
                     <button class="ghost" id="p-gname">Dùng tên Google của tôi</button>
                     <button class="ghost" id="p-gunlink" style="color:var(--danger); border-color:var(--danger);">Ngắt kết nối Google</button>
@@ -3255,6 +3282,25 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         } catch (err) { gmsg("Không ngắt được: " + (err.message || err), true); }
       });
 
+      // Phase 124: explicit marketing-email consent (opt-in / withdraw). The
+      // student controls their own consent; timestamps are stamped server-side.
+      (function wireMarketingConsent() {
+        const cb = document.getElementById("p-mkt"); if (!cb) return;
+        const msg = document.getElementById("p-mkt-msg");
+        (async () => {
+          try { const r = await sb.from("profiles").select("marketing_consent, marketing_unsubscribed").eq("id", user.id).maybeSingle();
+            if (!r.error && r.data) cb.checked = !!r.data.marketing_consent && !r.data.marketing_unsubscribed; }
+          catch (e) { const w = document.getElementById("p-mkt-wrap"); if (w) w.style.display = "none"; /* migration81 not run */ }
+        })();
+        cb.addEventListener("change", async () => {
+          cb.disabled = true;
+          const { error } = await sb.rpc("set_my_marketing_consent", { p_optin: cb.checked });
+          cb.disabled = false;
+          if (msg) { msg.textContent = error ? "Lỗi: " + error.message : (cb.checked ? "Đã đồng ý nhận tin ✓" : "Đã hủy nhận tin ✓"); msg.className = "kind" + (error ? " err" : ""); }
+          if (error) cb.checked = !cb.checked;   // revert on failure
+        });
+      })();
+
       document.getElementById("p-pick").addEventListener("click", () =>
         document.getElementById("p-file").click());
 
@@ -3963,6 +4009,53 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         .filter(s => ["expired", "expiring"].includes(accStatus(s).key)).length;
       const studentName = s => s.full_name || s.email || "—";
       const onlyStudents = (students || []).filter(s => s.role === "student");
+
+      /* Phase 124: authoritative auth/Google/email detection + login history.
+         admin_account_status() reads the real auth.identities / auth.users
+         (provider names, verified email, email-confirmation, sign-in times) —
+         so accounts that SIGN IN with Google are detected correctly even if the
+         old profiles.google_linked flag was never synced. Falls back silently to
+         the legacy flags if migration81 hasn't been run. Also pulls marketing
+         consent. All merged onto each student object; never blocks the render. */
+      const authById = {};
+      let acctStatusReady = false;
+      const acctP = (async () => {
+        try {
+          const r = await sb.rpc("admin_account_status");
+          if (!r.error && Array.isArray(r.data)) {
+            r.data.forEach(a => { authById[a.id] = a; });
+            (students || []).forEach(s => {
+              const a = authById[s.id]; if (!a) return;
+              s.auth_providers = a.providers || [];
+              s.has_google = !!a.has_google;
+              s.has_password = !!a.has_password;
+              s.google_email = a.google_email || null;
+              s.email_confirmed = !!a.email_confirmed;
+              s.last_sign_in = a.last_sign_in || null;
+              s.account_created = a.account_created || null;
+              s.first_login = a.first_login || null;
+              s.last_login = a.last_login || null;
+              s.total_logins = a.total_logins || 0;
+              s.login_methods = a.login_methods || [];
+              s.acct_last_active = a.last_active || null;
+              s.devices_count = a.devices || 0;
+              // the authoritative link state supersedes the stale flag
+              s.google_linked = !!a.has_google || !!s.google_linked;
+              if (!s.notification_email && a.google_email) s.notification_email = a.google_email;
+            });
+            acctStatusReady = true;
+          }
+        } catch (e) { /* migration81 not run yet → keep legacy flags */ }
+        try {
+          const m = await sb.from("profiles").select("id, marketing_consent, marketing_consent_at, marketing_unsubscribed").order("id");
+          if (!m.error && Array.isArray(m.data)) {
+            const mm = {}; m.data.forEach(x => mm[x.id] = x);
+            (students || []).forEach(s => { const x = mm[s.id]; if (x) { s.marketing_consent = x.marketing_consent; s.marketing_consent_at = x.marketing_consent_at; s.marketing_unsubscribed = x.marketing_unsubscribed; } });
+          }
+        } catch (e) { /* marketing columns missing → export/consent features stay hidden */ }
+        // re-render the Students table now that authoritative data is in
+        try { if (window.__renderStudents) window.__renderStudents(); } catch (e) {}
+      })();
 
       const lessonRowHtml = l => {
         const cc = (courses || []).find(x => x.id === l.course_id);
@@ -5281,15 +5374,41 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
                 <option value="on">Enabled</option>
                 <option value="off">Disabled</option>
               </select></div>
+            <div class="field" style="max-width:170px;"><label>Đăng nhập</label>
+              <select id="sf-auth">
+                <option value="all">Mọi cách</option>
+                <option value="google">Có Google</option>
+                <option value="both">Email + Google</option>
+                <option value="email">Chỉ email/mật khẩu</option>
+              </select></div>
             <div class="field" style="max-width:190px;"><label>Google / thông báo</label>
               <select id="sf-google">
                 <option value="all">All students</option>
                 <option value="linked">Google connected</option>
                 <option value="unlinked">Google not connected</option>
+                <option value="verified">Email verified</option>
+                <option value="unverified">Email not verified</option>
                 <option value="hasmail">Has notification email</option>
                 <option value="nomail">Missing notification email</option>
+                <option value="consent">Marketing consent ✓</option>
+              </select></div>
+            <div class="field" style="max-width:170px;"><label>Hoạt động</label>
+              <select id="sf-activity">
+                <option value="all">Mọi lúc</option>
+                <option value="7">Hoạt động ≤ 7 ngày</option>
+                <option value="30">Hoạt động ≤ 30 ngày</option>
+                <option value="inactive">Không hoạt động &gt; 30 ngày</option>
+                <option value="never">Chưa từng đăng nhập</option>
               </select></div>
           </div>
+          <div class="form-row" style="margin-top:.4rem; align-items:center; gap:.5rem; flex-wrap:wrap;">
+            <button class="ghost" id="mkt-export-xlsx" title="Chỉ gồm học viên đăng nhập Google + đã đồng ý nhận tin">⬇ Xuất danh bạ tiếp thị (.xlsx)</button>
+            <button class="ghost" id="mkt-export-csv">⬇ .csv</button>
+            <span class="kind" id="mkt-count" style="align-self:center;"></span>
+            <span style="flex:1;"></span>
+            <button class="ghost" id="dup-scan">🔍 Rà tài khoản trùng</button>
+          </div>
+          <div id="dup-box" style="margin-top:.5rem;"></div>
           <div id="stu-table"></div>
           <p class="empty" style="margin-top:0.5rem;">Click "Manage ▸" on a row to grant or extend access, suspend, or see the student's details.</p>
         </div>
@@ -15576,11 +15695,12 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         void urgent;
       })();
 
-      let sf = { q: "", status: "all", access: "all", role: "all", multi: "all", plan: "all", google: "all" };
+      let sf = { q: "", status: "all", access: "all", role: "all", multi: "all", plan: "all", google: "all", auth: "all", activity: "all" };
       try { sf = Object.assign(sf, JSON.parse(localStorage.getItem("hub_sfilter") || "{}")); } catch (e) {}
       const sfEls = { q: $id("sf-q"), status: $id("sf-status"), access: $id("sf-access"),
-                      role: $id("sf-role"), multi: $id("sf-multi"), plan: $id("sf-plan"), google: $id("sf-google") };
-      Object.entries(sfEls).forEach(([k, el]) => { el.value = sf[k]; });
+                      role: $id("sf-role"), multi: $id("sf-multi"), plan: $id("sf-plan"), google: $id("sf-google"),
+                      auth: $id("sf-auth"), activity: $id("sf-activity") };
+      Object.entries(sfEls).forEach(([k, el]) => { if (el) el.value = sf[k]; });
       const saveSf = () => { try { localStorage.setItem("hub_sfilter", JSON.stringify(sf)); } catch (e) {} };
 
       async function updStudent(id, patch, msgEl, okText) {
@@ -15613,10 +15733,25 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           if (sf.access === "expired" && st.key !== "expired") return false;
           if (sf.multi === "on" && !(s.multi_device || s.role !== "student")) return false;
           if (sf.multi === "off" && (s.multi_device || s.role !== "student")) return false;
-          if (sf.google === "linked" && !s.google_linked) return false;
-          if (sf.google === "unlinked" && s.google_linked) return false;
+          const hasG = (s.has_google != null) ? s.has_google : !!s.google_linked;
+          if (sf.google === "linked" && !hasG) return false;
+          if (sf.google === "unlinked" && hasG) return false;
+          if (sf.google === "verified" && !s.email_confirmed) return false;
+          if (sf.google === "unverified" && s.email_confirmed) return false;
           if (sf.google === "hasmail" && !s.notification_email) return false;
           if (sf.google === "nomail" && s.notification_email) return false;
+          if (sf.google === "consent" && !(s.marketing_consent && !s.marketing_unsubscribed)) return false;
+          if (sf.auth === "google" && !hasG) return false;
+          if (sf.auth === "both" && !(hasG && (s.has_password != null ? s.has_password : true))) return false;
+          if (sf.auth === "email" && hasG) return false;
+          if (sf.activity && sf.activity !== "all") {
+            const la = s.acct_last_active || s.last_login || s.last_sign_in || null;
+            const days = la ? (Date.now() - new Date(la).getTime()) / 86400000 : null;
+            if (sf.activity === "never" && days != null) return false;
+            if (sf.activity === "7" && !(days != null && days <= 7)) return false;
+            if (sf.activity === "30" && !(days != null && days <= 30)) return false;
+            if (sf.activity === "inactive" && !(days != null && days > 30)) return false;
+          }
           if (q) {
             const hay = normA((s.full_name || "") + " " + (s.email || "") + " " +
                               coursesOf(s.id).join(" ") + " " + st.key);
@@ -15626,6 +15761,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         });
 
         $id("stu-count").textContent = "Showing " + list.length + " of " + (students || []).length;
+        const _mc = $id("mkt-count"); if (_mc) { const n = eligibleContacts().length; _mc.textContent = n + " liên hệ tiếp thị đủ điều kiện"; }
         const stOf = s => accStatus(s).key;
         const stu = list.filter(s => s.role === "student");
         const stat = (k, v) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`;
@@ -15640,7 +15776,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
 
         const box = $id("stu-table");
         box.innerHTML = list.length ? `
-          <table><thead><tr><th>Name</th><th>Email · courses</th><th>Role</th><th>Membership</th><th>Access</th><th>Multi-device</th><th>Google · Thông báo</th><th></th></tr></thead>
+          <table><thead><tr><th>Name</th><th>Email · courses</th><th>Role</th><th>Membership</th><th>Access</th><th>Multi-device</th><th>Xác thực · Google · Email</th><th></th></tr></thead>
           <tbody>${list.map(s => {
             const st = accStatus(s);
             const mk = mbOf(s);
@@ -15670,11 +15806,17 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
               <td>${s.role !== "student" ? `<span class="kind">always</span>`
                 : `<label style="font-size:0.82rem; color:var(--muted); cursor:pointer; white-space:nowrap;">
                      <input type="checkbox" class="s-multi" data-id="${s.id}" ${s.multi_device ? "checked" : ""} /> allow</label>`}</td>
-              <td style="min-width:150px;">${s.role !== "student" ? `<span class="kind">—</span>` : `
-                <div>${s.google_linked ? `<span class="pill done">Manual + Google ✓</span>` : `<span class="pill off">Manual · chưa kết nối</span>`}</div>
-                ${s.notification_email
-                  ? `<div class="kind" style="text-transform:none; letter-spacing:0;">📧 ${esc(s.notification_email)}</div><div class="kind" style="color:var(--success,#0a7); text-transform:none; letter-spacing:0;">Nhận được email</div>`
-                  : `<div class="kind" style="color:var(--danger); text-transform:none; letter-spacing:0;">Không nhận được email — chưa kết nối Google</div>`}`}</td>
+              <td style="min-width:184px; font-size:.8rem; line-height:1.55;">${s.role !== "student" ? `<span class="kind">—</span>` : (() => {
+                const hasG = (s.has_google != null) ? s.has_google : !!s.google_linked;
+                const hasP = (s.has_password != null) ? s.has_password : true;
+                const method = hasG && hasP ? "Email + Google" : hasG ? "Google" : "Email";
+                return `
+                <div><span style="color:var(--muted);">Đăng nhập:</span> <b>${method}</b></div>
+                <div><span style="color:var(--muted);">Google:</span> ${hasG ? `<span class="pill done">✓ đã kết nối</span>` : `<span class="pill off">chưa kết nối</span>`}</div>
+                ${(s.email_confirmed != null) ? `<div><span style="color:var(--muted);">Email xác minh:</span> ${s.email_confirmed ? `<span class="pill done">✓</span>` : `<span class="pill bad">chưa</span>`}</div>` : ""}
+                <div><span style="color:var(--muted);">Nhận thông báo:</span> ${s.notification_email ? `<span class="pill done">✓</span> <span style="text-transform:none; letter-spacing:0; word-break:break-all;">${esc(s.notification_email)}</span>` : `<span class="pill bad">chưa có email</span>`}</div>
+                ${(s.marketing_consent && !s.marketing_unsubscribed) ? `<div><span class="pill done" title="Đồng ý nhận email tiếp thị${s.marketing_consent_at ? " · " + new Date(s.marketing_consent_at).toLocaleDateString() : ""}">✉ đồng ý nhận tin</span></div>` : (s.marketing_unsubscribed ? `<div><span class="pill off">✉ đã hủy nhận tin</span></div>` : "")}`;
+              })()}</td>
               <td style="white-space:nowrap;">
                 <button class="ghost s-save" data-id="${s.id}">Save</button>
                 ${s.role !== "student" ? "" : `<button class="ghost st-manage" data-id="${s.id}">Manage ▸</button>`}
@@ -15713,19 +15855,27 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
                 <p class="msg st-msg" data-id="${s.id}"></p>
                 <span class="kind">Courses: ${esc(coursesOf(s.id).join(", ") || "—")} ·
                   Completed: ${compl} lessons · Total learning time: ${fmtTime(time)} ·
-                  Last active: ${lastAct ? new Date(lastAct).toLocaleDateString() : "never"}</span>
+                  Last active: ${(() => { const la = s.acct_last_active || lastAct; return la ? new Date(la).toLocaleDateString() : "never"; })()}</span>
                 ${(() => {
                   const myEv = (events || []).filter(e => e.student_id === s.id);
                   const devs = new Set(myEv.map(e => e.device).filter(Boolean));
                   const types = [...new Set(myEv.map(e => e.device_type).filter(Boolean))];
                   const opens = myEv.filter(e => e.event === "lesson_open").length;
                   const logins = myEv.filter(e => e.event === "login").slice(0, 3);
+                  const method = s.has_google && s.has_password ? "Email + Google" : s.has_google ? "Google" : (s.has_password != null ? "Email/mật khẩu" : (s.google_linked ? "Email + Google" : "Email/mật khẩu"));
+                  const first = s.first_login || s.account_created;
+                  const recent = s.last_login || s.last_sign_in;
+                  const totalLogins = s.total_logins != null ? s.total_logins : logins.length;
+                  const devCount = s.devices_count != null ? Math.max(s.devices_count, devs.size) : devs.size;
                   return `
-                <span class="kind">Devices used: ${devs.size || "—"}${types.length ? " (" + types.join(", ") + ")" : ""} ·
+                <span class="kind">Login method: <b>${method}</b> · First login: ${first ? new Date(first).toLocaleDateString() : "—"} ·
+                  Most recent: ${recent ? new Date(recent).toLocaleString() : "—"} · Total logins: ${totalLogins || "—"}${(s.login_methods && s.login_methods.length) ? " (" + s.login_methods.join(", ") + ")" : ""}</span>
+                <span class="kind">Devices used: ${devCount || "—"}${types.length ? " (" + types.join(", ") + ")" : ""} ·
                   Lesson opens: ${opens}</span>
                 <span class="kind">Recent logins: ${logins.map(l =>
                   new Date(l.created_at).toLocaleString() +
                   (l.device_type ? " · " + l.device_type : "") +
+                  (l.method ? " · " + esc(l.method) : "") +
                   (l.agent ? " · " + esc(l.agent) : "")).join("<br>") || "—"}</span>`;
                 })()}
               </div>
@@ -15815,11 +15965,72 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       }
 
       Object.entries(sfEls).forEach(([k, el]) => {
+        if (!el) return;
         const apply = () => { sf[k] = el.value; saveSf(); renderStudentTable(); };
         el.addEventListener(el.tagName === "SELECT" ? "change" : "input",
           el.tagName === "SELECT" ? apply : debounce(apply, 180));
       });
+      // --- Phase 124: marketing-contact export + duplicate review ---
+      function eligibleContacts() {
+        return (students || []).filter(s => s.role === "student"
+          && ((s.has_google != null) ? s.has_google : !!s.google_linked)
+          && s.marketing_consent && !s.marketing_unsubscribed && s.notification_email);
+      }
+      function wireAccountTools() {
+        const mkRows = list => {
+          const head = ["Name", "Verified email", "Class", "Account status", "Last active", "Marketing consent", "Consent date", "Unsubscribed"];
+          const body = list.map(c => [c.full_name || "", c.verified_email || "", c.classes || "",
+            c.account_status || "", c.last_active ? new Date(c.last_active).toLocaleDateString() : "",
+            c.consent ? "yes" : "no", c.consent_at ? new Date(c.consent_at).toLocaleDateString() : "",
+            c.unsubscribed ? "yes" : "no"]);
+          return { head, body };
+        };
+        const stamp = () => new Date().toISOString().slice(0, 10);
+        async function fetchContacts() {
+          try { const r = await sb.rpc("admin_marketing_contacts"); if (!r.error && Array.isArray(r.data)) return r.data; } catch (e) {}
+          // fallback from already-loaded data (no class names / server last-active)
+          return eligibleContacts().map(s => ({ id: s.id, full_name: s.full_name, verified_email: s.notification_email,
+            classes: "", account_status: accStatus(s).key, last_active: s.acct_last_active || s.last_login || null,
+            consent: !!s.marketing_consent, consent_at: s.marketing_consent_at || null, unsubscribed: !!s.marketing_unsubscribed }));
+        }
+        document.getElementById("mkt-export-xlsx")?.addEventListener("click", async () => {
+          const list = await fetchContacts();
+          if (!list.length) { alert("Không có liên hệ đủ điều kiện (cần: đăng nhập Google + đã đồng ý nhận tin + có email nhận thông báo)."); return; }
+          try {
+            const XLSX = await loadXLSX();
+            const { head, body } = mkRows(list);
+            const ws = XLSX.utils.aoa_to_sheet([head, ...body]);
+            const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Contacts");
+            XLSX.writeFile(wb, "marketing-contacts-" + stamp() + ".xlsx");
+          } catch (e) { alert("Không xuất được .xlsx: " + e.message); }
+        });
+        document.getElementById("mkt-export-csv")?.addEventListener("click", async () => {
+          const list = await fetchContacts();
+          if (!list.length) { alert("Không có liên hệ đủ điều kiện."); return; }
+          const { head, body } = mkRows(list);
+          const csv = [head, ...body].map(r => r.map(v => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+          const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+          const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+          a.download = "marketing-contacts-" + stamp() + ".csv"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+        });
+        document.getElementById("dup-scan")?.addEventListener("click", async () => {
+          const box = document.getElementById("dup-box"); if (!box) return;
+          box.innerHTML = `<p class="kind">Đang rà…</p>`;
+          let groups = null;
+          try { const r = await sb.rpc("admin_duplicate_accounts"); if (r.error) throw r.error; groups = r.data || []; }
+          catch (e) { box.innerHTML = `<p class="empty">Cần chạy <b>migration81_accounts.sql</b> để rà trùng.</p>`; return; }
+          if (!groups.length) { box.innerHTML = `<p class="empty">Không thấy tài khoản nghi trùng. ✓</p>`; return; }
+          const KIND = { google_sub: "Cùng tài khoản Google", notification_email: "Cùng email nhận thông báo", email: "Cùng email đăng nhập" };
+          box.innerHTML = `<div class="card" style="border-left:4px solid var(--danger);">
+            <b>⚠️ ${groups.length} nhóm nghi trùng — chỉ để RÀ SOÁT, hệ thống KHÔNG tự gộp.</b>
+            ${groups.map(g => `<div class="lesson"><div class="meta"><div class="title">${esc(KIND[g.kind] || g.kind)}: ${esc(g.value || "")}</div>
+              <span class="kind">${(g.names || []).map((n, i) => esc(n || "—") + " (" + esc((g.emails || [])[i] || "") + ")").join(" · ")}</span></div></div>`).join("")}
+            <p class="kind" style="margin-top:.4rem;">Hãy tự kiểm tra và xử lý thủ công — không xoá/gộp tự động để bảo toàn lớp, bài tập, điểm, tiến độ.</p></div>`;
+        });
+      }
+      window.__renderStudents = renderStudentTable;   // let the async auth-status fetch re-render
       renderStudentTable();
+      wireAccountTools();
       document.getElementById("stu-csv")?.addEventListener("click", () => {
         if (!window.UI) return;
         UI.csv("students.csv", (students || []).map(s => ({
