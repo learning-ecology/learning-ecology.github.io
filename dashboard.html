@@ -195,6 +195,71 @@
                border-radius:999px; padding:0.05rem 0.45rem; white-space:nowrap; align-self:center; }
   .hs-spin{ display:inline-block; animation:hsspin 0.9s linear infinite; }
   @keyframes hsspin{ to{ transform:rotate(360deg); } }
+
+  /* ===== Trung tâm bài tập học viên (Phase 123) ===== */
+  .asgn-summary{ display:grid; grid-template-columns:repeat(4,1fr); gap:.6rem; margin:0 0 .9rem; }
+  .asgn-sum{ background:var(--card); border:1px solid var(--stu-line); border-radius:14px; padding:.7rem .85rem; display:flex; flex-direction:column; gap:.15rem; }
+  .asgn-sum b{ font-size:1.5rem; font-variant-numeric:tabular-nums; line-height:1; }
+  .asgn-sum span{ font-size:.8rem; color:var(--muted); font-weight:700; }
+  .asgn-sum.warn{ border-color:#e0a800; background:#fff8e6; } .asgn-sum.warn b{ color:#8a6d00; }
+  .asgn-sum.bad{ border-color:var(--danger); background:var(--danger-bg,#fdecec); } .asgn-sum.bad b{ color:var(--danger); }
+  :root[data-theme="dark"] .asgn-sum.warn{ background:rgba(224,168,0,.12); } :root[data-theme="dark"] .asgn-sum.bad{ background:rgba(192,57,43,.14); }
+  .asgn-bar{ position:sticky; z-index:40; top:var(--asgn-top,104px); background:color-mix(in srgb,var(--stu-bg) 92%,transparent); backdrop-filter:blur(8px); border:1px solid var(--stu-line); border-radius:14px; padding:.55rem .6rem; margin:0 0 1rem; display:flex; flex-direction:column; gap:.5rem; }
+  .asgn-cats, .asgn-status{ display:flex; gap:.35rem; overflow-x:auto; scrollbar-width:none; }
+  .asgn-cats::-webkit-scrollbar, .asgn-status::-webkit-scrollbar{ display:none; }
+  .asgn-chip{ flex:none; white-space:nowrap; display:inline-flex; align-items:center; gap:.4rem; border:1.5px solid var(--stu-line); background:var(--card); color:var(--ink); border-radius:999px; padding:.36rem .8rem; font:inherit; font-weight:700; font-size:.85rem; cursor:pointer; transition:border-color .15s,background .15s,color .15s; }
+  .asgn-chip:hover{ border-color:var(--stu-ring); }
+  .asgn-chip.on{ border-color:var(--accent); background:var(--info-bg); color:var(--accent-ink); }
+  .asgn-chip .cnt{ font-size:.72rem; font-weight:800; background:var(--stu-soft); border-radius:999px; padding:.02rem .42rem; color:var(--muted); }
+  .asgn-chip.on .cnt{ background:var(--accent); color:#fff; }
+  .asgn-status .asgn-chip{ font-size:.82rem; padding:.3rem .7rem; }
+  .asgn-controls{ display:flex; gap:.45rem; flex-wrap:wrap; align-items:center; }
+  .asgn-controls select, .asgn-controls input{ font:inherit; font-size:.85rem; padding:.4rem .55rem; border:1px solid var(--stu-line); border-radius:9px; background:var(--card); color:var(--ink); }
+  .asgn-controls .asgn-q{ flex:1; min-width:130px; }
+  .asgn-clear{ border:1px solid var(--stu-line); background:var(--card); color:var(--muted); border-radius:9px; padding:.4rem .7rem; font:inherit; font-weight:700; font-size:.82rem; cursor:pointer; }
+  .asgn-clear:hover{ border-color:var(--accent); color:var(--accent-ink); }
+  .asgn-view{ display:inline-flex; border:1px solid var(--stu-line); border-radius:9px; overflow:hidden; margin-left:auto; }
+  .asgn-view button{ border:none; background:var(--card); color:var(--muted); padding:.4rem .7rem; font:inherit; font-weight:700; font-size:.82rem; cursor:pointer; }
+  .asgn-view button.on{ background:var(--accent); color:#fff; }
+  .asgn-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(310px,1fr)); gap:.8rem; }
+  .asgn-card{ background:var(--card); border:1px solid var(--stu-line); border-radius:16px; padding:.9rem 1rem; display:flex; flex-direction:column; gap:.5rem; box-shadow:0 10px 26px -20px rgba(23,38,62,.4); }
+  .asgn-card.urgent{ border-color:var(--danger); }
+  .asgn-card.duesoon{ border-color:#e0a800; }
+  .asgn-card-top{ display:flex; align-items:flex-start; gap:.5rem; }
+  .asgn-badge{ flex:none; font-size:.68rem; font-weight:800; letter-spacing:.03em; text-transform:uppercase; padding:.16rem .5rem; border-radius:999px; background:var(--stu-soft); color:var(--accent-ink); border:1px solid var(--stu-line); }
+  .asgn-card h3{ font-size:1rem; margin:0; line-height:1.3; flex:1; min-width:0; }
+  .asgn-meta{ display:flex; flex-wrap:wrap; gap:.35rem .7rem; font-size:.8rem; color:var(--muted); }
+  .asgn-meta i{ font-style:normal; }
+  .asgn-remain{ font-weight:800; }
+  .asgn-remain.over{ color:var(--danger); } .asgn-remain.soon{ color:#c47f00; }
+  .asgn-bar2{ height:7px; border-radius:999px; background:var(--stu-soft); border:1px solid var(--stu-line); overflow:hidden; }
+  .asgn-bar2 > i{ display:block; height:100%; background:linear-gradient(90deg,var(--accent),var(--accent-ink)); }
+  .asgn-card-foot{ display:flex; align-items:center; justify-content:space-between; gap:.5rem; margin-top:auto; flex-wrap:wrap; }
+  .asgn-act{ border:none; border-radius:999px; padding:.5rem 1.05rem; font:inherit; font-family:var(--stu-font); font-weight:800; font-size:.87rem; cursor:pointer; background:var(--accent); color:#fff; text-decoration:none; display:inline-flex; align-items:center; gap:.3rem; }
+  .asgn-act:hover{ background:var(--accent-ink); }
+  .asgn-act.ghost{ background:transparent; color:var(--accent-ink); border:1.5px solid var(--stu-line); }
+  .asgn-act[disabled]{ opacity:.5; cursor:not-allowed; background:var(--stu-soft); color:var(--muted); }
+  .asgn-answer{ width:100%; }
+  .asgn-answer textarea{ width:100%; min-height:70px; font:inherit; font-size:.9rem; padding:.5rem; border:1px solid var(--stu-line); border-radius:10px; background:var(--card); color:var(--ink); }
+  /* compact list view */
+  .asgn-hub.list .asgn-grid{ grid-template-columns:1fr; gap:.5rem; }
+  .asgn-hub.list .asgn-card{ flex-direction:row; align-items:center; flex-wrap:wrap; padding:.6rem .85rem; border-radius:12px; box-shadow:none; }
+  .asgn-hub.list .asgn-card-top{ flex:1; min-width:200px; align-items:center; }
+  .asgn-hub.list .asgn-bar2{ display:none; }
+  .asgn-hub.list .asgn-card-foot{ margin:0; }
+  .asgn-done-head{ width:100%; display:flex; align-items:center; gap:.5rem; cursor:pointer; margin:1.2rem 0 .3rem; font-weight:800; color:var(--muted); background:none; border:none; font:inherit; font-size:.95rem; padding:0; }
+  .asgn-done-head .caret{ transition:transform .15s; }
+  .asgn-done-head.open .caret{ transform:rotate(90deg); }
+  .asgn-more{ display:block; margin:1rem auto 0; border:1.5px solid var(--stu-line); background:var(--card); color:var(--accent-ink); border-radius:999px; padding:.5rem 1.3rem; font:inherit; font-weight:800; font-size:.88rem; cursor:pointer; }
+  .asgn-more:hover{ border-color:var(--accent); }
+  .asgn-count-line{ font-size:.8rem; color:var(--muted); text-align:center; margin:.7rem 0 0; }
+  .asgn-chip:focus-visible, .asgn-act:focus-visible, .asgn-clear:focus-visible, .asgn-view button:focus-visible,
+  .asgn-controls select:focus-visible, .asgn-controls input:focus-visible, .asgn-more:focus-visible, .asgn-done-head:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  @media (max-width:720px){
+    .asgn-summary{ grid-template-columns:repeat(2,1fr); }
+    .asgn-grid{ grid-template-columns:1fr; }
+    .asgn-view{ margin-left:0; }
+  }
   </style>
 </head>
 <body>
@@ -2304,7 +2369,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       const T2p = window.UI ? UI.t2 : (k => k);
       const anyPremiumContent = (lessons || []).some(l => tierOf(l) === "premium");
       const premBar = isPremUser
-        ? `<p class="kind" style="margin:-0.4rem 0 0.9rem;">👑 ${T2p("premium_active")}${mePlan?.premium_until ? " → " + esc(mePlan.premium_until) : ""}</p>`
+        ? `<p class="kind" style="margin:-0.4rem 0 0.9rem;">👑 ${t("premium_active")}${mePlan?.premium_until ? " → " + esc(mePlan.premium_until) : ""}</p>`
         : (anyPremiumContent ? `
           <div class="alert-bar" style="display:flex; gap:0.6rem; align-items:center; flex-wrap:wrap;">
             <span style="flex:1;">👑 ${T2p("upgrade_hint")}</span>
@@ -2460,11 +2525,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           ${flashPane}
         </div>
         <div class="tabpane" data-tab="asgn">
-          <div id="hsk-hw"></div>
-          <div id="vocab-hw"></div>
-          <div id="flash-hw"></div>
-          <div id="ctg-hw"></div>
-          ${asgnCard || (`<div class="card" id="asgn-empty"><p class="empty">${T2p("no_asgn_student")}</p></div>`)}
+          <div id="asgn-hub"><p class="empty">${t("loading")}</p></div>
         </div>
         <div class="tabpane" data-tab="community">
           ${discCard || `<div class="card"><p class="empty">${T2p("no_data")}</p></div>`}
@@ -2600,10 +2661,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             ${rows}
           </div>`;
       }
-      // Bài tập HSK Slides + Bài tập Luyện từ vựng (cùng khu vực "Bài tập")
-      mountStudentHomework("hsk-hw", "slides", "hsk_lessons", "hsk-slides.html", "🀄 Bài tập tiếng Trung");
-      mountStudentHomework("vocab-hw", "vocab", "vocab_lessons", "vocab-practice.html", "🀄 Bài tập Luyện từ vựng");
-      mountStudentHomework("ctg-hw", "ctg", "ctg_tests", "hsk-test.html", "📝 Bài kiểm tra");
+      // Trung tâm bài tập hợp nhất (Phase 123) thay cho các danh sách rời rạc.
+      // Các hàm mount cũ ở trên giữ lại nhưng KHÔNG gọi nữa (container đã gỡ).
 
       /* ---- Bài tập Flashcards (Phase 111) — cùng bảng hsk_homework
          (kind='flashcards'); RLS chỉ trả bộ thẻ được giao cho tôi. Bấm Bắt đầu
@@ -2686,7 +2745,310 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           startReviewCards(set);
         }));
       }
-      mountStudentFlashcardHomework();
+      /* ================= TRUNG TÂM BÀI TẬP (Phase 123) =================
+         Gộp MỌI loại bài tập của học viên vào một khu vực lọc/tìm/phân trang:
+         HSK Slides · Luyện từ vựng · Flashcards · Đề kiểm tra · bài tự luận.
+         Dùng lại NGUYÊN VẸN dữ liệu/tiến độ/điểm/lượt/liên kết cũ — chỉ đổi cách
+         hiển thị & điều hướng. Không gọi các hàm mount rời rạc ở trên nữa. */
+      async function mountAssignmentsHub() {
+        const box = document.getElementById("asgn-hub");
+        if (!box) return;
+        const now = Date.now();
+        const DAY = 86400000, SOON = 3 * DAY, MASTER = 21, PAGE = 8;
+        const fmtDateTime = ts => { if (!ts) return ""; const d = new Date(ts);
+          return d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
+        const remainTxt = ms => { const a = Math.abs(ms);
+          if (a >= DAY) return tf("unit_day", { n: Math.round(a / DAY) });
+          if (a >= 3600000) return tf("unit_hour", { n: Math.round(a / 3600000) });
+          return tf("unit_min", { n: Math.max(1, Math.round(a / 60000)) }); };
+
+        // ---- fetch homework + lessons + attempts + classes ----
+        let hws = [];
+        try { const r = await sb.from("hsk_homework").select("*").order("due_at", { ascending: true, nullsFirst: false });
+          if (!r.error) hws = r.data || []; } catch (e) {}
+        const KINDS = {
+          slides: { table: "hsk_lessons", player: "hsk-slides.html", cat: "slides" },
+          vocab:  { table: "vocab_lessons", player: "vocab-practice.html", cat: "vocab" },
+          ctg:    { table: "ctg_tests", player: "hsk-test.html", cat: "ctg" }
+        };
+        const need = {};
+        hws.forEach(h => { const k = h.kind || "slides"; if (KINDS[k]) (need[KINDS[k].table] = need[KINDS[k].table] || new Set()).add(h.lesson_id); });
+        const lmaps = {};
+        await Promise.all(Object.keys(need).map(async table => {
+          try { const r = await sb.from(table).select("lesson_id, title, hsk_level").in("lesson_id", [...need[table]]);
+            const m = {}; (r.data || []).forEach(l => m[l.lesson_id] = l); lmaps[table] = m; }
+          catch (e) { lmaps[table] = {}; }
+        }));
+        const atByHw = {};
+        try { const r = await sb.from("hsk_attempts").select("homework_id, status, score, attempt_no").eq("user_id", user.id).not("homework_id", "is", null);
+          (r.data || []).forEach(a => (atByHw[a.homework_id] = atByHw[a.homework_id] || []).push(a)); } catch (e) {}
+        const clids = [...new Set(hws.map(h => h.class_id).filter(Boolean))];
+        const cMap = {};
+        if (clids.length) { try { const r = await sb.from("classes").select("id, name").in("id", clids); (r.data || []).forEach(c => cMap[c.id] = c.name); } catch (e) {} }
+        const cardsOf = h => {
+          if (h.card_ids && h.card_ids.length) { const set = new Set(h.card_ids); return myCards.filter(k => set.has(k.id)); }
+          const lv = h.lesson_id;
+          return myCards.filter(k => k.course_id === h.course_id && (lv === "__nolesson__" ? !k.lesson_id : String(k.lesson_id) === String(lv)));
+        };
+
+        // ---- build a unified assignment list ----
+        const items = [];
+        hws.filter(h => KINDS[h.kind || "slides"]).forEach(h => {
+          const k = h.kind || "slides", cfg = KINDS[k];
+          const les = (lmaps[cfg.table] || {})[h.lesson_id] || { title: h.title || h.lesson_id, hsk_level: null };
+          const mine = atByHw[h.id] || [];
+          const used = mine.length;
+          const best = mine.reduce((m, a) => Math.max(m, a.score || 0), 0);
+          const doneAtt = mine.some(a => a.status === "completed");
+          const openA = mine.find(a => a.status !== "completed");
+          const startMs = h.start_at ? new Date(h.start_at).getTime() : null;
+          const dueMs = h.due_at ? new Date(h.due_at).getTime() : null;
+          const notOpen = !!(startMs && startMs > now);
+          const passed = doneAtt && (!h.required_score || best >= h.required_score);
+          const overdue = !!(dueMs && dueMs < now && !passed);
+          const outOfTries = h.max_attempts > 0 && used >= h.max_attempts && !openA;
+          const status = passed ? "done" : notOpen ? "notopen" : (openA || doneAtt) ? "doing" : overdue ? "overdue" : "todo";
+          const pct = passed ? best : openA ? (openA.score || 0) : doneAtt ? best : 0;
+          const canGo = !notOpen && !(outOfTries && !passed);
+          const href = cfg.player + "?hw=" + encodeURIComponent(h.id) + "&lesson=" + encodeURIComponent(h.lesson_id);
+          items.push({ id: h.id, cat: cfg.cat, kind: k, title: h.title || les.title, className: cMap[h.class_id] || "",
+            hsk: les.hsk_level, assigned: h.created_at ? new Date(h.created_at).getTime() : null, due: dueMs, start: startMs,
+            pct, used, maxAtt: h.max_attempts || 0, status, best,
+            notOpenTxt: notOpen ? tf("asg_open_at", { d: fmtDateTime(h.start_at) }) : "",
+            disabledTxt: (outOfTries && !passed) ? t("asg_out_of_tries") : (notOpen ? t("asg_st_notopen") : ""),
+            action: canGo ? { type: "link", label: openA ? "act_continue" : (doneAtt ? "act_redo" : "act_start"), href } : { type: "disabled" } });
+        });
+        hws.filter(h => h.kind === "flashcards").forEach(h => {
+          const set = cardsOf(h), total = set.length;
+          let done = 0, mastered = 0;
+          set.forEach(kc => { const rv = revBy[kc.id]; if (rv) { done++; if (Number(rv.interval_days) >= MASTER) mastered++; } });
+          const pct = total ? Math.round(done / total * 100) : 0;
+          const startMs = h.start_at ? new Date(h.start_at).getTime() : null;
+          const dueMs = h.due_at ? new Date(h.due_at).getTime() : null;
+          const notOpen = !!(startMs && startMs > now);
+          const completed = total > 0 && done >= total;
+          const overdue = !!(dueMs && dueMs < now && !completed);
+          const status = completed ? "done" : notOpen ? "notopen" : done > 0 ? "doing" : overdue ? "overdue" : "todo";
+          const canGo = !notOpen && total > 0;
+          items.push({ id: h.id, cat: "flash", kind: "flashcards", title: h.title || (total + " thẻ"), className: cMap[h.class_id] || "",
+            hsk: null, assigned: h.created_at ? new Date(h.created_at).getTime() : null, due: dueMs, start: startMs,
+            pct, used: 0, maxAtt: 0, status, cardsTotal: total, mastered,
+            notOpenTxt: notOpen ? tf("asg_open_at", { d: fmtDateTime(h.start_at) }) : "",
+            disabledTxt: total === 0 ? t("asg_no_cards") : (notOpen ? t("asg_st_notopen") : ""),
+            action: canGo ? { type: "flash", label: completed ? "act_review" : (done > 0 ? "act_continue" : "act_start") } : { type: "disabled" }, _raw: h });
+        });
+        (myAsgns || []).forEach(a => {
+          const sub = (mySubs || []).find(s => s.assignment_id === a.id);
+          const graded = !!(sub && sub.status === "graded");
+          const submitted = !!(sub && !graded);
+          const dueMs = a.due_on ? new Date(a.due_on + "T23:59:59").getTime() : null;
+          const late = !!(dueMs && dueMs < now && !sub);
+          const status = graded ? "done" : submitted ? "doing" : late ? "overdue" : "todo";
+          const cTitle = (courses || []).find(c => c.id === a.course_id)?.title || "";
+          items.push({ id: a.id, cat: "other", kind: "text", title: a.title, className: cTitle,
+            hsk: null, assigned: a.created_at ? new Date(a.created_at).getTime() : null, due: dueMs, start: null,
+            pct: sub ? 100 : 0, used: 0, maxAtt: 0, status, points: a.points || 0,
+            grade: graded ? sub.grade : null, feedback: graded ? (sub.feedback || "") : "", answer: sub?.body || "",
+            action: graded ? { type: "graded" } : { type: "text" }, _raw: a });
+        });
+
+        if (!items.length) { box.innerHTML = `<div class="card"><p class="empty">${t("asg_none")}</p></div>`; return; }
+        items.forEach(it => { it.duesoon = it.status !== "done" && !!(it.due && it.due > now && (it.due - now) <= SOON); it.urgent = it.status === "overdue"; });
+
+        // ---- filter state (deep-linkable + remembered) ----
+        const CATORDER = ["all", "slides", "vocab", "flash", "ctg", "other"];
+        const catsPresent = CATORDER.filter(c => c === "all" || items.some(it => it.cat === c));
+        const classes = [...new Set(items.map(it => it.className).filter(Boolean))].sort();
+        let view = "card"; try { view = localStorage.getItem("asgn_view") || "card"; } catch (e) {}
+        const F = { cat: "all", status: "all", cls: "all", due: "all", q: "", page: 1 };
+        (function readState() {
+          try {
+            let src = null;
+            if ((location.hash || "").indexOf("#asgn") === 0) { const qi = location.hash.indexOf("?"); if (qi >= 0) src = new URLSearchParams(location.hash.slice(qi + 1)); }
+            if (!src) { const s = sessionStorage.getItem("asgn_filters"); if (s) { const o = JSON.parse(s); Object.assign(F, o); return; } }
+            if (src) { if (src.get("cat")) F.cat = src.get("cat"); if (src.get("st")) F.status = src.get("st");
+              if (src.get("cls")) F.cls = src.get("cls"); if (src.get("due")) F.due = src.get("due"); if (src.get("q")) F.q = src.get("q"); }
+          } catch (e) {}
+          if (!catsPresent.includes(F.cat)) F.cat = "all";
+        })();
+        const writeState = () => {
+          try { const p = new URLSearchParams();
+            if (F.cat !== "all") p.set("cat", F.cat); if (F.status !== "all") p.set("st", F.status);
+            if (F.cls !== "all") p.set("cls", F.cls); if (F.due !== "all") p.set("due", F.due); if (F.q) p.set("q", F.q);
+            const s = p.toString(); history.replaceState(null, "", location.pathname + location.search + "#asgn" + (s ? "?" + s : ""));
+            sessionStorage.setItem("asgn_filters", JSON.stringify(F)); } catch (e) {}
+        };
+
+        // ---- helpers to render one card ----
+        const CATLABEL = { slides: "asg_cat_slides", vocab: "asg_cat_vocab", flash: "asg_cat_flash", ctg: "asg_cat_ctg", other: "asg_cat_other" };
+        const statusMeta = it => {
+          if (it.status === "done") return { cls: "done", label: t("asg_st_done") + (it.pct ? " · " + it.pct + "%" : "") };
+          if (it.status === "overdue") return { cls: "bad", label: t("asg_st_overdue") };
+          if (it.status === "notopen") return { cls: "off", label: t("asg_st_notopen") };
+          if (it.status === "doing") return { cls: "todo", label: t("asg_st_doing") + (it.pct ? " · " + it.pct + "%" : "") };
+          return { cls: "todo", label: t("asg_st_todo") };
+        };
+        function dueLine(it) {
+          if (!it.due) return `<i>${t("asg_no_deadline")}</i>`;
+          if (it.status === "done") return `<i>${t("asg_due")}: ${esc(fmtDateTime(it.due))}</i>`;
+          if (it.due < now) return `<span class="asgn-remain over">${tf("asg_remain_over", { t: remainTxt(it.due - now) })}</span>`;
+          return `<span class="asgn-remain${it.duesoon ? " soon" : ""}">${tf("asg_remain_left", { t: remainTxt(it.due - now) })}</span>`;
+        }
+        function actionHtml(it) {
+          const a = it.action;
+          if (a.type === "link") return `<a class="asgn-act" href="${esc(a.href)}">${t(a.label)} ▸</a>`;
+          if (a.type === "flash") return `<button class="asgn-act asgn-flash" data-id="${esc(it.id)}">${t(a.label)} ▸</button>`;
+          if (a.type === "disabled") return `<button class="asgn-act" disabled>${esc(it.disabledTxt || "—")}</button>`;
+          if (a.type === "graded") return `<span class="pill done">${t("asg_graded")}${it.grade != null ? ": " + it.grade + (it.points ? "/" + it.points : "") : ""}</span>`;
+          if (a.type === "text") return `<button class="asgn-act asgn-expand" data-id="${esc(it.id)}">${it.answer ? t("act_view") : t("act_open")} ▸</button>`;
+          return "";
+        }
+        function card(it) {
+          const sm = statusMeta(it);
+          const meta = [];
+          if (it.className) meta.push(`<i>${esc(it.className)}</i>`);
+          if (it.hsk) meta.push(`<i>HSK ${it.hsk}</i>`);
+          if (it.cat === "flash" && it.cardsTotal != null) meta.push(`<i>${it.cardsTotal} 🃏</i>`);
+          if (it.maxAtt) meta.push(`<i>${tf("asg_attempts_n", { n: it.used })}/${it.maxAtt}</i>`);
+          else if (it.used) meta.push(`<i>${tf("asg_attempts_n", { n: it.used })}</i>`);
+          const showBar = it.pct > 0 && it.status !== "done" || (it.status === "done" && it.pct > 0 && it.pct < 100);
+          return `
+            <div class="asgn-card${it.urgent ? " urgent" : it.duesoon ? " duesoon" : ""}" data-id="${esc(it.id)}">
+              <div class="asgn-card-top">
+                <span class="asgn-badge">${t(CATLABEL[it.cat] || "asg_cat_other")}</span>
+                <h3>${esc(it.title)}</h3>
+                <span class="pill ${sm.cls}">${sm.label}</span>
+              </div>
+              <div class="asgn-meta">${meta.join("")}${it.due || it.status !== "done" ? ` · ${dueLine(it)}` : ""}</div>
+              ${showBar ? `<div class="asgn-bar2"><i style="width:${Math.max(3, it.pct)}%;"></i></div>` : ""}
+              ${it.notOpenTxt ? `<div class="asgn-meta"><i>${esc(it.notOpenTxt)}</i></div>` : ""}
+              <div class="asgn-card-foot">${actionHtml(it)}</div>
+              ${it.action.type === "graded" && it.feedback ? `<div class="asgn-meta">💬 ${esc(it.feedback)}</div>` : ""}
+              ${it.action.type === "text" ? `<div class="asgn-answer" data-for="${esc(it.id)}" hidden>
+                  <textarea class="asgn-body" data-id="${esc(it.id)}" placeholder="${esc(t("asg_your_answer"))}">${esc(it.answer || "")}</textarea>
+                  <div style="margin-top:.4rem;"><button class="asgn-act asgn-submit" data-id="${esc(it.id)}">${it.answer ? t("asg_edit_answer") : t("asg_submit_answer")}</button></div>
+                </div>` : ""}
+            </div>`;
+        }
+
+        // ---- filtering / sorting ----
+        function match(it) {
+          if (F.cat !== "all" && it.cat !== F.cat) return false;
+          if (F.status !== "all") { if (F.status === "duesoon") { if (!it.duesoon) return false; } else if (it.status !== F.status) return false; }
+          if (F.cls !== "all" && it.className !== F.cls) return false;
+          if (F.due === "has" && !it.due) return false;
+          if (F.due === "week" && !(it.due && it.due > now && (it.due - now) <= 7 * DAY)) return false;
+          if (F.due === "over" && it.status !== "overdue") return false;
+          if (F.q) { const q = F.q.toLowerCase(); if (!(it.title || "").toLowerCase().includes(q)) return false; }
+          return true;
+        }
+        const byDue = (a, b) => { const av = a.due == null ? Infinity : a.due, bv = b.due == null ? Infinity : b.due;
+          if (av !== bv) return av - bv; return (b.assigned || 0) - (a.assigned || 0); };
+
+        // ---- render shell once ----
+        const sum = { unfinished: 0, duesoon: 0, overdue: 0, done: 0 };
+        items.forEach(it => { if (it.status === "done") sum.done++; else sum.unfinished++; if (it.duesoon) sum.duesoon++; if (it.status === "overdue") sum.overdue++; });
+        const catCount = c => c === "all" ? items.length : items.filter(it => it.cat === c).length;
+        box.className = "asgn-hub" + (view === "list" ? " list" : "");
+        box.innerHTML = `
+          <div class="asgn-summary">
+            <div class="asgn-sum"><b>${sum.unfinished}</b><span>${t("asg_sum_unfinished")}</span></div>
+            <div class="asgn-sum${sum.duesoon ? " warn" : ""}"><b>${sum.duesoon}</b><span>${t("asg_sum_duesoon")}</span></div>
+            <div class="asgn-sum${sum.overdue ? " bad" : ""}"><b>${sum.overdue}</b><span>${t("asg_sum_overdue")}</span></div>
+            <div class="asgn-sum"><b>${sum.done}</b><span>${t("asg_sum_done")}</span></div>
+          </div>
+          <div class="asgn-bar" role="region" aria-label="${esc(t("asg_hub_title"))}">
+            <div class="asgn-cats" role="tablist">
+              ${catsPresent.map(c => `<button class="asgn-chip cat${F.cat === c ? " on" : ""}" role="tab" data-cat="${c}" aria-selected="${F.cat === c}">${t(c === "all" ? "asg_cat_all" : CATLABEL[c])}<span class="cnt">${catCount(c)}</span></button>`).join("")}
+            </div>
+            <div class="asgn-status">
+              ${[["all", "asg_cat_all"], ["todo", "asg_st_todo"], ["doing", "asg_st_doing"], ["duesoon", "asg_st_duesoon"], ["overdue", "asg_st_overdue"], ["done", "asg_st_done"]].map(([s, k]) =>
+                `<button class="asgn-chip st${F.status === s ? " on" : ""}" data-st="${s}">${t(k)}</button>`).join("")}
+            </div>
+            <div class="asgn-controls">
+              <select class="asgn-cls" aria-label="${esc(t("asg_f_class"))}">
+                <option value="all">${t("asg_f_all_class")}</option>
+                ${classes.map(c => `<option value="${esc(c)}"${F.cls === c ? " selected" : ""}>${esc(c)}</option>`).join("")}
+              </select>
+              <select class="asgn-due" aria-label="${esc(t("asg_f_deadline"))}">
+                ${[["all", "asg_dl_all"], ["has", "asg_dl_has"], ["week", "asg_dl_week"], ["over", "asg_dl_over"]].map(([v, k]) => `<option value="${v}"${F.due === v ? " selected" : ""}>${t(k)}</option>`).join("")}
+              </select>
+              <input class="asgn-q" type="search" placeholder="${esc(t("asg_search_ph"))}" value="${esc(F.q)}" aria-label="${esc(t("asg_search_ph"))}" />
+              <button class="asgn-clear" type="button">${t("asg_clear")}</button>
+              <div class="asgn-view" role="group" aria-label="${esc(t("asg_view_card"))}/${esc(t("asg_view_list"))}">
+                <button type="button" data-view="card" class="${view === "card" ? "on" : ""}" aria-pressed="${view === "card"}">▦ ${t("asg_view_card")}</button>
+                <button type="button" data-view="list" class="${view === "list" ? "on" : ""}" aria-pressed="${view === "list"}">☰ ${t("asg_view_list")}</button>
+              </div>
+            </div>
+          </div>
+          <div id="asgn-results"></div>`;
+
+        // sticky offset below the student topbar + tab bar
+        try { const tabs = document.getElementById("stuTabs"); box.style.setProperty("--asgn-top", (56 + (tabs ? tabs.offsetHeight : 48) + 4) + "px"); } catch (e) {}
+
+        function renderResults() {
+          const res = document.getElementById("asgn-results"); if (!res) return;
+          const filtered = items.filter(match);
+          const undone = filtered.filter(it => it.status !== "done").sort(byDue);
+          const done = filtered.filter(it => it.status === "done").sort(byDue);
+          if (!filtered.length) { res.innerHTML = `<div class="card"><p class="empty">${t("asg_empty_filter")}</p></div>`; return; }
+          const shown = undone.slice(0, PAGE * F.page);
+          let html = `<div class="asgn-grid">${shown.map(card).join("")}</div>`;
+          if (undone.length > shown.length) html += `<button class="asgn-more" type="button">${t("asg_more")}</button>`;
+          html += `<p class="asgn-count-line">${tf("asg_showing", { n: shown.length, t: undone.length })}</p>`;
+          if (done.length) {
+            const open = res.getAttribute("data-doneopen") === "1";
+            html += `<button class="asgn-done-head${open ? " open" : ""}" type="button" aria-expanded="${open}"><span class="caret">▸</span> ${tf("asg_done_section", { n: done.length })}</button>`;
+            if (open) html += `<div class="asgn-grid" style="margin-top:.5rem;">${done.map(card).join("")}</div>`;
+          }
+          res.innerHTML = html;
+        }
+        renderResults();
+
+        // ---- events (delegated; box is stable within a render) ----
+        box.addEventListener("click", e => {
+          const catB = e.target.closest(".asgn-chip.cat");
+          if (catB) { F.cat = catB.getAttribute("data-cat"); F.page = 1; box.querySelectorAll(".asgn-chip.cat").forEach(x => x.classList.toggle("on", x === catB)); box.querySelectorAll(".asgn-chip.cat").forEach(x => x.setAttribute("aria-selected", x === catB)); writeState(); renderResults(); return; }
+          const stB = e.target.closest(".asgn-chip.st");
+          if (stB) { F.status = stB.getAttribute("data-st"); F.page = 1; box.querySelectorAll(".asgn-chip.st").forEach(x => x.classList.toggle("on", x === stB)); writeState(); renderResults(); return; }
+          const vB = e.target.closest(".asgn-view button");
+          if (vB) { view = vB.getAttribute("data-view"); try { localStorage.setItem("asgn_view", view); } catch (e2) {} box.classList.toggle("list", view === "list"); box.querySelectorAll(".asgn-view button").forEach(x => { const on = x === vB; x.classList.toggle("on", on); x.setAttribute("aria-pressed", on); }); return; }
+          const clr = e.target.closest(".asgn-clear");
+          if (clr) { F.cat = "all"; F.status = "all"; F.cls = "all"; F.due = "all"; F.q = ""; F.page = 1;
+            box.querySelector(".asgn-q").value = ""; box.querySelector(".asgn-cls").value = "all"; box.querySelector(".asgn-due").value = "all";
+            box.querySelectorAll(".asgn-chip.cat").forEach(x => x.classList.toggle("on", x.getAttribute("data-cat") === "all"));
+            box.querySelectorAll(".asgn-chip.st").forEach(x => x.classList.toggle("on", x.getAttribute("data-st") === "all"));
+            writeState(); renderResults(); return; }
+          const more = e.target.closest(".asgn-more");
+          if (more) { F.page++; renderResults(); return; }
+          const dh = e.target.closest(".asgn-done-head");
+          if (dh) { const res = document.getElementById("asgn-results"); const open = res.getAttribute("data-doneopen") === "1"; res.setAttribute("data-doneopen", open ? "0" : "1"); renderResults(); return; }
+          const fl = e.target.closest(".asgn-flash");
+          if (fl) { const it = items.find(x => String(x.id) === fl.getAttribute("data-id")); if (it && it._raw) { const set = cardsOf(it._raw); if (set.length) startReviewCards(set); } return; }
+          const ex = e.target.closest(".asgn-expand");
+          if (ex) { const wrap = box.querySelector(`.asgn-answer[data-for="${ex.getAttribute("data-id")}"]`); if (wrap) { wrap.hidden = !wrap.hidden; if (!wrap.hidden) wrap.querySelector("textarea")?.focus(); } return; }
+          const sb2 = e.target.closest(".asgn-submit");
+          if (sb2) { submitText(sb2); return; }
+        });
+        box.addEventListener("input", e => { if (e.target.classList.contains("asgn-q")) { F.q = e.target.value; F.page = 1; writeState(); renderResults(); } });
+        box.addEventListener("change", e => {
+          if (e.target.classList.contains("asgn-cls")) { F.cls = e.target.value; F.page = 1; writeState(); renderResults(); }
+          if (e.target.classList.contains("asgn-due")) { F.due = e.target.value; F.page = 1; writeState(); renderResults(); }
+        });
+        async function submitText(btn) {
+          const aid = btn.getAttribute("data-id");
+          const ta = box.querySelector(`.asgn-body[data-id="${aid}"]`);
+          const body = (ta ? ta.value : "").trim();
+          if (!body) { if (window.UI) UI.toast(t("asg_write_answer"), "err"); return; }
+          btn.disabled = true;
+          const { error } = await sb.from("submissions").upsert({ assignment_id: aid, student_id: user.id, body, status: "submitted", submitted_at: new Date().toISOString() }, { onConflict: "assignment_id,student_id" });
+          btn.disabled = false;
+          if (error) { if (window.UI) UI.toast(t("err_save") + error.message, "err"); return; }
+          if (window.UI) UI.toast(t("asg_answer_saved"));
+          renderStudent();
+        }
+      }
+      mountAssignmentsHub();
 
       /* ---- Điểm & Xếp hạng thống nhất (Phase 118) — dùng student_points +
          student_streaks + RPC points_leaderboard/my_points_rank. Nếu chưa chạy
@@ -2941,6 +3303,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         ];
         let cur = "home";
         try { cur = localStorage.getItem("hub_student_tab") || "home"; } catch (e) {}
+        // deep-link: #asgn (optionally with ?cat=…&st=… filters) opens Bài tập
+        try { if ((location.hash || "").indexOf("#asgn") === 0) cur = "asgn"; } catch (e) {}
         if (!items.some(i => i.id === cur)) cur = "home";
         function showT(k) {
           cur = k;
@@ -2965,11 +3329,11 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         window.__stuShowTab = showTnav;
 
         const NAVP = [
-          { id: "home",   label: T("nav_home") || "Trang chủ" },
-          { id: "courses",label: T("my_courses") || "Khóa học" },
-          { id: "flash",  label: t("flash_tab") || "Flashcards" },
-          { id: "asgn",   label: T("asgn") || "Bài tập" },
-          { id: "tools",  label: t("learning_tools") || "Công cụ học tập" }
+          { id: "home",   label: t("nav_home") },
+          { id: "courses",label: t("nav_courses") },
+          { id: "flash",  label: t("flash_tab") },
+          { id: "asgn",   label: t("nav_assignments") },
+          { id: "tools",  label: t("nav_tools") }
         ];
         let tabs = document.getElementById("stuTabs");
         if (!tabs) {

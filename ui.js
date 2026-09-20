@@ -8,9 +8,13 @@
 
 (function () {
   // ---------- language ----------
-  let LANG = "en";
-  try { LANG = localStorage.getItem("hub_lang") || "en"; } catch (e) {}
-  if (!["en", "vi"].includes(LANG)) LANG = "en";
+  // Vietnamese is the default for visitors/students who haven't chosen a
+  // language, matching lang.js (DEFAULT_LANG = "vi"). Keeping this in sync
+  // stops the shared UI.t2 strings (nav, buttons…) from showing English
+  // while lang.js shows Vietnamese for the same unset visitor.
+  let LANG = "vi";
+  try { LANG = localStorage.getItem("hub_lang") || "vi"; } catch (e) {}
+  if (!["en", "vi"].includes(LANG)) LANG = "vi";
 
   const S = {
     en: {
