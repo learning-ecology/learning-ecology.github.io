@@ -20,7 +20,14 @@
  * =========================================================================== */
 (function (root) {
   "use strict";
-  function sb() { return root.sb; }
+  // config.js declares `const sb = supabase.createClient(...)` — a top-level
+  // const is a GLOBAL LEXICAL binding (reachable only by the bare name `sb`,
+  // NOT as window.sb). This helper (deliberately NOT named `sb`) resolves that
+  // binding, falling back to root.sb / window.sb if a page set one there.
+  function client() {
+    try { if (typeof sb !== "undefined" && sb) return sb; } catch (e) {}
+    return root.sb || (typeof window !== "undefined" ? window.sb : undefined);
+  }
 
   function rowToRecord(r) {
     return {
@@ -48,12 +55,12 @@
     context: { homeworkId: null, lessonId: null },
 
     listTests: function () {
-      return sb().from("net_tests").select("*").order("sort_order").order("created_at", { ascending: false })
+      return client().from("net_tests").select("*").order("sort_order").order("created_at", { ascending: false })
         .then(function (r) { if (r.error) throw r.error; return (r.data || []).map(rowToRecord); });
     },
 
     getTest: function (id) {
-      return sb().from("net_tests").select("*").eq("lesson_id", id).maybeSingle()
+      return client().from("net_tests").select("*").eq("lesson_id", id).maybeSingle()
         .then(function (r) { if (r.error) throw r.error; return r.data ? rowToRecord(r.data) : null; });
     },
 
@@ -74,17 +81,17 @@
         tier: record.tier || "free",
         updated_at: new Date().toISOString()
       };
-      return sb().from("net_tests").upsert(patch, { onConflict: "lesson_id" }).select().maybeSingle()
+      return client().from("net_tests").upsert(patch, { onConflict: "lesson_id" }).select().maybeSingle()
         .then(function (r) { if (r.error) throw r.error; return rowToRecord(r.data); });
     },
 
     deleteTest: function (id) {
-      return sb().from("net_tests").delete().eq("lesson_id", id)
+      return client().from("net_tests").delete().eq("lesson_id", id)
         .then(function (r) { if (r.error) throw r.error; return true; });
     },
 
     saveAttempt: function (result) {
-      return sb().rpc("submit_net_attempt", {
+      return client().rpc("submit_net_attempt", {
         p_result: result,
         p_homework: TestStore.context.homeworkId || null,
         p_lesson: TestStore.context.lessonId || null
@@ -92,13 +99,13 @@
     },
 
     listAttempts: function (testId) {
-      var qy = sb().from("net_attempts").select("*").order("created_at", { ascending: false });
+      var qy = client().from("net_attempts").select("*").order("created_at", { ascending: false });
       if (testId) qy = qy.eq("lesson_id", testId);
       return qy.then(function (r) { if (r.error) throw r.error; return (r.data || []).map(attemptToPayload); });
     },
 
     clearAttempts: function (testId) {
-      var qy = sb().from("net_attempts").delete();
+      var qy = client().from("net_attempts").delete();
       qy = testId ? qy.eq("lesson_id", testId) : qy.neq("id", "00000000-0000-0000-0000-000000000000");
       return qy.then(function (r) { if (r.error) throw r.error; return true; });
     }
