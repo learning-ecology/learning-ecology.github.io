@@ -23,7 +23,9 @@
     padding:.6rem 1.2rem; border-radius:10px; font-weight:700; }
   .lms-toast{ position:fixed; left:50%; bottom:1.2rem; transform:translateX(-50%); background:#0f1725; color:#fff;
     padding:.6rem 1rem; border-radius:10px; font-size:.9rem; z-index:9999; box-shadow:0 6px 24px rgba(0,0,0,.25); }
-  #host{ max-width:1100px; margin:0 auto; }
+  /* Let the runner's own .runner-body (max-width + centered) control width so the
+     test uses most of the viewport; the header spans full width like a real exam. */
+  #host{ max-width:none; margin:0; }
 </style>
 </head>
 <body>
@@ -39,6 +41,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="net-store.js"></script>
+<script src="net-layout.js"></script>
 <script>
 (function () {
   "use strict";

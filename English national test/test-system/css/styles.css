@@ -184,8 +184,8 @@ button { font-family: inherit; }
 .mode-tag.practice { background: var(--good-soft); color: var(--good); }
 
 .runner-body {
-  display: grid; grid-template-columns: 1fr 250px; gap: 22px;
-  max-width: 1240px; margin: 0 auto; padding: 22px;
+  display: grid; grid-template-columns: minmax(0, 1fr) var(--net-nav, 220px); gap: clamp(14px, 1.6vw, 26px);
+  max-width: min(1860px, 100%); margin: 0 auto; padding: 22px clamp(14px, 2.5vw, 40px) 60px;
   align-items: start;
 }
 
@@ -198,7 +198,32 @@ button { font-family: inherit; }
 }
 .section-instr .k { font-weight: 700; color: var(--brand); text-transform: uppercase; font-size: 11px; letter-spacing: .05em; }
 
-.passage-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; }
+/* Two resizable columns: passage (flex-basis = --net-split) and questions.
+   A draggable .net-divider (injected by net-layout.js) sits between them.
+   The navigator column of .runner-body is separate and never resizes. */
+.passage-cols { display: flex; align-items: flex-start; gap: 0; }
+.passage-cols > .passage-panel { flex: 0 0 var(--net-split, 46%); min-width: 260px; box-sizing: border-box; }
+.passage-cols > *:not(.passage-panel):not(.net-divider) { flex: 1 1 0; min-width: 300px; }
+.net-divider {
+  flex: 0 0 16px; align-self: stretch; position: sticky; top: 84px; min-height: 140px;
+  cursor: col-resize; touch-action: none; display: flex; align-items: center; justify-content: center;
+}
+.net-divider::before {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; transform: translateX(-50%);
+  background: var(--line-strong); border-radius: 2px; transition: background .12s, width .12s;
+}
+.net-divider:hover::before, .net-divider:focus-visible::before, body.net-resizing .net-divider::before {
+  background: var(--brand); width: 4px;
+}
+.net-divider:focus-visible { outline: none; }
+.net-reset {
+  position: relative; z-index: 1; width: 22px; height: 22px; border-radius: 50%;
+  border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink-soft);
+  font-size: 12px; line-height: 1; cursor: pointer; opacity: 0; transition: opacity .12s; display: grid; place-items: center;
+}
+.net-divider:hover .net-reset, .net-divider:focus-within .net-reset { opacity: 1; }
+.net-reset:hover { border-color: var(--brand); color: var(--brand); }
+body.net-resizing { cursor: col-resize !important; user-select: none; }
 .passage-panel {
   position: sticky; top: 84px; max-height: calc(100vh - 110px); overflow: auto;
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
@@ -413,7 +438,10 @@ button { font-family: inherit; }
 /* ---------- Responsive ---------- */
 @media (max-width: 900px) {
   .runner-body { grid-template-columns: 1fr; }
-  .passage-cols { grid-template-columns: 1fr; }
+  .passage-cols { flex-direction: column; }
+  .passage-cols > .passage-panel { flex: none; width: 100%; min-width: 0; position: static; max-height: none; }
+  .passage-cols > *:not(.passage-panel):not(.net-divider) { min-width: 0; }
+  .net-divider { display: none; }
   .passage-panel { position: static; max-height: none; }
   .nav-panel { position: static; order: -1; }
   .nav-grid { grid-template-columns: repeat(10, 1fr); }

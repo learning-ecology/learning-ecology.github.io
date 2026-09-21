@@ -14,7 +14,7 @@
    nào còn phục vụ bản cũ nữa. Không đổi thì cuộc đua 2,5 giây bên dưới có
    thể trả về bản đã lưu — đúng lỗi đã khiến một đề tải lên bằng bản
    dashboard cũ và chỉ sinh được 1 bài tập ngữ pháp. */
-const CACHE = "learning-ecology-v94";
+const CACHE = "learning-ecology-v95";
 
 // Phase 43: how long a navigation waits for the network before the last good
 // copy is shown instead. On a healthy connection the network always wins, so
@@ -59,6 +59,7 @@ const CORE = [
   "./hsk-test.html",
   "./net-test.html",
   "./net-store.js",
+  "./net-layout.js",
   "./hsk-plan.js",
   "./speech-zh.js",
   "./cert.html",
