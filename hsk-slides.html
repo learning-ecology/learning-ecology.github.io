@@ -190,7 +190,8 @@ body.hz-nopy .wf-sep { display:none !important; }
    stay visible. Same body-class + CSS mechanism as pinyin, so it applies with
    no re-render and survives slide changes and fullscreen; persisted. */
 body.hz-novi .vc-vi, body.hz-novi .ex-vi, body.hz-novi .rd-vi,
-body.hz-novi .wf-vi, body.hz-novi .wf-sep, body.hz-novi .rad-mean { display:none !important; }
+body.hz-novi .wf-vi, body.hz-novi .wf-sep, body.hz-novi .rad-mean,
+body.hz-novi .hc-vi { display:none !important; }
 #btnVi.on{border-color:#1a7f4b;color:#1a7f4b;font-weight:700}
 /* results / homework summary screen */
 .sl.results .sl-body{align-items:center;text-align:center;gap:.5em;overflow:auto}
@@ -236,7 +237,7 @@ body.hz-novi .wf-vi, body.hz-novi .wf-sep, body.hz-novi .rad-mean { display:none
 .hz-tab{font-family:var(--zh);font-size:1.6em;border:1px solid var(--line);background:#fff;
   border-radius:8px;padding:.05em .5em;cursor:pointer}
 .hz-tab.on{border-color:var(--brand);background:#fdf1f1;color:var(--brand);font-weight:700}
-.hz-panels{display:flex;align-items:center;justify-content:center}
+.hz-panels{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:center;gap:1em}
 .hz-panel{display:flex;flex-direction:column;align-items:center;gap:.5em}
 .tianzige{position:relative;border:2px solid var(--brand);border-radius:8px;background:#fffdf8}
 .tzg-grid{position:absolute;inset:0;pointer-events:none;
@@ -359,6 +360,11 @@ body.hz-novi .wf-vi, body.hz-novi .wf-sep, body.hz-novi .rad-mean { display:none
 .ctrl button:hover{border-color:var(--brand);color:var(--brand)}
 #counter{font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px;min-width:64px;text-align:center}
 #btnFull{right:14px;top:14px}
+/* Pinyin-transcription shortcut — small, top-left, opens the tool in a new tab */
+#btnPinyinTool{left:14px;top:14px;display:inline-flex;align-items:center;gap:.3em;
+  text-decoration:none;color:inherit;box-shadow:var(--shadow);background:rgba(255,255,255,.94);
+  border:1px solid var(--line);border-radius:999px;padding:.45em .9em;font:inherit;font-size:13px;white-space:nowrap}
+#btnPinyinTool:hover{border-color:var(--brand);color:var(--brand)}
 /* cỡ chữ: nằm ngay trong thanh điều hướng, không đè lên nội dung slide */
 #navBar button{box-shadow:none}
 #btnFsUp,#btnFsDown{font-weight:700;padding:.4em .7em}
@@ -425,6 +431,8 @@ body.hz-novi .wf-vi, body.hz-novi .wf-sep, body.hz-novi .rad-mean { display:none
     <div id="spotlight" class="hidden"></div>
 
     <button class="ctrl" id="btnFull" type="button" title="Toàn màn hình (F)">⛶</button>
+    <a class="ctrl" id="btnPinyinTool" href="https://learningecology.io.vn/pinyin-transcription/"
+       target="_blank" rel="noopener" title="Công cụ phiên âm Pinyin — mở tab mới">✍ Pinyin</a>
     <div id="lightbox" class="hidden" data-noreveal>
       <img id="lbImg" alt="" />
       <button id="lbClose" type="button" title="Đóng (Esc)">✕</button>
@@ -583,7 +591,7 @@ body.hz-novi .wf-vi, body.hz-novi .wf-sep, body.hz-novi .rad-mean { display:none
           '" data-p="' + esc(idPrefix) + '">' + esc(c) + '</button>').join('') + '</div>'
       : '';
     const panels = chars.map((c, i) =>
-      '<div class="hz-panel' + (i ? ' hidden' : '') + '" id="' + esc(idPrefix) + '-p' + i + '">' +
+      '<div class="hz-panel" id="' + esc(idPrefix) + '-p' + i + '">' +
         '<div class="tianzige"><div class="tzg-grid"></div>' +
           '<div class="hz-box" id="' + esc(idPrefix) + '-w' + i + '" data-char="' + esc(c) + '" data-size="' + size + '"></div>' +
         '</div>' +
@@ -788,7 +796,12 @@ body.hz-novi .wf-vi, body.hz-novi .wf-sep, body.hz-novi .rad-mean { display:none
 
     write(s) {
       const v = V(s.index);
-      const size = Math.max(180, Math.min(360, Math.round(FS * 11)));
+      /* One character → big. Several (电影院) → all shown at once, so use a
+         moderate size that fits side by side (the body still scrolls if huge). */
+      const n = (v.chars || []).length;
+      const size = n > 1
+        ? Math.max(140, Math.min(240, Math.round(FS * 7)))
+        : Math.max(180, Math.min(360, Math.round(FS * 11)));
       return '<div class="sl write">' +
         head('HƯỚNG DẪN VIẾT HÁN TỰ: <b>' + esc(v.chinese) + '</b>') +
         '<div class="sl-body">' + strokeBlock(v.chars || [], size, 'w' + s.index) +
@@ -1309,16 +1322,14 @@ body.hz-novi .wf-vi, body.hz-novi .wf-sep, body.hz-novi .rad-mean { display:none
         mountWriter(box, box.dataset.char, Number(box.dataset.size) || 160));
     }
     else if (act === 'hz-tab') {
+      /* All characters are shown at once now; a tab just highlights + scrolls to
+         its character and replays that one (no hiding of the others). */
       const p = t.dataset.p, i = +t.dataset.i;
       document.querySelectorAll('[data-act="hz-tab"][data-p="' + CSS.escape(p) + '"]')
         .forEach(b => b.classList.toggle('on', b === t));
-      let k = 0, box = null;
-      while (document.getElementById(p + '-p' + k)) {
-        const panel = document.getElementById(p + '-p' + k);
-        panel.classList.toggle('hidden', k !== i);
-        if (k === i) box = document.getElementById(p + '-w' + k);
-        k++;
-      }
+      const panel = document.getElementById(p + '-p' + i);
+      if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      const box = document.getElementById(p + '-w' + i);
       if (box) mountWriter(box, box.dataset.char, Number(box.dataset.size) || 160);
     }
     else if (act === 'hz-replay') {
