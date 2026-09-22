@@ -608,6 +608,34 @@ body.hz-novi .hc-vi { display:none !important; }
     });
   }
 
+  /* Cỡ GIF thứ tự nét trên slide VIẾT: LẤP đầy khoảng trống của slide, tính
+     theo kích thước sân khấu (đổi theo toàn màn hình / máy tính bảng) và SỐ chữ.
+     Một chữ → to hết cỡ; nhiều chữ → chia đều theo chiều ngang nhưng luôn vừa
+     chiều cao, xếp cạnh nhau. HanziWriter vẽ VUÔNG nên không bao giờ méo. */
+  function hzWriteSize(n) {
+    n = Math.max(1, n || 1);
+    const stage = document.getElementById('stageArea');
+    let sw = stage ? stage.clientWidth : 0, sh = stage ? stage.clientHeight : 0;
+    if (sw < 200 || sh < 150) { sw = 1000; sh = 560; }     // fallback nếu chưa đo được
+    const gap = Math.round(sw * 0.012) + 8;
+    const vBudget = Math.round(sh * (n === 1 ? 0.66 : 0.60));   // chừa chỗ cho tiêu đề · tab · nhãn · pinyin/nghĩa
+    const hBudget = Math.round(sw * 0.94);
+    const perChar = Math.floor((hBudget - (n - 1) * gap) / n);
+    const size = Math.min(perChar, vBudget);
+    return Math.max(150, Math.min(n === 1 ? 560 : 520, size));
+  }
+  /* Dựng lại GIF cho vừa khi đổi cỡ cửa sổ / vào–ra toàn màn hình (chỉ khi đang
+     ở slide viết). Giữ nguyên mọi thứ khác. */
+  let _hzResizeTimer = null;
+  function refreshWriteGifs() {
+    const boxes = document.querySelectorAll('.sl.write .hz-box');
+    if (!boxes.length) return;
+    const size = hzWriteSize(boxes.length);
+    boxes.forEach(b => { b.dataset.size = size; mountWriter(b, b.dataset.char, size); });
+  }
+  window.addEventListener('resize', () => { clearTimeout(_hzResizeTimer); _hzResizeTimer = setTimeout(refreshWriteGifs, 180); });
+  document.addEventListener('fullscreenchange', () => setTimeout(refreshWriteGifs, 140));
+
   /* ---------- cỡ chữ trình chiếu (yêu cầu 11–13) ----------
      Mọi kích thước trên slide đều tính bằng em, nên đổi MỘT biến --fs là
      cả bài giảng to lên theo. Chữ to mà không vừa thì phần thân slide
@@ -796,12 +824,10 @@ body.hz-novi .hc-vi { display:none !important; }
 
     write(s) {
       const v = V(s.index);
-      /* One character → big. Several (电影院) → all shown at once, so use a
-         moderate size that fits side by side (the body still scrolls if huge). */
-      const n = (v.chars || []).length;
-      const size = n > 1
-        ? Math.max(140, Math.min(240, Math.round(FS * 7)))
-        : Math.max(180, Math.min(360, Math.round(FS * 11)));
+      /* Stroke GIFs fill the empty slide space: sized from the stage + number of
+         characters (one → biggest; several → side by side, still one screen). */
+      const n = Math.max(1, (v.chars || []).length);
+      const size = hzWriteSize(n);
       return '<div class="sl write">' +
         head('HƯỚNG DẪN VIẾT HÁN TỰ: <b>' + esc(v.chinese) + '</b>') +
         '<div class="sl-body">' + strokeBlock(v.chars || [], size, 'w' + s.index) +
