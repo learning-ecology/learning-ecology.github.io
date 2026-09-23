@@ -136,13 +136,20 @@
     // Wire the "Đăng nhập với Google" button (Supabase OAuth).
     GoogleAuth.wireButton(document.getElementById("google-btn"), msg, NEXT);
 
+    // ?g=1 → the visitor clicked a gated lesson (auth-gate.js). Launch Google
+    // sign-in straight away so they don't have to click, then return to `next`.
+    const AUTO_GOOGLE = new URLSearchParams(location.search).get("g") === "1";
+
     // If we just came back from Google, finish the sign-in (fill profile,
     // one-device rule, log) then go to the intended page. Otherwise: if already
     // logged in, skip straight to the destination — same as before.
     if (GoogleAuth.pendingReturn()) {
       GoogleAuth.completeReturn(msg).then((session) => { if (session) goNext(); });
     } else {
-      sb.auth.getSession().then(({ data }) => { if (data.session) goNext(); });
+      sb.auth.getSession().then(({ data }) => {
+        if (data.session) { goNext(); return; }
+        if (AUTO_GOOGLE) { try { document.getElementById("google-btn").click(); } catch (e) {} }
+      });
     }
 
     async function signIn() {
