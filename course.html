@@ -203,6 +203,8 @@
     .cc-body { padding: .6rem .75rem .75rem; display: flex; flex-direction: column; gap: .35rem; flex: 1; }
     .cc-title { font-weight: 800; font-size: .95rem; line-height: 1.25; color: var(--pv-ink);
       display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .cc-desc { color: var(--muted); font-size: .82rem; line-height: 1.4; margin: -.05rem 0 .1rem;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .cc-stats { color: var(--muted); font-size: .78rem; margin-top: auto; display: flex; flex-wrap: wrap; gap: .05rem .5rem; }
     @media (max-width: 600px) { .cc-title { font-size: .88rem; } .cc-stats { font-size: .72rem; } .cc-thumb { font-size: 1.6rem; } }
 
@@ -238,6 +240,21 @@
     .cp-inside-list .ci-t { font-weight: 700; }
     .cp-inside-list .ci-m { color: var(--muted); font-size: .85rem; margin-left: .5rem; white-space: nowrap; }
     .cp-inside-tip { margin: .8rem 0 0; color: var(--muted); font-size: .92rem; }
+    /* Cảm nhận học viên (social proof) — Phase 135 */
+    .tm-sec { margin: 2.2rem 0 .5rem; }
+    .tm-h { font-family: var(--serif); margin: 0 0 .9rem; }
+    .tm-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; }
+    .tm-card { background: var(--pv-card); border: 1px solid var(--line); border-radius: 16px;
+      padding: 1rem 1.1rem; box-shadow: 0 10px 26px -22px rgba(23,38,62,.35);
+      display: flex; flex-direction: column; gap: .7rem; }
+    .tm-quote { margin: 0; font-size: .95rem; line-height: 1.5; color: var(--pv-ink); }
+    .tm-quote::before { content: "\201C"; color: var(--accent); font-weight: 800; margin-right: .08rem; }
+    .tm-who { display: flex; align-items: center; gap: .6rem; margin: 0; }
+    .tm-av { width: 34px; height: 34px; border-radius: 50%; flex: none; display: grid; place-items: center;
+      background: var(--info-bg); color: var(--accent-ink); font-weight: 800; }
+    .tm-av-img { object-fit: cover; }
+    .tm-meta { display: flex; flex-direction: column; line-height: 1.2; }
+    .tm-role { color: var(--muted); font-size: .8rem; }
 
     /* ---- cửa sổ đọc thử + hộp khóa (giữ nguyên chức năng, chỉ mềm hơn) ---- */
     .cp-read { position: fixed; inset: 0; z-index: 900; background: rgba(8,14,26,.66);
@@ -334,6 +351,7 @@
     let CONTACT = CONTACT_FALLBACK;
     let COURSES = [], currentId = null;
     let SECTIONS = [];                 // các công cụ đang mở xem trước công khai
+    let TESTIMONIALS = [];             // cảm nhận học viên (do chủ trung tâm nhập; ẩn nếu trống)
     // Tự quản lý vị trí cuộn (SPA) để back/forward/tải lại/quay về từ bài học
     // khôi phục đúng chỗ, không để trình duyệt nhảy lung tung.
     try { if ("scrollRestoration" in history) history.scrollRestoration = "manual"; } catch (e) {}
@@ -470,11 +488,11 @@
       const out = [];
       (COURSES || []).forEach(c => out.push({ cid: c.id, title: c.title || "",
         thumb: thumbStyle(c.banner_url, c.color), emptyIcon: c.banner_url ? "" : (c.icon || "📚"),
-        hkey: courseKey(c) }));
+        desc: c.description || c.subtitle || "", hkey: courseKey(c) }));
       (SECTIONS || []).forEach(s => { const m = secMeta(s.section), cfg = s.config || {};
         out.push({ cid: "sec:" + s.section, title: m.name || s.section,
           thumb: thumbStyle(cfg.cover, "#0e7c66"), emptyIcon: cfg.cover ? "" : (m.icon || "🧰"),
-          hkey: sectionKey(s.section, cfg) }); });
+          desc: cfg.tagline || cfg.subtitle || "", hkey: sectionKey(s.section, cfg) }); });
       return out;
     }
     /* mỗi mục → { catId, subId } theo: (1) chủ gán tay, (2) mặc định thông minh */
@@ -1029,6 +1047,7 @@
           </div>
           <div class="cc-body">
             <div class="cc-title">${esc(item.title)}</div>
+            ${item.desc ? `<div class="cc-desc">${esc(item.desc)}</div>` : ""}
             <div class="cc-stats" data-stats>…</div>
           </div>
         </a>`;
@@ -1066,7 +1085,8 @@
       $("cpMain").innerHTML =
         crumbs([{ label: "Khóa học & Tài liệu", root: true }, { label: cat ? cat.label : catId, cur: true }])
         + `<h2 class="cg-h">${cat ? esc((cat.icon || "") + " " + cat.label) : ""}</h2>`
-        + body;
+        + body
+        + testimonialsHtml();
       // thẻ mở khóa nào bấm cũng vào xem khóa đó (SPA, không tải lại trang)
       const cards = {};
       $("cpMain").querySelectorAll(".ccard").forEach(a => {
@@ -1078,6 +1098,27 @@
       });
       // đếm số bài (nền, có đệm) rồi điền vào từng thẻ
       its.forEach(item => getCounts(item.cid).then(c => { const card = cards[item.cid]; if (card) fillCard(card, c); }));
+    }
+
+    /* -- Cảm nhận học viên (social proof). Chỉ hiện khi chủ trung tâm đã nhập
+          trong Bảng điều khiển → Landing → Cảm nhận học viên. Không bịa. -- */
+    function testimonialsHtml(){
+      if (!TESTIMONIALS.length) return "";
+      const cards = TESTIMONIALS.slice(0, 12).map(t => {
+        const text = String(t.text || t.quote || "");
+        const name = String(t.name || "").trim();
+        const role = String(t.role || "").trim();
+        const avImg = t.avatar && /^https?:\/\//i.test(t.avatar)
+          ? `<img class="tm-av tm-av-img" src="${esc(t.avatar)}" alt="" loading="lazy" />`
+          : `<span class="tm-av">${name ? esc(name.charAt(0).toUpperCase()) : "★"}</span>`;
+        return `<figure class="tm-card">
+            <blockquote class="tm-quote">${esc(text)}</blockquote>
+            <figcaption class="tm-who">${avImg}
+              <span class="tm-meta"><b>${esc(name || "Học viên")}</b>${role ? `<span class="tm-role">${esc(role)}</span>` : ""}</span>
+            </figcaption>
+          </figure>`;
+      }).join("");
+      return `<section class="tm-sec"><h3 class="tm-h">💬 Học viên nói gì</h3><div class="tm-grid">${cards}</div></section>`;
     }
 
     /* -- Tìm kiếm khóa học/công cụ (mọi danh mục, không dấu) -- */
@@ -1181,17 +1222,24 @@
     async function boot(){
       $("cpYear").textContent = new Date().getFullYear();
       const id = new URLSearchParams(location.search).get("id");
-      const [setRes, listRes, secRes, navRes] = await Promise.all([
+      const [setRes, listRes, secRes, navRes, fbRes] = await Promise.all([
         sb.from("landing_settings").select("config").eq("id", 1).maybeSingle().then(r => r, () => ({ data: null })),
         sb.rpc("public_courses").then(r => r, () => ({ data: null })),
         sb.rpc("public_sections").then(r => r, () => ({ data: null })),  // cần migration47
-        sb.rpc("public_nav").then(r => r, () => ({ data: null }))        // cần migration61 — thiếu thì dùng mặc định
+        sb.rpc("public_nav").then(r => r, () => ({ data: null })),       // cần migration61 — thiếu thì dùng mặc định
+        // Cảm nhận học viên ĐÃ ĐĂNG (dùng lại kho có sẵn ở Landing → không tạo mới, không bịa)
+        sb.from("landing_feedback").select("student_name, role_label, course_label, feedback, avatar_url")
+          .eq("status", "published").order("sort_order").then(r => r, () => ({ data: null }))
       ]);
       SECTIONS = Array.isArray(secRes && secRes.data) ? secRes.data : [];
       NAV = (navRes && navRes.data && Array.isArray(navRes.data.categories) && navRes.data.categories.length)
             ? navRes.data : null;
       const cfg = (setRes && setRes.data && setRes.data.config) || {};
       applyBrand(cfg);
+      TESTIMONIALS = ((fbRes && Array.isArray(fbRes.data)) ? fbRes.data : [])
+        .filter(f => f && f.feedback)
+        .map(f => ({ name: f.student_name, role: f.role_label || f.course_label || "",
+                     text: f.feedback, avatar: f.avatar_url || "" }));
       const cUrl = cfg.trial && cfg.trial.s_url;
       if (cUrl && /^https?:\/\//i.test(cUrl)) CONTACT = cUrl;
       sb.auth.getSession().then(({ data }) => {
