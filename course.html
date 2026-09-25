@@ -82,10 +82,18 @@
     .pv-nav { position: sticky; top: 52px; z-index: 40;
       background: color-mix(in srgb, var(--pv-bg) 90%, transparent); backdrop-filter: blur(8px);
       border-bottom: 1px solid var(--line); }
-    .pv-nav-in { max-width: 1280px; margin: 0 auto; padding: .5rem clamp(1rem,4vw,2rem); }
+    .pv-nav-in { max-width: 1280px; margin: 0 auto; padding: .5rem clamp(1rem,4vw,2rem);
+      display: flex; align-items: center; gap: .5rem .8rem; flex-wrap: wrap; }
     /* KHÔNG dùng overflow ở đây: overflow-x sẽ cắt mất menu con thả xuống.
        Ít danh mục nên cho xuống dòng trên màn nhỏ thay vì cuộn ngang. */
-    .pv-cats { display: flex; flex-wrap: wrap; gap: .45rem; }
+    .pv-cats { display: flex; flex-wrap: wrap; gap: .45rem; flex: 1 1 auto; min-width: 0; }
+    /* Ô tìm kiếm khóa học/công cụ — nằm trong thanh dính, luôn thấy khi cuộn. */
+    .pv-search { flex: 0 0 auto; }
+    .pv-search input { width: min(240px, 60vw); font: inherit; font-size: .9rem;
+      padding: .48rem .9rem; border: 1.5px solid var(--line); border-radius: var(--pv-pill);
+      background: var(--pv-card); color: var(--ink); }
+    .pv-search input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-color: var(--accent); }
+    @media (max-width: 600px) { .pv-search { flex: 1 1 100%; } .pv-search input { width: 100%; } }
 
     .pv-cat { position: relative; }
     .pv-cat-btn { display: inline-flex; align-items: center; gap: .45rem; white-space: nowrap;
@@ -266,7 +274,13 @@
   </header>
 
   <nav class="pv-nav" aria-label="Danh sách khóa học &amp; công cụ">
-    <div class="pv-nav-in"><div id="cpSideList" class="pv-cats"></div></div>
+    <div class="pv-nav-in">
+      <div id="cpSideList" class="pv-cats"></div>
+      <div class="pv-search">
+        <input id="cpSearch" type="search" placeholder="🔎 Tìm khóa học / công cụ…"
+               aria-label="Tìm khóa học hoặc công cụ" autocomplete="off" />
+      </div>
+    </div>
   </nav>
 
   <main class="pv-main">
@@ -303,6 +317,9 @@
           || /^hsla?\(\s*[\d.\s,%/deg]+\)$/i.test(v) ? v : ""; }
     function iconFor(k){ return ({ html:"🌐", link:"🔗", pdf:"📄", video:"🎬", audio:"🎧",
       quiz:"📝", image:"🖼️", word:"📃", excel:"📊", powerpoint:"📽️", text:"📄" })[String(k||"").toLowerCase()] || "📄"; }
+    /* Chuẩn hoá để tìm kiếm không dấu (bỏ dấu tiếng Việt + đ→d). */
+    function normA(s){ return String(s == null ? "" : s).toLowerCase()
+      .normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d"); }
     const CONTACT_FALLBACK = "https://zalo.me/0961923983";
     let CONTACT = CONTACT_FALLBACK;
     let COURSES = [], currentId = null;
@@ -1034,6 +1051,46 @@
       its.forEach(item => getCounts(item.cid).then(c => { const card = cards[item.cid]; if (card) fillCard(card, c); }));
     }
 
+    /* -- Tìm kiếm khóa học/công cụ (mọi danh mục, không dấu) -- */
+    function renderSearch(q){
+      const nq = normA(q);
+      const { cats, items } = _resolvedItems();
+      const catLabel = {}, subName = {};
+      cats.forEach(c => { catLabel[c.id] = c.label; (c.subs || []).forEach(s => { subName[s.id] = s.name; }); });
+      const hay = it => normA([it.title, catLabel[it.catId] || "", subName[it.subId] || ""].join(" "));
+      const matches = items.filter(it => hay(it).includes(nq));
+      document.title = "Tìm: " + q + " — Learning Ecology";
+      const body = matches.length
+        ? `<div class="cgrid">${matches.map(courseCard).join("")}</div>`
+        : `<p class="cp-note">Không tìm thấy khóa học/công cụ nào khớp “${esc(q)}”. Thử từ khóa khác (vd HSK, VSTEP, IELTS, nghe, đọc…).</p>`;
+      $("cpMain").innerHTML =
+        crumbs([{ label: "Khóa học & Tài liệu", root: true }, { label: "Kết quả tìm kiếm", cur: true }])
+        + `<h2 class="cg-h">🔎 ${matches.length} kết quả cho “${esc(q)}”</h2>`
+        + body;
+      const cards = {};
+      $("cpMain").querySelectorAll(".ccard").forEach(a => {
+        cards[a.getAttribute("data-cid")] = a;
+        a.addEventListener("click", e => {
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
+          e.preventDefault(); switchCourse(a.getAttribute("data-cid"), true);
+        });
+      });
+      matches.forEach(it => getCounts(it.cid).then(c => { const card = cards[it.cid]; if (card) fillCard(card, c); }));
+      afterRender(false);
+    }
+    function wireSearch(){
+      const inp = $("cpSearch"); if (!inp || inp._wired) return; inp._wired = true;
+      let t = null;
+      inp.addEventListener("input", () => {
+        clearTimeout(t);
+        t = setTimeout(() => {
+          const q = inp.value.trim();
+          if (q) renderSearch(q); else routeFromUrl(false);   // ô rỗng → khôi phục đúng chế độ theo URL
+        }, 160);
+      });
+      inp.addEventListener("keydown", e => { if (e.key === "Escape") { inp.value = ""; routeFromUrl(false); } });
+    }
+
     function showCategory(catId, push, restore){
       if (!catId) return;
       currentId = "cat:" + catId;
@@ -1128,6 +1185,7 @@
       // (mặc định = lưới danh mục đầu tiên). Khôi phục vị trí cuộn nếu có
       // (tải lại / quay về từ một bài học).
       routeFromUrl(true);
+      wireSearch();
     }
     boot();
   </script>
