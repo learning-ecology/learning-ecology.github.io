@@ -82,7 +82,7 @@
     .pv-nav { position: sticky; top: 52px; z-index: 40;
       background: color-mix(in srgb, var(--pv-bg) 90%, transparent); backdrop-filter: blur(8px);
       border-bottom: 1px solid var(--line); }
-    .pv-nav-in { max-width: 1120px; margin: 0 auto; padding: .5rem clamp(1rem,4vw,2rem); }
+    .pv-nav-in { max-width: 1280px; margin: 0 auto; padding: .5rem clamp(1rem,4vw,2rem); }
     /* KHÔNG dùng overflow ở đây: overflow-x sẽ cắt mất menu con thả xuống.
        Ít danh mục nên cho xuống dòng trên màn nhỏ thay vì cuộn ngang. */
     .pv-cats { display: flex; flex-wrap: wrap; gap: .45rem; }
@@ -107,8 +107,15 @@
     .cg-sub:first-of-type { margin-top: .2rem; }
 
     /* ---- vùng nội dung ---- */
-    .pv-main { max-width: 1120px; margin: 0 auto; min-width: 0;
+    .pv-main { max-width: 1280px; margin: 0 auto; min-width: 0;
       padding: clamp(1.2rem,4vw,2rem) clamp(1rem,4vw,2rem) 3rem; }
+    /* On phones, drop the "explore homepage" promo strip and tighten the top so
+       the actual courses appear in the first screen instead of below a stack of
+       banners. (The owner can still show/hide it site-wide from the dashboard.) */
+    @media (max-width: 700px) {
+      .se-promo { display: none !important; }
+      .pv-main { padding-top: 1rem; }
+    }
     .cp-mobilesel { display: none !important; }
     .cp-content .course-banner, .pv-main .course-banner { margin: 0 0 1.1rem; border-radius: 18px; }
     /* Ảnh khóa học (banner): LẤP ĐẦY khung gọn gàng (cover) + canh giữa, không
@@ -164,7 +171,10 @@
 
     /* ---- Compact course thumbnails grid (mọi danh mục) ---- */
     .cg-h { font-family: var(--serif); font-size: 1.3rem; margin: .1rem 0 1rem; color: var(--pv-ink); }
-    .cgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 1rem; margin: 0 0 1.4rem; }
+    /* Fill the row (auto-fit) and centre a short row so few courses don't leave
+       a big empty margin on wide screens; cards keep a comfortable 240–330px. */
+    .cgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 330px));
+      justify-content: center; gap: 1.1rem; margin: 0 0 1.4rem; }
     @media (max-width: 600px) { .cgrid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .7rem; } }
     .ccard { display: flex; flex-direction: column; text-decoration: none; color: inherit;
       background: var(--pv-card); border: 1.5px solid var(--line); border-radius: 16px; overflow: hidden;
@@ -593,7 +603,7 @@
             <h3 class="pv-cmp-h">Miễn phí</h3>
             <p class="pv-cmp-sub">Bắt đầu ngay hôm nay</p>
             <ul>
-              <li><span>✓</span>Học thử ${free} mục — không cần đăng nhập</li>
+              <li><span>✓</span>Học thử ${free} mục — đăng nhập nhanh bằng Google</li>
               <li><span>✓</span>Trải nghiệm giao diện học thật</li>
               <li><span>✓</span>Không giới hạn thời gian dùng thử</li>
             </ul>
@@ -614,7 +624,7 @@
       $("cpMain").innerHTML =
         courseCrumb(c.title)
         + banner(c, lessons)
-        + `<p class="cp-note">Bấm một bài <b>miễn phí</b> để học thử ngay — không cần đăng nhập. Bài <b>Premium</b> cần liên hệ để mở khóa.</p>`
+        + `<p class="cp-note">Bấm một bài <b>miễn phí</b> để học thử — chỉ cần <b>đăng nhập nhanh bằng Google</b> (một chạm). Bài <b>Premium</b> cần liên hệ để mở khóa.</p>`
         + (lessons.length
             ? `<div class="lesson-grid">${lessons.map((l, i) => lessonCard(l, i + 1)).join("")}</div>`
             : `<p class="cp-note">Khóa học này chưa có bài nào được đăng.</p>`)
@@ -663,11 +673,11 @@
           </div>
         </div>
         ${cfg.tagline ? `<p class="cp-lead">${esc(cfg.tagline)}</p>`
-          : `<p class="cp-lead">Luyện từ vựng tương tác cho tiếng Trung (HSK 1–6) và tiếng Anh (A1–C2, IELTS) — mở tự do, học thử miễn phí, không cần đăng nhập.</p>`}
+          : `<p class="cp-lead">Luyện từ vựng tương tác cho tiếng Trung (HSK 1–6) và tiếng Anh (A1–C2, IELTS) — học thử miễn phí, chỉ cần đăng nhập nhanh bằng Google.</p>`}
         <div class="cp-cta">
           <a class="btn" href="${esc(href)}" style="text-decoration:none;">🚀 ${esc(cfg.cta || "Bắt đầu luyện tập")}</a>
         </div>
-        <p class="cp-note">Mở tự do để xem <b>ngôn ngữ · cấp độ · bài học</b>. Bài <b>miễn phí</b> luyện được ngay — không cần đăng nhập; khi chọn bài <b>Premium</b> sẽ có lời mời đăng nhập / nâng cấp, không chặn cả nền tảng.</p>`;
+        <p class="cp-note">Mở tự do để xem <b>ngôn ngữ · cấp độ · bài học</b>. Bài <b>miễn phí</b> luyện được ngay sau khi <b>đăng nhập bằng Google</b> (một chạm); bài <b>Premium</b> cần liên hệ để mở khóa.</p>`;
     }
 
     async function renderSection(sec){
@@ -737,7 +747,7 @@
           ${free ? `<button class="btn" id="secTry">🔓 ${esc(cfg.cta || "Học thử miễn phí")}</button>` : ""}
           <button class="btn cp-gold" id="secBuy">👑 Mở khóa Premium</button>
         </div>
-        <p class="cp-note">Bấm một mục <b>miễn phí</b> để học thử ngay — không cần đăng nhập. Mục <b>Premium</b> cần mở khóa.</p>
+        <p class="cp-note">Bấm một mục <b>miễn phí</b> để học thử ngay — chỉ cần <b>đăng nhập nhanh bằng Google</b> (một chạm). Mục <b>Premium</b> cần mở khóa.</p>
         ${items.length
           ? `<div class="lesson-grid">${items.map((it, i) => secCard(it, i + 1, sec)).join("")}</div>`
           : `<p class="cp-note">Chưa có nội dung được đăng.</p>`}
