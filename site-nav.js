@@ -34,9 +34,9 @@
   var LINKS = [
     { key: "home",    label: "Trang chủ",           href: "index.html",                  page: "index",  section: "",                 icon: IC_HOME, home: true, group: "a" },
     { key: "courses", label: "Khóa học & Tài liệu", href: "course.html",                 page: "course", section: "",                 icon: IC_BOOK, group: "a" },
-    { key: "zh",      label: "Tiếng Trung",         href: "course.html#tieng-trung",     page: "course", section: "tieng-trung",      group: "a" },
-    { key: "en",      label: "Tiếng Anh",           href: "course.html#tieng-anh",       page: "course", section: "tieng-anh",        group: "a" },
-    { key: "tools",   label: "Công cụ học tập",     href: "course.html#cong-cu-hoc-tap", page: "course", section: "cong-cu-hoc-tap",  group: "a" },
+    { key: "zh",      label: "Tiếng Trung",         href: "course.html#tieng-trung",     page: "course", section: "tieng-trung",      group: "a", courseHide: true },
+    { key: "en",      label: "Tiếng Anh",           href: "course.html#tieng-anh",       page: "course", section: "tieng-anh",        group: "a", courseHide: true },
+    { key: "tools",   label: "Công cụ học tập",     href: "course.html#cong-cu-hoc-tap", page: "course", section: "cong-cu-hoc-tap",  group: "a", courseHide: true },
     { key: "new",     label: "Khóa học mới",        href: "index.html#khoa-hoc",         page: "index",  section: "khoa-hoc",         badge: "Mới", group: "b" },
     { key: "about",   label: "Giới thiệu",          href: "index.html#giao-vien",        page: "index",  section: "giao-vien",        group: "b" },
     { key: "contact", label: "Liên hệ",             href: "index.html#lien-he",          page: "index",  section: "lien-he",          group: "b" }
@@ -139,6 +139,9 @@
     var itemsHtml = "";
     var prevGroup = null;
     LINKS.forEach(function (l) {
+      // On the course page these language links duplicate the in-page category
+      // chips (which also show counts), so hide them there; keep them elsewhere.
+      if (l.courseHide && page === "course") return;
       if (prevGroup && l.group !== prevGroup) itemsHtml += '<li class="se-sep" aria-hidden="true"></li>';
       prevGroup = l.group;
       var cls = "se-link" + (l.home ? " se-home" : "") + (l.badge ? " se-new" : "");
