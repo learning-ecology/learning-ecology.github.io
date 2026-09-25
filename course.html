@@ -228,6 +228,16 @@
     .cp-unlock h3 { margin: 0 0 .4rem; font-family: var(--serif); }
     .cp-unlock p { margin: 0 0 1rem; color: var(--muted); }
     .cp-unlock .btn { text-decoration: none; margin: 0 .3rem .3rem 0; }
+    /* "Bên trong Premium" — bảng liệt kê bài Premium sẽ mở khóa (Phase 134) */
+    .cp-inside { margin: 1.3rem 0 0; border: 1px solid var(--line); border-radius: 16px;
+      padding: 1rem 1.2rem; background: var(--pv-soft); }
+    .cp-inside h3 { margin: 0 0 .25rem; font-size: 1.08rem; }
+    .cp-inside-sub { margin: 0 0 .7rem; color: var(--muted); }
+    .cp-inside-list { margin: 0; padding-left: 1.5rem; display: grid; gap: .4rem; counter-reset: none; }
+    .cp-inside-list li { padding-left: .2rem; }
+    .cp-inside-list .ci-t { font-weight: 700; }
+    .cp-inside-list .ci-m { color: var(--muted); font-size: .85rem; margin-left: .5rem; white-space: nowrap; }
+    .cp-inside-tip { margin: .8rem 0 0; color: var(--muted); font-size: .92rem; }
 
     /* ---- cửa sổ đọc thử + hộp khóa (giữ nguyên chức năng, chỉ mềm hơn) ---- */
     .cp-read { position: fixed; inset: 0; z-index: 900; background: rgba(8,14,26,.66);
@@ -636,6 +646,24 @@
         </div>`;
     }
 
+    /* "Bên trong Premium": liệt kê ĐÚNG các bài Premium sẽ mở khóa (tiêu đề +
+       thời lượng), đặt ngay trước nút Liên hệ để thấy rõ giá trị trước khi hỏi.
+       Dùng dữ liệu bài học đã có — không bịa nội dung. */
+    function premiumOutline(lessons){
+      const prem = (lessons || []).filter(l => l.premium);
+      if (!prem.length) return "";
+      const items = prem.map(l =>
+        `<li><span class="ci-t">${esc(l.title)}</span>` +
+        `${l.est_minutes ? `<span class="ci-m">~${l.est_minutes} phút</span>` : ""}</li>`).join("");
+      return `
+        <div class="cp-inside">
+          <h3>📋 Mở khóa Premium — bạn sẽ học gì?</h3>
+          <p class="cp-inside-sub">Toàn bộ <b>${prem.length} bài Premium</b> của khóa này, học không giới hạn, cập nhật trọn đời:</p>
+          <ol class="cp-inside-list">${items}</ol>
+          <p class="cp-inside-tip">👉 Muốn xem trước cách học? Bấm một <b>bài miễn phí</b> ở trên để trải nghiệm giao diện học thật.</p>
+        </div>`;
+    }
+
     function renderCourse(data){
       const c = data.course, lessons = data.lessons || [];
       const free = lessons.filter(l => !l.premium).length, prem = lessons.length - free;
@@ -648,9 +676,10 @@
             ? `<div class="lesson-grid">${lessons.map((l, i) => lessonCard(l, i + 1)).join("")}</div>`
             : `<p class="cp-note">Khóa học này chưa có bài nào được đăng.</p>`)
         + cmpBlock(free, prem, { cta: `<div>${contactButtons()}</div>` })
-        + `<div class="cp-unlock"><h3>👑 Mở khóa toàn bộ khóa học</h3>
+        + premiumOutline(lessons)
+        + (prem ? `<div class="cp-unlock"><h3>👑 Mở khóa toàn bộ khóa học</h3>
              <p>Liên hệ để mở khóa toàn bộ khóa học và học không giới hạn tất cả bài Premium.</p>
-             <div>${contactButtons()}</div></div>`;
+             <div>${contactButtons()}</div></div>` : "");
       $("cpMain").querySelectorAll("[data-open]").forEach(b =>
         b.addEventListener("click", () => openLesson(JSON.parse(b.getAttribute("data-open")))));
       $("cpMain").querySelectorAll("[data-lock]").forEach(b => b.addEventListener("click", showLocked));
