@@ -69,6 +69,14 @@
     font-weight:800; font-size:.9rem; cursor:pointer; transition:border-color .15s,background .15s,transform .12s; }
   .stu-tab:hover{ border-color:var(--stu-ring); transform:translateY(-1px); }
   .stu-tab.on{ border-color:var(--accent); background:var(--info-bg); color:var(--accent-ink); }
+  /* P1 #6: on a phone, tuck the section-tab bar up behind the topbar while the
+     student scrolls DOWN into content, and bring it back when they scroll UP —
+     so only one bar is frozen at a time. On the Bài tập tab the sticky filter
+     bar (.asgn-bar) rises to fill the gap so nothing floats in empty space. */
+  .stu-tabs{ transition:transform .28s ease; will-change:transform; }
+  body.stu.tabs-hidden .stu-tabs{ transform:translateY(-118%); }
+  body.stu.tabs-hidden .asgn-bar{ top:58px; }
+  @media (prefers-reduced-motion:reduce){ .stu-tabs{ transition:none; } }
 
   /* nền chung + chữ */
   body.stu #app h1,body.stu #app h2,body.stu #app h3{ font-family:var(--serif); }
@@ -3384,7 +3392,10 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           const tabs = document.getElementById("stuTabs"); if (!tabs) return;
           tabs.querySelectorAll(".stu-tab").forEach(b => b.classList.toggle("on", b.getAttribute("data-nav") === k));
         }
-        const showTnav = k => { showT(k); stuMarkNav(k); };
+        /* Always reveal the tab bar when switching tabs (P1 #6): otherwise a
+           short tab opened while the bar was auto-hidden could leave it tucked
+           away with no scroll to bring it back. */
+        const showTnav = k => { showT(k); stuMarkNav(k); document.body.classList.remove("tabs-hidden"); };
         window.__stuShowTab = showTnav;
 
         const NAVP = [
@@ -3427,6 +3438,24 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             const gt = e.target.closest("[data-gototab]");
             if (gt) window.__stuShowTab(gt.getAttribute("data-gototab"));
           });
+
+          /* P1 #6: hide the section-tab bar while scrolling DOWN, reveal on UP,
+             so only one sticky bar is frozen at a time on a phone. rAF-throttled;
+             a small threshold avoids flicker; near the top the bar always shows. */
+          (function () {
+            let lastY = window.scrollY, ticking = false;
+            window.addEventListener("scroll", function () {
+              if (!document.body.classList.contains("stu")) return;
+              if (ticking) return; ticking = true;
+              requestAnimationFrame(function () {
+                const y = window.scrollY, dy = y - lastY;
+                if (y < 120) document.body.classList.remove("tabs-hidden");
+                else if (dy > 6) document.body.classList.add("tabs-hidden");
+                else if (dy < -6) document.body.classList.remove("tabs-hidden");
+                lastY = y; ticking = false;
+              });
+            }, { passive: true });
+          })();
         }
 
         showT(cur); stuMarkNav(cur);
