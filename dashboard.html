@@ -52,6 +52,18 @@
   .stu-tabs-in{ max-width:1140px; margin:0 auto; display:flex; gap:.4rem; overflow-x:auto; scrollbar-width:none;
     padding:.5rem clamp(1rem,4vw,2rem); }
   .stu-tabs-in::-webkit-scrollbar{ display:none; }
+  /* On phones the 5 tabs overflow the width; a right-edge fade + thin scrollbar
+     tell students there are more tabs to scroll to (the row scrolls silently
+     otherwise, so Assignments/Tools were easy to miss). */
+  @media (max-width:720px){
+    .stu-tabs{ position:sticky; }
+    .stu-tabs::after{ content:""; position:absolute; top:0; right:0; bottom:0; width:32px;
+      pointer-events:none; background:linear-gradient(to right, transparent, var(--stu-bg)); }
+    .stu-tabs-in{ padding-right:2.2rem; scroll-snap-type:x proximity; scrollbar-width:thin; }
+    .stu-tabs-in::-webkit-scrollbar{ display:block; height:3px; }
+    .stu-tabs-in::-webkit-scrollbar-thumb{ background:var(--stu-line); border-radius:999px; }
+    .stu-tab{ scroll-snap-align:start; }
+  }
   .stu-tab{ flex:none; white-space:nowrap; border:1.5px solid var(--stu-line); background:var(--card);
     color:var(--ink); border-radius:999px; padding:.44rem 1rem; font:inherit; font-family:var(--stu-font);
     font-weight:800; font-size:.9rem; cursor:pointer; transition:border-color .15s,background .15s,transform .12s; }

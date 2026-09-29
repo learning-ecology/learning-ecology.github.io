@@ -668,6 +668,24 @@ button.danger-btn:hover { background: #8a3a28; }
   }
   button, .btn { min-height: 44px; }
   .tabs button { min-height: 40px; }
+
+  /* P1: any data table that is NOT the .stackable card-view type (mostly the
+     teacher/admin/owner grids) becomes horizontally scrollable instead of
+     overflowing the page — columns stay aligned, the row just scrolls. */
+  #app table:not(.stackable) {
+    display: block; overflow-x: auto; -webkit-overflow-scrolling: touch;
+    white-space: nowrap; max-width: 100%;
+  }
+  /* Media inside the app never forces the page wider than the phone. */
+  #app img { max-width: 100%; height: auto; }
+}
+
+/* P1: give real touch targets a 44px minimum hit area on touch devices only,
+   so mouse/desktop layouts are untouched. Covers the icon-only controls the
+   audit flagged (theme toggle, bell, small ghost/utility buttons). */
+@media (pointer: coarse) {
+  .theme-btn, button.theme-btn, #bell-btn,
+  button.ghost.theme-btn { min-width: 44px; min-height: 44px; }
 }
 
 /* ---- Phase 2b: discussions + printable report card ---- */

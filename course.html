@@ -122,7 +122,15 @@
        banners. (The owner can still show/hide it site-wide from the dashboard.) */
     @media (max-width: 700px) {
       .se-promo { display: none !important; }
-      .pv-main { padding-top: 1rem; }
+      /* Pull the actual courses up into the first screen: trim the sticky
+         category bar, the breadcrumb and the big section heading so a course
+         card is visible without scrolling past a stack of chrome. */
+      .pv-main { padding-top: .7rem; }
+      .pv-nav-in { padding-top: .35rem; padding-bottom: .35rem; gap: .4rem .5rem; }
+      .pv-cat-btn { padding: .38rem .7rem; font-size: .88rem; }
+      .cp-crumbs { margin-bottom: .55rem; }
+      .cg-h { font-size: 1.08rem; margin: .1rem 0 .6rem; }
+      .cg-sub { margin-top: .8rem; }
     }
     .cp-mobilesel { display: none !important; }
     .cp-content .course-banner, .pv-main .course-banner { margin: 0 0 1.1rem; border-radius: 18px; }
@@ -295,7 +303,7 @@
     <img id="cpLogo" src="icons/logo-64.png" alt="Learning Ecology" />
     <span class="name" id="cpName">Learning Ecology</span>
     <span class="spacer"></span>
-    <a class="btn ghost" href="index.html" style="margin-right:.4rem;">← Trang chủ</a>
+    <a id="cp-home" class="btn ghost" href="index.html" style="margin-right:.4rem;">← Trang chủ</a>
     <button id="cp-theme" class="ghost theme-btn" aria-label="Sáng / tối" style="margin-right:.4rem;">🌙</button>
     <a id="cp-login" class="btn" href="login.html">Vào học ngay →</a>
   </header>

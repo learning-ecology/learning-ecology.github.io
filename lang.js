@@ -65,7 +65,7 @@ const I18N = {
 
     // --- sign up (email only) ---
     signup_title: "Create your account",
-    signup_sub: "Sign up with your email. One email = one account.",
+    signup_sub: "Google is the only way to create an account — quick and secure.",
     su_name: "Your name (optional)",
     su_password_hint: "At least 6 characters",
     su_confirm: "Confirm password",
@@ -319,7 +319,7 @@ const I18N = {
 
     // --- đăng ký (chỉ bằng email) ---
     signup_title: "Tạo tài khoản",
-    signup_sub: "Đăng ký bằng email của bạn. Mỗi email chỉ tạo được một tài khoản.",
+    signup_sub: "Chỉ có thể tạo tài khoản bằng Google — nhanh chóng và an toàn.",
     su_name: "Tên của bạn (không bắt buộc)",
     su_password_hint: "Ít nhất 6 ký tự",
     su_confirm: "Nhập lại mật khẩu",

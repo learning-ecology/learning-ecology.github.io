@@ -115,6 +115,15 @@
       + ".se-link.se-active::after{display:none;}"
       + ".se-link.se-active{background:rgba(255,255,255,.2);}"
       + ".se-link.se-home{margin-bottom:.15rem;}"
+      /* Single-row nav on mobile: the Menu button is relocated (by JS) INTO the
+         page header's flex row, and this near-empty second bar collapses to
+         nothing — so students get one 56px header instead of two stacked bars. */
+      + ".se-nav.se-collapsed{min-height:0;border-top:none;box-shadow:none;background:transparent;backdrop-filter:none;}"
+      + ".se-nav.se-collapsed .se-nav-in{min-height:0;height:0;padding:0;overflow:visible;}"
+      + ".lp-header .se-burger{display:inline-flex;margin-left:.1rem;min-height:44px;}"
+      /* These header quick-links duplicate items already inside the Menu, so hide
+         them on mobile to keep the single header row uncluttered. */
+      + "#hd-lessons,#cp-home{display:none !important;}"
       + "}"
       + "@media(max-width:430px){.se-promo .se-pm-txt{font-size:.86rem;}}";
     var st = document.createElement("style");
@@ -374,12 +383,36 @@
     measure();
   }
 
+  /* ---- single-row nav on mobile: move the Menu button into the header ------ */
+  /* On phones the injected .se-nav bar held only a right-aligned Menu button —
+     a whole second row for one control. Below 1024px we relocate that button
+     into the page header's own flex row and collapse this bar to zero height,
+     so there's a single header instead of two stacked bars. The dropdown list
+     stays in .se-nav (which still sticks directly under the header), so opening
+     the menu is unaffected. */
+  var MQ = null;
+  try { MQ = matchMedia("(max-width:1024px)"); } catch (e) {}
+  function placeBurger() {
+    if (!burgerEl || !header || !navEl) return;
+    var inEl = navEl.querySelector(".se-nav-in");
+    if (MQ && MQ.matches) {
+      if (burgerEl.parentElement !== header) header.appendChild(burgerEl);
+      navEl.classList.add("se-collapsed");
+    } else {
+      if (inEl && burgerEl.parentElement !== inEl) inEl.appendChild(burgerEl);
+      navEl.classList.remove("se-collapsed");
+    }
+    measure();
+  }
+
   /* ---- boot -------------------------------------------------------------- */
   function boot() {
     injectCSS();
     if (!build()) return;
     watchSize();
     wire();
+    placeBurger();
+    if (MQ) { try { MQ.addEventListener("change", placeBurger); } catch (e) { try { MQ.addListener(placeBurger); } catch (e2) {} } }
     // hide the older per-page section menu on index (superseded by this nav)
     var old = document.getElementById("lpNav"); if (old) old.hidden = true;
     // apply any deep-link hash once things are in place
