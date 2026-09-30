@@ -1,0 +1,204 @@
+/* =============================================================================
+ * lesson.css — Lesson-system additions, layered on top of base.css
+ * Reuses the base design tokens (:root) so it re-skins with your platform.
+ * =========================================================================== */
+
+/* ---------- Library / import shell ---------- */
+.lib-head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:18px; flex-wrap:wrap; }
+.lib-head h2 { margin:0 0 4px; }
+.lib-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.card-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:16px; }
+.mt { margin-top:14px; }
+code { background:var(--surface-2); padding:2px 6px; border-radius:6px; font-family:var(--mono); font-size:.9em; }
+
+.dropzone { border:2px dashed var(--line-strong); border-radius:var(--radius); padding:34px; text-align:center;
+  cursor:pointer; background:var(--surface-2); transition:.15s; }
+.dropzone:hover, .dropzone.over { border-color:var(--brand); background:var(--brand-soft); }
+.dz-inner { color:var(--ink-soft); font-size:15px; }
+
+.report-box { border-radius:var(--radius-sm); padding:12px 14px; margin-top:14px; font-size:14px; }
+.report-box.err { background:var(--bad-soft); border:1px solid var(--bad); }
+.report-box.warn { background:var(--warn-soft); border:1px solid var(--warn); }
+.report-box.ok { background:var(--good-soft); border:1px solid var(--good); }
+.report-box ul { margin:8px 0 0; padding-left:18px; }
+.report-box li { margin:3px 0; }
+.report-box .loc { font-family:var(--mono); font-size:12px; background:rgba(0,0,0,.06); padding:1px 6px; border-radius:5px; margin-right:6px; }
+.preview { margin-top:16px; padding:16px; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface-2); }
+.mini-table { width:100%; border-collapse:collapse; margin-top:8px; font-size:13.5px; }
+.mini-table th, .mini-table td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+.mini-table th { color:var(--ink-faint); font-weight:600; }
+
+/* ---------- Panels ---------- */
+.panel { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:18px 20px; margin-bottom:18px; box-shadow:var(--shadow-sm); }
+.panel.accent { border-left:4px solid var(--brand); }
+.panel-head { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+.panel-head h3 { margin:0; }
+.panel h3 { margin:0 0 12px; font-size:18px; }
+.panel h4 { margin:16px 0 6px; font-size:15px; }
+.prose { color:var(--ink-soft); line-height:1.6; }
+.obj-list { margin:0; padding-left:18px; } .obj-list li { margin:4px 0; }
+
+/* ---------- Vocabulary cards ---------- */
+.vocab-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:12px; }
+.vocab-card { border:1px solid var(--line); border-radius:var(--radius-sm); padding:12px 14px; background:var(--surface-2); }
+.vc-top { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.vc-term { font-weight:700; font-size:16px; }
+.vc-pos { font-size:11px; color:var(--ink-faint); font-style:italic; }
+.vc-say { margin-left:auto; border:1px solid var(--line); background:var(--surface); border-radius:20px; padding:2px 8px; font-size:11px; cursor:pointer; color:var(--ink-soft); }
+.vc-say:hover { border-color:var(--brand); color:var(--brand); }
+.vc-def { font-size:13.5px; margin-top:6px; }
+.vc-vi { font-size:13px; color:var(--ink-soft); margin-top:4px; }
+.vc-ex { font-size:12.5px; color:var(--ink-faint); font-style:italic; margin-top:6px; }
+
+/* ---------- Collocations & chunks ---------- */
+.colloc-row { padding:10px 0; border-bottom:1px solid var(--line); }
+.colloc-kw { font-weight:700; margin-right:8px; }
+.colloc-phrases .tag, .tag { display:inline-block; background:var(--brand-soft); color:var(--brand); border-radius:6px; padding:2px 8px; font-size:12.5px; margin:2px 4px 2px 0; }
+.colloc-ex { font-size:12.5px; color:var(--ink-faint); font-style:italic; margin-top:4px; }
+.chunk-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:12px; }
+.chunk-card { border:1px solid var(--line); border-radius:var(--radius-sm); padding:12px; background:var(--surface-2); }
+.chunk-top { font-weight:700; }
+.chunk-mean { font-size:13px; margin-top:4px; }
+.chunk-vi { font-size:12.5px; color:var(--ink-soft); margin-top:3px; }
+.chunk-ex { font-size:12px; color:var(--ink-faint); font-style:italic; margin-top:5px; }
+
+/* ---------- Grammar ---------- */
+.grammar-point { border-left:3px solid var(--line-strong); padding:2px 0 2px 14px; margin:12px 0; }
+.grammar-point h4 { margin:0 0 4px; }
+.ex-list { margin:6px 0 0; padding-left:18px; } .ex-list li { margin:3px 0; }
+.err-table { width:100%; border-collapse:collapse; margin-top:8px; font-size:13.5px; }
+.err-table th, .err-table td { text-align:left; padding:7px 9px; border:1px solid var(--line); vertical-align:top; }
+.err-table th { background:var(--surface-2); color:var(--ink-faint); font-weight:600; }
+.bad-cell { color:var(--bad); text-decoration:line-through; }
+.good-cell { color:var(--good); font-weight:600; }
+
+/* ---------- Mini-practice ---------- */
+.mp-item { padding:16px 18px; margin-bottom:14px; }
+.mp-head { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+.mp-badge { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--brand); background:var(--brand-soft); padding:2px 8px; border-radius:20px; }
+.mp-skill { font-size:11.5px; color:var(--ink-faint); }
+.mp-instr { color:var(--ink-soft); font-size:13.5px; margin-bottom:8px; } .mp-instr.small{ font-size:12.5px; }
+.mp-stem { font-size:15px; margin-bottom:10px; font-weight:500; }
+.mp-options { display:flex; flex-direction:column; gap:7px; }
+.mp-input { width:100%; padding:9px 12px; border:1px solid var(--line-strong); border-radius:var(--radius-sm); font-size:14px; background:var(--surface); color:var(--ink); }
+.mp-input.correct { border-color:var(--good); background:var(--good-soft); }
+.mp-input.wrong { border-color:var(--bad); background:var(--bad-soft); }
+.mp-match-row { display:flex; align-items:center; gap:10px; margin:6px 0; flex-wrap:wrap; }
+.mp-left { flex:1; min-width:200px; }
+.mp-select { padding:6px 8px; border:1px solid var(--line-strong); border-radius:var(--radius-sm); background:var(--surface); color:var(--ink); }
+.mp-select.correct { border-color:var(--good); } .mp-select.wrong { border-color:var(--bad); }
+.mp-arrange-pool { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0; }
+.mp-chip { border:1px solid var(--line-strong); background:var(--surface); border-radius:20px; padding:6px 12px; cursor:pointer; font-size:13.5px; color:var(--ink); }
+.mp-chip:hover { border-color:var(--brand); }
+.mp-chip.used { background:var(--brand-soft); color:var(--brand); border-color:var(--brand); }
+.mp-chip:disabled { opacity:.6; cursor:default; }
+.mp-arrange-seq { margin-top:8px; font-size:13.5px; }
+.mp-seq-item { display:inline-block; background:var(--surface-2); border:1px solid var(--line); border-radius:6px; padding:2px 8px; margin:2px; }
+.mp-controls { margin-top:12px; display:flex; gap:8px; }
+.mp-feedback { margin-top:12px; padding:10px 12px; border-radius:var(--radius-sm); font-size:13.5px; }
+.mp-feedback.ok { background:var(--good-soft); border:1px solid var(--good); }
+.mp-feedback.no { background:var(--bad-soft); border:1px solid var(--bad); }
+.mp-status { font-weight:700; margin-bottom:4px; }
+.mp-answer, .mp-explain { margin-top:4px; } .mp-answer .k, .mp-explain .k { font-weight:600; color:var(--ink-faint); margin-right:6px; }
+.opt.correct { border-color:var(--good); background:var(--good-soft); }
+.opt.wrong { border-color:var(--bad); background:var(--bad-soft); }
+
+/* ---------- Lesson runner ---------- */
+.lr-top { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; max-width:1180px; margin:0 auto; padding:20px 22px 0; }
+.lr-top-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.lr-top-actions .btn.active { border-color:var(--brand); color:var(--brand); background:var(--brand-soft); }
+.lr-lesson-no { font-size:12px; font-weight:700; color:var(--brand); text-transform:uppercase; letter-spacing:.05em; }
+.lr-title { font-size:24px; font-weight:800; line-height:1.2; }
+.lr-sub { color:var(--ink-faint); font-size:13.5px; }
+.lr-stepper { display:flex; align-items:center; gap:6px; flex-wrap:wrap; max-width:1180px; margin:14px auto 0; padding:0 22px; }
+.lr-step { display:flex; align-items:center; gap:8px; border:1px solid var(--line); background:var(--surface); border-radius:30px; padding:7px 14px; cursor:pointer; color:var(--ink-soft); font-size:13.5px; }
+.lr-step .lr-step-num { width:22px; height:22px; border-radius:50%; background:var(--surface-2); color:var(--ink-faint); display:grid; place-items:center; font-weight:700; font-size:12px; }
+.lr-step.active { border-color:var(--brand); background:var(--brand-soft); color:var(--brand); font-weight:600; }
+.lr-step.active .lr-step-num { background:var(--brand); color:var(--brand-ink); }
+.lr-step-sep { color:var(--ink-faint); }
+.lr-content { max-width:1180px; margin:18px auto 60px; padding:0 22px; }
+.lr-section-done { margin-top:16px; text-align:right; }
+
+/* ---------- Flashcards ---------- */
+.fc-toolbar { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+.fc-toolbar .spacer { flex:1; }
+.fc-scope { border:1px solid var(--line); background:var(--surface); border-radius:20px; padding:5px 12px; font-size:13px; cursor:pointer; color:var(--ink-soft); }
+.fc-scope.active { border-color:var(--brand); background:var(--brand-soft); color:var(--brand); font-weight:600; }
+.fc-check { font-size:12.5px; color:var(--ink-soft); display:flex; align-items:center; gap:4px; }
+.fc-progress { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+.fc-card { position:relative; min-height:220px; border:1px solid var(--line-strong); border-radius:var(--radius); background:var(--surface); box-shadow:var(--shadow); cursor:pointer; perspective:1000px; margin:0 auto; max-width:560px; }
+.fc-card .fc-face { padding:28px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; min-height:220px; }
+.fc-back { display:none; }
+.fc-card.flipped .fc-front { display:none; }
+.fc-card.flipped .fc-back { display:flex; }
+.fc-term { font-size:26px; font-weight:800; }
+.fc-prompt { color:var(--ink-soft); font-size:14px; margin-top:8px; font-style:italic; }
+.fc-hint { position:absolute; bottom:10px; left:0; right:0; text-align:center; font-size:11px; color:var(--ink-faint); }
+.fc-pos { font-size:12px; color:var(--ink-faint); font-style:italic; }
+.fc-meaning { font-size:17px; font-weight:600; margin:6px 0; }
+.fc-vi { font-size:15px; color:var(--ink-soft); }
+.fc-example { font-size:14px; font-style:italic; color:var(--ink-soft); margin-top:10px; }
+.fc-usage { font-size:12.5px; color:var(--ink-faint); margin-top:8px; }
+.fc-card.status-known { border-color:var(--good); } .fc-card.status-unknown { border-color:var(--warn); } .fc-card.status-difficult { border-color:var(--bad); }
+.fc-actions { display:flex; gap:8px; justify-content:center; margin-top:16px; flex-wrap:wrap; }
+.fc-empty { text-align:center; padding:40px; color:var(--ink-soft); }
+.btn.good { background:var(--good-soft); color:var(--good); border-color:var(--good); }
+.btn.warn { background:var(--warn-soft); color:var(--warn); border-color:var(--warn); }
+.btn.bad  { background:var(--bad-soft);  color:var(--bad);  border-color:var(--bad); }
+
+/* ---------- Exam split-screen stage (matches test-system) ----------
+ * When the exam is open, #lr-content becomes a full-width, viewport-height
+ * stage: sticky exam header, then three columns — passage | questions | nav —
+ * each scrolling independently, so the passage stays put while questions scroll.
+ * The reused TestRunner markup is untouched; this only restyles its containers.
+ */
+/* The exam stage is ONE continuous scroll container: the whole question set
+ * scrolls smoothly (never trapped in a short fixed-height card), while the exam
+ * header stays pinned and the passage + navigator stay STICKY so they remain in
+ * view for reference — matching the test-system behaviour. */
+.lr-content.exam-mode {
+  max-width: none; margin: 0; padding: 0;
+  overflow-y: auto; overflow-x: hidden;
+  scroll-behavior: smooth; scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+.lr-content.exam-mode .runner-top { position: sticky; top: 0; z-index: 25; }
+
+@media (min-width: 960px) {
+  .lr-content.exam-mode .runner-body {
+    max-width: none; margin: 0; padding: 16px clamp(12px, 1.6vw, 22px) 72px;
+    align-items: start;
+    grid-template-columns: minmax(0, 1fr) var(--net-nav, clamp(160px, 15vw, 220px));
+  }
+  /* passage: sticky + its own scroll only if the passage itself is very long */
+  .lr-content.exam-mode .passage-panel {
+    position: sticky;
+    top: calc(var(--exam-head, 56px) + 10px);
+    max-height: calc(var(--exam-stage-h, 82vh) - var(--exam-head, 56px) - 22px);
+    overflow-y: auto;
+    flex: 0 0 var(--net-split, 46%);
+  }
+  .lr-content.exam-mode .passage-cols > *:not(.passage-panel):not(.net-divider) {
+    padding-left: 14px;
+  }
+  /* navigator: sticky beside the flowing questions */
+  .lr-content.exam-mode .nav-panel {
+    position: sticky;
+    top: calc(var(--exam-head, 56px) + 10px);
+    max-height: calc(var(--exam-stage-h, 82vh) - var(--exam-head, 56px) - 22px);
+    overflow-y: auto;
+  }
+}
+/* Give every question card a little breathing room when the nav jumps to it,
+ * so it lands just below the pinned header rather than under it. */
+.lr-content.exam-mode .q-card { scroll-margin-top: calc(var(--exam-head, 56px) + 16px); }
+
+/* ---------- Responsive ---------- */
+@media (max-width:720px) {
+  .lr-title { font-size:20px; }
+  .vocab-grid, .chunk-grid { grid-template-columns:1fr 1fr; }
+  .lr-step-label { display:none; }
+}
+@media (max-width:480px) {
+  .vocab-grid, .chunk-grid { grid-template-columns:1fr; }
+}

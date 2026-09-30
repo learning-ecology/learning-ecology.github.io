@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bài học tiếng Anh · Learning Ecology</title>
+<meta name="robots" content="noindex">
+<!-- The "Lesson System (Grade-12 National English)" is embedded UNCHANGED (black
+     box). We drive it only through its documented seams: LessonEngine.formatText,
+     LessonRunner (the 3-section student shell), TestRunner/TestEngine (the reused
+     exam engine) and LessonStore (Supabase persistence in eng-lesson-store.js).
+     This same-origin page holds the Supabase session and saves the EXAM attempt
+     (submit_lesson_attempt → test_attempts gradebook + progress + ranking). The
+     learn / mini-practice / flashcard state stays client-side in Phase A. -->
+<link rel="stylesheet" href="English%20national%20test/Practice%20system/css/base.css">
+<link rel="stylesheet" href="English%20national%20test/Practice%20system/css/lesson.css">
+<style>
+  .lms-bar{ display:flex; align-items:center; gap:.7rem; padding:.55rem 1rem; background:#0f1725; color:#fff; flex-wrap:wrap; }
+  .lms-bar .brand{ font-weight:800; }
+  .lms-bar .sp{ flex:1; }
+  .lms-bar a, .lms-bar .who{ color:#cdd6e6; font-size:.9rem; text-decoration:none; }
+  .lms-bar a:hover{ color:#fff; }
+  .lms-msg{ max-width:760px; margin:2.4rem auto; background:#fff; border:1px solid #dde3ec; border-radius:14px;
+    padding:2rem; text-align:center; font-family:system-ui,Segoe UI,Roboto,sans-serif; color:#17263e; }
+  .lms-msg a.btn{ display:inline-block; margin-top:1rem; background:#1e4f8f; color:#fff; text-decoration:none;
+    padding:.6rem 1.2rem; border-radius:10px; font-weight:700; }
+  .lms-toast{ position:fixed; left:50%; bottom:1.2rem; transform:translateX(-50%); background:#0f1725; color:#fff;
+    padding:.6rem 1rem; border-radius:10px; font-size:.9rem; z-index:9999; box-shadow:0 6px 24px rgba(0,0,0,.25); }
+</style>
+</head>
+<body>
+<div class="lms-bar">
+  <span class="brand">📘 Learning Ecology</span>
+  <span class="who" id="lms-who"></span>
+  <span class="sp"></span>
+  <a href="dashboard.html">← Bảng điều khiển</a>
+</div>
+
+<div id="app"><div class="lms-msg">Đang tải bài học…</div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="auth-gate.js"></script>
+<script src="eng-lesson-store.js"></script>
+<script>
+(function () {
+  "use strict";
+  var MOD = "English%20national%20test/Practice%20system/";
+  var app = document.getElementById("app");
+  function fail(html) { app.innerHTML = '<div class="lms-msg">' + html + '</div>'; }
+  function toast(t) { var d = document.createElement("div"); d.className = "lms-toast"; d.textContent = t;
+    document.body.appendChild(d); setTimeout(function () { d.remove(); }, 3500); }
+
+  var q = new URLSearchParams(location.search);
+  var homeworkId = q.get("hw") || null;
+  var slug = q.get("lesson") || q.get("test") || null;   // eng_lessons.lesson_id
+
+  boot();
+  async function boot() {
+    var sess;
+    try { sess = (await sb.auth.getSession()).data.session; } catch (e) {}
+    if (!sess || !sess.user) {
+      location.href = "login.html?next=" + encodeURIComponent(location.pathname + location.search);
+      return;
+    }
+    var user = sess.user;
+
+    var prof = null;
+    try { prof = (await sb.from("profiles").select("full_name, role").eq("id", user.id).maybeSingle()).data; } catch (e) {}
+    document.getElementById("lms-who").textContent = (prof && prof.full_name) || user.email || "";
+
+    // resolve the assignment (if opened as homework) → its lesson slug + re-attempt rules
+    var hw = null;
+    if (homeworkId) {
+      try { hw = (await sb.from("hsk_homework").select("*").eq("id", homeworkId).maybeSingle()).data; } catch (e) {}
+      if (!hw) { fail("Không mở được bài tập này (có thể bài chưa giao cho bạn).<br><a class=\"btn\" href=\"dashboard.html\">Về Bảng điều khiển</a>"); return; }
+      if (hw.kind !== "lesson") { fail("Bài tập này không phải bài học tiếng Anh."); return; }
+      slug = slug || hw.lesson_id;
+      if (hw.start_at && new Date(hw.start_at) > new Date()) {
+        fail("Bài học sẽ mở lúc <b>" + new Date(hw.start_at).toLocaleString("vi-VN") + "</b>."); return;
+      }
+      if (hw.max_attempts && hw.max_attempts > 0) {
+        try {
+          var c = await sb.from("hsk_attempts").select("id", { count: "exact", head: true })
+            .eq("homework_id", homeworkId).eq("user_id", user.id).eq("kind", "lesson");
+          if (typeof c.count === "number" && c.count >= hw.max_attempts) {
+            fail("Bạn đã hết lượt làm bài này (" + c.count + "/" + hw.max_attempts + ").<br><a class=\"btn\" href=\"dashboard.html\">Về Bảng điều khiển</a>"); return;
+          }
+        } catch (e) {}
+      }
+    }
+
+    if (!slug) { fail("Thiếu mã bài học."); return; }
+
+    // fetch the lesson model (RLS: active/free/enrolled, or via the assignment)
+    var record = null;
+    try { record = await LessonStore.getLesson(slug); } catch (e) {}
+    if (!record || !record.lesson) { fail("Không tìm thấy bài học, hoặc bạn chưa có quyền mở.<br><a class=\"btn\" href=\"dashboard.html\">Về Bảng điều khiển</a>"); return; }
+
+    // context so the exam attempt is linked to this assignment + re-attempt checked
+    LessonStore.context = { homeworkId: homeworkId, lessonId: slug };
+
+    app.innerHTML = '<div id="host"></div>';
+    var host = document.getElementById("host");
+
+    // load engines + section renderers + runner (order = dependency order)
+    loadSeq([
+      MOD + "js/test-engine.js", MOD + "js/randomize.js", MOD + "js/lesson-engine.js",
+      MOD + "js/test-runner.js", MOD + "js/vocab-grammar.js", MOD + "js/mini-practice.js",
+      MOD + "js/flashcards.js", MOD + "js/lesson-runner.js"
+    ], function () {
+      try {
+        new LessonRunner(host, record, {
+          store: LessonStore,
+          courseId: record.courseId || (record.lesson && record.lesson.courseId) || null,
+          studentId: user.id,
+          studentName: (prof && prof.full_name) || user.email || "Học viên",
+          onExit: function () { location.href = "dashboard.html"; }
+        });
+      } catch (e) { fail("Không mở được bài học: " + (e.message || e)); return; }
+
+      // Toast the graded exam result (the runner saves via LessonStore.saveAttempt).
+      var origSave = LessonStore.saveAttempt;
+      LessonStore.saveAttempt = function (result) {
+        return origSave.call(LessonStore, result).then(function (out) {
+          out = out || {};
+          if (out.ok === false) {
+            toast(out.reason === "no_attempts_left" ? "Đã hết lượt làm bài — điểm không được lưu."
+                : "Không lưu được điểm (" + (out.reason || "?") + ").");
+          } else if (out.preview !== true) {
+            toast("✓ Đã lưu điểm " + (out.score != null ? out.score + "/" + out.max : "") + " vào sổ điểm.");
+          }
+          return out;
+        }, function (e) { toast("Lưu điểm lỗi: " + (e.message || e)); throw e; });
+      };
+    });
+  }
+
+  function loadSeq(list, done) {
+    var i = 0;
+    (function next() {
+      if (i >= list.length) { if (done) done(); return; }
+      var s = document.createElement("script");
+      s.src = list[i++];
+      s.onload = next;
+      s.onerror = function () { fail("Không tải được trình chạy bài học. Hãy thử lại."); };
+      document.body.appendChild(s);
+    })();
+  }
+})();
+</script>
+</body>
+</html>

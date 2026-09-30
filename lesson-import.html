@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nhập bài học tiếng Anh · Learning Ecology</title>
+<meta name="robots" content="noindex">
+<!-- Staff-only import surface for the Lesson System (Phase A). Parses the 10-sheet
+     workbook IN THE BROWSER via LessonEngine (unchanged), shows row-level errors,
+     and saves the parsed Lesson model to eng_lessons through eng-lesson-store.js.
+     RLS enforces staff-only writes server-side; this page only gates the UI. -->
+<style>
+  :root{ --navy:#17263e; --ink:#17263e; --muted:#5b6b82; --line:#dde3ec; --accent:#1e4f8f; --bg:#f5f7fb;
+    --ok:#1f7a44; --okbg:#e7f5ec; --err:#b3261e; --errbg:#fdecea; --warn:#8a6d00; --warnbg:#fff7e0; }
+  *{ box-sizing:border-box; } body{ margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.5 system-ui,Segoe UI,Roboto,sans-serif; }
+  .bar{ display:flex; align-items:center; gap:.7rem; padding:.6rem 1rem; background:var(--navy); color:#fff; flex-wrap:wrap; }
+  .bar .brand{ font-weight:800; } .bar .sp{ flex:1; } .bar a{ color:#cdd6e6; text-decoration:none; font-size:.9rem; }
+  .bar a:hover{ color:#fff; }
+  .wrap{ max-width:960px; margin:1.4rem auto; padding:0 1rem 3rem; }
+  .card{ background:#fff; border:1px solid var(--line); border-radius:14px; padding:1.1rem 1.2rem; margin:0 0 1.1rem; }
+  h1{ font-size:1.3rem; margin:.2rem 0 1rem; } h2{ font-size:1.05rem; margin:0 0 .7rem; }
+  .drop{ border:2px dashed #b9c4d6; border-radius:12px; padding:1.4rem; text-align:center; color:var(--muted); background:#fafbfe; }
+  .drop.drag{ border-color:var(--accent); background:#eef3fb; }
+  .btn{ display:inline-flex; align-items:center; gap:.4rem; background:var(--accent); color:#fff; border:none; border-radius:10px;
+    padding:.55rem 1rem; font:inherit; font-weight:700; cursor:pointer; text-decoration:none; }
+  .btn.ghost{ background:#fff; color:var(--accent); border:1.5px solid var(--line); }
+  .btn.sm{ padding:.35rem .7rem; font-size:.85rem; } .btn.danger{ background:#fff; color:var(--err); border:1.5px solid #f2c7c3; }
+  .btn:disabled{ opacity:.5; cursor:default; }
+  .row{ display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; }
+  label{ font-size:.85rem; font-weight:700; color:var(--muted); }
+  select,input[type=text]{ font:inherit; padding:.45rem .6rem; border:1px solid var(--line); border-radius:9px; background:#fff; }
+  .msg{ padding:.6rem .8rem; border-radius:10px; margin:.6rem 0; font-size:.9rem; }
+  .msg.err{ background:var(--errbg); color:var(--err); } .msg.ok{ background:var(--okbg); color:var(--ok); }
+  .msg.warn{ background:var(--warnbg); color:var(--warn); }
+  ul.issues{ margin:.3rem 0 0; padding-left:1.1rem; } ul.issues li{ margin:.15rem 0; font-size:.88rem; }
+  table{ width:100%; border-collapse:collapse; }
+  th,td{ text-align:left; padding:.5rem .5rem; border-bottom:1px solid var(--line); font-size:.9rem; vertical-align:middle; }
+  th{ color:var(--muted); font-size:.75rem; text-transform:uppercase; letter-spacing:.04em; }
+  .pill{ font-size:.72rem; font-weight:800; padding:.1rem .5rem; border-radius:999px; background:#eef2f8; color:var(--muted); }
+  .pill.prem{ background:#fff2d6; color:#7a5b00; } .pill.off{ background:#fdecea; color:var(--err); }
+  .counts{ display:flex; gap:1rem; flex-wrap:wrap; margin:.5rem 0; font-size:.9rem; color:var(--muted); }
+  .counts b{ color:var(--ink); }
+  .muted{ color:var(--muted); font-size:.85rem; }
+  a.link{ color:var(--accent); text-decoration:none; } a.link:hover{ text-decoration:underline; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <span class="brand">📘 Learning Ecology</span>
+  <span class="who" id="who"></span>
+  <span class="sp"></span>
+  <a href="dashboard.html">← Bảng điều khiển</a>
+</div>
+
+<div class="wrap" id="wrap"><div class="card">Đang tải…</div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="auth-gate.js"></script>
+<script src="eng-lesson-store.js"></script>
+<script src="English%20national%20test/Practice%20system/vendor/xlsx.full.min.js"></script>
+<script src="English%20national%20test/Practice%20system/js/test-engine.js"></script>
+<script src="English%20national%20test/Practice%20system/js/randomize.js"></script>
+<script src="English%20national%20test/Practice%20system/js/lesson-engine.js"></script>
+<script>
+(function () {
+  "use strict";
+  var wrap = document.getElementById("wrap");
+  var MOD = "English%20national%20test/Practice%20system/";
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c];}); }
+  var parsed = null;   // last clean parse { lesson, source }
+
+  boot();
+  async function boot(){
+    var sess; try { sess = (await sb.auth.getSession()).data.session; } catch(e){}
+    if (!sess || !sess.user){ location.href = "login.html?next=" + encodeURIComponent(location.pathname); return; }
+    var prof=null; try { prof=(await sb.from("profiles").select("full_name,role").eq("id",sess.user.id).maybeSingle()).data; }catch(e){}
+    document.getElementById("who").textContent = (prof&&prof.full_name)||sess.user.email||"";
+    var role = (prof&&prof.role)||"student";
+    if (["owner","admin","teacher"].indexOf(role) === -1){
+      wrap.innerHTML = '<div class="card"><h1>Chỉ dành cho giáo viên</h1><p class="muted">Trang nhập bài học chỉ dành cho tài khoản giáo viên/quản trị.</p><a class="btn" href="dashboard.html">← Bảng điều khiển</a></div>';
+      return;
+    }
+    render();
+    refreshList();
+  }
+
+  function render(){
+    wrap.innerHTML =
+      '<div class="card">'
+      + '<h1>📘 Nhập bài học tiếng Anh (Excel)</h1>'
+      + '<p class="muted">Chuẩn bị một tệp <b>Lesson NN.xlsx</b> (10 sheet) rồi tải lên. Tệp được kiểm tra ngay trong trình duyệt trước khi lưu. '
+      + '<a class="link" href="' + MOD + 'assets/lesson-template.xlsx" download>⬇ Mẫu trống</a> · '
+      + '<a class="link" href="' + MOD + 'assets/Lesson27_TravelTourism.xlsx" download>⬇ Ví dụ (Lesson 27)</a></p>'
+      + '<div class="drop" id="drop"><input type="file" id="file" accept=".xlsx,.xls" style="display:none">'
+      + '<p><b>Kéo thả</b> tệp .xlsx vào đây, hoặc <button class="btn ghost sm" id="pick">Chọn tệp</button></p>'
+      + '<p class="muted" id="fname"></p></div>'
+      + '<div id="parse"></div>'
+      + '</div>'
+      + '<div class="card"><h2>Bài học đã có</h2><div id="list"><p class="muted">Đang tải…</p></div></div>';
+
+    var drop = document.getElementById("drop"), file = document.getElementById("file");
+    document.getElementById("pick").onclick = function(){ file.click(); };
+    file.onchange = function(){ if (file.files[0]) handleFile(file.files[0]); };
+    ["dragenter","dragover"].forEach(function(ev){ drop.addEventListener(ev,function(e){ e.preventDefault(); drop.classList.add("drag"); }); });
+    ["dragleave","drop"].forEach(function(ev){ drop.addEventListener(ev,function(e){ e.preventDefault(); drop.classList.remove("drag"); }); });
+    drop.addEventListener("drop", function(e){ var f=e.dataTransfer.files[0]; if(f) handleFile(f); });
+  }
+
+  function handleFile(f){
+    document.getElementById("fname").textContent = f.name;
+    var box = document.getElementById("parse"); box.innerHTML = '<p class="muted">Đang đọc & kiểm tra…</p>';
+    var rd = new FileReader();
+    rd.onload = function(){
+      var res;
+      try { res = LessonEngine.parseWorkbook(new Uint8Array(rd.result)); }
+      catch(e){ box.innerHTML = '<div class="msg err">Không đọc được tệp: '+esc(e.message||e)+'</div>'; return; }
+      showParse(res, f.name);
+    };
+    rd.onerror = function(){ box.innerHTML = '<div class="msg err">Không đọc được tệp.</div>'; };
+    rd.readAsArrayBuffer(f);
+  }
+
+  function issueList(items){
+    return '<ul class="issues">' + items.slice(0,60).map(function(it){
+      return '<li>'+esc(it.sheet||"")+(it.row?(' · dòng '+it.row):'')+': '+esc(it.message||it)+'</li>';
+    }).join("") + (items.length>60?'<li>… ('+(items.length-60)+' mục nữa)</li>':'') + '</ul>';
+  }
+
+  function showParse(res, fname){
+    var box = document.getElementById("parse");
+    var errors = res.errors||[], warnings = res.warnings||[], L = res.lesson;
+    if (errors.length){
+      parsed = null;
+      box.innerHTML = '<div class="msg err"><b>Có '+errors.length+' lỗi phải sửa trước khi lưu:</b>'+issueList(errors)+'</div>';
+      return;
+    }
+    parsed = { lesson: L, source: fname };
+    var ex = L.exam||{};
+    var html = '<div class="msg ok"><b>Hợp lệ ✓</b> — '+esc(L.title||"(không tên)")+(L.lessonNo!=null?(' · Lesson '+L.lessonNo):'')+'</div>';
+    if (warnings.length) html += '<div class="msg warn"><b>'+warnings.length+' cảnh báo</b> (không chặn lưu):'+issueList(warnings)+'</div>';
+    html += '<div class="counts">'
+      + '<span>Từ vựng <b>'+((L.vocabulary||[]).length)+'</b></span>'
+      + '<span>Mini-practice <b>'+((L.miniPractice||[]).length)+'</b></span>'
+      + '<span>Câu thi <b>'+((ex.questions||[]).length)+'</b></span>'
+      + '<span>Flashcards <b>'+((L.flashcards||[]).length)+'</b></span></div>';
+    html += '<div class="row" style="margin-top:.6rem">'
+      + '<label>Học phí <select id="tier"><option value="free">Miễn phí</option><option value="premium">Premium</option></select></label>'
+      + '<label>Hiển thị <select id="active"><option value="1">Bật</option><option value="0">Ẩn</option></select></label>'
+      + '<button class="btn" id="save">💾 Lưu bài học</button>'
+      + '<span id="savemsg" class="muted"></span></div>';
+    box.innerHTML = html;
+    document.getElementById("save").onclick = doSave;
+  }
+
+  async function doSave(){
+    if (!parsed) return;
+    var btn = document.getElementById("save"); btn.disabled = true;
+    var sm = document.getElementById("savemsg"); sm.textContent = "Đang lưu…";
+    var rec = {
+      lesson: parsed.lesson, source: parsed.source,
+      tier: document.getElementById("tier").value,
+      active: document.getElementById("active").value === "1"
+    };
+    try {
+      var saved = await LessonStore.saveLesson(rec);
+      sm.textContent = "✓ Đã lưu: " + (saved.title||saved.lesson_id);
+      parsed = null; document.getElementById("parse").innerHTML = '<div class="msg ok">✓ Đã lưu “'+esc(saved.title||saved.lesson_id)+'”.</div>';
+      refreshList();
+    } catch(e){ sm.textContent = ""; document.getElementById("parse").insertAdjacentHTML("beforeend", '<div class="msg err">Lưu lỗi: '+esc(e.message||e)+'</div>'); btn.disabled=false; }
+  }
+
+  async function refreshList(){
+    var el = document.getElementById("list"); if (!el) return;
+    var rows;
+    try { rows = await LessonStore.listLessons(); }
+    catch(e){ el.innerHTML = '<div class="msg err">Không tải được danh sách: '+esc(e.message||e)+'</div>'; return; }
+    if (!rows.length){ el.innerHTML = '<p class="muted">Chưa có bài học nào. Hãy nhập tệp Excel ở trên.</p>'; return; }
+    el.innerHTML = '<table><thead><tr><th>Bài học</th><th>Câu thi</th><th>Học phí</th><th></th></tr></thead><tbody>'
+      + rows.map(function(r){
+          var link = "lesson.html?lesson=" + encodeURIComponent(r.lesson_id);
+          return '<tr>'
+            + '<td><b>'+esc(r.title)+'</b>'+(r.lessonNo!=null?(' <span class="muted">· L'+r.lessonNo+'</span>'):'')
+              + '<br><span class="muted">'+esc(r.lesson_id)+'</span> '
+              + (r.active?'':'<span class="pill off">Ẩn</span>')+'</td>'
+            + '<td>'+(r.totalQuestions||0)+'</td>'
+            + '<td><span class="pill '+(r.tier==="premium"?"prem":"")+'">'+(r.tier==="premium"?"Premium":"Miễn phí")+'</span></td>'
+            + '<td class="row" style="justify-content:flex-end">'
+              + '<a class="btn ghost sm" href="'+link+'" target="_blank">Mở</a>'
+              + '<button class="btn ghost sm" data-copy="'+esc(link)+'">Chép link</button>'
+              + '<button class="btn danger sm" data-del="'+esc(r.lesson_id)+'">Xoá</button></td>'
+            + '</tr>';
+        }).join("") + '</tbody></table>';
+    el.querySelectorAll("[data-del]").forEach(function(b){ b.onclick = function(){ delLesson(b.getAttribute("data-del"), b); }; });
+    el.querySelectorAll("[data-copy]").forEach(function(b){ b.onclick = function(){
+      var url = new URL(b.getAttribute("data-copy"), location.href).href;
+      try { navigator.clipboard.writeText(url); b.textContent = "✓ Đã chép"; setTimeout(function(){ b.textContent="Chép link"; },1500); } catch(e){ prompt("Sao chép link:", url); }
+    }; });
+  }
+
+  async function delLesson(slug, btn){
+    if (!confirm("Xoá bài học “"+slug+"”? Điểm đã lưu của học viên KHÔNG bị xoá.")) return;
+    btn.disabled = true;
+    try { await LessonStore.deleteLesson(slug); refreshList(); }
+    catch(e){ alert("Xoá lỗi: "+(e.message||e)); btn.disabled=false; }
+  }
+})();
+</script>
+</body>
+</html>
