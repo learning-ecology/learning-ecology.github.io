@@ -799,7 +799,9 @@
       const tb = document.querySelector("header.topbar");
       if (tb) tb.insertAdjacentElement("afterend", bar);
       else { const app = document.getElementById("app"); if (app && app.parentNode) app.parentNode.insertBefore(bar, app); } }
-    const tbEl = document.querySelector("header.topbar"); bar.style.top = (tbEl ? tbEl.offsetHeight : 0) + "px";
+    // The admin topbar is position:static (scrolls away; only the sidebar is
+    // fixed), so the module bar pins to the very top of the content column.
+    bar.style.top = "0px";
 
     const actionsHtml = (opts.actions && opts.actions.length)
       ? `<div class="tier2-util">` + opts.actions.map((a, ix) =>

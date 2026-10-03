@@ -7415,9 +7415,15 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           });
         }
         function navHeight() { return cur && cur.nav ? cur.nav.getBoundingClientRect().height : 0; }
+        // Sticky bar ABOVE the secnav = the 2-tier module bar (pinned at top:0).
+        // The admin topbar is position:static (it scrolls away), so it isn't counted.
+        function stickyTop() {
+          const t2 = document.getElementById("tier2bar");
+          return (t2 && t2.offsetParent !== null) ? t2.offsetHeight : 0;
+        }
         function scrollToId(id) {
           const el = document.getElementById(id); if (!el) return;
-          const y = el.getBoundingClientRect().top + window.pageYOffset - navHeight() - 12;
+          const y = el.getBoundingClientRect().top + window.pageYOffset - stickyTop() - navHeight() - 12;
           window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
         }
         function writeHash(tab, id) {
@@ -7477,11 +7483,13 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
 
           nav.append(scroll, sel, ctrls);
           pane.insertBefore(nav, pane.firstChild);
+          nav.style.top = stickyTop() + "px";   // stick BELOW the topbar + module bar (no overlap)
 
           const raf = { pending: false };
           function spy() {
             raf.pending = false;
-            const line = navHeight() + 18;
+            nav.style.top = stickyTop() + "px";   // keep in sync if the bars resize/wrap
+            const line = stickyTop() + navHeight() + 18;
             let idx = 0;
             for (let i = 0; i < secs.length; i++) { if (secs[i].el.getBoundingClientRect().top <= line + 2) idx = i; }
             setActive(idx);
@@ -7680,10 +7688,9 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         try { start = localStorage.getItem("ap_view") || "overview"; } catch (e) {}
         show(start);
 
-        // sticky just below the real topbar + the 2-tier module bar (measured)
-        const tb = document.querySelector("header.topbar");
+        // sticky just below the 2-tier module bar (admin topbar is static)
         const t2 = document.getElementById("tier2bar");
-        board.style.top = ((tb ? tb.offsetHeight : 56) + (t2 ? t2.offsetHeight : 0)) + "px";
+        board.style.top = (t2 ? t2.offsetHeight : 0) + "px";
         const onScroll = () => board.classList.toggle("scrolled", window.scrollY > 6);
         window.addEventListener("scroll", onScroll, { passive: true }); onScroll();
 
