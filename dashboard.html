@@ -4959,7 +4959,15 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             </div>
             <p id="ctg-msg" class="msg"></p>
             <div id="ctg-preview-box" style="margin-top:0.6rem;"></div>
-            <div id="ctg-list" style="margin-top:0.8rem;"><p class="empty">Đang tải…</p></div>
+            <div class="form-row" style="align-items:flex-end; gap:.5rem; flex-wrap:wrap; margin:0.8rem 0 0;">
+              <div class="field" style="max-width:260px;"><label>Tìm</label>
+                <input type="text" id="ctg-lib-q" placeholder="Tìm theo tên / mã…" /></div>
+              <div class="field" style="max-width:150px;"><label>Học phí</label>
+                <select id="ctg-lib-tier"><option value="">Tất cả</option><option value="free">Free</option><option value="premium">Premium</option></select></div>
+              <div class="field" style="max-width:160px;"><label>Trạng thái</label>
+                <select id="ctg-lib-st"><option value="">Tất cả</option><option value="1">Đã đăng</option><option value="0">Nháp</option></select></div>
+            </div>
+            <div id="ctg-list" style="margin-top:0.6rem;"><p class="empty">Đang tải…</p></div>
           </div>
 
           <div class="card secnav-sec" id="chw-card" data-sn-label="Giao bài" data-sn-icon="📌" style="border-top:4px solid var(--tone-red,#c0392b);">
@@ -11693,17 +11701,31 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           return engineReady;
         }
 
+        function ctgFilter(rows) {
+          const qEl = document.getElementById("ctg-lib-q"), tEl = document.getElementById("ctg-lib-tier"), sEl = document.getElementById("ctg-lib-st");
+          const naf = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+          const q = naf(qEl && qEl.value), ft = (tEl && tEl.value) || "", fs = (sEl && sEl.value) || "";
+          return rows.filter(r =>
+            (!q || naf(r.title).includes(q) || naf(r.lesson_id).includes(q))
+            && (!ft || (r.tier || "free") === ft)
+            && (!fs || String(r.published ? 1 : 0) === fs));
+        }
         async function refresh() {
-          const rows = await getCtgTests();
-          listEl.innerHTML = rows.length ? rows.map(r => `
-            <div class="lesson" style="flex-wrap:wrap;">
+          const all = await getCtgTests();
+          const rows = ctgFilter(all);
+          listEl.innerHTML = !all.length
+            ? `<p class="empty">Chưa có đề nào. Tải lên Excel hoặc .json ở trên.</p>`
+            : (!rows.length ? `<p class="empty">Không có đề khớp bộ lọc.</p>` : rows.map(r => `
+            <div class="lesson" style="flex-wrap:wrap; align-items:center;">
               <div class="meta"><div class="title">${esc(r.title)}</div>
-                <span class="kind">${esc(r.lesson_id)} · ${r.max_points || 0} điểm · ${r.tier === "premium" ? "👑 Premium" : "Free"} · ${r.published ? "đã đăng" : "nháp"}</span></div>
+                <span class="kind">${esc(r.lesson_id)} · ${r.max_points || 0} điểm</span></div>
+              ${r.tier === "premium" ? `<span class="pill-gold">👑 Premium</span>` : `<span class="tag">Free</span>`}
+              ${r.published ? `<span class="pill-ok">Đã đăng</span>` : `<span class="pill-muted">Nháp</span>`}
               <a class="ghost btn" href="hsk-test.html?test=${encodeURIComponent(r.lesson_id)}" target="_blank" rel="noopener" style="text-decoration:none;">👁 Mở thử</a>
               <button class="ghost ctg-tier" data-id="${r.lesson_id}" data-tier="${r.tier}">${r.tier === "premium" ? "→ Free" : "→ 👑"}</button>
               <button class="ghost ctg-pub" data-id="${r.lesson_id}" data-pub="${r.published}">${r.published ? "Ẩn" : "Đăng"}</button>
               <button class="ghost ctg-del" data-id="${r.lesson_id}" style="color:var(--danger); border-color:var(--danger);">Xoá</button>
-            </div>`).join("") : `<p class="empty">Chưa có đề nào. Tải lên Excel hoặc .json ở trên.</p>`;
+            </div>`).join(""));
           listEl.querySelectorAll(".ctg-tier").forEach(b => b.addEventListener("click", async () => {
             const nt = b.getAttribute("data-tier") === "premium" ? "free" : "premium";
             await sb.from("ctg_tests").update({ tier: nt, updated_at: new Date().toISOString() }).eq("lesson_id", b.getAttribute("data-id"));
@@ -11721,6 +11743,9 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           }));
         }
         refresh();
+        ["ctg-lib-q", "ctg-lib-tier", "ctg-lib-st"].forEach(id => {
+          const el = document.getElementById(id); if (el) el.addEventListener("input", refresh);
+        });
 
         // ---- đọc file → gói đề (Excel qua engine module, hoặc .json trực tiếp) ----
         async function buildPackage(f, title) {
