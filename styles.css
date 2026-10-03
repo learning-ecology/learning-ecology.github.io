@@ -233,6 +233,20 @@ tr.row-off td { background: rgba(164,68,47,0.045); }
 .aprange button.on { background: var(--card, #fff); color: var(--accent-ink); }
 .ap-hidden { display: none !important; }
 @media (max-width: 640px) { .aprange, .aputil .ap-lbl { display: none; } }
+
+/* ---- Dashboard interface refresh (Phase 148): the prototype's cleaner card
+   surfaces — softer borders, more rounding, a subtle lift. Scoped to the
+   signed-in dashboard (body.sb-nav #app) so login/public pages are untouched.
+   Purely visual + reversible — no markup or behavior changes; dark mode safe
+   (the navy shadow is invisible on dark). ---- */
+body.sb-nav #app .card {
+  border-color: color-mix(in srgb, var(--line) 72%, transparent);
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(23,38,62,.05), 0 12px 28px -22px rgba(23,38,62,.30);
+}
+body.sb-nav #app .card-head h2, body.sb-nav #app .card > h2 { letter-spacing: -0.01em; }
+body.sb-nav #app .stat-grid > * { border-radius: 14px; }
+body.sb-nav #app .apboard { box-shadow: 0 1px 2px rgba(23,38,62,.04); }
 .alert-bar {
   border: 1px solid var(--gold);
   background: rgba(183,130,63,0.09);
