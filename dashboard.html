@@ -5639,9 +5639,26 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         </div>
 
         <div class="tabpane" data-tab="progress">
-        <div id="rank-owner"></div>
-        <div id="tests-root"></div>
-        <div class="card">
+        <div class="apboard" id="apboard">
+          <nav class="apsegs" id="apsegs" role="tablist" aria-label="Analytics views">
+            <button class="apseg on" data-ap-view="overview" role="tab">📊 Tổng quan</button>
+            <button class="apseg" data-ap-view="students" role="tab">👥 Học viên &amp; Tương tác</button>
+            <button class="apseg" data-ap-view="scores" role="tab">📝 Bài thi &amp; Kết quả</button>
+            <button class="apseg" data-ap-view="alerts" role="tab">⚠️ Cảnh báo &amp; Cần xử lý <span class="apcnt" id="ap-alert-count" hidden>0</span></button>
+          </nav>
+          <div class="aputil">
+            <div class="aprange" id="aprange" title="Lọc theo khoảng thời gian (bảng tiến độ)">
+              <button class="on" data-range="all">Tất cả</button>
+              <button data-range="7">7 ngày</button>
+              <button data-range="30">30 ngày</button>
+            </div>
+            <button class="ghost" id="ap-refresh" title="Làm mới" style="width:auto; padding:.4rem .7rem;">↻ <span class="ap-lbl">Làm mới</span></button>
+            <button id="ap-giao" style="width:auto; padding:.4rem .8rem;">＋ <span class="ap-lbl">Giao bài nhanh</span></button>
+          </div>
+        </div>
+        <div id="rank-owner" data-ap="students"></div>
+        <div id="tests-root" data-ap="scores"></div>
+        <div class="card" data-ap="overview">
           <div class="card-head">
             <h2>🌐 Website visitors <span class="kind" id="pv-note"></span></h2>
             <button class="ghost" id="bk-run" title="Export every table to one JSON file — keep a copy somewhere safe">🛟 Download full backup</button>
@@ -5650,9 +5667,9 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           <div id="pv-chart"></div>
           <p id="bk-msg" class="msg"></p>
         </div>
-        <div class="stat-grid" id="p-analytics"></div>
+        <div class="stat-grid" id="p-analytics" data-ap="overview"></div>
 
-        <div class="card">
+        <div class="card" data-ap="students">
           <h2>Search & filters</h2>
           <div class="form-row">
             <div class="field"><label>Search</label>
@@ -5689,7 +5706,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           </div>
         </div>
 
-        <div class="card">
+        <div class="card" data-ap="students">
           <h2>Student progress <span id="p-count" class="kind"></span></h2>
           <div class="stat-grid" id="p-summary" style="margin-bottom:0.8rem;"></div>
           <div class="form-row" style="margin-bottom:0.4rem;">
@@ -5704,7 +5721,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           <div id="p-table"></div>
         </div>
 
-        <div class="card">
+        <div class="card" data-ap="students">
           <h2>Lesson engagement <span id="e-count" class="kind"></span></h2>
           <div class="form-row" style="margin-bottom:0.4rem;">
             <div class="field" style="max-width:190px;"><label>Sort by</label>
@@ -5719,6 +5736,13 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           </div>
           <div id="e-table"></div>
           <p class="empty" style="margin-top:0.5rem;">Time counts only while the lesson tab is visible. Sections and scores appear for lessons that include the tracker script. Click ▸ on a row for full detail.</p>
+        </div>
+
+        <div class="card" data-ap="alerts">
+          <div class="card-head"><h2>⚠️ Cần xử lý</h2>
+            <button class="ghost" id="ap-alerts-refresh" style="width:auto; padding:.35rem .7rem; font-size:.85rem;">↻ Làm mới</button></div>
+          <p class="kind" style="margin:0 0 0.6rem; text-transform:none; letter-spacing:0;">Bài đã giao <b>quá hạn</b> mà lớp chưa hoàn thành. Bấm để mở tab Nhắc bài gửi email nhắc.</p>
+          <div id="ap-alerts-body"><p class="empty" style="margin:0;">Đang tải…</p></div>
         </div>
         </div>
 
@@ -7580,6 +7604,79 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       });
       showTab(adminTab);
       try { SecNav.applyInitialHash(showTab); } catch (e) {}
+
+      // ===== Analytics top-nav board (Phase 147): segmented view switcher over
+      // the progress pane's existing cards. Toggles cards by [data-ap]; the
+      // existing analytics JS keeps populating them by id. View persisted in
+      // localStorage (NOT the URL hash — the tab router owns that). =====
+      (function initAnalyticsBoard() {
+        if (window.__apBoardInit) return;
+        const pane = document.querySelector('.tabpane[data-tab="progress"]');
+        const board = document.getElementById("apboard");
+        if (!pane || !board) return;
+        window.__apBoardInit = true;
+        const VIEWS = ["overview", "students", "scores", "alerts"];
+        const segs = [...board.querySelectorAll(".apseg")];
+        const cards = [...pane.querySelectorAll("[data-ap]")];
+        function show(view) {
+          if (!VIEWS.includes(view)) view = "overview";
+          segs.forEach(s => s.classList.toggle("on", s.getAttribute("data-ap-view") === view));
+          cards.forEach(c => c.classList.toggle("ap-hidden", c.getAttribute("data-ap") !== view));
+          try { localStorage.setItem("ap_view", view); } catch (e) {}
+        }
+        segs.forEach(s => s.addEventListener("click", () => show(s.getAttribute("data-ap-view"))));
+        let start = "overview";
+        try { start = localStorage.getItem("ap_view") || "overview"; } catch (e) {}
+        show(start);
+
+        // sticky just below the real topbar (measured, so no guessing)
+        const tb = document.querySelector("header.topbar");
+        board.style.top = ((tb ? tb.offsetHeight : 56)) + "px";
+        const onScroll = () => board.classList.toggle("scrolled", window.scrollY > 6);
+        window.addEventListener("scroll", onScroll, { passive: true }); onScroll();
+
+        // utility: date range → drive the existing #pf-date filter; refresh re-applies
+        const pfDate = document.getElementById("pf-date");
+        const applyRange = v => { if (!pfDate) return; pfDate.value = (v === "all" ? "all" : v);
+          pfDate.dispatchEvent(new Event("change", { bubbles: true })); };
+        const rangeBox = document.getElementById("aprange");
+        if (rangeBox) rangeBox.addEventListener("click", e => {
+          const b = e.target.closest("[data-range]"); if (!b) return;
+          [...rangeBox.children].forEach(x => x.classList.toggle("on", x === b));
+          applyRange(b.getAttribute("data-range"));
+        });
+        document.getElementById("ap-refresh")?.addEventListener("click", () => {
+          if (pfDate) pfDate.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+        document.getElementById("ap-giao")?.addEventListener("click", () => { try { showTab("lesson"); } catch (e) {} });
+
+        // Alerts: overdue homework (due_at in the past). Fully guarded — never breaks the tab.
+        async function loadAlerts() {
+          const body = document.getElementById("ap-alerts-body");
+          const cnt = document.getElementById("ap-alert-count");
+          if (!body) return;
+          body.innerHTML = `<p class="empty" style="margin:0;">Đang tải…</p>`;
+          try {
+            const r = await sb.from("hsk_homework")
+              .select("id, title, lesson_id, kind, due_at, class_id")
+              .lt("due_at", new Date().toISOString())
+              .order("due_at", { ascending: false }).limit(40);
+            const rows = (r.error ? [] : (r.data || []));
+            if (cnt) { if (rows.length) { cnt.hidden = false; cnt.textContent = rows.length; } else cnt.hidden = true; }
+            if (!rows.length) { body.innerHTML = `<p class="empty" style="margin:0;">Không có bài nào quá hạn. 🎉</p>`; return; }
+            body.innerHTML = rows.map(h => `
+              <div class="lesson" style="flex-wrap:wrap; align-items:center;">
+                <div class="meta"><div class="title">${esc(h.title || h.lesson_id || "Bài tập")}</div>
+                  <span class="kind">Hạn ${esc(new Date(h.due_at).toLocaleString("vi-VN"))} · ${esc(h.kind || "slides")}</span></div>
+                <span class="pill-danger">Quá hạn</span>
+                <button class="ghost ap-remind" style="width:auto; padding:.3rem .6rem;">Nhắc bài →</button>
+              </div>`).join("");
+            body.querySelectorAll(".ap-remind").forEach(b => b.addEventListener("click", () => { try { showTab("reminders"); } catch (e) {} }));
+          } catch (e) { body.innerHTML = `<p class="empty" style="margin:0;">Không tải được cảnh báo.</p>`; }
+        }
+        document.getElementById("ap-alerts-refresh")?.addEventListener("click", loadAlerts);
+        loadAlerts();
+      })();
 
       // --- drag & drop upload zone ---
       const drop = document.getElementById("l-drop");
