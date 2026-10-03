@@ -99,7 +99,10 @@
         lesson: L,
         total_questions: (exam.questions ? exam.questions.length : 0),
         duration_minutes: exam.durationMinutes || null,
-        course_id: record.course_id || record.courseId || L.courseId || null,
+        // course_id is an LMS courses.id UUID (optional). The workbook's own
+        // text course_id (e.g. "eng-national-g12") lives inside the model JSON
+        // and must NOT go here — it is not a UUID and would fail the insert.
+        course_id: (record.course_id && /^[0-9a-f-]{32,36}$/i.test(record.course_id)) ? record.course_id : null,
         tier: record.tier || "free",
         updated_at: now()
       };
