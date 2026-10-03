@@ -5111,13 +5111,21 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         </div>
 
         <div class="tabpane" data-tab="lesson">
-          <div class="card secnav-sec" id="lesson-sec-import" data-sn-label="Kho bài học" data-sn-icon="📘">
-            <div class="card-head"><h2>📘 Bài học Tiếng Anh (luyện thi THPT)</h2></div>
-            <p class="kind" style="margin:0 0 0.6rem; text-transform:none; letter-spacing:0;">
-              Mỗi bài học gồm <b>Từ vựng &amp; Ngữ pháp · Đề thi 40 câu · Flashcards</b>, soạn bằng <b>một tệp Excel 10 sheet</b>.
-              Nhập &amp; kiểm tra bài học ở trang riêng (kiểm tra từng dòng, xem trước), rồi <b>giao cho lớp</b> bên dưới.
-              Chỉ điểm <b>phần thi</b> được đồng bộ vào sổ điểm (Giai đoạn A).</p>
-            <a class="ghost btn" href="lesson-import.html" target="_blank" rel="noopener" style="text-decoration:none;">➕ Mở trang nhập bài học</a>
+          <div class="card secnav-sec" id="lesson-sec-import" data-sn-label="Thư viện" data-sn-icon="📚">
+            <div class="card-head"><h2>📚 Thư viện bài học</h2>
+              <a class="btn" href="lesson-import.html" target="_blank" rel="noopener" style="text-decoration:none; width:auto;">➕ Tạo bài học</a></div>
+            <p class="kind" style="margin:0 0 0.7rem; text-transform:none; letter-spacing:0;">
+              Mỗi bài gồm <b>Từ vựng &amp; Ngữ pháp · Đề thi 40 câu · Flashcards</b>. Nhập &amp; kiểm tra ở <b>Tạo bài học</b>, giao ở mục bên dưới. Chỉ điểm <b>phần thi</b> vào sổ điểm (Giai đoạn A).</p>
+            <div class="form-row" style="align-items:flex-end; gap:.5rem; flex-wrap:wrap; margin-bottom:.7rem;">
+              <div class="field" style="max-width:260px;"><label>Tìm</label>
+                <input type="text" id="lesson-lib-q" placeholder="Tìm theo tên / mã…" /></div>
+              <div class="field" style="max-width:150px;"><label>Học phí</label>
+                <select id="lesson-lib-tier"><option value="">Tất cả</option><option value="free">Miễn phí</option><option value="premium">Premium</option></select></div>
+              <div class="field" style="max-width:160px;"><label>Trạng thái</label>
+                <select id="lesson-lib-st"><option value="">Tất cả</option><option value="1">Đang hiển thị</option><option value="0">Đã ẩn</option></select></div>
+              <button class="ghost" id="lesson-lib-refresh" style="flex:none; width:auto;">↻ Làm mới</button>
+            </div>
+            <div id="lesson-lib"><p class="empty" style="margin:0;">Đang tải…</p></div>
           </div>
 
           <div class="card secnav-sec" id="lhw-card" data-sn-label="Giao bài" data-sn-icon="📌" style="border-top:4px solid var(--tone-red,#c0392b);">
@@ -11849,6 +11857,93 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       };
       mountAssignCard("lhw", "lesson", getEngLessons, "migration137_eng_lessons.sql");
       mountProgressCard("lhp", "lesson", getEngLessons);
+
+      // ===== Thư viện bài học (Stage 2 redesign): bảng tìm/lọc + thao tác dòng =====
+      (function () {
+        const box = document.getElementById("lesson-lib");
+        if (!box) return;
+        const qEl = document.getElementById("lesson-lib-q"),
+              tierEl = document.getElementById("lesson-lib-tier"),
+              stEl = document.getElementById("lesson-lib-st");
+        let rows = [];
+        const noAccent = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+        const fmt = ts => { if (!ts) return "—"; const d = new Date(ts);
+          return d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
+
+        async function load() {
+          box.innerHTML = `<p class="empty" style="margin:0;">Đang tải…</p>`;
+          const r = await sb.from("eng_lessons")
+            .select("lesson_id, title, lesson_no, total_questions, tier, active, updated_at")
+            .order("sort_order").order("created_at", { ascending: false });
+          if (r.error) { box.innerHTML = `<p class="empty" style="margin:0;">Không tải được${/eng_lessons/i.test(r.error.message) ? " — hình như chưa chạy migration137_eng_lessons.sql." : ": " + esc(r.error.message)}</p>`; return; }
+          rows = r.data || [];
+          render();
+        }
+        function render() {
+          const q = noAccent(qEl.value), ft = tierEl.value, fs = stEl.value;
+          let list = rows.filter(r =>
+            (!q || noAccent(r.title).includes(q) || noAccent(r.lesson_id).includes(q))
+            && (!ft || (r.tier || "free") === ft)
+            && (fs === "" || String(r.active ? 1 : 0) === fs));
+          if (!rows.length) { box.innerHTML = `<p class="empty" style="margin:0;">Chưa có bài học nào. Bấm <b>➕ Tạo bài học</b> để nhập tệp Excel.</p>`; return; }
+          if (!list.length) { box.innerHTML = `<p class="empty" style="margin:0;">Không có bài khớp bộ lọc.</p>`; return; }
+          box.innerHTML =
+            `<div style="overflow-x:auto;"><table class="stackable" style="width:100%; font-size:.9rem;">
+              <thead><tr><th>Bài học</th><th>Câu thi</th><th>Học phí</th><th>Trạng thái</th><th>Cập nhật</th><th></th></tr></thead>
+              <tbody>` + list.map(r => {
+                const slug = esc(r.lesson_id);
+                const fee = (r.tier === "premium")
+                  ? `<span class="pill-gold">👑 Premium</span>` : `<span class="tag">Miễn phí</span>`;
+                const st = r.active ? `<span class="pill-ok">Đang hiển thị</span>` : `<span class="pill-muted">Đã ẩn</span>`;
+                const link = "lesson.html?lesson=" + encodeURIComponent(r.lesson_id);
+                return `<tr>
+                  <td data-th="Bài học"><b>${esc(r.title || r.lesson_id)}</b>${r.lesson_no != null ? ` <span class="kind">· L${r.lesson_no}</span>` : ""}<br><span class="kind">${slug}</span></td>
+                  <td data-th="Câu thi">${r.total_questions || 0}</td>
+                  <td data-th="Học phí">${fee}</td>
+                  <td data-th="Trạng thái">${st}</td>
+                  <td data-th="Cập nhật" class="kind">${esc(fmt(r.updated_at))}</td>
+                  <td data-th="" style="white-space:nowrap; text-align:right;">
+                    <a class="ghost btn" href="${link}" target="_blank" rel="noopener" style="text-decoration:none; width:auto; padding:.3rem .55rem;" title="Mở">👁</a>
+                    <button class="ghost" data-copy="${link}" style="width:auto; padding:.3rem .55rem;" title="Chép link">🔗</button>
+                    <button class="ghost" data-tier="${slug}" data-cur="${r.tier || "free"}" style="width:auto; padding:.3rem .55rem;" title="Đổi học phí">${r.tier === "premium" ? "↓Free" : "↑Prem"}</button>
+                    <button class="ghost" data-active="${slug}" data-cur="${r.active ? 1 : 0}" style="width:auto; padding:.3rem .55rem;" title="Ẩn/Hiện">${r.active ? "Ẩn" : "Hiện"}</button>
+                    <button class="ghost" data-del="${slug}" style="width:auto; padding:.3rem .55rem; color:var(--danger); border-color:var(--danger);" title="Xoá">🗑</button>
+                  </td></tr>`;
+              }).join("") + `</tbody></table></div>`;
+          wire();
+        }
+        function wire() {
+          box.querySelectorAll("[data-copy]").forEach(b => b.onclick = () => {
+            const url = new URL(b.getAttribute("data-copy"), location.href).href;
+            try { navigator.clipboard.writeText(url); b.textContent = "✓"; setTimeout(() => b.textContent = "🔗", 1200); } catch (e) { prompt("Link:", url); }
+          });
+          box.querySelectorAll("[data-tier]").forEach(b => b.onclick = async () => {
+            const nt = b.getAttribute("data-cur") === "premium" ? "free" : "premium";
+            b.disabled = true;
+            const { error } = await sb.from("eng_lessons").update({ tier: nt, updated_at: new Date().toISOString() }).eq("lesson_id", b.getAttribute("data-tier"));
+            if (error) { alert("Lỗi: " + error.message); b.disabled = false; return; }
+            __engRows = null; load();
+          });
+          box.querySelectorAll("[data-active]").forEach(b => b.onclick = async () => {
+            const na = b.getAttribute("data-cur") !== "1";
+            b.disabled = true;
+            const { error } = await sb.from("eng_lessons").update({ active: na, updated_at: new Date().toISOString() }).eq("lesson_id", b.getAttribute("data-active"));
+            if (error) { alert("Lỗi: " + error.message); b.disabled = false; return; }
+            __engRows = null; load();
+          });
+          box.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+            const slug = b.getAttribute("data-del");
+            if (!confirm("Xoá bài học “" + slug + "”? Điểm đã lưu của học viên KHÔNG bị xoá.")) return;
+            b.disabled = true;
+            const { error } = await sb.from("eng_lessons").delete().eq("lesson_id", slug);
+            if (error) { alert("Xoá lỗi: " + error.message); b.disabled = false; return; }
+            __engRows = null; load();
+          });
+        }
+        [qEl, tierEl, stEl].forEach(el => el && el.addEventListener("input", render));
+        document.getElementById("lesson-lib-refresh")?.addEventListener("click", () => { __engRows = null; load(); });
+        load();
+      })();
 
       (function () {
         const fileEl = document.getElementById("net-file");
