@@ -360,6 +360,7 @@
     let COURSES = [], currentId = null;
     let SECTIONS = [];                 // các công cụ đang mở xem trước công khai
     let TESTIMONIALS = [];             // cảm nhận học viên (do chủ trung tâm nhập; ẩn nếu trống)
+    let ENG_LESSONS = [];              // bài học tiếng Anh đang hiển thị (public_eng_lessons) — hiện dưới danh mục Tiếng Anh
     // Tự quản lý vị trí cuộn (SPA) để back/forward/tải lại/quay về từ bài học
     // khôi phục đúng chỗ, không để trình duyệt nhảy lung tung.
     try { if ("scrollRestoration" in history) history.scrollRestoration = "manual"; } catch (e) {}
@@ -1060,6 +1061,23 @@
           </div>
         </a>`;
     }
+
+    /* Thẻ BÀI HỌC tiếng Anh (eng_lessons) — mở lesson.html (không phải SPA khóa học).
+       Không có data-cid nên bộ bắt sự kiện .ccard[data-cid] bỏ qua → link chạy thật. */
+    function engLessonCard(l){
+      const href = "lesson.html?lesson=" + encodeURIComponent(l.lesson_id);
+      const prem = (l.tier || "free") === "premium";
+      const badge = prem ? `<span class="cc-badge prem">👑 Premium</span>` : `<span class="cc-badge free">Miễn phí</span>`;
+      const title = (l.lesson_no != null ? ("Bài " + l.lesson_no + ": ") : "") + (l.title || l.lesson_id);
+      return `
+        <a class="ccard" href="${esc(href)}">
+          <div class="cc-thumb" style="background:linear-gradient(135deg,#1e4f8f,#0e7c66);">📘${badge}</div>
+          <div class="cc-body">
+            <div class="cc-title">${esc(title)}</div>
+            <div class="cc-stats">📝 Đề thi ${l.total_questions || 40} câu · Từ vựng · Flashcards</div>
+          </div>
+        </a>`;
+    }
     function fillCard(card, c){
       const stats = card.querySelector("[data-stats]");
       if (stats) stats.innerHTML = `📚 ${c.total} bài · 🔓 ${c.free} miễn phí` + (c.prem ? ` · 👑 ${c.prem} Premium` : "");
@@ -1090,6 +1108,10 @@
       } else {
         body = `<p class="cp-note">Danh mục này chưa có khóa học nào.</p>`;
       }
+      // Bài học tiếng Anh (eng_lessons) hiện dưới danh mục Tiếng Anh (key="en").
+      if (cat && cat.key === "en" && ENG_LESSONS.length){
+        body += `<h3 class="cg-sub">📘 Bài học Tiếng Anh</h3><div class="cgrid">${ENG_LESSONS.map(engLessonCard).join("")}</div>`;
+      }
       $("cpMain").innerHTML =
         crumbs([{ label: "Khóa học & Tài liệu", root: true }, { label: cat ? cat.label : catId, cur: true }])
         + `<h2 class="cg-h">${cat ? esc((cat.icon || "") + " " + cat.label) : ""}</h2>`
@@ -1097,7 +1119,7 @@
         + testimonialsHtml();
       // thẻ mở khóa nào bấm cũng vào xem khóa đó (SPA, không tải lại trang)
       const cards = {};
-      $("cpMain").querySelectorAll(".ccard").forEach(a => {
+      $("cpMain").querySelectorAll(".ccard[data-cid]").forEach(a => {   // bỏ qua thẻ bài học (link thật)
         cards[a.getAttribute("data-cid")] = a;
         a.addEventListener("click", e => {
           if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;   // cho mở tab mới
@@ -1230,15 +1252,17 @@
     async function boot(){
       $("cpYear").textContent = new Date().getFullYear();
       const id = new URLSearchParams(location.search).get("id");
-      const [setRes, listRes, secRes, navRes, fbRes] = await Promise.all([
+      const [setRes, listRes, secRes, navRes, fbRes, engRes] = await Promise.all([
         sb.from("landing_settings").select("config").eq("id", 1).maybeSingle().then(r => r, () => ({ data: null })),
         sb.rpc("public_courses").then(r => r, () => ({ data: null })),
         sb.rpc("public_sections").then(r => r, () => ({ data: null })),  // cần migration47
         sb.rpc("public_nav").then(r => r, () => ({ data: null })),       // cần migration61 — thiếu thì dùng mặc định
         // Cảm nhận học viên ĐÃ ĐĂNG (dùng lại kho có sẵn ở Landing → không tạo mới, không bịa)
         sb.from("landing_feedback").select("student_name, role_label, course_label, feedback, avatar_url")
-          .eq("status", "published").order("sort_order").then(r => r, () => ({ data: null }))
+          .eq("status", "published").order("sort_order").then(r => r, () => ({ data: null })),
+        sb.rpc("public_eng_lessons").then(r => r, () => ({ data: null }))   // cần migration138 — thiếu thì bỏ qua
       ]);
+      ENG_LESSONS = (engRes && Array.isArray(engRes.data)) ? engRes.data : [];
       SECTIONS = Array.isArray(secRes && secRes.data) ? secRes.data : [];
       NAV = (navRes && navRes.data && Array.isArray(navRes.data.categories) && navRes.data.categories.length)
             ? navRes.data : null;
