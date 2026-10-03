@@ -2818,6 +2818,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           slides: { table: "hsk_lessons", player: "hsk-slides.html", cat: "slides" },
           vocab:  { table: "vocab_lessons", player: "vocab-practice.html", cat: "vocab" },
           ctg:    { table: "ctg_tests", player: "hsk-test.html", cat: "ctg" },
+          net:    { table: "net_tests", player: "net-test.html", cat: "net" },
           lesson: { table: "eng_lessons", player: "lesson.html", cat: "lesson" }
         };
         const need = {};
@@ -2905,7 +2906,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         items.forEach(it => { it.duesoon = it.status !== "done" && !!(it.due && it.due > now && (it.due - now) <= SOON); it.urgent = it.status === "overdue"; });
 
         // ---- filter state (deep-linkable + remembered) ----
-        const CATORDER = ["all", "slides", "vocab", "flash", "ctg", "lesson", "other"];
+        const CATORDER = ["all", "slides", "vocab", "flash", "ctg", "net", "lesson", "other"];
         const catsPresent = CATORDER.filter(c => c === "all" || items.some(it => it.cat === c));
         const classes = [...new Set(items.map(it => it.className).filter(Boolean))].sort();
         let view = "card"; try { view = localStorage.getItem("asgn_view") || "card"; } catch (e) {}
@@ -2929,7 +2930,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         };
 
         // ---- helpers to render one card ----
-        const CATLABEL = { slides: "asg_cat_slides", vocab: "asg_cat_vocab", flash: "asg_cat_flash", ctg: "asg_cat_ctg", lesson: "asg_cat_lesson", other: "asg_cat_other" };
+        const CATLABEL = { slides: "asg_cat_slides", vocab: "asg_cat_vocab", flash: "asg_cat_flash", ctg: "asg_cat_ctg", net: "asg_cat_net", lesson: "asg_cat_lesson", other: "asg_cat_other" };
         const statusMeta = it => {
           if (it.status === "done") return { cls: "done", label: t("asg_st_done") + (it.pct ? " · " + it.pct + "%" : "") };
           if (it.status === "overdue") return { cls: "bad", label: t("asg_st_overdue") };
@@ -5048,7 +5049,15 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             </div>
             <p id="net-msg" class="msg"></p>
             <div id="net-preview-box" style="margin-top:0.6rem;"></div>
-            <div id="net-list" style="margin-top:0.8rem;"><p class="empty">Đang tải…</p></div>
+            <div class="form-row" style="align-items:flex-end; gap:.5rem; flex-wrap:wrap; margin:0.8rem 0 0;">
+              <div class="field" style="max-width:260px;"><label>Tìm</label>
+                <input type="text" id="net-lib-q" placeholder="Tìm theo tên / mã / mã đề…" /></div>
+              <div class="field" style="max-width:150px;"><label>Học phí</label>
+                <select id="net-lib-tier"><option value="">Tất cả</option><option value="free">Free</option><option value="premium">Premium</option></select></div>
+              <div class="field" style="max-width:160px;"><label>Trạng thái</label>
+                <select id="net-lib-st"><option value="">Tất cả</option><option value="1">Đã đăng</option><option value="0">Nháp</option></select></div>
+            </div>
+            <div id="net-list" style="margin-top:0.6rem;"><p class="empty">Đang tải…</p></div>
           </div>
 
           <div class="card secnav-sec" id="nhw-card" data-sn-label="Giao bài" data-sn-icon="📌" style="border-top:4px solid var(--tone-red,#c0392b);">
@@ -12000,36 +12009,52 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           return engineReady;
         }
 
+        function netFilter(rows) {
+          const qEl = document.getElementById("net-lib-q"), tEl = document.getElementById("net-lib-tier"), sEl = document.getElementById("net-lib-st");
+          const naf = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+          const q = naf(qEl && qEl.value), ft = (tEl && tEl.value) || "", fs = (sEl && sEl.value) || "";
+          return rows.filter(r =>
+            (!q || naf(r.title).includes(q) || naf(r.lesson_id).includes(q) || naf(r.exam_code).includes(q))
+            && (!ft || (r.tier || "free") === ft)
+            && (!fs || String(r.active ? 1 : 0) === fs));
+        }
         async function refresh() {
-          __netRows = null;
-          const rows = await getNetTests();
-          listEl.innerHTML = rows.length ? rows.map(r => `
-            <div class="lesson" style="flex-wrap:wrap;">
+          const all = await getNetTests();
+          const rows = netFilter(all);
+          listEl.innerHTML = !all.length
+            ? `<p class="empty">Chưa có đề nào. Tải lên tệp Excel ở trên.</p>`
+            : (!rows.length ? `<p class="empty">Không có đề khớp bộ lọc.</p>` : rows.map(r => `
+            <div class="lesson" style="flex-wrap:wrap; align-items:center;">
               <div class="meta"><div class="title">${esc(r.title)}</div>
-                <span class="kind">${esc(r.lesson_id)}${r.exam_code ? " · mã " + esc(r.exam_code) : ""} · ${r.total_questions || 0} câu · ${r.tier === "premium" ? "👑 Premium" : "Free"} · ${r.active ? "đã đăng" : "nháp"}</span></div>
+                <span class="kind">${esc(r.lesson_id)}${r.exam_code ? " · mã " + esc(r.exam_code) : ""} · ${r.total_questions || 0} câu</span></div>
+              ${r.tier === "premium" ? `<span class="pill-gold">👑 Premium</span>` : `<span class="tag">Free</span>`}
+              ${r.active ? `<span class="pill-ok">Đã đăng</span>` : `<span class="pill-muted">Nháp</span>`}
               <a class="ghost btn" href="net-test.html?test=${encodeURIComponent(r.lesson_id)}" target="_blank" rel="noopener" style="text-decoration:none;">👁 Mở thử</a>
               <button class="ghost net-tier" data-id="${esc(r.lesson_id)}" data-tier="${esc(r.tier)}">${r.tier === "premium" ? "→ Free" : "→ 👑"}</button>
               <button class="ghost net-pub" data-id="${esc(r.lesson_id)}" data-pub="${r.active}">${r.active ? "Ẩn" : "Đăng"}</button>
               <button class="ghost net-del" data-id="${esc(r.lesson_id)}" style="color:var(--danger); border-color:var(--danger);">Xoá</button>
-            </div>`).join("") : `<p class="empty">Chưa có đề nào. Tải lên tệp Excel ở trên.</p>`;
+            </div>`).join(""));
           listEl.querySelectorAll(".net-tier").forEach(b => b.addEventListener("click", async () => {
             const nt = b.getAttribute("data-tier") === "premium" ? "free" : "premium";
             await sb.from("net_tests").update({ tier: nt, updated_at: new Date().toISOString() }).eq("lesson_id", b.getAttribute("data-id"));
-            refresh();
+            __netRows = null; refresh();
           }));
           listEl.querySelectorAll(".net-pub").forEach(b => b.addEventListener("click", async () => {
             const na = b.getAttribute("data-pub") !== "true";
             await sb.from("net_tests").update({ active: na, updated_at: new Date().toISOString() }).eq("lesson_id", b.getAttribute("data-id"));
-            refresh();
+            __netRows = null; refresh();
           }));
           listEl.querySelectorAll(".net-del").forEach(b => b.addEventListener("click", async () => {
             if (!confirm("Xoá đề này? Điểm học viên đã làm vẫn được giữ trong sổ điểm.")) return;
             await sb.from("net_tests").delete().eq("lesson_id", b.getAttribute("data-id"));
-            refresh(); fillResultTests();
+            __netRows = null; refresh();
           }));
           fillResultTests();
         }
         refresh();
+        ["net-lib-q", "net-lib-tier", "net-lib-st"].forEach(id => {
+          const el = document.getElementById(id); if (el) el.addEventListener("input", refresh);
+        });
 
         function renderPreview(parsed) {
           const t = parsed.test || {};
