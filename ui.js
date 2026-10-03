@@ -625,7 +625,112 @@
   //         actions: [{label, icon, onClick}] }
   // Desktop: fixed left sidebar, collapsible to icons (state saved).
   // Mobile (≤768px): off-canvas drawer opened by a ☰ in the topbar.
+  // ---------- 2-tier navigation (Phase 150) ----------
+  // opts.twoTier: left sidebar shows GROUPS (primary categories); a horizontal
+  // top bar (injected under header.topbar) shows the active group's modules as
+  // tabs. Clicking a tab routes through opts.onSelect (the same showTab), so the
+  // content panes + routing are unchanged — only the nav presentation differs.
+  const GROUP_ICON = {
+    "Tổng quan": "bar-chart-3", "Khóa học & Tài liệu": "book-open",
+    "Luyện tập & Đề thi": "file-check", "Người dùng & Lớp": "users",
+    "Cài đặt": "settings", "Community": "megaphone", "Analytics": "bar-chart-3"
+  };
+  function initNavTwoTier(opts) {
+    document.body.classList.add("sb-nav", "sb-2tier");
+    let min = false; try { min = localStorage.getItem("hub_sidebar") === "min"; } catch (e) {}
+    document.body.classList.toggle("sb-min", min);
+    let nav = document.getElementById("subnav");
+    if (!nav) { nav = document.createElement("nav"); nav.id = "subnav"; document.body.appendChild(nav); }
+    if (!document.querySelector(".sn-backdrop")) {
+      const bd = document.createElement("div"); bd.className = "sn-backdrop";
+      document.body.appendChild(bd); bd.addEventListener("click", () => document.body.classList.remove("sb-open"));
+    }
+    const escAttr = s => String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+    // group items (preserve order)
+    const groups = [], byName = {};
+    opts.items.forEach(i => { const g = i.group || "Khác";
+      if (!byName[g]) { byName[g] = { name: g, items: [] }; groups.push(byName[g]); }
+      byName[g].items.push(i); });
+    let activeGroup = ((opts.items.find(i => i.id === opts.active) || {}).group) || (groups[0] && groups[0].name) || "";
+    let lastItem = {}; try { lastItem = JSON.parse(localStorage.getItem("hub_nav2") || "{}") || {}; } catch (e) {}
+
+    // sidebar = primary categories
+    nav.innerHTML = `
+      <div class="sn-head"><img src="icons/icon-192.png" alt="" /><span class="sn-name">Learning Ecology</span>
+        <button class="sn-min" title="${t2("collapse_nav")}">${min ? "⟩" : "⟨"}</button></div>
+      <div class="sn-items">` + groups.map(gr =>
+        `<button class="sn-item sn-primary${gr.name === activeGroup ? " on" : ""}" data-grp="${escAttr(gr.name)}" title="${escAttr(gr.name)}">${icon(GROUP_ICON[gr.name] || "folder", 18)}<span>${escAttr(gr.name)}</span></button>`
+      ).join("") + `</div>`;
+
+    const minBtn = nav.querySelector(".sn-min");
+    minBtn.addEventListener("click", () => { const m = document.body.classList.toggle("sb-min");
+      minBtn.textContent = m ? "⟩" : "⟨"; try { localStorage.setItem("hub_sidebar", m ? "min" : "full"); } catch (e) {} });
+    if (!document.querySelector(".sn-burger")) { const tb = document.querySelector("header.topbar");
+      if (tb) { const b = document.createElement("button"); b.className = "sn-burger"; b.textContent = "☰";
+        b.setAttribute("aria-label", t2("menu")); tb.insertBefore(b, tb.firstChild);
+        b.addEventListener("click", () => document.body.classList.toggle("sb-open")); } }
+
+    // top bar (tier-2)
+    let bar = document.getElementById("tier2bar");
+    if (!bar) { bar = document.createElement("div"); bar.id = "tier2bar"; bar.className = "tier2";
+      const tb = document.querySelector("header.topbar");
+      if (tb) tb.insertAdjacentElement("afterend", bar);
+      else { const app = document.getElementById("app"); if (app && app.parentNode) app.parentNode.insertBefore(bar, app); } }
+    const tbEl = document.querySelector("header.topbar"); bar.style.top = (tbEl ? tbEl.offsetHeight : 0) + "px";
+
+    const actionsHtml = (opts.actions && opts.actions.length)
+      ? `<div class="tier2-util">` + opts.actions.map((a, ix) =>
+          `<button class="ghost tier2-act" data-act="${ix}" title="${escAttr(a.label)}" style="width:auto; padding:.4rem .7rem;">${icon(a.icon, 15)}<span class="t2-lbl">${escAttr(a.label)}</span></button>`).join("") + `</div>`
+      : "";
+
+    function renderBar() {
+      const gr = byName[activeGroup]; if (!gr) { bar.innerHTML = ""; return null; }
+      let curId = opts.active;
+      if (!gr.items.some(i => i.id === curId))
+        curId = (lastItem[activeGroup] && gr.items.some(i => i.id === lastItem[activeGroup])) ? lastItem[activeGroup] : (gr.items[0] && gr.items[0].id);
+      bar.innerHTML = `<div class="tier2-in"><nav class="tier2-tabs" role="tablist">` + gr.items.map(i =>
+          i.href ? `<a class="tier2-tab" href="${i.href}">${escAttr(i.label)}</a>`
+                 : `<button class="tier2-tab${i.id === curId ? " on" : ""}" data-id="${escAttr(i.id)}" role="tab" aria-selected="${i.id === curId}">${escAttr(i.label)}</button>`
+        ).join("") + `</nav>` + actionsHtml + `</div>`;
+      bar.querySelectorAll(".tier2-tab[data-id]").forEach(btn => btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-id");
+        bar.querySelectorAll(".tier2-tab").forEach(x => { x.classList.remove("on"); x.setAttribute("aria-selected", "false"); });
+        btn.classList.add("on"); btn.setAttribute("aria-selected", "true");
+        lastItem[activeGroup] = id; try { localStorage.setItem("hub_nav2", JSON.stringify(lastItem)); } catch (e) {}
+        opts.active = id; document.body.classList.remove("sb-open");
+        if (opts.onSelect) opts.onSelect(id);
+        try { btn.scrollIntoView({ block: "nearest", inline: "center" }); } catch (e) {}
+      }));
+      bar.querySelectorAll(".tier2-act").forEach(btn => btn.addEventListener("click", () => {
+        const a = opts.actions[Number(btn.getAttribute("data-act"))]; if (a && a.onClick) a.onClick();
+      }));
+      return curId;
+    }
+
+    nav.querySelectorAll(".sn-primary").forEach(b => b.addEventListener("click", () => {
+      document.body.classList.remove("sb-open");
+      activeGroup = b.getAttribute("data-grp");
+      nav.querySelectorAll(".sn-primary").forEach(x => x.classList.toggle("on", x === b));
+      const cur = renderBar();
+      if (cur && opts.onSelect) opts.onSelect(cur);   // selecting a category opens its (remembered/first) module
+    }));
+
+    // keep the bar in sync when the app navigates by other means (quick actions,
+    // deep links): the dashboard calls window.__tier2sync(id) from showTab.
+    window.__tier2sync = function (id) {
+      const it = opts.items.find(x => x.id === id); if (!it) return;
+      const g = it.group || activeGroup;
+      if (g !== activeGroup) { activeGroup = g; nav.querySelectorAll(".sn-primary").forEach(x => x.classList.toggle("on", x.getAttribute("data-grp") === g)); }
+      opts.active = id; renderBar();
+    };
+
+    renderBar();
+    refreshIcons();
+  }
+
   function initNav(opts) {
+    if (opts && opts.twoTier) return initNavTwoTier(opts);
     document.body.classList.add("sb-nav");
     let min = false;
     try { min = localStorage.getItem("hub_sidebar") === "min"; } catch (e) {}

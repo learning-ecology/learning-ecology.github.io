@@ -7540,6 +7540,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
 
       function showTab(t) {
         adminTab = t;
+        try { if (window.__tier2sync) window.__tier2sync(t); } catch (e) {}   // keep the 2-tier top bar in sync
         if (t === "landing" && window.__lpmInit) window.__lpmInit();
         if (t === "progress" && window.__testsInit) window.__testsInit();
         if (t === "testmgr" && window.__testMgrInit) window.__testMgrInit();
@@ -7592,6 +7593,7 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
           { href: "organizations.html", label: "Organizations & licenses", icon: "building-2", group: "Cài đặt" },
         ],
         active: adminTab,
+        twoTier: true,
         onSelect: showTab,
         actions: [
           { label: "+ Lesson", icon: "plus",
@@ -7629,9 +7631,10 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         try { start = localStorage.getItem("ap_view") || "overview"; } catch (e) {}
         show(start);
 
-        // sticky just below the real topbar (measured, so no guessing)
+        // sticky just below the real topbar + the 2-tier module bar (measured)
         const tb = document.querySelector("header.topbar");
-        board.style.top = ((tb ? tb.offsetHeight : 56)) + "px";
+        const t2 = document.getElementById("tier2bar");
+        board.style.top = ((tb ? tb.offsetHeight : 56) + (t2 ? t2.offsetHeight : 0)) + "px";
         const onScroll = () => board.classList.toggle("scrolled", window.scrollY > 6);
         window.addEventListener("scroll", onScroll, { passive: true }); onScroll();
 
