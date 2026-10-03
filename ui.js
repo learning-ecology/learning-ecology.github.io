@@ -639,7 +639,8 @@
   // Ctrl/⌘K spotlight to jump to any module. Indexes opts.items + optional
   // opts.paletteExtra (sub-views). Accent-insensitive, grouped, keyboard-driven.
   // Built once; the index/opts refresh on every initNav call (module-scoped).
-  let cpOpts = null, cpIndex = [], cpBuilt = false, cpActive = 0, cpFiltered = [];
+  let cpOpts = null, cpIndex = [], cpBuilt = false, cpActive = 0, cpFiltered = [], cpExtraAsync = [];
+  const CP_CAP = 50;
   const CP_SYN = {
     progress: "analytics bao cao thong ke dashboard", courses: "khoa hoc course",
     lessons: "bai hoc tai lieu lesson material", reading: "doc reading library",
@@ -662,7 +663,16 @@
       const base = { label: i.label, group: i.group || "", hay: cpNorm((i.label || "") + " " + (i.group || "") + " " + (CP_SYN[i.id] || "")) };
       cpIndex.push(i.href ? Object.assign(base, { href: i.href }) : Object.assign(base, { id: i.id }));
     });
-    (opts.paletteExtra || []).forEach(e => cpIndex.push({ label: e.label, group: e.group || "", hay: cpNorm((e.label || "") + " " + (e.group || "") + " " + (e.kw || "")), run: e.run }));
+    (opts.paletteExtra || []).forEach(e => cpIndex.push({ label: e.label, group: e.group || "", hay: cpNorm((e.label || "") + " " + (e.group || "") + " " + (e.kw || "")), run: e.run, content: !!e.content }));
+    cpExtraAsync.forEach(e => cpIndex.push(e));   // async-added items (e.g. tests) survive re-renders
+  }
+  // Public: append palette entries after the fact (e.g. lazily-fetched tests).
+  function addPaletteItems(entries) {
+    cpExtraAsync = cpExtraAsync.concat((entries || []).map(e => ({
+      label: e.label, group: e.group || "", run: e.run, content: e.content !== false,
+      hay: cpNorm((e.label || "") + " " + (e.group || "") + " " + (e.kw || ""))
+    })));
+    if (cpOpts) cpRebuild(cpOpts);
   }
   function initCommandPalette(opts) {
     cpRebuild(opts);
@@ -710,8 +720,12 @@
     function renderResults() {
       const raw = document.getElementById("cmdkInput").value.trim();
       const q = cpNorm(raw);
-      let res = q ? cpIndex.filter(x => x.hay.includes(q)) : cpIndex.slice();
+      // Empty query shows only the top-level modules/views (not the ~1k indexed
+      // courses/lessons/texts). Typing searches everything, capped for speed.
+      let res = q ? cpIndex.filter(x => x.hay.includes(q)) : cpIndex.filter(x => !x.content);
       if (q) res.sort((a, b) => (b.hay.startsWith(q) ? 1 : 0) - (a.hay.startsWith(q) ? 1 : 0));
+      const total = res.length;
+      if (res.length > CP_CAP) res = res.slice(0, CP_CAP);
       cpFiltered = res; cpActive = 0;
       const list = document.getElementById("cmdkList");
       if (!res.length) { list.innerHTML = `<div class="cmdk-empty">Không tìm thấy “${cpEsc(raw)}”.</div>`; return; }
@@ -719,7 +733,7 @@
       res.forEach((r, idx) => { const g = r.group || "Khác"; if (!gmap[g]) { gmap[g] = { name: g, items: [] }; groups.push(gmap[g]); } gmap[g].items.push({ r, idx }); });
       list.innerHTML = groups.map(gr => `<div class="cmdk-grp">${cpEsc(gr.name)}</div>` + gr.items.map(({ r, idx }) =>
         `<button class="cmdk-item${idx === cpActive ? " on" : ""}" data-i="${idx}">${icon(r.run ? "zap" : "corner-down-right", 14)}<span>${cpEsc(r.label)}</span><span class="cmdk-cat">${cpEsc(gr.name)}</span></button>`
-      ).join("")).join("");
+      ).join("")).join("") + (total > CP_CAP ? `<div class="cmdk-more">+${total - CP_CAP} kết quả nữa — gõ cụ thể hơn…</div>` : "");
       list.querySelectorAll(".cmdk-item").forEach(b => b.addEventListener("click", () => activate(Number(b.getAttribute("data-i")))));
       refreshIcons();
     }
@@ -963,6 +977,6 @@
   window.UI = { t2, LANG, toast, confirmDialog, promptDialog, skeleton,
                 csv, icon, refreshIcons, wireLangButton, rerender, initBell,
                 applyBrand, resizeImage, cropResize, membership, memberBadge,
-                BRAND_PRESETS, initNav, initTheme };
+                BRAND_PRESETS, initNav, initTheme, addPaletteItems };
   document.documentElement.setAttribute("lang", LANG);
 })();

@@ -314,6 +314,7 @@ body.sb-nav .topbar button.ghost:hover, body.sb-nav .topbar .btn.ghost:hover { b
 .cmdk-item.on, .cmdk-item:hover { background: var(--accent); color: #fff; }
 .cmdk-item.on .cmdk-cat, .cmdk-item:hover .cmdk-cat { background: rgba(255,255,255,0.2); color: #fff; }
 .cmdk-empty { padding: 1.5rem; text-align: center; color: var(--muted); }
+.cmdk-more { padding: 0.5rem 0.7rem; text-align: center; font-size: 0.78rem; color: var(--muted); }
 .cmdk-foot { display: flex; gap: 1rem; padding: 0.5rem 1rem; border-top: 1px solid var(--line); font-size: 0.74rem; color: var(--muted); }
 .alert-bar {
   border: 1px solid var(--gold);

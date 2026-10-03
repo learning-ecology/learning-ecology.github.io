@@ -7608,15 +7608,24 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         ].concat(
           // individual courses → open the Courses tab
           (courses || []).map(c => ({
-            label: c.title || "Khóa học", group: "Khóa học", kw: "course khoa hoc " + (c.category || ""),
+            label: c.title || "Khóa học", group: "Khóa học", kw: "course khoa hoc " + (c.category || ""), content: true,
             run: () => { showTab("courses"); }
           })),
           // individual lessons → open the Lessons tab and filter to this title
           (lessons || []).map(l => ({
-            label: l.title || "Bài học", group: "Bài học", kw: "lesson bai hoc tai lieu " + (l.url || ""),
+            label: l.title || "Bài học", group: "Bài học", kw: "lesson bai hoc tai lieu " + (l.url || ""), content: true,
             run: () => { showTab("lessons"); setTimeout(() => { const q = document.getElementById("lf-q");
               if (q) { q.value = l.title || ""; q.dispatchEvent(new Event("input", { bubbles: true })); try { q.scrollIntoView({ block: "center" }); } catch (e) {} } }, 70); }
-          }))
+          })),
+          // Reading texts, HSK Slides, VSTEP, Flashcards → open their tab
+          (((typeof rtRes !== "undefined" && rtRes && rtRes.data) || [])).map(r => ({
+            label: r.title || "Bài đọc", group: "Reading", kw: "reading doc bai doc", content: true, run: () => showTab("reading") })),
+          ((typeof hskRows !== "undefined" && hskRows) || []).map(r => ({
+            label: r.title || r.lesson_id || "HSK", group: "HSK Slides", kw: "hsk slides trinh chieu", content: true, run: () => showTab("hsk") })),
+          (((typeof vpRows !== "undefined" && vpRows) || []).concat((typeof vlRows !== "undefined" && vlRows) || [])).map(r => ({
+            label: r.title || "VSTEP", group: "VSTEP", kw: "vstep", content: true, run: () => showTab("vstep") })),
+          ((typeof cards !== "undefined" && cards) || []).map(c => ({
+            label: c.front || "Thẻ", group: "Flashcards", kw: "flashcard the ghi nho " + (c.back || ""), content: true, run: () => showTab("flash") }))
         ),
         actions: [
           { label: "+ Lesson", icon: "plus",
@@ -7629,6 +7638,23 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
       });
       showTab(adminTab);
       try { SecNav.applyInitialHash(showTab); } catch (e) {}
+
+      // Index individual tests (Đề kiểm tra + Đề Tiếng Anh) in the ⌘K palette —
+      // fetched lazily (not loaded at nav time), then appended via UI.addPaletteItems.
+      (function () {
+        if (window.__cpTestsLoaded) return; window.__cpTestsLoaded = true;
+        Promise.all([
+          sb.from("ctg_tests").select("lesson_id, title").then(r => r, () => ({ data: [] })),
+          sb.from("net_tests").select("lesson_id, title").then(r => r, () => ({ data: [] }))
+        ]).then(([c, n]) => {
+          const items = [];
+          (c.data || []).forEach(t => items.push({ label: t.title || t.lesson_id, group: "Đề kiểm tra", kw: "ctg de kiem tra test " + (t.lesson_id || ""),
+            run: () => { showTab("ctg"); setTimeout(() => { const q = document.getElementById("ctg-lib-q"); if (q) { q.value = t.title || ""; q.dispatchEvent(new Event("input", { bubbles: true })); } }, 70); } }));
+          (n.data || []).forEach(t => items.push({ label: t.title || t.lesson_id, group: "Đề Tiếng Anh", kw: "net de tieng anh english test " + (t.lesson_id || ""),
+            run: () => { showTab("net"); setTimeout(() => { const q = document.getElementById("net-lib-q"); if (q) { q.value = t.title || ""; q.dispatchEvent(new Event("input", { bubbles: true })); } }, 70); } }));
+          try { if (window.UI && UI.addPaletteItems) UI.addPaletteItems(items); } catch (e) {}
+        }).catch(() => {});
+      })();
 
       // ===== Analytics top-nav board (Phase 147): segmented view switcher over
       // the progress pane's existing cards. Toggles cards by [data-ap]; the
