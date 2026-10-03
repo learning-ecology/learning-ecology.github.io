@@ -7605,7 +7605,19 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             run: () => { showTab("progress"); setTimeout(() => document.querySelector('.apseg[data-ap-view="scores"]')?.click(), 60); } },
           { label: "Cảnh báo & Cần xử lý", group: "Analytics", kw: "alerts pending canh bao can xu ly overdue",
             run: () => { showTab("progress"); setTimeout(() => document.querySelector('.apseg[data-ap-view="alerts"]')?.click(), 60); } }
-        ],
+        ].concat(
+          // individual courses → open the Courses tab
+          (courses || []).map(c => ({
+            label: c.title || "Khóa học", group: "Khóa học", kw: "course khoa hoc " + (c.category || ""),
+            run: () => { showTab("courses"); }
+          })),
+          // individual lessons → open the Lessons tab and filter to this title
+          (lessons || []).map(l => ({
+            label: l.title || "Bài học", group: "Bài học", kw: "lesson bai hoc tai lieu " + (l.url || ""),
+            run: () => { showTab("lessons"); setTimeout(() => { const q = document.getElementById("lf-q");
+              if (q) { q.value = l.title || ""; q.dispatchEvent(new Event("input", { bubbles: true })); try { q.scrollIntoView({ block: "center" }); } catch (e) {} } }, 70); }
+          }))
+        ),
         actions: [
           { label: "+ Lesson", icon: "plus",
             onClick: () => { showTab("lessons"); document.getElementById("l-title")?.focus(); } },
