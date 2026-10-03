@@ -635,6 +635,114 @@
     "Luyện tập & Đề thi": "file-check", "Người dùng & Lớp": "users",
     "Cài đặt": "settings", "Community": "megaphone", "Analytics": "bar-chart-3"
   };
+  // ---------- Command palette / quick search (Phase 151) ----------
+  // Ctrl/⌘K spotlight to jump to any module. Indexes opts.items + optional
+  // opts.paletteExtra (sub-views). Accent-insensitive, grouped, keyboard-driven.
+  // Built once; the index/opts refresh on every initNav call (module-scoped).
+  let cpOpts = null, cpIndex = [], cpBuilt = false, cpActive = 0, cpFiltered = [];
+  const CP_SYN = {
+    progress: "analytics bao cao thong ke dashboard", courses: "khoa hoc course",
+    lessons: "bai hoc tai lieu lesson material", reading: "doc reading library",
+    shadow: "shadowing noi theo video", landing: "trang chu landing page",
+    lesson: "bai hoc tieng anh english lesson grade 12", net: "de tieng anh english test exam",
+    ctg: "de kiem tra chinese test quiz", testmgr: "de thi test exam",
+    hsk: "hsk slides trinh chieu", vocab: "hsk vocab practice tu vung vocabulary",
+    flash: "flashcards the ghi nho", vstep: "vstep", vsat: "vsat v-sat",
+    dict: "dictation nghe chep chinh ta", students: "hoc vien nguoi dung students users",
+    classes: "lop hoc classes class", reminders: "nhac bai reminders homework",
+    nav: "dieu huong navigation menu", visib: "hien thi cong khai visibility public",
+    pricing: "gia thanh toan pricing payment phi", modules: "tinh nang features toggle",
+    announce: "thong bao announce megaphone bang tin", organizations: "to chuc organizations licenses"
+  };
+  function cpNorm(s) { return String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d").replace(/Đ/g, "d").toLowerCase(); }
+  function cpEsc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+  function cpRebuild(opts) {
+    cpOpts = opts; cpIndex = [];
+    (opts.items || []).forEach(i => {
+      const base = { label: i.label, group: i.group || "", hay: cpNorm((i.label || "") + " " + (i.group || "") + " " + (CP_SYN[i.id] || "")) };
+      cpIndex.push(i.href ? Object.assign(base, { href: i.href }) : Object.assign(base, { id: i.id }));
+    });
+    (opts.paletteExtra || []).forEach(e => cpIndex.push({ label: e.label, group: e.group || "", hay: cpNorm((e.label || "") + " " + (e.group || "") + " " + (e.kw || "")), run: e.run }));
+  }
+  function initCommandPalette(opts) {
+    cpRebuild(opts);
+    if (cpBuilt) return;
+    cpBuilt = true;
+
+    // trigger in the topbar (next to the brand)
+    const tb = document.querySelector("header.topbar");
+    if (tb && !document.querySelector(".cmd-trigger")) {
+      const btn = document.createElement("button");
+      btn.className = "cmd-trigger"; btn.type = "button"; btn.setAttribute("aria-label", "Tìm nhanh (Ctrl/Cmd K)");
+      const mac = /Mac|iPhone|iPad/.test(navigator.platform || "");
+      btn.innerHTML = icon("search", 15) + `<span class="cmd-trigger-t">Tìm nhanh…</span><kbd>${mac ? "⌘" : "Ctrl"} K</kbd>`;
+      const brand = tb.querySelector(".brand");
+      if (brand && brand.nextSibling) tb.insertBefore(btn, brand.nextSibling);
+      else tb.insertBefore(btn, tb.children[1] || null);
+      btn.addEventListener("click", openPalette);
+    }
+
+    if (!document.getElementById("cmdkScrim")) {
+      const s = document.createElement("div"); s.className = "cmdk-scrim"; s.id = "cmdkScrim";
+      s.innerHTML = `<div class="cmdk" role="dialog" aria-label="Tìm nhanh">
+        <div class="cmdk-in">${icon("search", 18)}<input id="cmdkInput" type="text" placeholder="Tìm nhanh bài học, đề thi, tính năng…" autocomplete="off" />
+        <span class="cmdk-esc">Esc</span></div>
+        <div class="cmdk-list" id="cmdkList"></div>
+        <div class="cmdk-foot"><span>↑↓ di chuyển</span><span>↵ mở</span><span>Esc đóng</span></div></div>`;
+      document.body.appendChild(s);
+      s.addEventListener("click", e => { if (e.target === s) closePalette(); });
+      const inp = document.getElementById("cmdkInput");
+      inp.addEventListener("input", renderResults);
+      inp.addEventListener("keydown", onPaletteKey);
+    }
+    if (!window.__cpKeys) {
+      window.__cpKeys = true;
+      document.addEventListener("keydown", e => {
+        if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) { e.preventDefault(); togglePalette(); }
+      });
+    }
+    window.__openPalette = openPalette;
+
+    function openPalette() { const s = document.getElementById("cmdkScrim"); s.classList.add("show"); const inp = document.getElementById("cmdkInput"); inp.value = ""; renderResults(); setTimeout(() => inp.focus(), 30); }
+    function closePalette() { document.getElementById("cmdkScrim").classList.remove("show"); }
+    function togglePalette() { document.getElementById("cmdkScrim").classList.contains("show") ? closePalette() : openPalette(); }
+
+    function renderResults() {
+      const raw = document.getElementById("cmdkInput").value.trim();
+      const q = cpNorm(raw);
+      let res = q ? cpIndex.filter(x => x.hay.includes(q)) : cpIndex.slice();
+      if (q) res.sort((a, b) => (b.hay.startsWith(q) ? 1 : 0) - (a.hay.startsWith(q) ? 1 : 0));
+      cpFiltered = res; cpActive = 0;
+      const list = document.getElementById("cmdkList");
+      if (!res.length) { list.innerHTML = `<div class="cmdk-empty">Không tìm thấy “${cpEsc(raw)}”.</div>`; return; }
+      const groups = [], gmap = {};
+      res.forEach((r, idx) => { const g = r.group || "Khác"; if (!gmap[g]) { gmap[g] = { name: g, items: [] }; groups.push(gmap[g]); } gmap[g].items.push({ r, idx }); });
+      list.innerHTML = groups.map(gr => `<div class="cmdk-grp">${cpEsc(gr.name)}</div>` + gr.items.map(({ r, idx }) =>
+        `<button class="cmdk-item${idx === cpActive ? " on" : ""}" data-i="${idx}">${icon(r.run ? "zap" : "corner-down-right", 14)}<span>${cpEsc(r.label)}</span><span class="cmdk-cat">${cpEsc(gr.name)}</span></button>`
+      ).join("")).join("");
+      list.querySelectorAll(".cmdk-item").forEach(b => b.addEventListener("click", () => activate(Number(b.getAttribute("data-i")))));
+      refreshIcons();
+    }
+    function setActive(n) {
+      const items = [...document.querySelectorAll(".cmdk-item")]; if (!items.length) return;
+      cpActive = (n + items.length) % items.length;
+      items.forEach((b, i) => b.classList.toggle("on", i === cpActive));
+      items[cpActive].scrollIntoView({ block: "nearest" });
+    }
+    function activate(i) {
+      const r = cpFiltered[i]; if (!r) return; closePalette();
+      if (r.run) { try { r.run(); } catch (e) {} return; }
+      if (r.href) { location.href = r.href; return; }
+      if (r.id && cpOpts && cpOpts.onSelect) cpOpts.onSelect(r.id);
+    }
+    function onPaletteKey(e) {
+      if (e.key === "ArrowDown") { e.preventDefault(); setActive(cpActive + 1); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); setActive(cpActive - 1); }
+      else if (e.key === "Enter") { e.preventDefault(); activate(cpActive); }
+      else if (e.key === "Escape") { e.preventDefault(); closePalette(); }
+    }
+  }
+
   function initNavTwoTier(opts) {
     document.body.classList.add("sb-nav", "sb-2tier");
     let min = false; try { min = localStorage.getItem("hub_sidebar") === "min"; } catch (e) {}
@@ -730,6 +838,7 @@
   }
 
   function initNav(opts) {
+    try { initCommandPalette(opts); } catch (e) {}
     if (opts && opts.twoTier) return initNavTwoTier(opts);
     document.body.classList.add("sb-nav");
     let min = false;

@@ -7595,6 +7595,17 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         active: adminTab,
         twoTier: true,
         onSelect: showTab,
+        // Analytics sub-views (the top-nav board) indexed in the ⌘K palette
+        paletteExtra: [
+          { label: "Tổng quan (Analytics)", group: "Analytics", kw: "overview tong quan metrics",
+            run: () => { showTab("progress"); setTimeout(() => document.querySelector('.apseg[data-ap-view="overview"]')?.click(), 60); } },
+          { label: "Học viên & Tương tác", group: "Analytics", kw: "students engagement hoc vien tuong tac leaderboard",
+            run: () => { showTab("progress"); setTimeout(() => document.querySelector('.apseg[data-ap-view="students"]')?.click(), 60); } },
+          { label: "Bài thi & Kết quả", group: "Analytics", kw: "scores assessments bai thi ket qua gradebook",
+            run: () => { showTab("progress"); setTimeout(() => document.querySelector('.apseg[data-ap-view="scores"]')?.click(), 60); } },
+          { label: "Cảnh báo & Cần xử lý", group: "Analytics", kw: "alerts pending canh bao can xu ly overdue",
+            run: () => { showTab("progress"); setTimeout(() => document.querySelector('.apseg[data-ap-view="alerts"]')?.click(), 60); } }
+        ],
         actions: [
           { label: "+ Lesson", icon: "plus",
             onClick: () => { showTab("lessons"); document.getElementById("l-title")?.focus(); } },
