@@ -183,6 +183,29 @@ label { display: block; font-size: 0.82rem; color: var(--muted); margin: 0 0 0.3
 .pill.bad  { background: rgba(164,68,47,0.14);  color: var(--danger); }
 .pill.off  { background: rgba(90,101,119,0.14); color: var(--muted); }
 tr.row-off td { background: rgba(164,68,47,0.045); }
+
+/* ---- Modern status pills + tags (Phase 142 component system) ----
+   New hyphenated utilities (no collision with the .pill.done/.todo set above).
+   A leading dot indicator reads as a clear status at a glance. Used by the
+   redesigned management tabs; safe to adopt incrementally. */
+.pill-ok, .pill-warn, .pill-danger, .pill-muted, .pill-gold {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-size: 0.72rem; font-weight: 800; padding: 0.14rem 0.5rem;
+  border-radius: 999px; white-space: nowrap; line-height: 1.5;
+}
+.pill-ok::before, .pill-warn::before, .pill-danger::before,
+.pill-muted::before, .pill-gold::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+}
+.pill-ok     { color: var(--success, #1f7a44); background: var(--success-bg, rgba(31,122,68,.12)); }
+.pill-warn   { color: var(--warning, #b45309); background: var(--warning-bg, rgba(180,83,9,.12)); }
+.pill-danger { color: var(--danger,  #a4442f); background: rgba(164,68,47,.12); }
+.pill-muted  { color: var(--muted);            background: rgba(90,101,119,.14); }
+.pill-gold   { color: var(--gold);             background: rgba(183,130,63,.16); }
+.tag {
+  display: inline-block; font-size: 0.72rem; font-weight: 700; color: var(--ink);
+  background: rgba(90,101,119,.12); border-radius: 6px; padding: 0.1rem 0.45rem;
+}
 .alert-bar {
   border: 1px solid var(--gold);
   background: rgba(183,130,63,0.09);
@@ -1132,7 +1155,16 @@ body.sb-min #subnav { width: 64px; }
   font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.13em;
   text-transform: uppercase; color: #66799a;
   padding: 0.95rem 0.55rem 0.3rem; white-space: nowrap;
+  /* now a collapsible header button */
+  display: flex; align-items: center; gap: 0.35rem; width: 100%;
+  background: none; border: none; text-align: left; cursor: pointer;
+  transition: color 0.15s ease;
 }
+.sn-group[data-grphead]:hover { color: #9fb0cc; }
+.sn-caret { margin-left: auto; width: 12px; height: 12px; flex: none; opacity: 0.65; transition: transform 0.18s ease; }
+.sn-group.closed .sn-caret { transform: rotate(-90deg); }
+.sn-item.sn-hidden { display: none; }
+body.sb-min .sn-item.sn-hidden { display: flex; }   /* icon-only mode shows everything */
 .sn-item {
   display: flex; align-items: center; gap: 0.6rem;
   background: none; border: none; color: #b9c6dc;

@@ -645,20 +645,31 @@
       bd.addEventListener("click", () => document.body.classList.remove("sb-open"));
     }
 
-    const one = i => i.href
-      ? `<a class="sn-item" href="${i.href}" title="${i.label}">${icon(i.icon, 17)}<span>${i.label}</span></a>`
-      : `<button class="sn-item ${opts.active === i.id ? "on" : ""}" data-id="${i.id}" title="${i.label}">${icon(i.icon, 17)}<span>${i.label}</span></button>`;
+    // Collapsible groups (Phase 142). Remember which groups the user closed
+    // (by name); the group holding the active item is never collapsed.
+    let collapsedG = {};
+    try { collapsedG = JSON.parse(localStorage.getItem("hub_navgroups") || "{}") || {}; } catch (e) {}
+    let activeGroup = "";
+    for (const i of opts.items) if (i.id === opts.active) activeGroup = i.group || "";
+    const escAttr = s => String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const caret = '<svg class="sn-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+    const grpHead = g => `<button class="sn-group${(collapsedG[g] && g !== activeGroup) ? " closed" : ""}" data-grphead="1" data-g="${escAttr(g)}">${g}${caret}</button>`;
+
+    const one = (i, g) => i.href
+      ? `<a class="sn-item" data-g="${escAttr(g)}" href="${i.href}" title="${i.label}">${icon(i.icon, 17)}<span>${i.label}</span></a>`
+      : `<button class="sn-item ${opts.active === i.id ? "on" : ""}" data-g="${escAttr(g)}" data-id="${i.id}" title="${i.label}">${icon(i.icon, 17)}<span>${i.label}</span></button>`;
 
     let list = "", lastG = "__none__";
     for (const i of opts.items) {
       const g = i.group || "";
-      if (g !== lastG) { if (g) list += `<div class="sn-group">${g}</div>`; lastG = g; }
-      list += one(i);
+      if (g !== lastG) { if (g) list += grpHead(g); lastG = g; }
+      list += one(i, g);
     }
     if (opts.actions && opts.actions.length) {
-      list += `<div class="sn-group">${t2("quick_actions")}</div>` +
+      const qa = t2("quick_actions");
+      list += grpHead(qa) +
         opts.actions.map((a, ix) =>
-          `<button class="sn-item sn-action" data-act="${ix}" title="${a.label}">${icon(a.icon, 17)}<span>${a.label}</span></button>`).join("");
+          `<button class="sn-item sn-action" data-g="${escAttr(qa)}" data-act="${ix}" title="${a.label}">${icon(a.icon, 17)}<span>${a.label}</span></button>`).join("");
     }
 
     nav.innerHTML = `
@@ -696,6 +707,18 @@
       document.body.classList.remove("sb-open");
       const a = opts.actions[Number(b.getAttribute("data-act"))];
       if (a && a.onClick) a.onClick();
+    }));
+
+    // --- collapsible groups: apply initial state + wire toggles ---
+    const itemsOf = g => nav.querySelectorAll('.sn-item[data-g="' + g.replace(/"/g, '\\"') + '"]');
+    nav.querySelectorAll(".sn-group.closed[data-grphead]").forEach(h =>
+      itemsOf(h.getAttribute("data-g")).forEach(it => it.classList.add("sn-hidden")));
+    nav.querySelectorAll(".sn-group[data-grphead]").forEach(h => h.addEventListener("click", () => {
+      const g = h.getAttribute("data-g");
+      const closed = h.classList.toggle("closed");
+      collapsedG[g] = closed;
+      try { localStorage.setItem("hub_navgroups", JSON.stringify(collapsedG)); } catch (e) {}
+      itemsOf(g).forEach(it => it.classList.toggle("sn-hidden", closed));
     }));
     refreshIcons();
   }
