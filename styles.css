@@ -285,8 +285,14 @@ body.sb-nav .topbar button.ghost:hover, body.sb-nav .topbar .btn.ghost:hover { b
 .tier2-tab:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
 .tier2-tab.on { background: var(--accent); color: #fff; }
 .tier2-util { flex: none; display: flex; align-items: center; gap: 0.4rem; }
-.tier2-act { display: inline-flex; align-items: center; gap: 0.35rem; }
+.tier2-act, .tier2-rename { display: inline-flex; align-items: center; gap: 0.35rem; }
 @media (max-width: 760px) { .tier2-util .t2-lbl { display: none; } }
+
+/* ---- renameable nav labels (Phase 157) ---- */
+.tier2-rename.on { background: var(--accent); color: #fff; border-color: transparent; }
+body.nav-rename .tier2-tab,
+body.nav-rename .sn-primary { outline: 1px dashed var(--accent); outline-offset: -2px; cursor: text; }
+body.nav-rename .tier2-tab::after { content: " ✎"; opacity: 0.7; font-size: 0.85em; }
 
 /* ---- Command palette / quick search (Phase 151) ---- */
 .cmd-trigger { display: inline-flex; align-items: center; gap: 0.45rem; margin: 0 0.6rem; padding: 0.4rem 0.7rem;

@@ -11658,10 +11658,15 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
             profs = pr.data || [];
           }
           roster = profs.map(p => ({ id: p.id, name: p.full_name || p.email }));
-          const hwIds = assigns.map(a => a.id);
-          if (hwIds.length) {
-            const atRes = await sb.from("hsk_attempts").select("user_id, homework_id, status, score, attempt_no, vocab_correct, vocab_total, grammar_correct, grammar_total, time_spent_sec, updated_at").in("homework_id", hwIds);
-            attempts = (atRes.data || []);
+          // Fetch this kind's attempts for the WHOLE roster — not only those
+          // linked to a homework_id. A test submitted without ?hw= has a NULL
+          // homework_id; it's still matched to the assignment by lesson_id below,
+          // so progress shows even for attempts that never linked (Phase 127/156).
+          if (sids.length) {
+            const atRes = await sb.from("hsk_attempts")
+              .select("user_id, homework_id, lesson_id, kind, status, score, attempt_no, vocab_correct, vocab_total, grammar_correct, grammar_total, time_spent_sec, updated_at")
+              .in("user_id", sids);
+            attempts = (atRes.data || []).filter(x => (x.kind || "slides") === kind);
           }
           selHw.innerHTML = `<option value="">— Tất cả bài của lớp —</option>` +
             assigns.map(a => `<option value="${a.id}">${esc(a.title || lessonTitle(a.lesson_id))}</option>`).join("");
@@ -11679,7 +11684,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
 
         // trạng thái của 1 học viên với 1 bài
         function statOf(a, sid) {
-          const mine = attempts.filter(x => x.homework_id === a.id && x.user_id === sid);
+          const mine = attempts.filter(x => x.user_id === sid &&
+            (x.homework_id === a.id || (x.homework_id == null && a.lesson_id && x.lesson_id === a.lesson_id)));
           if (!mine.length) return { code: "notstarted", best: 0, used: 0, last: null, vc: 0, vt: 0, gc: 0, gt: 0, time: 0 };
           const best = mine.reduce((m, x) => Math.max(m, x.score || 0), 0);
           const bestRow = mine.slice().sort((p, q) => (q.score || 0) - (p.score || 0))[0] || mine[0];
@@ -11782,7 +11788,8 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
 
         selClass.addEventListener("change", () => { filter = "all"; loadClass(selClass.value); });
         selHw.addEventListener("change", () => { filter = "all"; render(); });
-        $("hp-refresh").addEventListener("click", () => { if (selClass.value) loadClass(selClass.value); });
+        const refreshBtn = $(prefix + "-refresh");
+        if (refreshBtn) refreshBtn.addEventListener("click", () => { if (selClass.value) loadClass(selClass.value); });
         chipBox.addEventListener("click", e => {
           const c = e.target.closest(".hp-chip"); if (!c) return;
           filter = c.dataset.k; render();

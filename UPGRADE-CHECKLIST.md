@@ -737,6 +737,19 @@ const PREMIUM_PLANS = [
 - **Không cần đăng nhập** & **không chậm**: kiểm tra khi đăng xuất; trang vẫn mở nhanh.
 - **Chưa chạy migration64**: thẻ quản lý báo cần chạy `migration64_ticker_links.sql`; thanh chỉ hiện thông báo, không lỗi.
 
+**D156. Kiểm tra nhanh Phase 156 (Theo dõi tiến độ Đề kiểm tra hiện đúng):**
+- **Bài đã nộp hiện đúng**: Bảng điều khiển → Đề kiểm tra → **Theo dõi tiến độ** → chọn lớp có học viên đã làm đề → các em đã nộp hiện **Hoàn thành / Chưa đạt** kèm điểm, từ vựng, ngữ pháp, số lượt, thời gian; không còn kẹt ở “Chưa làm” với dấu “—”.
+- **Nộp không qua link giao bài**: học viên mở đề bằng link trực tiếp (không `?hw=`) vẫn được tính vào đúng bài trong lớp (khớp theo đề, không cần homework_id).
+- **Nút Làm mới**: bấm **↻ Làm mới** trên thẻ Đề kiểm tra (và Luyện từ vựng) nạp lại dữ liệu mới nhất — trước đây nút này ở hai thẻ đó không phản hồi.
+- **Không lẫn bài/đợt khác**: điểm của một đề không lẫn sang đề khác; đợt giao cho lớp khác của cùng một đề không bị tính nhầm.
+
+**D157. Kiểm tra nhanh Phase 157 (Đổi tên tab điều hướng):**
+- **Bật chế độ**: Bảng điều khiển → thanh module trên cùng → **✎ Đổi tên tab** → các tab và nhóm hiện viền nét đứt + dấu ✎.
+- **Đổi tên tab**: bấm một tab → hộp thoại điền sẵn tên hiện tại → sửa → Xác nhận → nhãn đổi ngay, **không** chuyển trang; để trống → khôi phục tên mặc định.
+- **Đổi tên nhóm**: bấm một nhóm ở sidebar trong chế độ đổi tên → đổi được nhãn nhóm tương tự.
+- **Không hỏng điều hướng**: tắt chế độ (bấm ✎ lần nữa) → bấm tab vừa đổi tên vẫn mở đúng màn hình; đổi nhóm, deep-link, trạng thái “đang chọn” vẫn đúng (khóa nội bộ không đổi).
+- **Bền & tìm nhanh**: tải lại trang → tên tùy chỉnh vẫn còn (lưu ở máy); ⌘K vẫn tìm được tab theo **cả tên mới lẫn tên gốc**.
+
 ## Caveats to remember
 - Invitation emails: free plan sends only a few per hour — use the password method for batches.
 - Shadow Chinese subtitle auto-fetch tries your **yt-captions** edge function first (deploy it — step B.2b), then free public relays (allorigins.win / corsproxy.io / Invidious mirrors). Only the edge function is dependable; if everything fails, the paste-SRT box always works. Pronunciation scoring needs Chrome (uses the browser's built-in Chinese speech recognition).

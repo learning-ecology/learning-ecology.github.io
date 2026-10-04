@@ -409,12 +409,13 @@
     });
   }
   // Prompt with one input: returns Promise<string|null>
-  function promptDialog({ title, label, placeholder, type }) {
+  function promptDialog({ title, label, placeholder, type, value }) {
+    const vAttr = value != null ? String(value).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;") : "";
     return new Promise(resolve => {
       const wrap = baseModal(`
         <h3>${title}</h3>
         <div class="field"><label>${label || ""}</label>
-          <input id="modal-input" type="${type || "text"}" placeholder="${placeholder || ""}" /></div>
+          <input id="modal-input" type="${type || "text"}" placeholder="${placeholder || ""}" value="${vAttr}" /></div>
         <div class="modal-actions">
           <button class="ghost" data-act="no">${t2("cancel")}</button>
           <button data-act="yes">${t2("confirm")}</button>
@@ -428,7 +429,7 @@
         if (act === "yes") done(input.value);
       });
       input.addEventListener("keydown", e => { if (e.key === "Enter") done(input.value); });
-      input.focus();
+      input.focus(); try { input.select(); } catch (e) {}
     });
   }
 
@@ -635,6 +636,32 @@
     "Luyện tập & Đề thi": "file-check", "Người dùng & Lớp": "users",
     "Cài đặt": "settings", "Community": "megaphone", "Analytics": "bar-chart-3"
   };
+  // ---------- renameable nav labels (Phase 157) ----------
+  // Admins can rename any navigation tab or category. Only the DISPLAY text is
+  // stored (localStorage, keyed by a namespaced key: "item:<id>" for module tabs,
+  // "grp:<name>" for sidebar categories). The internal ids, routes, active-state,
+  // command-palette actions and every data query keep using the original keys —
+  // nothing but the visible label changes. A blank value restores the default.
+  const NAV_LABELS_KEY = "hub_nav_labels";
+  let NAV_LABELS = {};
+  try { NAV_LABELS = JSON.parse(localStorage.getItem(NAV_LABELS_KEY) || "{}") || {}; } catch (e) {}
+  function navLabel(key, fallback) {
+    const v = NAV_LABELS[key];
+    return (v != null && String(v).trim() !== "") ? v : fallback;
+  }
+  function setNavLabel(key, value) {
+    const t = String(value == null ? "" : value).trim();
+    if (t) NAV_LABELS[key] = t; else delete NAV_LABELS[key];
+    try { localStorage.setItem(NAV_LABELS_KEY, JSON.stringify(NAV_LABELS)); } catch (e) {}
+  }
+  // Open the rename dialog for one nav key, prefilled with its current label.
+  function renameNav(key, current, onDone) {
+    promptDialog({
+      title: "Đổi tên mục điều hướng",
+      label: "Tên hiển thị (để trống để khôi phục mặc định)",
+      placeholder: current, value: navLabel(key, current)
+    }).then(v => { if (v === null) return; setNavLabel(key, v); if (onDone) onDone(); });
+  }
   // ---------- Command palette / quick search (Phase 151) ----------
   // Ctrl/⌘K spotlight to jump to any module. Indexes opts.items + optional
   // opts.paletteExtra (sub-views). Accent-insensitive, grouped, keyboard-driven.
@@ -660,7 +687,11 @@
   function cpRebuild(opts) {
     cpOpts = opts; cpIndex = [];
     (opts.items || []).forEach(i => {
-      const base = { label: i.label, group: i.group || "", hay: cpNorm((i.label || "") + " " + (i.group || "") + " " + (CP_SYN[i.id] || "")) };
+      const disp = i.id ? navLabel("item:" + i.id, i.label) : i.label;
+      const grp = navLabel("grp:" + (i.group || ""), i.group || "");
+      // Search matches either the renamed label or the original, so a tab stays
+      // findable even after it is given a custom name.
+      const base = { label: disp, group: grp, hay: cpNorm((disp || "") + " " + (i.label || "") + " " + (i.group || "") + " " + grp + " " + (CP_SYN[i.id] || "")) };
       cpIndex.push(i.href ? Object.assign(base, { href: i.href }) : Object.assign(base, { id: i.id }));
     });
     (opts.paletteExtra || []).forEach(e => cpIndex.push({ label: e.label, group: e.group || "", hay: cpNorm((e.label || "") + " " + (e.group || "") + " " + (e.kw || "")), run: e.run, content: !!e.content }));
@@ -782,7 +813,7 @@
       <div class="sn-head"><img src="icons/icon-192.png" alt="" /><span class="sn-name">Learning Ecology</span>
         <button class="sn-min" title="${t2("collapse_nav")}">${min ? "⟩" : "⟨"}</button></div>
       <div class="sn-items">` + groups.map(gr =>
-        `<button class="sn-item sn-primary${gr.name === activeGroup ? " on" : ""}" data-grp="${escAttr(gr.name)}" title="${escAttr(gr.name)}">${icon(GROUP_ICON[gr.name] || "folder", 18)}<span>${escAttr(gr.name)}</span></button>`
+        `<button class="sn-item sn-primary${gr.name === activeGroup ? " on" : ""}" data-grp="${escAttr(gr.name)}" title="${escAttr(gr.name)}">${icon(GROUP_ICON[gr.name] || "folder", 18)}<span>${escAttr(navLabel("grp:" + gr.name, gr.name))}</span></button>`
       ).join("") + `</div>`;
 
     const minBtn = nav.querySelector(".sn-min");
@@ -803,22 +834,32 @@
     // fixed), so the module bar pins to the very top of the content column.
     bar.style.top = "0px";
 
-    const actionsHtml = (opts.actions && opts.actions.length)
-      ? `<div class="tier2-util">` + opts.actions.map((a, ix) =>
-          `<button class="ghost tier2-act" data-act="${ix}" title="${escAttr(a.label)}" style="width:auto; padding:.4rem .7rem;">${icon(a.icon, 15)}<span class="t2-lbl">${escAttr(a.label)}</span></button>`).join("") + `</div>`
+    // Built-in utility buttons: any opts.actions, plus a "rename tabs" toggle.
+    const renameBtn = `<button class="ghost tier2-rename" type="button" title="Đổi tên các tab điều hướng" style="width:auto; padding:.4rem .7rem;">${icon("pencil-line", 15)}<span class="t2-lbl">Đổi tên tab</span></button>`;
+    const actsInner = (opts.actions && opts.actions.length)
+      ? opts.actions.map((a, ix) =>
+          `<button class="ghost tier2-act" data-act="${ix}" title="${escAttr(a.label)}" style="width:auto; padding:.4rem .7rem;">${icon(a.icon, 15)}<span class="t2-lbl">${escAttr(a.label)}</span></button>`).join("")
       : "";
+    const actionsHtml = `<div class="tier2-util">` + actsInner + renameBtn + `</div>`;
 
     function renderBar() {
       const gr = byName[activeGroup]; if (!gr) { bar.innerHTML = ""; return null; }
+      const renaming = () => document.body.classList.contains("nav-rename");
       let curId = opts.active;
       if (!gr.items.some(i => i.id === curId))
         curId = (lastItem[activeGroup] && gr.items.some(i => i.id === lastItem[activeGroup])) ? lastItem[activeGroup] : (gr.items[0] && gr.items[0].id);
       bar.innerHTML = `<div class="tier2-in"><nav class="tier2-tabs" role="tablist">` + gr.items.map(i =>
-          i.href ? `<a class="tier2-tab" href="${i.href}">${escAttr(i.label)}</a>`
-                 : `<button class="tier2-tab${i.id === curId ? " on" : ""}" data-id="${escAttr(i.id)}" role="tab" aria-selected="${i.id === curId}">${escAttr(i.label)}</button>`
+          i.href ? `<a class="tier2-tab" href="${i.href}">${escAttr(navLabel("item:" + i.id, i.label))}</a>`
+                 : `<button class="tier2-tab${i.id === curId ? " on" : ""}" data-id="${escAttr(i.id)}" role="tab" aria-selected="${i.id === curId}">${escAttr(navLabel("item:" + i.id, i.label))}</button>`
         ).join("") + `</nav>` + actionsHtml + `</div>`;
       bar.querySelectorAll(".tier2-tab[data-id]").forEach(btn => btn.addEventListener("click", () => {
         const id = btn.getAttribute("data-id");
+        // In rename mode a click edits the tab's label instead of navigating.
+        if (renaming()) {
+          const it = gr.items.find(x => x.id === id);
+          renameNav("item:" + id, it ? it.label : id, () => { renderBar(); try { cpRebuild(opts); } catch (e) {} });
+          return;
+        }
         bar.querySelectorAll(".tier2-tab").forEach(x => { x.classList.remove("on"); x.setAttribute("aria-selected", "false"); });
         btn.classList.add("on"); btn.setAttribute("aria-selected", "true");
         lastItem[activeGroup] = id; try { localStorage.setItem("hub_nav2", JSON.stringify(lastItem)); } catch (e) {}
@@ -829,12 +870,31 @@
       bar.querySelectorAll(".tier2-act").forEach(btn => btn.addEventListener("click", () => {
         const a = opts.actions[Number(btn.getAttribute("data-act"))]; if (a && a.onClick) a.onClick();
       }));
+      const rb = bar.querySelector(".tier2-rename");
+      if (rb) {
+        rb.classList.toggle("on", renaming());
+        rb.addEventListener("click", () => {
+          const on = document.body.classList.toggle("nav-rename");
+          document.querySelectorAll(".tier2-rename").forEach(x => x.classList.toggle("on", on));
+          toast(on ? "Chế độ đổi tên: bấm vào một tab hoặc nhóm để đổi tên." : "Đã tắt chế độ đổi tên.");
+        });
+      }
+      refreshIcons();
       return curId;
     }
 
     nav.querySelectorAll(".sn-primary").forEach(b => b.addEventListener("click", () => {
+      const name = b.getAttribute("data-grp");
+      // In rename mode a click edits the category label instead of switching to it.
+      if (document.body.classList.contains("nav-rename")) {
+        renameNav("grp:" + name, name, () => {
+          const span = b.querySelector("span"); if (span) span.textContent = navLabel("grp:" + name, name);
+          try { cpRebuild(opts); } catch (e) {}
+        });
+        return;
+      }
       document.body.classList.remove("sb-open");
-      activeGroup = b.getAttribute("data-grp");
+      activeGroup = name;
       nav.querySelectorAll(".sn-primary").forEach(x => x.classList.toggle("on", x === b));
       const cur = renderBar();
       if (cur && opts.onSelect) opts.onSelect(cur);   // selecting a category opens its (remembered/first) module
