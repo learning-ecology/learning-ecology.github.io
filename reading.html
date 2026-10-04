@@ -461,6 +461,15 @@
   #mEnd #meDone.done { background:#0d7f5f; border-color:#0d7f5f; }
   #mEnd button:active { transform:translateY(1px); }
 
+  /* ---- gamification: stats strip + reading progress bar (Phase 155) ---- */
+  .read-stats{ display:flex; gap:.5rem; flex-wrap:wrap; margin:.55rem 0 .1rem; }
+  .rs-item{ display:inline-flex; align-items:center; gap:.35rem; background:rgba(127,127,127,.09);
+    border:1px solid rgba(127,127,127,.22); border-radius:999px; padding:.3rem .75rem; font-size:.85rem; line-height:1.2; }
+  .rs-item b{ font-weight:800; } .rs-item span{ opacity:.65; font-size:.8rem; } .rs-item .rs-ic{ font-size:1rem; }
+  .rs-guest{ border-style:dashed; gap:.45rem; } .rs-guest a{ color:#2563eb; font-weight:800; text-decoration:none; }
+  #rProgress{ position:sticky; top:0; height:3px; background:rgba(127,127,127,.15); z-index:5; margin:0 0 8px; border-radius:3px; overflow:hidden; }
+  #rProgress > i{ display:block; height:100%; width:0; background:linear-gradient(90deg,#2563eb,#1e3a8a); transition:width .15s ease; }
+
   /* ---- scrolling passage ---- */
   body.mreader #readerStage {
     flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
@@ -636,6 +645,7 @@
 <section class="pg-intro" style="max-width:960px;margin:0 auto;padding:.75rem clamp(1rem,4vw,1.5rem) .2rem;">
   <h1 style="font-size:1.12rem;font-weight:800;margin:0 0 .28rem;">Thư viện Đọc hiểu tiếng Trung (HSK 1–6)</h1>
   <p style="margin:0;font-size:.92rem;line-height:1.55;opacity:.75;">Hơn 600 bài đọc tiếng Trung theo cấp độ <b>HSK 1–6</b>, kèm phiên âm, dịch nghĩa và tra từ nhanh khi nhấp vào chữ. Đọc thử miễn phí, không cần đăng nhập. Xem thêm <a href="course.html" style="color:inherit;">Khóa học &amp; Tài liệu</a> · <a href="index.html" style="color:inherit;">Trang chủ Learning Ecology</a>.</p>
+  <div id="readStats" class="read-stats" hidden aria-live="polite"></div>
 </section>
 <main>
 
@@ -681,6 +691,7 @@
     </div>
     <div id="mGloss" hidden aria-live="polite"></div>
     <div id="readerStage">
+      <div id="rProgress" aria-hidden="true"><i></i></div>
       <div id="wmark" aria-hidden="true"></div>
       <div class="row" style="align-items:flex-start; flex-wrap:nowrap">
         <h2 id="rTitle" class="grow" style="margin-right:8px"></h2>
@@ -2285,7 +2296,7 @@ $('btnComplete').addEventListener('click', () => {
   if (!currentText) return;
   const s = stats();
   const i = s.completed.indexOf(currentText.id);
-  if (i === -1) { s.completed.push(currentText.id); toast('🎉 Đã hoàn thành bài đọc!'); }
+  if (i === -1) { s.completed.push(currentText.id); try { ReadingGamify.award(currentText.id); } catch (e) {} toast('🎉 Đã hoàn thành bài đọc!'); }
   else s.completed.splice(i, 1);
   store('crh-stats', s); scheduleProgressPush(); renderReader();
 });
@@ -3658,6 +3669,7 @@ $('meDone').addEventListener('click', () => {
   const s = stats();
   if (!s.completed.includes(currentText.id)) {
     s.completed.push(currentText.id); store('crh-stats', s); scheduleProgressPush();
+    try { ReadingGamify.award(currentText.id); } catch (e) {}
   }
   toast('🎉 Đã đánh dấu đọc xong!');
   $('mhBack').click();          // straight back to the library they came from
@@ -3676,6 +3688,7 @@ $('mbPy').addEventListener('click', () => {
 $('mbPlay').addEventListener('click', () => mPlayPause());
 $('mbMenu').addEventListener('click', () => openSettingsSheet());
 $('readerStage').addEventListener('scroll', debounce(() => { savePos(); maybeComplete(); }, 350), { passive: true });
+$('readerStage').addEventListener('scroll', () => { try { ReadingGamify.updateProgress(); } catch (e) {} }, { passive: true });
 
 /* ---- progress ----------------------------------------------------------
    A section counts as visited once it is on screen, but that alone never
@@ -3706,9 +3719,98 @@ function maybeComplete() {
   if (el.scrollHeight <= el.clientHeight + 60 && mDwell < 15) return;
   s.completed.push(currentText.id); store('crh-stats', s);
   scheduleProgressPush();
+  try { ReadingGamify.award(currentText.id); } catch (e) {}
   toast('🎉 Đã đọc hết bài này!');
   $('mhDone').textContent = '✓';
 }
+
+/* ---- Gamification (Phase 155): points + daily streak for reading.
+   Design: completion is already detected (scroll-to-end + dwell on mobile,
+   or the "✓ Đã đọc xong" button). On the FIRST completion of a text we feed
+   the EXISTING unified ranking backend — record_learning_event (Phase 118) —
+   which computes fair points and handles ALL anti-abuse server-side:
+     · diminishing returns for re-reading the same text that day (0.5^n)
+     · a completion within 20s of the previous one earns 0 (refresh/spam)
+     · a per-source daily point cap
+     · daily streak increment + reset, longest streak
+   Stats are read back from student_points / student_streaks (own-read RLS).
+   Guests get a localStorage streak + a sign-in nudge (no server write).
+   The module is self-contained → swap loadStats/award bodies for any backend. */
+const ReadingGamify = (function () {
+  const $ = id => document.getElementById(id);
+  let UID = null, S = { points: 0, streak: 0, today: 0, read: 0 };
+  const GKEY = 'crh-gamify';
+  const today = () => new Date().toISOString().slice(0, 10);
+  const readL = () => { try { return JSON.parse(localStorage.getItem(GKEY) || '{}') || {}; } catch (e) { return {}; } };
+  const writeL = o => { try { localStorage.setItem(GKEY, JSON.stringify(o)); } catch (e) {} };
+
+  async function loadStats() {
+    if (UID) {
+      try {
+        const [p, st] = await Promise.all([
+          sb.from('student_points').select('source, points, day').eq('student_id', UID),
+          sb.from('student_streaks').select('current, longest').eq('student_id', UID).maybeSingle()
+        ]);
+        const rows = (p && p.data) || [];
+        S.points = rows.reduce((a, r) => a + (Number(r.points) || 0), 0);
+        S.today = rows.filter(r => r.source === 'reading' && r.day === today()).reduce((a, r) => a + (Number(r.points) || 0), 0);
+        S.streak = (st && st.data && st.data.current) || 0;
+      } catch (e) { /* migration77 chưa chạy — bỏ qua, vẫn hiện số 0 */ }
+    } else {
+      const L = readL(); S.read = (L.read || []).length; S.streak = L.streak || 0;
+    }
+  }
+  function render() {
+    const el = $('readStats'); if (!el) return; el.hidden = false;
+    if (UID) {
+      el.innerHTML =
+        '<span class="rs-item"><span class="rs-ic">🔥</span><b>' + S.streak + '</b><span>ngày chuỗi</span></span>' +
+        '<span class="rs-item"><span class="rs-ic">⭐</span><b>' + S.points + '</b><span>điểm</span></span>' +
+        '<span class="rs-item"><span class="rs-ic">📖</span><b>+' + S.today + '</b><span>điểm đọc hôm nay</span></span>';
+    } else {
+      el.innerHTML = '<span class="rs-item rs-guest"><span class="rs-ic">🔥</span>'
+        + (S.read ? ('Đã đọc <b>' + S.read + '</b> bài · ') : '')
+        + '<b>Đăng nhập</b> để tích điểm &amp; giữ chuỗi ngày đọc. <a href="login.html?next=%2Freading">Đăng nhập →</a></span>';
+    }
+  }
+  async function award(textId) {
+    if (!textId) return;
+    if (UID) {
+      try {
+        const chars = (($('rBody') && $('rBody').textContent) || '').replace(/\s+/g, '').length;
+        const units = Math.max(2, Math.min(12, Math.round(chars / 400))) || 3;   // longer texts reward a little more
+        const secs = Math.max(10, Math.min(1800, Math.round(typeof mDwell !== 'undefined' && mDwell ? mDwell : 45)));
+        await sb.rpc('record_learning_event', {
+          p_source: 'reading', p_event: 'activity_completed', p_ref: String(textId),
+          p_correct: units, p_total: units, p_seconds: secs, p_meta: { chars: chars }
+        });
+        await loadStats(); render();
+      } catch (e) { /* migration77 chưa chạy / lỗi mạng — không chặn trải nghiệm */ }
+    } else {
+      const L = readL(); L.read = L.read || [];
+      if (L.read.indexOf(textId) === -1) L.read.push(textId);
+      const t = today();
+      if (L.lastDay !== t) {   // first completion today → advance/reset the local streak
+        const y = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+        L.streak = (L.lastDay === y ? (L.streak || 0) : 0) + 1; L.lastDay = t;
+      }
+      writeL(L); S.read = L.read.length; S.streak = L.streak; render();
+    }
+  }
+  function updateProgress() {
+    const bar = $('rProgress'), el = $('readerStage'); if (!bar || !el) return;
+    const max = el.scrollHeight - el.clientHeight;
+    const pct = max > 4 ? Math.min(100, Math.max(0, el.scrollTop / max * 100)) : (el.scrollHeight <= el.clientHeight + 4 ? 100 : 0);
+    const fill = bar.firstElementChild; if (fill) fill.style.width = pct.toFixed(1) + '%';
+  }
+  (async function init() {
+    try { const { data } = await sb.auth.getSession(); UID = (data && data.session && data.session.user) ? data.session.user.id : null; }
+    catch (e) { UID = null; }
+    await loadStats(); render();
+  })();
+  return { award, updateProgress, refresh: async () => { await loadStats(); render(); } };
+})();
+window.ReadingGamify = ReadingGamify;
 
 /* ---- read aloud with sentence highlighting ----------------------------- */
 let mReading = false, mStopFn = null, mDwell = 0;
