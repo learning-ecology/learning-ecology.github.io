@@ -2825,9 +2825,18 @@ root.VLISTENParser={parseWorkbook,validateExamFull,audioFilesNeeded,applyAudioUr
         hws.forEach(h => { const k = h.kind || "slides"; if (KINDS[k]) (need[KINDS[k].table] = need[KINDS[k].table] || new Set()).add(h.lesson_id); });
         const lmaps = {};
         await Promise.all(Object.keys(need).map(async table => {
-          try { const r = await sb.from(table).select("lesson_id, title, hsk_level").in("lesson_id", [...need[table]]);
-            const m = {}; (r.data || []).forEach(l => m[l.lesson_id] = l); lmaps[table] = m; }
-          catch (e) { lmaps[table] = {}; }
+          const ids = [...need[table]];
+          const m = {};
+          try {
+            // net_tests / eng_lessons have no hsk_level column — a select that
+            // names it 400s and the whole title lookup for that kind is lost,
+            // so the assignment shows its raw slug instead of a real title.
+            // Try with hsk_level, then fall back to the columns every table has.
+            let r = await sb.from(table).select("lesson_id, title, hsk_level").in("lesson_id", ids);
+            if (r.error) r = await sb.from(table).select("lesson_id, title").in("lesson_id", ids);
+            (r.data || []).forEach(l => m[l.lesson_id] = l);
+          } catch (e) {}
+          lmaps[table] = m;
         }));
         const atByHw = {};
         try { const r = await sb.from("hsk_attempts").select("homework_id, status, score, attempt_no").eq("user_id", user.id).not("homework_id", "is", null);
