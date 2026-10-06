@@ -262,6 +262,78 @@ table.admin th{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color
 .pill-hsk4{background:linear-gradient(135deg,#22c55e,#16a34a)}
 .pill-hsk5{background:linear-gradient(135deg,#3b82f6,#2563eb)}
 .pill-hsk6{background:linear-gradient(135deg,#8b5cf6,#7c3aed)}
+
+/* ====================================================================
+   MOBILE PRACTICE (Phase 160) — a phone-first exercise experience.
+   The exercises are already tap-based (no drag), so this is layout +
+   touch-target work only. We compact the sticky header, give the stage
+   the full width, enlarge options/chunks/chips to comfortable tap sizes,
+   stack every choice into one column (no side-by-side cramping, no
+   horizontal scroll), and turn each exercise's primary action into a
+   full-width CTA at the bottom so it's reachable one-handed. Desktop and
+   tablet (≥641px) are untouched. ==================================== */
+@media(max-width:640px){
+  /* --- compact sticky header so the question is visible at once --- */
+  .header-inner{padding:7px 11px;gap:7px}
+  .brand{font-size:15px;gap:8px}
+  .brand .logo{width:28px;height:28px;font-size:16px;border-radius:8px}
+  #brandSub{display:none}                 /* drop the tagline on phones */
+  .vp-who{display:none}                    /* name is non-essential while practising */
+  .view-tabs button,.lang-tabs button{padding:6px 10px}
+  .pinyin-toggle{padding:4px 8px 4px 10px;font-size:12px}
+
+  /* --- stage uses the full width, less chrome --- */
+  main{padding:12px 10px 22px}
+  .stage{padding:15px 13px;border-radius:14px;max-width:none}
+  .crumbs{margin-bottom:10px;font-size:12px;gap:6px}
+  .progress-top{margin-bottom:12px;gap:10px}
+  .stage h2{font-size:19px;line-height:1.3}
+  .stage .q-sub{font-size:13px;margin-bottom:14px}
+
+  /* --- gap-fill --- */
+  .sentence{font-size:22px;line-height:1.55;margin:4px 0}
+  .sentence .blank{min-width:46px;margin:0 4px}
+  .sentence-py{margin-bottom:14px}
+
+  /* --- multiple-choice: one tall, full-width, tappable row each --- */
+  .options{grid-template-columns:1fr;gap:10px;margin-top:10px}
+  .opt{padding:15px 16px;font-size:18px;min-height:56px;display:flex;
+       flex-direction:column;align-items:center;justify-content:center}
+
+  /* --- sentence arrange: bigger chunks, roomier drop zone --- */
+  .arrange-target{min-height:72px;padding:11px;gap:9px}
+  .arrange-bank{gap:9px}
+  .chunk{padding:11px 15px;font-size:19px;min-height:46px;display:inline-flex;align-items:center}
+
+  /* --- matching (word↔picture and word/pic/meaning): stack the columns
+         (inline grid styles need !important to override here) --- */
+  .match-wrap{grid-template-columns:1fr!important;gap:14px}
+  .match-col h4{margin-bottom:8px}
+  .word-chip{padding:13px 15px;min-height:52px;margin-bottom:9px}
+  .word-chip .hanzi{font-size:23px}
+  .pic-grid{grid-template-columns:1fr 1fr!important;gap:9px}
+
+  /* --- touch-friendly buttons + a full-width primary CTA at the bottom --- */
+  .btn{min-height:46px;padding:11px 16px}
+  .btn.sm{min-height:40px;padding:8px 12px}
+  .stage-actions{flex-direction:column;align-items:stretch;gap:10px;margin-top:16px}
+  .stage-actions .set-nav{justify-content:center;gap:8px;row-gap:8px}
+  .stage-actions .btn.primary,.stage-actions .btn.accent{width:100%}
+  .qcount{text-align:center}
+
+  /* --- results --- */
+  .result-stats{gap:18px}
+  .score-ring{width:132px;height:132px}
+}
+
+/* smallest phones (~320px): trim the largest type a touch more */
+@media(max-width:380px){
+  .stage{padding:13px 11px}
+  .sentence{font-size:20px}
+  .stage h2{font-size:18px}
+  .opt{font-size:17px}
+  .chunk{font-size:18px}
+}
 </style>
 </head>
 <body>
