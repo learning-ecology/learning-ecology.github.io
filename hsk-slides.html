@@ -379,6 +379,29 @@ body.hz-novi .hc-vi { display:none !important; }
   #navBar{flex-wrap:wrap;justify-content:center;row-gap:.35em}
 }
 
+/* ---------- Mobile: the slide FILLS the phone (Phase 159) ----------
+   The stage is normally locked to 16:9 with its width capped by viewport
+   height. On a phone in PORTRAIT that collapses the slide into a short
+   letterbox strip (~1/3 of the screen) with the content squeezed into a thin
+   band — Chinese/pinyin/Vietnamese looked tiny and students had to pinch-zoom.
+   On phones we drop the forced 16:9 + the height-based width cap so the slide
+   uses the FULL width and height, trim the outer chrome, and (portrait only,
+   where there's vertical room) nudge the em base up for comfortable reading.
+   The desktop / tablet / projector experience is left exactly as-is. */
+@media(max-width:640px), (max-height:500px) and (orientation:landscape){
+  #wrap{padding:0;align-items:stretch;min-height:calc(100dvh - 46px)}
+  #stageWrap{width:100%;max-width:none;aspect-ratio:auto;border-radius:0;box-shadow:none}
+  body.playing .pg-intro{display:none}          /* reclaim the SEO blurb space while a slide is on */
+  .sl-head{padding:1.5vmin 3.6vmin .5vmin}
+  .sl-body{padding:1vmin 3.6vmin 1.4em}
+  .ctrl button,#btnHub,#btnToolkit,#navBar button{font-size:14px}
+}
+@media(max-width:640px) and (orientation:portrait){
+  /* portrait has the height to spare → make the real text bigger so it reads
+     without zooming (users can still fine-tune with A− / A+). */
+  .sl{font-size:calc(var(--fs,24px) * 1.15)}
+}
+
 /* bảng dụng cụ: nút KHÔNG kéo được, bảng kéo bằng thanh tiêu đề */
 #toolkit{position:absolute;right:14px;bottom:14px;z-index:var(--z-panel);width:290px;background:var(--paper);
   border:1px solid var(--line);border-radius:12px;box-shadow:0 20px 50px -20px rgba(0,0,0,.5);overflow:hidden}
@@ -1643,8 +1666,8 @@ body.hz-novi .hc-vi { display:none !important; }
   const pick = () => document.getElementById('pickScreen');
   const wrap = () => document.getElementById('wrap');
 
-  function showPick() { pick().hidden = false; wrap().hidden = true; }
-  function showStage() { pick().hidden = true; wrap().hidden = false; }
+  function showPick() { pick().hidden = false; wrap().hidden = true; document.body.classList.remove('playing'); }
+  function showStage() { pick().hidden = true; wrap().hidden = false; document.body.classList.add('playing'); }
 
   function canOpen(l) { return !l.premium || STAFF || PREMIUM || ENT.has(l.lesson_id); }
 
