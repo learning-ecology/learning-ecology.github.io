@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex">
+  <!-- ============================================================
+       MẪU BÀI THI — sao chép file này cho mỗi đề mới.
+       Chỉ sửa 3 chỗ đánh dấu "✏️ SỬA" bên dưới. KHÔNG đặt đáp án
+       vào file này — đáp án nằm trong cơ sở dữ liệu (bảng test_keys).
+       ============================================================ -->
+  <title>Bài thi — Learning Ecology</title>
+  <style>
+    :root{--ink:#183b34;--green:#11856f;--paper:#fff;--bad:#b83838;--good:#14775f}
+    *{box-sizing:border-box} body{margin:0;background:linear-gradient(135deg,#eaf4ef,#f8f4e7);color:#24332f;font:16px/1.5 system-ui,-apple-system,"Segoe UI","Noto Sans SC",Arial,sans-serif}
+    button,input{font:inherit} button{cursor:pointer}
+    .top{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.94);backdrop-filter:blur(12px);border-bottom:1px solid #d5e4de}
+    .top-inner{max-width:1080px;margin:auto;padding:10px 18px;display:flex;gap:14px;align-items:center}
+    .brand{font-weight:800;color:var(--ink);white-space:nowrap}.brand small{display:block;font-weight:500;color:#648078}
+    .progress{flex:1;height:10px;background:#dce9e4;border-radius:20px;overflow:hidden}.bar{height:100%;width:0;background:linear-gradient(90deg,var(--green),#5bbfa8);transition:.25s}
+    .timer{font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
+    main{max-width:1080px;margin:24px auto 90px;padding:0 18px}
+    .name{margin:14px 0;max-width:440px}.name label{display:block;font-weight:700;margin-bottom:6px}.name input{width:100%;padding:12px 14px;border:1px solid #cfe0d9;border-radius:12px}
+    .test-page{margin:22px 0;background:var(--paper);border-radius:20px;box-shadow:0 12px 32px #29473b14;overflow:hidden}
+    .section-head{padding:14px 18px;background:#f4faf7;border-bottom:1px solid #dbeae4;display:flex;justify-content:space-between;gap:10px}
+    .section-head h2{font-size:19px;margin:0;color:var(--ink)}.range{color:#678078}
+    .page-grid{display:grid;grid-template-columns:minmax(0,1fr) 250px}
+    .sheet{padding:16px;background:#e9efec;display:flex;justify-content:center}.sheet img{max-width:100%;background:#fff;box-shadow:0 3px 15px #0002}
+    .answers{padding:16px;position:sticky;top:70px}.answers h3{margin:0 0 10px;font-size:15px;color:var(--ink)}
+    .q{padding:9px 0;border-bottom:1px solid #e1ebe7}.q:last-child{border:0}.q strong{display:block;margin-bottom:6px}
+    .opts{display:flex;flex-wrap:wrap;gap:6px}
+    .opt input{position:absolute;opacity:0}.opt span{display:inline-flex;min-width:36px;height:34px;padding:0 10px;align-items:center;justify-content:center;border:1px solid #bfd3cc;border-radius:9px;background:#fff;font-weight:700}
+    .opt input:checked+span{background:var(--green);border-color:var(--green);color:#fff}
+    .q.correct .opt input:checked+span{background:var(--good)}.q.wrong .opt input:checked+span{background:var(--bad);border-color:var(--bad)}
+    .key{display:none;margin-top:6px;font-size:13px}.submitted .key{display:block}.q.correct .key{color:var(--good)}.q.wrong .key{color:var(--bad)}
+    .actions{position:sticky;bottom:0;z-index:19;background:#fff;border-top:1px solid #d6e4df;padding:12px 18px;display:flex;justify-content:center;gap:10px}
+    .btn{border:0;border-radius:11px;padding:11px 18px;font-weight:800}.primary{background:var(--green);color:#fff}.secondary{background:#e8f1ed;color:var(--ink)}.danger{background:#fff0f0;color:#9c2c2c}
+    dialog{border:0;border-radius:22px;padding:0;max-width:520px;width:calc(100% - 32px)}dialog::backdrop{background:#13352d99}
+    .result{padding:26px;text-align:center}.score{font-size:52px;font-weight:900;color:var(--green);margin:12px}
+    @media(max-width:820px){.page-grid{grid-template-columns:1fr}.answers{position:static}}
+  </style>
+</head>
+<body>
+  <header class="top"><div class="top-inner">
+    <div class="brand">Bài thi<small>Learning Ecology</small></div>
+    <div class="progress"><div class="bar" id="bar"></div></div>
+    <div id="count">0/0 câu</div>
+    <div class="timer" id="timer">00:00</div>
+  </div></header>
+
+  <main>
+    <div class="name"><label for="student">Họ và tên học viên</label>
+      <input id="student" autocomplete="name" placeholder="Nhập họ và tên"></div>
+    <div id="pages"></div>
+  </main>
+
+  <div class="actions">
+    <button class="btn secondary" id="pause">Tạm dừng</button>
+    <button class="btn danger" id="reset">Làm lại</button>
+    <button class="btn primary" id="submit">Nộp bài</button>
+  </div>
+
+  <dialog id="resultDialog"><div class="result">
+    <h2>Kết quả bài thi</h2>
+    <div class="score" id="score">–</div>
+    <p id="message"></p>
+    <button class="btn secondary" id="review">Xem lại đáp án</button>
+    <button class="btn primary" id="closeResult">Đóng</button>
+  </div></dialog>
+
+  <script>
+  /* ============================================================
+     ✏️ SỬA 1 — thông tin đề (phải KHỚP với dòng trong bảng test_keys)
+     ============================================================ */
+  const testKey        = "vd-de-moi";     // mã đề, trùng test_keys.test_key
+  const durationSeconds = 40 * 60;         // thời gian làm bài (giây)
+
+  /* ✏️ SỬA 2 — cấu trúc câu hỏi: mỗi nhóm có khoảng câu, tiêu đề, các lựa chọn */
+  const groups = [
+    { range:[1,5],  title:"Phần 1", options:["✓","✕"] },
+    { range:[6,10], title:"Phần 2", options:["A","B","C"] }
+    // …thêm nhóm tùy đề. Tổng số câu tự tính từ các range.
+  ];
+
+  /* ✏️ SỬA 3 — ảnh đề cho từng nhóm (theo đúng thứ tự groups). Có thể để "" nếu không có ảnh */
+  const pageImages = [
+    "",   // ảnh cho nhóm 1
+    ""    // ảnh cho nhóm 2
+  ];
+
+  /* ============================================================
+     ⛔ KHÔNG cần sửa phần dưới — phần này lo lưu bài, đồng hồ,
+        nộp bài và chấm điểm (điểm do MÁY CHỦ chấm).
+     ============================================================ */
+  const totalQuestions = groups.reduce((m,g)=>Math.max(m,g.range[1]),0);
+  const storeKey = "test-" + testKey;
+  const state = JSON.parse(localStorage.getItem(storeKey) || '{"answers":{},"seconds":'+durationSeconds+',"paused":false,"name":""}');
+  if(!state.startedAtISO) state.startedAtISO = new Date().toISOString();
+  if(state.seconds==null) state.seconds = durationSeconds;
+
+  const pages = document.getElementById("pages");
+  groups.forEach((g,i)=>{
+    const [a,b] = g.range;
+    const qs = Array.from({length:b-a+1},(_,j)=>a+j).map(n=>
+      `<div class="q" id="q${n}"><strong>Câu ${n}</strong><div class="opts">`+
+      g.options.map(o=>`<label class="opt"><input type="radio" name="q${n}" value="${o}"><span>${o}</span></label>`).join("")+
+      `</div><div class="key"></div></div>`).join("");
+    pages.insertAdjacentHTML("beforeend",
+      `<section class="test-page"><div class="section-head"><h2>${g.title}</h2><span class="range">Câu ${a}-${b}</span></div>`+
+      `<div class="page-grid"><div class="sheet">${pageImages[i]?`<img src="${pageImages[i]}" alt="Đề câu ${a}-${b}">`:""}</div>`+
+      `<aside class="answers"><h3>Chọn đáp án</h3>${qs}</aside></div></section>`);
+  });
+
+  document.getElementById("student").value = state.name || "";
+  Object.entries(state.answers||{}).forEach(([n,v])=>{const el=document.querySelector(`input[name=q${n}][value="${v}"]`);if(el)el.checked=true;});
+  function save(){ state.name=document.getElementById("student").value; localStorage.setItem(storeKey,JSON.stringify(state)); }
+  function update(){
+    const done=Object.keys(state.answers).length;
+    document.getElementById("count").textContent=`${done}/${totalQuestions} câu`;
+    document.getElementById("bar").style.width=`${totalQuestions?done/totalQuestions*100:0}%`;
+    const m=Math.floor(state.seconds/60),s=state.seconds%60;
+    document.getElementById("timer").textContent=`${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+    document.getElementById("pause").textContent=state.paused?"Tiếp tục":"Tạm dừng";
+  }
+  document.addEventListener("change",e=>{ if(e.target.matches('input[type=radio]')){ state.answers[e.target.name.slice(1)]=e.target.value; save(); update(); }});
+  document.getElementById("student").addEventListener("input",save);
+  document.getElementById("pause").onclick=()=>{ state.paused=!state.paused; save(); update(); };
+  document.getElementById("reset").onclick=()=>{ if(confirm("Xóa toàn bộ bài làm và bắt đầu lại?")){ localStorage.removeItem(storeKey); location.reload(); }};
+  setInterval(()=>{ if(!state.paused&&state.seconds>0){ state.seconds--; save(); update(); if(state.seconds===0) submitTest(); }},1000);
+
+  async function submitTest(){
+    const btn=document.getElementById("submit");
+    if(btn.dataset.busy)return; btn.dataset.busy="1"; const old=btn.textContent; btn.textContent="Đang nộp…"; btn.disabled=true;
+    const elapsed=Math.max(0,durationSeconds-(state.seconds||0));
+    const res=(window.LMS&&LMS.submitTest)
+      ? await LMS.submitTest(testKey,state.answers||{},{seconds:elapsed,started:state.startedAtISO})
+      : {error:"Chưa tải được trình theo dõi. Hãy mở bài thi từ Learning Hub."};
+    btn.disabled=false; btn.textContent=old; delete btn.dataset.busy;
+    const dlg=document.getElementById("resultDialog");
+    if(res&&res.error){
+      document.getElementById("score").textContent="—";
+      document.getElementById("message").textContent="Chưa lưu được kết quả: "+res.error+" Hãy đăng nhập từ Learning Hub rồi nộp lại — bài làm của bạn vẫn được giữ.";
+      dlg.showModal(); return;
+    }
+    document.body.classList.add("submitted");
+    (res.detail||[]).forEach(d=>{
+      const q=document.getElementById("q"+d.n); if(!q)return;
+      q.classList.remove("correct","wrong");
+      if(d.student)q.classList.add(d.ok?"correct":"wrong");
+      const kd=q.querySelector(".key");
+      if(kd)kd.innerHTML="Đáp án đúng: <b>"+d.correct+"</b>"+(d.explanation?" — "+d.explanation:"");
+    });
+    document.querySelectorAll('input[type=radio]').forEach(i=>{i.disabled=true;});
+    document.getElementById("score").textContent=res.correct+"/"+res.total;
+    document.getElementById("message").textContent=(state.name?state.name+", ":"")+"bạn trả lời đúng "+res.correct+"/"+res.total+" câu và đạt "+res.score+"/"+res.max_score+" điểm. Lần làm thứ "+res.attempt_no+".";
+    dlg.showModal();
+  }
+  document.getElementById("submit").onclick=submitTest;
+  document.getElementById("closeResult").onclick=()=>document.getElementById("resultDialog").close();
+  document.getElementById("review").onclick=()=>{ document.getElementById("resultDialog").close(); const q1=document.getElementById("q1"); if(q1)q1.scrollIntoView({behavior:"smooth"}); };
+  update();
+  </script>
+
+  <!-- ⛔ GIỮ NGUYÊN hai dòng này (đúng tên miền learningecology.io.vn) -->
+  <link rel="preconnect" href="https://lqeetnlfqmarlqmbxusn.supabase.co" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://learningecology.io.vn/tracker.js" defer></script>
+</body>
+</html>

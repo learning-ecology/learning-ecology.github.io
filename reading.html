@@ -2002,7 +2002,9 @@ $('lvlChips').addEventListener('keydown', e => {
     e.preventDefault(); e.target.click();
   }
 });
-$('libSearch').addEventListener('input', () => renderLibrary());
+/* debounce the free-text search: typing no longer re-renders the whole
+   library (hundreds of texts) on every keystroke — smoother, esp. on mobile */
+$('libSearch').addEventListener('input', debounce(() => renderLibrary(), 180));
 $('themeSel').addEventListener('change', () => { $('subSel').value = ''; renderLibrary(); });   // theme change resets subtopic
 $('subSel').addEventListener('change', () => renderLibrary());
 $('accSel').addEventListener('change', () => renderLibrary());
@@ -2517,7 +2519,10 @@ $('vLang').addEventListener('click', e => {
   vLang = b.dataset.lang; localStorage.setItem('crh-vlang', vLang);
   syncVLang(); renderVocab();
 });
-['vSearch','vLvl','vStatus','vSort'].forEach(id => $(id).addEventListener('input', renderVocab));
+/* text search is debounced (whole vocab list re-renders otherwise); the
+   level/status/sort selects stay immediate since they change discretely */
+$('vSearch').addEventListener('input', debounce(renderVocab, 180));
+['vLvl','vStatus','vSort'].forEach(id => $(id).addEventListener('input', renderVocab));
 
 /* ---- learning status, DERIVED from the existing SRS fields (no new columns) ---- */
 function vAcc(v)     { return v.srs.total ? v.srs.ok / v.srs.total : 0; }
