@@ -53,6 +53,10 @@
     --l5:#c62f2f; --l5bg:#fde3e3; --l6:#7c3aad; --l6bg:#f1e5fb;
     --l7:#0d7f7a; --l7bg:#dcf2f0; --l8:#b8267d; --l8bg:#fbe1f0;
     --l9:#47526b; --l9bg:#e6e9f2;
+    /* Mandarin tone colors (1 red · 2 orange · 3 green · 4 blue · neutral gray) */
+    --tone1:#e02424; --tone1bg:#fde3e3; --tone2:#d9750a; --tone2bg:#fcefdc;
+    --tone3:#1a9d4e; --tone3bg:#e2f4e9; --tone4:#2563eb; --tone4bg:#e4edfb;
+    --toneN:#7a828f; --toneNbg:#eceff4;
     --hz:26px; --py:14px; --tr:15px;
     --hz-font:"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
     /* phông đọc tiếng Anh — mặc định Atkinson Hyperlegible (thiết kế cho dễ đọc) */
@@ -68,6 +72,9 @@
       --l5:#ff7b7b; --l5bg:#3a2020; --l6:#cfa0f0; --l6bg:#30203f;
       --l7:#4fd1c5; --l7bg:#123734; --l8:#f48fce; --l8bg:#3d1830;
       --l9:#aab6d3; --l9bg:#262d40;
+      --tone1:#ff6b6b; --tone1bg:#3a2020; --tone2:#ffb057; --tone2bg:#38281c;
+      --tone3:#59d98e; --tone3bg:#173226; --tone4:#79b8ff; --tone4bg:#1c2b47;
+      --toneN:#aab3c5; --toneNbg:#262d40;
     }
   }
   * { box-sizing:border-box; }
@@ -112,6 +119,15 @@
   .lv7 { color:var(--l7); background:var(--l7bg); } .lv8 { color:var(--l8); background:var(--l8bg); }
   .lv9 { color:var(--l9); background:var(--l9bg); }
   .lv0 { color:var(--muted); background:var(--bg); }
+  /* tone legend chips + the colour-mode switch (Phase 161) */
+  .tlv { display:inline-block; font-size:11.5px; font-weight:700; border-radius:6px; padding:1px 7px; white-space:nowrap; }
+  .tlv1 { color:var(--tone1); background:var(--tone1bg); } .tlv2 { color:var(--tone2); background:var(--tone2bg); }
+  .tlv3 { color:var(--tone3); background:var(--tone3bg); } .tlv4 { color:var(--tone4); background:var(--tone4bg); }
+  .tlv0 { color:var(--toneN); background:var(--toneNbg); }
+  .cmseg { display:inline-flex; gap:2px; background:var(--line); border-radius:999px; padding:2px; }
+  .cmseg-btn { border:none; background:transparent; color:var(--muted); font:inherit; font-size:13px; font-weight:700;
+               padding:4px 11px; border-radius:999px; cursor:pointer; white-space:nowrap; }
+  .cmseg-btn.active { background:var(--panel); color:var(--ink); box-shadow:0 1px 3px rgba(20,30,60,.12); }
 
   /* library */
   .libgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:12px; }
@@ -187,17 +203,30 @@
   .rpara.below .tok { flex-direction:column-reverse; }
   .tok.zh { cursor:pointer; }
   .tok.zh:hover { background:var(--accent-soft); }
-  body.colors-on .tok.l1 .hz { color:var(--l1); } body.colors-on .tok.l2 .hz { color:var(--l2); }
-  body.colors-on .tok.l3 .hz { color:var(--l3); } body.colors-on .tok.l4 .hz { color:var(--l4); }
-  body.colors-on .tok.l5 .hz { color:var(--l5); } body.colors-on .tok.l6 .hz { color:var(--l6); }
-  body.colors-on .tok.l7 .hz { color:var(--l7); } body.colors-on .tok.l8 .hz { color:var(--l8); }
-  body.colors-on .tok.l9 .hz { color:var(--l9); }
+  /* Level colors apply only when NOT in tone-colour mode (the two are
+     alternatives; switching between them is pure CSS on the body). */
+  body.colors-on:not(.tone-colors) .tok.l1 .hz { color:var(--l1); } body.colors-on:not(.tone-colors) .tok.l2 .hz { color:var(--l2); }
+  body.colors-on:not(.tone-colors) .tok.l3 .hz { color:var(--l3); } body.colors-on:not(.tone-colors) .tok.l4 .hz { color:var(--l4); }
+  body.colors-on:not(.tone-colors) .tok.l5 .hz { color:var(--l5); } body.colors-on:not(.tone-colors) .tok.l6 .hz { color:var(--l6); }
+  body.colors-on:not(.tone-colors) .tok.l7 .hz { color:var(--l7); } body.colors-on:not(.tone-colors) .tok.l8 .hz { color:var(--l8); }
+  body.colors-on:not(.tone-colors) .tok.l9 .hz { color:var(--l9); }
   body.colors-on .tok.zh { border-bottom:3px solid transparent; }
-  body.colors-on .tok.l1 { border-bottom-color:var(--l1); } body.colors-on .tok.l2 { border-bottom-color:var(--l2); }
-  body.colors-on .tok.l3 { border-bottom-color:var(--l3); } body.colors-on .tok.l4 { border-bottom-color:var(--l4); }
-  body.colors-on .tok.l5 { border-bottom-color:var(--l5); } body.colors-on .tok.l6 { border-bottom-color:var(--l6); }
-  body.colors-on .tok.l7 { border-bottom-color:var(--l7); } body.colors-on .tok.l8 { border-bottom-color:var(--l8); }
-  body.colors-on .tok.l9 { border-bottom-color:var(--l9); }
+  body.colors-on:not(.tone-colors) .tok.l1 { border-bottom-color:var(--l1); } body.colors-on:not(.tone-colors) .tok.l2 { border-bottom-color:var(--l2); }
+  body.colors-on:not(.tone-colors) .tok.l3 { border-bottom-color:var(--l3); } body.colors-on:not(.tone-colors) .tok.l4 { border-bottom-color:var(--l4); }
+  body.colors-on:not(.tone-colors) .tok.l5 { border-bottom-color:var(--l5); } body.colors-on:not(.tone-colors) .tok.l6 { border-bottom-color:var(--l6); }
+  body.colors-on:not(.tone-colors) .tok.l7 { border-bottom-color:var(--l7); } body.colors-on:not(.tone-colors) .tok.l8 { border-bottom-color:var(--l8); }
+  body.colors-on:not(.tone-colors) .tok.l9 { border-bottom-color:var(--l9); }
+  /* ---- Tone colours (Phase 161): each hanzi is coloured by its Mandarin
+     tone. Characters are always wrapped in .hc t0–t4 spans, so in level mode
+     they simply inherit the .hz level colour; in tone mode these per-char
+     rules override it. Pinyin, punctuation and numbers are never tone-coloured. */
+  body.colors-on.tone-colors .tok .hz .hc.t1 { color:var(--tone1); }
+  body.colors-on.tone-colors .tok .hz .hc.t2 { color:var(--tone2); }
+  body.colors-on.tone-colors .tok .hz .hc.t3 { color:var(--tone3); }
+  body.colors-on.tone-colors .tok .hz .hc.t4 { color:var(--tone4); }
+  body.colors-on.tone-colors .tok .hz .hc.t0 { color:var(--toneN); }
+  /* keep the selected-word highlight readable over any tone colour */
+  .tok.wsel .hz .hc { color:#fff !important; }
   .tok .py { font-size:var(--py); line-height:1.25; color:var(--muted);
              font-family:"Helvetica Neue",Arial,sans-serif; white-space:nowrap; padding:0 2px; }
   body.py-hidden .tok .py { display:none; }
@@ -728,7 +757,12 @@
               <option value="hidden">Ẩn</option>
             </select></div>
           <label class="toggle"><input type="checkbox" id="tgTr" checked> Bản dịch tiếng Việt</label>
-          <label class="toggle"><input type="checkbox" id="tgColors" checked> Màu HSK</label>
+          <label class="toggle"><input type="checkbox" id="tgColors" checked> Tô màu chữ Hán</label>
+          <div class="group" id="colorModeRow">Kiểu màu
+            <span class="cmseg" role="group" aria-label="Kiểu tô màu chữ Hán">
+              <button type="button" class="cmseg-btn active" data-cm="level">字词等级</button>
+              <button type="button" class="cmseg-btn" data-cm="tone">声调</button>
+            </span></div>
           <label class="toggle"><input type="checkbox" id="tgTips" checked> Chú thích từ (rê chuột)</label>
           <label class="toggle"><input type="checkbox" id="tgAudio" checked> Âm thanh khi nhấp từ</label>
         </div>
@@ -1485,6 +1519,14 @@ function setLang(l, redraw) {
 /* the level filter chips are rebuilt whenever the language changes */
 function buildLegend() {
   const box = $('rLegend'); if (!box) return;
+  // In tone-colour mode (Chinese only) the legend explains the tone colours.
+  if (isZh() && document.body.classList.contains('tone-colors')) {
+    box.innerHTML =
+      '<span class="tlv tlv1">一声</span><span class="tlv tlv2">二声</span>' +
+      '<span class="tlv tlv3">三声</span><span class="tlv tlv4">四声</span>' +
+      '<span class="tlv tlv0">轻声</span>';
+    return;
+  }
   box.innerHTML = levelsOf().map(n => '<span class="lv lv' + n + '">' + levelLabel(n) + '</span>').join('') +
     (isZh() ? '<span class="lv lv0">ngoài HSK</span>' : '');
 }
@@ -2248,10 +2290,23 @@ function renderReader() {
       const pyEl = document.createElement('span'); pyEl.className = 'py';
       const hzEl = document.createElement('span'); hzEl.className = 'hz';
       const syls = [];
-      for (let k = 0; k < tok.w.length; k++) { const it = chars[ci + k]; if (it && it.isZh) syls.push(it.mark); }
+      for (let k = 0; k < tok.w.length; k++) {
+        const it = chars[ci + k], ch = tok.w[k];
+        if (tok.zh && it && it.isZh) {
+          syls.push(it.mark);
+          // wrap every hanzi so tone mode can colour it per-character; in level
+          // mode the span just inherits the word's HSK colour (pure-CSS swap).
+          const cs = document.createElement('span');
+          cs.className = 'hc t' + ((it.tone >= 1 && it.tone <= 4) ? it.tone : 0);
+          cs.textContent = ch;
+          hzEl.appendChild(cs);
+        } else {
+          hzEl.appendChild(document.createTextNode(ch));   // punctuation / numbers / non-Chinese: never tone-coloured
+        }
+      }
       ci += tok.w.length;
       pyEl.textContent = tok.zh ? syls.join('') : ' ';
-      hzEl.textContent = tok.w;
+      /* hzEl is already filled with per-character tone spans above */
       cell.appendChild(pyEl); cell.appendChild(hzEl);
       if (tok.zh) {
         cell.addEventListener('click', ev => { ev.stopPropagation(); wordClicked(tok.w, line, cell); });
@@ -3260,7 +3315,7 @@ $('btnImport').addEventListener('change', e => {
 });
 
 /* ================= preferences ================= */
-let prefs = { pyPos: 'above', tr: true, colors: true, tips: true, audioClick: true, panel: false,
+let prefs = { pyPos: 'above', tr: true, colors: true, colorMode: 'level', tips: true, audioClick: true, panel: false,
   hz: 26, py: 14, trS: 15, rate: 0.9, net: true, voice: '', azKey: '', azRegion: 'southeastasia',
   rdfont: 'atkinson', rtheme: '' };
 function applyPrefs() {
@@ -3281,6 +3336,10 @@ function applyPrefs() {
   document.body.classList.toggle('py-hidden', prefs.pyPos === 'hidden');
   document.body.classList.toggle('tr-hidden', !prefs.tr);
   document.body.classList.toggle('colors-on', prefs.colors);
+  document.body.classList.toggle('tone-colors', prefs.colors && prefs.colorMode === 'tone');
+  document.querySelectorAll('#colorModeSeg .cmseg-btn, .cmseg-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.cm === prefs.colorMode));
+  if (typeof buildLegend === 'function') buildLegend();   // legend follows the active mode
   document.querySelectorAll('.rpara').forEach(p => p.classList.toggle('below', prefs.pyPos === 'below'));
   if (typeof applyReadTheme === 'function') applyReadTheme();
 }
@@ -3314,6 +3373,15 @@ function loadPrefs() {
 $('pyPos').addEventListener('change', () => { prefs.pyPos = $('pyPos').value; applyPrefs(); savePrefs(); });
 $('tgTr').addEventListener('change', () => { prefs.tr = $('tgTr').checked; applyPrefs(); savePrefs(); });
 $('tgColors').addEventListener('change', () => { prefs.colors = $('tgColors').checked; applyPrefs(); savePrefs(); });
+/* colour-mode switch: 字词等级 (HSK level) ↔ 声调 (tone). Picking a mode also
+   turns colouring on so the change is visible immediately. Pure CSS swap — no
+   re-render needed, the per-character tone spans are always present. */
+document.querySelectorAll('.cmseg').forEach(seg => seg.addEventListener('click', e => {
+  const b = e.target.closest('.cmseg-btn'); if (!b) return;
+  prefs.colorMode = b.dataset.cm;
+  if (!prefs.colors) { prefs.colors = true; $('tgColors').checked = true; }
+  applyPrefs(); savePrefs();
+}));
 $('tgTips').addEventListener('change', () => { prefs.tips = $('tgTips').checked; savePrefs(); renderReader(); });
 $('tgAudio').addEventListener('change', () => { prefs.audioClick = $('tgAudio').checked; savePrefs(); });
 $('szHz').addEventListener('input', () => { prefs.hz = +$('szHz').value; applyPrefs(); savePrefs(); });
