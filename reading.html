@@ -119,14 +119,18 @@
   .lv7 { color:var(--l7); background:var(--l7bg); } .lv8 { color:var(--l8); background:var(--l8bg); }
   .lv9 { color:var(--l9); background:var(--l9bg); }
   .lv0 { color:var(--muted); background:var(--bg); }
-  /* tone legend chips + the colour-mode switch (Phase 161) */
-  .tlv { display:inline-block; font-size:11.5px; font-weight:700; border-radius:6px; padding:1px 7px; white-space:nowrap; }
-  .tlv1 { color:var(--tone1); background:var(--tone1bg); } .tlv2 { color:var(--tone2); background:var(--tone2bg); }
-  .tlv3 { color:var(--tone3); background:var(--tone3bg); } .tlv4 { color:var(--tone4); background:var(--tone4bg); }
-  .tlv0 { color:var(--toneN); background:var(--toneNbg); }
-  .cmseg { display:inline-flex; gap:2px; background:var(--line); border-radius:999px; padding:2px; }
+  /* tone legend (coloured swatch + Vietnamese label) + the colour-mode switch (Phase 161) */
+  .tleg-h { font-size:12px; font-weight:800; color:var(--muted); align-self:center; }
+  .tleg { display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:700; color:var(--ink); white-space:nowrap; }
+  .tleg i { width:13px; height:13px; border-radius:4px; display:inline-block; flex:none; }
+  .tleg.t1 i { background:var(--tone1); } .tleg.t2 i { background:var(--tone2); }
+  .tleg.t3 i { background:var(--tone3); } .tleg.t4 i { background:var(--tone4); }
+  .tleg.t0 i { background:var(--toneN); }
+  #colorModeRow { flex-wrap:wrap; }
+  #colorModeRow .cmseg { margin-left:auto; }
+  .cmseg { display:inline-flex; gap:2px; background:var(--line); border-radius:999px; padding:2px; flex-wrap:wrap; }
   .cmseg-btn { border:none; background:transparent; color:var(--muted); font:inherit; font-size:13px; font-weight:700;
-               padding:4px 11px; border-radius:999px; cursor:pointer; white-space:nowrap; }
+               padding:5px 12px; border-radius:999px; cursor:pointer; white-space:nowrap; }
   .cmseg-btn.active { background:var(--panel); color:var(--ink); box-shadow:0 1px 3px rgba(20,30,60,.12); }
 
   /* library */
@@ -758,10 +762,10 @@
             </select></div>
           <label class="toggle"><input type="checkbox" id="tgTr" checked> Bản dịch tiếng Việt</label>
           <label class="toggle"><input type="checkbox" id="tgColors" checked> Tô màu chữ Hán</label>
-          <div class="group" id="colorModeRow">Kiểu màu
-            <span class="cmseg" role="group" aria-label="Kiểu tô màu chữ Hán">
-              <button type="button" class="cmseg-btn active" data-cm="level">字词等级</button>
-              <button type="button" class="cmseg-btn" data-cm="tone">声调</button>
+          <div class="group" id="colorModeRow">Màu sắc chữ Hán
+            <span class="cmseg" role="group" aria-label="Màu sắc chữ Hán">
+              <button type="button" class="cmseg-btn active" data-cm="level">Theo cấp độ</button>
+              <button type="button" class="cmseg-btn" data-cm="tone">Theo thanh điệu</button>
             </span></div>
           <label class="toggle"><input type="checkbox" id="tgTips" checked> Chú thích từ (rê chuột)</label>
           <label class="toggle"><input type="checkbox" id="tgAudio" checked> Âm thanh khi nhấp từ</label>
@@ -1522,9 +1526,12 @@ function buildLegend() {
   // In tone-colour mode (Chinese only) the legend explains the tone colours.
   if (isZh() && document.body.classList.contains('tone-colors')) {
     box.innerHTML =
-      '<span class="tlv tlv1">一声</span><span class="tlv tlv2">二声</span>' +
-      '<span class="tlv tlv3">三声</span><span class="tlv tlv4">四声</span>' +
-      '<span class="tlv tlv0">轻声</span>';
+      '<span class="tleg-h">Màu thanh điệu:</span>' +
+      '<span class="tleg t1"><i></i>Thanh 1</span>' +
+      '<span class="tleg t2"><i></i>Thanh 2</span>' +
+      '<span class="tleg t3"><i></i>Thanh 3</span>' +
+      '<span class="tleg t4"><i></i>Thanh 4</span>' +
+      '<span class="tleg t0"><i></i>Thanh nhẹ</span>';
     return;
   }
   box.innerHTML = levelsOf().map(n => '<span class="lv lv' + n + '">' + levelLabel(n) + '</span>').join('') +
